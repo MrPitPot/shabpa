@@ -15,6 +15,26 @@ public static class Schedule
         }
         return candidate;
     }
+
+    /// <summary>The moment a day + time picker describes. With no day chosen it is the next time the clock reads
+    /// <paramref name="hour"/>:<paramref name="minute"/> (today, or tomorrow once that has passed); with a day it is
+    /// exactly that day, even if the moment is already in the past (the caller rejects it).</summary>
+    public static DateTime On(DateTime? day, int hour, int minute, DateTime now) =>
+        day is { } d ? d.Date.AddHours(hour).AddMinutes(minute) : Next(hour, minute, [], now);
+}
+
+/// <summary>Rules for a two-digit hour or minute box: what may be typed and when the box is full.</summary>
+public static class ClockField
+{
+    /// <summary>True when <paramref name="text"/> (Latin digits) is an acceptable value or partial value:
+    /// at most two digits and not above <paramref name="max"/>.</summary>
+    public static bool Accepts(string text, int max) =>
+        text.Length <= 2 && text.All(char.IsAsciiDigit) && (text.Length == 0 || int.Parse(text) <= max);
+
+    /// <summary>True once nothing more can be typed: two digits, or one digit that cannot start a valid
+    /// two-digit value (e.g. «4» for an hour), so focus can move on to the next box.</summary>
+    public static bool Complete(string text, int max) =>
+        Accepts(text, max) && (text.Length == 2 || (text.Length == 1 && (text[0] - '0') * 10 > max));
 }
 
 /// <summary>The list of pending power commands. Pure logic; the caller supplies the clock.</summary>

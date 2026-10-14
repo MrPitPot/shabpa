@@ -114,7 +114,7 @@ public partial class HomePage : PageBase
 
     /// <summary>«فردا ساعت ۰۱:۳۰» / "Tomorrow at 01:30".</summary>
     internal static string At(DateTime when, DateTime now) =>
-        L.T($"{Fa.RelativeDay(when, now)} ساعت {Fa.Clock(when)}", $"{Fa.RelativeDay(when, now)} at {Fa.Clock(when)}");
+        L.T($"{Fa.DayOf(when, now)} ساعت {Fa.Clock(when)}", $"{Fa.DayOf(when, now)} at {Fa.Clock(when)}");
 
     internal static string When(ScheduledCommand cmd, DateTime now)
     {

@@ -137,7 +137,7 @@ public class PageBase : UserControl
         return () => toggles.Where(t => t.button.IsChecked == true).Select(t => t.day).ToList();
     }
 
-    protected static string Latin(string text)
+    protected internal static string Latin(string text)
     {
         var chars = text.ToCharArray();
         for (var i = 0; i < chars.Length; i++)

@@ -48,6 +48,40 @@ public class ScheduleTests
     [Fact]
     public void Same_weekday_earlier_time_waits_a_week() =>
         Assert.Equal(new DateTime(2026, 10, 21, 7, 0, 0), Schedule.Next(7, 0, [DayOfWeek.Wednesday], Wed));
+
+    [Fact]
+    public void No_day_picked_follows_the_time() => Assert.Equal(new DateTime(2026, 10, 15, 3, 0, 0), Schedule.On(null, 3, 0, Wed));
+
+    [Fact]
+    public void Picked_day_is_used_as_is() =>
+        Assert.Equal(new DateTime(2026, 10, 25, 3, 0, 0), Schedule.On(new DateTime(2026, 10, 25), 3, 0, Wed));
+
+    [Fact]
+    public void Picked_day_in_the_past_is_not_moved() =>
+        Assert.True(Schedule.On(Wed.Date, 3, 0, Wed) < Wed);
+}
+
+public class ClockFieldTests
+{
+    [Theory]
+    [InlineData("", 23, true)]
+    [InlineData("2", 23, true)]
+    [InlineData("23", 23, true)]
+    [InlineData("24", 23, false)]
+    [InlineData("230", 23, false)]
+    [InlineData("59", 59, true)]
+    [InlineData("60", 59, false)]
+    [InlineData("1a", 59, false)]
+    public void Accepts(string text, int max, bool ok) => Assert.Equal(ok, ClockField.Accepts(text, max));
+
+    [Theory]
+    [InlineData("1", 23, false)]
+    [InlineData("2", 23, false)]
+    [InlineData("3", 23, true)]
+    [InlineData("09", 23, true)]
+    [InlineData("5", 59, false)]
+    [InlineData("6", 59, true)]
+    public void Complete(string text, int max, bool done) => Assert.Equal(done, ClockField.Complete(text, max));
 }
 
 public class CommandQueueTests

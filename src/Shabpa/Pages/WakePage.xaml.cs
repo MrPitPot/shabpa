@@ -16,6 +16,7 @@ public partial class WakePage : PageBase
     {
         InitializeComponent();
         _days = DayToggles(DayPanel);
+        TimeBoxes.Wire(HourBox, MinuteBox);
     }
 
     private void OnAdd(object sender, RoutedEventArgs e)

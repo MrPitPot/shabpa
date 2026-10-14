@@ -10,7 +10,10 @@ public sealed class DownloadsPage : PageBase
     private readonly StackPanel _launchers = new();
     private readonly WrapPanel _pick = new() { Margin = new Thickness(0, 10, 0, 0) };
     private readonly WrapPanel _actions = new() { Margin = new Thickness(0, 6, 0, 0) };
-    private readonly TextBox _time = new() { Style = St("Input"), Width = 90, FlowDirection = FlowDirection.LeftToRight, Text = "03:00", Padding = new Thickness(10, 6, 10, 6) };
+    private readonly TextBox _hour = new() { Style = St("NumberInput"), Text = "03" };
+    private readonly TextBox _minute = new() { Style = St("NumberInput"), Text = "00" };
+    private readonly DayPicker _day;
+    private readonly TextBlock _when = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
     private readonly TextBox _quiet = new() { Style = St("Input"), Width = 70, FlowDirection = FlowDirection.LeftToRight, Text = "10", Padding = new Thickness(10, 6, 10, 6) };
     private readonly TextBlock _note = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
     private readonly StackPanel _plans = new();
@@ -43,8 +46,25 @@ public sealed class DownloadsPage : PageBase
         _form = formCard;
         form.Children.Add(Ui2.Label(L.T("لانچر", "Launcher")));
         form.Children.Add(_pick);
-        form.Children.Add(Ui2.Label(L.T("ساعت شروع (۲۴ ساعته، مثلاً ۰۳:۰۰)", "Start time (24-hour, e.g. 03:00)")));
-        form.Children.Add(new StackPanel { Children = { _time }, HorizontalAlignment = HorizontalAlignment.Left });
+        TimeBoxes.Wire(_hour, _minute);
+        _day = new DayPicker(() => TimeBoxes.TryRead(_hour, _minute, out var h, out var m) ? (h, m) : null);
+        _day.Changed += ShowWhen;
+        _hour.TextChanged += (_, _) => ShowWhen();
+        _minute.TextChanged += (_, _) => ShowWhen();
+        form.Children.Add(Ui2.Label(L.T("روز شروع", "Start day")));
+        form.Children.Add(new StackPanel { Children = { _day.View }, HorizontalAlignment = HorizontalAlignment.Left });
+        form.Children.Add(Ui2.Label(L.T("ساعت شروع (۲۴ ساعته)", "Start time (24-hour)")));
+        form.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal, FlowDirection = FlowDirection.LeftToRight, HorizontalAlignment = HorizontalAlignment.Left,
+            Children =
+            {
+                _hour,
+                new TextBlock { Text = ":", FontSize = 22, FontWeight = FontWeights.Bold, Foreground = Res("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) },
+                _minute,
+            },
+        });
+        form.Children.Add(_when);
         form.Children.Add(Ui2.Label(L.T("وقتی دانلود تموم شد", "When the download finishes")));
         form.Children.Add(_actions);
         form.Children.Add(Ui2.Label(L.T("دانلود وقتی تموم‌شده حساب می‌شه که اینترنت این‌قدر دقیقه آروم بمونه", "Finished means the connection stayed quiet for this many minutes")));
@@ -65,11 +85,31 @@ public sealed class DownloadsPage : PageBase
             (PowerAction.Sleep, L.T("خواب", "Sleep")),
             (PowerAction.Hibernate, L.T("هایبرنیت", "Hibernate")),
         }, _action, a => _action = a);
+        ShowWhen();
+    }
+
+    public override void OnSecond()
+    {
+        if (DateTime.Now.Second == 0) ShowWhen();
     }
 
     private static List<LauncherInfo> Known => Hub.Settings.Launchers;
 
     private static string When(DateTime t) => $"{Fa.RelativeDay(t, DateTime.Now)} {Fa.Date(t)} {Fa.Clock(t)}";
+
+    /// <summary>Spells out the chosen moment under the picker, or why it cannot be used.</summary>
+    private void ShowWhen()
+    {
+        var now = DateTime.Now;
+        _day.Update(now);
+        var at = _day.Value(now);
+        _when.Foreground = Res(at is { } t && t > now.AddMinutes(1) ? "Muted" : "Red");
+        _when.Text = at is not { } a
+            ? L.T("ساعت باید بین ۰۰:۰۰ تا ۲۳:۵۹ باشه.", "The time must be between 00:00 and 23:59.")
+            : a <= now.AddMinutes(1)
+                ? L.T("این زمان گذشته؛ یه روز یا ساعت بعدتر انتخاب کن.", "That time has passed; pick a later day or time.")
+                : L.T($"شروع: {When(a)} ({Fa.Duration(a - now)} دیگه)", $"Starts {When(a)} (in {Fa.Duration(a - now)})");
+    }
 
     private void Scan()
     {
@@ -94,15 +134,17 @@ public sealed class DownloadsPage : PageBase
             _note.Text = L.T("اول لانچرها رو پیدا کن و یکی رو انتخاب کن.", "Find the launchers first and pick one.");
             return;
         }
-        var parts = Latin(_time.Text).Split(':');
-        if (parts.Length != 2 || !int.TryParse(parts[0], out var h) || !int.TryParse(parts[1], out var m) || h is < 0 or > 23 || m is < 0 or > 59)
+        var now = DateTime.Now;
+        if (_day.Value(now) is not { } at)
         {
-            _note.Text = L.T("ساعت رو مثل ۰۳:۰۰ بنویس.", "Write the time like 03:00.");
+            _note.Text = L.T("ساعت باید بین ۰۰:۰۰ تا ۲۳:۵۹ باشه.", "The time must be between 00:00 and 23:59.");
             return;
         }
-        var now = DateTime.Now;
-        var at = now.Date.AddHours(h).AddMinutes(m);
-        if (at <= now.AddMinutes(1)) at = at.AddDays(1);
+        if (at <= now.AddMinutes(1))
+        {
+            _note.Text = L.T("این زمان گذشته؛ یه روز یا ساعت بعدتر انتخاب کن.", "That time has passed; pick a later day or time.");
+            return;
+        }
         var quiet = Int(_quiet, 1, 120, 10);
 
         var message = L.T($"«{launcher.Name}» {When(at)} باز می‌شه و بعد از تموم شدن دانلود (وقتی {Fa.Digits(quiet.ToString())} دقیقه اینترنت آروم بمونه) «{Fa.ActionName(_action)}» انجام می‌شه.",
@@ -116,6 +158,7 @@ public sealed class DownloadsPage : PageBase
 
     public override void Refresh()
     {
+        ShowWhen();
         _launchers.Children.Clear();
         if (!Hub.Settings.LaunchersScanned)
             _launchers.Children.Add(Ui2.Label(L.T("هنوز جستجو نشده.", "Not searched yet.")));
