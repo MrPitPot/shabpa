@@ -39,6 +39,13 @@ public static class Ui
             resources[key] = brush;
         }
 
+        var background = new LinearGradientBrush(Color(palette, "Bg"), Color(palette, "Bg2"), new Point(0, 0), new Point(1, 1));
+        background.Freeze();
+        resources["BgGradient"] = background;
+        var side = new LinearGradientBrush(Color(palette, "Side"), Color(palette, "Side2"), new Point(0, 0), new Point(0.3, 1));
+        side.Freeze();
+        resources["SideGradient"] = side;
+
         var accent = new LinearGradientBrush(Color(palette, "Accent1"), Color(palette, "Accent2"), new Point(0, 0), new Point(1, 1));
         accent.Freeze();
         resources["AccentGradient"] = accent;

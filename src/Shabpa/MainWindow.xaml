@@ -3,17 +3,17 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:s="clr-namespace:Shabpa"
         Title="{s:Tr 'شب‌پا', 'Shabpa'}" Width="1140" Height="780" MinWidth="960" MinHeight="620"
-        WindowStartupLocation="CenterScreen" Background="{StaticResource Bg}" Foreground="{StaticResource Text}"
+        WindowStartupLocation="CenterScreen" Background="{StaticResource BgGradient}" Foreground="{StaticResource Text}"
         FontFamily="{StaticResource Ui}" FontSize="13"
         TextOptions.TextFormattingMode="Ideal" UseLayoutRounding="True"
         Icon="pack://application:,,,/Assets/shabpa.ico">
-    <Grid x:Name="Root" Background="{StaticResource Bg}">
+    <Grid x:Name="Root" Background="{StaticResource BgGradient}">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="232"/>
             <ColumnDefinition/>
         </Grid.ColumnDefinitions>
 
-        <Border Background="{StaticResource Side}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0">
+        <Border Background="{StaticResource SideGradient}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0">
             <DockPanel Margin="14,22,14,16">
                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,0,0,24">
                     <Image Source="pack://application:,,,/Assets/shabpa.ico" Width="36" Height="36" RenderOptions.BitmapScalingMode="HighQuality" FlowDirection="LeftToRight"/>
