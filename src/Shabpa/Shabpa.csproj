@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>Shabpa</AssemblyName>
+    <RootNamespace>Shabpa</RootNamespace>
+    <ApplicationIcon>Assets\shabpa.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>2.0.0</Version>
+    <Product>Shabpa</Product>
+    <Company>Mr.PitPot</Company>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Fonts\*.ttf" />
+    <Resource Include="Assets\shabpa.ico" />
+    <InternalsVisibleTo Include="Shabpa.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- WinDivert 2.2.2 (x64, official release asset WinDivert-2.2.2-A.zip): packet driver used for per-app speed limits. -->
+    <None Include="Native\*" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- WinForms is only here for the tray icon; keep its implicit usings out of the WPF code. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" Version="3.2.8" />
+  </ItemGroup>
+
+</Project>

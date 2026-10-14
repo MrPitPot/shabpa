@@ -1,0 +1,69 @@
+<Window x:Class="Shabpa.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:s="clr-namespace:Shabpa"
+        Title="{s:Tr 'شب‌پا', 'Shabpa'}" Width="1140" Height="780" MinWidth="960" MinHeight="620"
+        WindowStartupLocation="CenterScreen" Background="{StaticResource Bg}" Foreground="{StaticResource Text}"
+        FontFamily="{StaticResource Ui}" FontSize="13"
+        TextOptions.TextFormattingMode="Ideal" UseLayoutRounding="True"
+        Icon="pack://application:,,,/Assets/shabpa.ico">
+    <Grid x:Name="Root" Background="{StaticResource Bg}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="232"/>
+            <ColumnDefinition/>
+        </Grid.ColumnDefinitions>
+
+        <Border Background="{StaticResource Side}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0">
+            <DockPanel Margin="14,22,14,16">
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,0,0,24">
+                    <Image Source="pack://application:,,,/Assets/shabpa.ico" Width="36" Height="36" RenderOptions.BitmapScalingMode="HighQuality" FlowDirection="LeftToRight"/>
+                    <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="{s:Tr 'شب‌پا', 'Shabpa'}" FontSize="18" FontWeight="Bold" Foreground="{StaticResource Text}"/>
+                        <TextBlock Text="{s:Tr 'نگهبان شبانه‌ی سیستم', 'Your PC night watch'}" FontSize="11" Foreground="{StaticResource Faint}" Margin="0,1,0,0"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel DockPanel.Dock="Bottom">
+                    <Border x:Name="DryRunPill" Style="{StaticResource Pill}" Background="{StaticResource GoldSoft}" HorizontalAlignment="Stretch"
+                            Margin="0,0,0,10" Visibility="Collapsed"
+                            ToolTip="{s:Tr 'دستورهای برق اجرا نمی‌شن، فقط شبیه‌سازی می‌شن.', 'Power commands are only simulated, never run.'}">
+                        <TextBlock Text="{s:Tr 'حالت آزمایشی', 'Test mode'}" Foreground="{StaticResource Gold}" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                    </Border>
+                    <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="14" Padding="14,12">
+                        <StackPanel>
+                            <DockPanel>
+                                <Ellipse x:Name="LiveDot" Width="7" Height="7" Fill="{StaticResource Green}" DockPanel.Dock="Left" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="SideWatts" FontFamily="{StaticResource Num}" Text="— W" FontSize="16" FontWeight="Bold" Foreground="{StaticResource Text}"
+                                           FlowDirection="LeftToRight" HorizontalAlignment="Right"/>
+                            </DockPanel>
+                            <TextBlock x:Name="SideNext" Style="{StaticResource Label}" FontSize="11.5" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                    <TextBlock Text="{s:Tr 'ساخته‌ی Mr.PitPot · نسخه‌ی ۲٫۰', 'Made by Mr.PitPot · v2.0'}" FontSize="10.5" Foreground="{StaticResource Faint}" HorizontalAlignment="Center" Margin="0,12,0,0"/>
+                </StackPanel>
+
+                <StackPanel x:Name="NavPanel">
+                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE80F;" Content="{s:Tr 'خانه', 'Home'}" x:Name="NavHome" Checked="OnNav"/>
+                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE7E8;" Content="{s:Tr 'کنترل سیستم', 'System control'}" x:Name="NavSystem" Checked="OnNav"/>
+                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE701;" Content="{s:Tr 'پایداری پینگ', 'Ping stability'}" x:Name="NavPing" Checked="OnNav"/>
+                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE895;" Content="{s:Tr 'به‌روزرسانی', 'Updates'}" x:Name="NavUpdate" Checked="OnNav"/>
+                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE713;" Content="{s:Tr 'تنظیمات', 'Settings'}" x:Name="NavSettings" Checked="OnNav"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition/>
+            </Grid.RowDefinitions>
+            <StackPanel Margin="34,26,34,10">
+                <TextBlock x:Name="PageTitle" Style="{StaticResource H1}"/>
+                <TextBlock x:Name="PageSub" Style="{StaticResource Body}" Margin="0,4,0,0"/>
+            </StackPanel>
+            <ScrollViewer x:Name="Scroller" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                <ContentControl x:Name="Host" Margin="34,6,24,30" MaxWidth="1000" HorizontalAlignment="Stretch" Focusable="False"/>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</Window>

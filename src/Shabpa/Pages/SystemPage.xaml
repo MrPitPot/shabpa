@@ -1,0 +1,11 @@
+<pages:PageBase x:Class="Shabpa.Pages.SystemPage"
+                xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                xmlns:pages="clr-namespace:Shabpa.Pages">
+    <StackPanel>
+        <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="15" Padding="4" Margin="0,0,0,14">
+            <UniformGrid x:Name="Tabs" Rows="1"/>
+        </Border>
+        <ContentControl x:Name="TabHost" Focusable="False"/>
+    </StackPanel>
+</pages:PageBase>

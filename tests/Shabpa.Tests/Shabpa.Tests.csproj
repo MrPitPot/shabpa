@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Shabpa\Shabpa.csproj" />
+    <!-- The installer targets .NET Framework 4.8; its logic is plain C# and is tested by compiling it in. -->
+    <Compile Include="..\..\src\Setup\Payload.cs" Link="Setup\Payload.cs" />
+    <Compile Include="..\..\src\Setup\Installer.cs" Link="Setup\Installer.cs" />
+    <Compile Include="..\..\src\Setup\Runtime.cs" Link="Setup\Runtime.cs" />
+    <Using Include="Xunit" />
+    <Using Include="Shabpa.Core" />
+  </ItemGroup>
+
+</Project>

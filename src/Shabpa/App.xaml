@@ -1,0 +1,6 @@
+<Application x:Class="Shabpa.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnExplicitShutdown">
+    <!-- Resources are loaded in App.OnStartup: first the colours of the chosen theme, then Theme.xaml. -->
+</Application>

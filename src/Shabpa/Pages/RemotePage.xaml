@@ -1,0 +1,58 @@
+<pages:PageBase x:Class="Shabpa.Pages.RemotePage"
+                xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                xmlns:s="clr-namespace:Shabpa"
+                xmlns:pages="clr-namespace:Shabpa.Pages">
+    <StackPanel>
+        <Border Style="{StaticResource Card}" Padding="20,12">
+            <StackPanel x:Name="StatusPanel"/>
+        </Border>
+
+        <StackPanel x:Name="SetupPanel">
+            <TextBlock Text="{s:Tr 'راه‌اندازی', 'Setup'}" Style="{StaticResource Section}"/>
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource H2}" Text="{s:Tr 'قدم ۱: ربات خودت رو بساز', 'Step 1: create your own bot'}"/>
+                    <TextBlock Style="{StaticResource Body}" Margin="0,4,0,0"
+                               Text="{s:Tr 'توی تلگرام به ‎@BotFather پیام بده، دستور ‎/newbot رو بفرست و یه اسم براش انتخاب کن. آخرش یه «توکن» بهت می‌ده.', 'In Telegram, message @BotFather, send /newbot and pick a name. At the end it gives you a token.'}"/>
+
+                    <Border Height="1" Background="{StaticResource Line}" Margin="0,16"/>
+                    <TextBlock Style="{StaticResource H2}" Text="{s:Tr 'قدم ۲: توکن رو اینجا وارد کن', 'Step 2: paste the token here'}"/>
+                    <DockPanel Margin="0,10,0,0">
+                        <Button x:Name="SaveToken" DockPanel.Dock="Right" Style="{StaticResource BtnPrimary}" Content="{s:Tr 'ذخیره و اتصال', 'Save and connect'}" Margin="10,0,0,0" Click="OnSaveToken"/>
+                        <TextBox x:Name="TokenBox" Style="{StaticResource Input}" FlowDirection="LeftToRight" FontFamily="Consolas"/>
+                    </DockPanel>
+                    <TextBlock x:Name="TokenHint" Style="{StaticResource Label}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+
+                    <Border Height="1" Background="{StaticResource Line}" Margin="0,16"/>
+                    <TextBlock Style="{StaticResource H2}" Text="{s:Tr 'قدم ۳: این کد رو برای رباتت بفرست', 'Step 3: send this code to your bot'}"/>
+                    <DockPanel Margin="0,10,0,0">
+                        <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="22,10" DockPanel.Dock="Left">
+                            <TextBlock x:Name="CodeText" FontSize="26" FontWeight="Bold" Foreground="{StaticResource Gold}" FontFamily="Consolas" FlowDirection="LeftToRight"/>
+                        </Border>
+                        <TextBlock Style="{StaticResource Body}" Margin="16,0,0,0" VerticalAlignment="Center"
+                                   Text="{s:Tr 'با همین کد، ربات فقط به حساب تلگرام خودت جواب می‌ده و هیچ‌کس دیگه‌ای نمی‌تونه سیستمت رو کنترل کنه.', 'With this code the bot only answers your own Telegram account; nobody else can control your PC.'}"/>
+                    </DockPanel>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <TextBlock Text="{s:Tr 'پروکسی', 'Proxy'}" Style="{StaticResource Section}"/>
+        <Border Style="{StaticResource Card}">
+            <StackPanel>
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Btn}" Content="{s:Tr 'ذخیره', 'Save'}" Margin="10,0,0,0" Click="OnSaveProxy"/>
+                    <TextBox x:Name="ProxyBox" Style="{StaticResource Input}" FlowDirection="LeftToRight" FontFamily="Consolas"/>
+                </DockPanel>
+                <TextBlock Style="{StaticResource Label}" Margin="0,8,0,0" TextWrapping="Wrap" LineHeight="20"
+                           Text="{s:Tr 'اگه تلگرام بدون فیلترشکن باز نمی‌شه، آدرس پروکسی محلی‌ات رو بنویس؛ مثلاً socks5://127.0.0.1:1080 یا http://127.0.0.1:8080. خالی بذاری از پروکسی خودِ ویندوز استفاده می‌شه.', 'If Telegram needs a proxy, enter your local proxy address, for example socks5://127.0.0.1:1080 or http://127.0.0.1:8080. Leave it empty to use the Windows proxy.'}"/>
+            </StackPanel>
+        </Border>
+
+        <TextBlock Text="{s:Tr 'از توی تلگرام چه کارهایی می‌شه کرد', 'What you can do from Telegram'}" Style="{StaticResource Section}"/>
+        <Border Style="{StaticResource Card}">
+            <TextBlock Style="{StaticResource Body}"
+                       Text="{s:Tr 'وضعیت سیستم (مصرف، شبکه، برنامه‌های در راه) · خواب · هایبرنیت · خاموش · ری‌استارت · قفل صفحه · لغو. هر دستور برق اول ۱۵ ثانیه روی صفحه شمارش معکوس نشون می‌ده، و پیام‌هایی که وقتی سیستم خاموش بوده فرستادی اجرا نمی‌شن.', 'PC status (power, network, what is scheduled) · sleep · hibernate · shut down · restart · lock · cancel. Every power command first shows a 15-second countdown on screen, and messages sent while the PC was off are not run.'}"/>
+        </Border>
+    </StackPanel>
+</pages:PageBase>

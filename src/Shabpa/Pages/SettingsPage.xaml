@@ -1,0 +1,80 @@
+<pages:PageBase x:Class="Shabpa.Pages.SettingsPage"
+                xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                xmlns:s="clr-namespace:Shabpa"
+                xmlns:pages="clr-namespace:Shabpa.Pages">
+    <StackPanel>
+        <Border Style="{StaticResource Card}">
+            <StackPanel>
+                <TextBlock Text="{s:Tr 'زبان و ظاهر', 'Language and look'}" Style="{StaticResource H2}" Margin="0,0,0,12"/>
+                <TextBlock Text="{s:Tr 'زبان', 'Language'}" Style="{StaticResource Label}" Margin="0,0,0,8"/>
+                <WrapPanel x:Name="LanguageChips"/>
+                <TextBlock Text="{s:Tr 'تم رنگی', 'Colour theme'}" Style="{StaticResource Label}" Margin="0,10,0,8"/>
+                <WrapPanel x:Name="ThemePanel"/>
+                <TextBlock Text="{s:Tr 'با عوض کردن زبان یا تم، برنامه یک لحظه بسته و دوباره باز می‌شه.', 'Changing the language or theme briefly closes and reopens the app.'}" Style="{StaticResource Label}" FontSize="11.5" Margin="0,2,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+            <StackPanel>
+                <TextBlock Text="{s:Tr 'رفتار برنامه', 'Behaviour'}" Style="{StaticResource H2}" Margin="0,0,0,12"/>
+                <WrapPanel>
+                    <CheckBox x:Name="AutostartCheck" Style="{StaticResource Check}" Content="{s:Tr 'همراه ویندوز اجرا بشه', 'Start with Windows'}" Margin="0,0,8,6" Click="OnBehaviour"
+                              ToolTip="{s:Tr 'بدون این، بعد از روشن شدن سیستم زمان‌بندی‌ها و قانون‌ها کار نمی‌کنن تا خودت برنامه رو باز کنی.', 'Without this, schedules and rules do nothing after a reboot until you open the app yourself.'}"/>
+                    <CheckBox x:Name="MinimizedCheck" Style="{StaticResource Check}" Content="{s:Tr 'همیشه بی‌صدا کنار ساعت باز بشه', 'Always start quietly in the tray'}" Margin="0,0,8,6" Click="OnBehaviour"/>
+                </WrapPanel>
+                <TextBlock x:Name="AutostartHint" Style="{StaticResource Label}" FontSize="11.5" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                <TextBlock Text="{s:Tr 'قبل از اجرای دستورهای زمان‌بندی‌شده چقدر فرصت لغو بده؟', 'How long to wait for a cancel before a scheduled command runs?'}" Style="{StaticResource Label}" Margin="0,12,0,8"/>
+                <WrapPanel x:Name="CountdownChips"/>
+            </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+            <StackPanel>
+                <TextBlock Text="{s:Tr 'تخمین مصرف برق', 'Power estimate'}" Style="{StaticResource H2}"/>
+                <TextBlock x:Name="PowerHint" Style="{StaticResource Body}" Margin="0,4,0,12"/>
+                <UniformGrid Columns="4" Margin="-6,0,-6,0">
+                    <StackPanel Margin="6">
+                        <TextBlock Text="{s:Tr 'بیشترین توان گرافیک (وات)', 'GPU maximum (W)'}" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                        <TextBox x:Name="GpuMaxBox" Style="{StaticResource Input}" FlowDirection="LeftToRight" TextAlignment="Center"/>
+                    </StackPanel>
+                    <StackPanel Margin="6">
+                        <TextBlock Text="{s:Tr 'توان گرافیک در بیکاری', 'GPU when idle (W)'}" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                        <TextBox x:Name="GpuIdleBox" Style="{StaticResource Input}" FlowDirection="LeftToRight" TextAlignment="Center"/>
+                    </StackPanel>
+                    <StackPanel Margin="6">
+                        <TextBlock Text="{s:Tr 'بقیه‌ی قطعات (وات)', 'Everything else (W)'}" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                        <TextBox x:Name="BaseBox" Style="{StaticResource Input}" FlowDirection="LeftToRight" TextAlignment="Center"/>
+                    </StackPanel>
+                    <StackPanel Margin="6" x:Name="CpuMaxPanel">
+                        <TextBlock Text="{s:Tr 'بیشترین توان پردازنده', 'CPU maximum (W)'}" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                        <TextBox x:Name="CpuMaxBox" Style="{StaticResource Input}" FlowDirection="LeftToRight" TextAlignment="Center"/>
+                    </StackPanel>
+                </UniformGrid>
+                <Button Style="{StaticResource BtnPrimary}" Content="{s:Tr 'ذخیره', 'Save'}" HorizontalAlignment="Left" Margin="0,14,0,0" Padding="26,9" Click="OnSavePower"/>
+            </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+            <StackPanel>
+                <TextBlock Text="{s:Tr 'برنامه‌های ضبط صفحه', 'Screen recorders'}" Style="{StaticResource H2}"/>
+                <TextBlock Text="{s:Tr 'وقتی یکی از این‌ها باز باشه، قانون‌هایی که «موقع ضبط صفحه دست نگه دار» دارن صبر می‌کنن. اسم‌ها رو با ویرگول جدا کن.', 'While one of these is running, rules set to hold during screen recording wait. Separate names with commas.'}"
+                           Style="{StaticResource Body}" Margin="0,4,0,10"/>
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Btn}" Content="{s:Tr 'ذخیره', 'Save'}" Margin="10,0,0,0" Click="OnSaveRecorders"/>
+                    <TextBox x:Name="RecorderBox" Style="{StaticResource Input}" FlowDirection="LeftToRight"/>
+                </DockPanel>
+            </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Style="{StaticResource Btn}" Content="{s:Tr 'پوشه‌ی داده‌ها', 'Data folder'}" VerticalAlignment="Center" Click="OnOpenFolder"/>
+                <StackPanel>
+                    <TextBlock Text="{s:Tr 'شب‌پا ۲٫۰', 'Shabpa 2.0'}" Style="{StaticResource H2}"/>
+                    <TextBlock Text="{s:Tr 'ساخته‌ی Mr.PitPot. همه‌چی فقط روی همین سیستم ذخیره می‌شه و هیچ داده‌ای جایی فرستاده نمی‌شه.', 'Made by Mr.PitPot. Everything is stored on this PC only; no data is sent anywhere.'}" Style="{StaticResource Body}" Margin="0,4,0,0"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+    </StackPanel>
+</pages:PageBase>

@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="src/Shabpa/Shabpa.csproj" />
+  <Project Path="src/Setup/Setup.csproj" />
+  <Project Path="tools/Packer/Packer.csproj" />
+  <Project Path="tests/Shabpa.Tests/Shabpa.Tests.csproj" />
+</Solution>

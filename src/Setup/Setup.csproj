@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- .NET Framework 4.8 ships with every Windows 10/11, so the installer opens anywhere with nothing to
+         install first. It then fetches the .NET 10 runtime the app needs, but only if it is missing. -->
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>ShabpaSetup</AssemblyName>
+    <RootNamespace>Shabpa.Setup</RootNamespace>
+    <ApplicationIcon>shabpa.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>2.0.0</Version>
+    <Product>Shabpa Setup</Product>
+    <AssemblyTitle>Shabpa Setup</AssemblyTitle>
+    <Company>Mr.PitPot</Company>
+    <Copyright>© 2026 Mr.PitPot</Copyright>
+    <Description>Installer for Shabpa, the PC night watch</Description>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- Built by build-installer.sh; without it the installer simply reports that it has no payload. -->
+    <PayloadFile Condition="'$(PayloadFile)' == ''">$(MSBuildThisFileDirectory)obj\payload.bin</PayloadFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Net.Http" />
+    <Resource Include="shabpa.ico" />
+    <Resource Include="..\Shabpa\Fonts\Vazirmatn-Medium.ttf" Link="Fonts\Vazirmatn-Medium.ttf" />
+    <Resource Include="..\Shabpa\Fonts\Vazirmatn-Bold.ttf" Link="Fonts\Vazirmatn-Bold.ttf" />
+    <EmbeddedResource Include="$(PayloadFile)" LogicalName="payload.bin" Condition="Exists('$(PayloadFile)')" />
+  </ItemGroup>
+
+</Project>

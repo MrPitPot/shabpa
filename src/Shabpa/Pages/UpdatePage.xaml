@@ -1,0 +1,53 @@
+<pages:PageBase x:Class="Shabpa.Pages.UpdatePage"
+                xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                xmlns:s="clr-namespace:Shabpa"
+                xmlns:pages="clr-namespace:Shabpa.Pages">
+    <StackPanel>
+        <Border Style="{StaticResource Card}">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Border x:Name="StatusBadge" Style="{StaticResource IconBadge}" VerticalAlignment="Center">
+                        <TextBlock x:Name="StatusIcon" Text="&#xE895;" Style="{StaticResource Icon}" Foreground="{StaticResource Accent}" HorizontalAlignment="Center" FontSize="18"/>
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="16,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="TitleText" Style="{StaticResource H2}"/>
+                        <TextBlock x:Name="StatusText" Style="{StaticResource Body}" Margin="0,3,0,0"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="CheckButton" Style="{StaticResource Btn}" Content="{s:Tr 'بررسی', 'Check now'}" Click="OnCheck"/>
+                        <Button x:Name="InstallButton" Style="{StaticResource BtnPrimary}" Margin="8,0,0,0" Click="OnInstall" Visibility="Collapsed"/>
+                    </StackPanel>
+                </Grid>
+                <ProgressBar x:Name="Progress" Style="{StaticResource Bar}" Margin="0,16,0,0" Visibility="Collapsed"/>
+            </StackPanel>
+        </Border>
+
+        <StackPanel x:Name="NotesPanel" Visibility="Collapsed">
+            <TextBlock x:Name="NotesTitle" Style="{StaticResource Section}"/>
+            <Border Style="{StaticResource Card}">
+                <TextBlock x:Name="NotesText" Style="{StaticResource Body}"/>
+            </Border>
+        </StackPanel>
+
+        <TextBlock Text="{s:Tr 'تنظیمات به‌روزرسانی', 'Update settings'}" Style="{StaticResource Section}"/>
+        <Border Style="{StaticResource Card}">
+            <StackPanel>
+                <CheckBox x:Name="AutoCheck" Style="{StaticResource Check}" Content="{s:Tr 'خودش هر چند ساعت بررسی کنه و خبر بده', 'Check every few hours and let me know'}" Margin="0,0,0,12" HorizontalAlignment="Left" Click="OnAuto"/>
+                <TextBlock Text="{s:Tr 'منبع به‌روزرسانی (مخزن GitHub به شکل owner/repo یا آدرس https یک فایل manifest)', 'Update source (a GitHub repository as owner/repo, or the https address of a manifest file)'}" Style="{StaticResource Label}" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Btn}" Content="{s:Tr 'ذخیره', 'Save'}" Margin="10,0,0,0" Click="OnSaveFeed"/>
+                    <TextBox x:Name="FeedBox" Style="{StaticResource Input}" FlowDirection="LeftToRight" FontFamily="Consolas"/>
+                </DockPanel>
+            </StackPanel>
+        </Border>
+
+        <TextBlock Style="{StaticResource Label}" Margin="4,12,4,0" TextWrapping="Wrap" LineHeight="20"
+                   Text="{s:Tr 'از ربات تلگرام هم با دستور «به‌روزرسانی» می‌شه از راه دور به‌روزش کرد (اگه شب‌پا با دسترسی ادمین اجرا شده باشه). فایل نصبی قبل از اجرا با نسخه‌ی منتشرشده مقایسه می‌شه؛ اگه یکی نباشه نصب نمی‌شه. تنظیمات و تاریخچه‌ات دست نمی‌خوره.', 'You can also update remotely by sending “Update” to the Telegram bot (when Shabpa runs as administrator). The installer is checked against the published file before it runs; if they differ it is not installed. Your settings and history are kept.'}"/>
+    </StackPanel>
+</pages:PageBase>
