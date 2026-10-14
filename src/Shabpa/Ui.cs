@@ -45,7 +45,8 @@ public static class Ui
 
         var hero = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 1) };
         hero.GradientStops.Add(new GradientStop(Color(palette, "Hero"), 0));
-        hero.GradientStops.Add(new GradientStop(Color(palette, "Panel"), 0.7));
+        hero.GradientStops.Add(new GradientStop(Color(palette, "Hero2"), 0.45));
+        hero.GradientStops.Add(new GradientStop(Color(palette, "Panel"), 1));
         hero.Freeze();
         resources["HeroGradient"] = hero;
         return resources;

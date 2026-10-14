@@ -238,7 +238,7 @@ public sealed class Hub
 
     private void Replan()
     {
-        var plan = LimitPlanner.Plan(State.NetLimits, Settings.GuardEnabled, Settings.GuardCapMbps, GameProcess, Apps, DateTime.Now);
+        var plan = LimitPlanner.Plan(State.NetLimits, Settings.GuardEnabled, Settings.GuardCapMbps, GameProcess, Apps, DateTime.Now, Settings.GuardDownCapMbps);
         Planned = plan;
         var signature = LimitPlanner.Signature(plan);
         if (signature == _appliedSignature || _applying) return;

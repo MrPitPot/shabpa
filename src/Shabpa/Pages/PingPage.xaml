@@ -62,12 +62,14 @@
                     <CheckBox x:Name="GuardCheck" DockPanel.Dock="Right" Style="{StaticResource Check}" Margin="0" Click="OnGuard" VerticalAlignment="Center"/>
                     <StackPanel>
                         <TextBlock Text="{s:Tr 'محافظت موقع بازی', 'In-game protection'}" Style="{StaticResource H2}"/>
-                        <TextBlock Text="{s:Tr 'تا بازی تمام‌صفحه‌ست، آپلود بقیه‌ی برنامه‌ها خودکار سقف می‌خوره تا پینگ نپره؛ بازی که بسته شد همه‌چی آزاد می‌شه.', 'While a full-screen game runs, every other app gets an automatic upload cap so the ping stays steady; it is lifted when the game closes.'}"
+                        <TextBlock Text="{s:Tr 'تا بازی تمام‌صفحه‌ست، آپلود (و اگه بخوای دانلود) بقیه‌ی برنامه‌ها خودکار سقف می‌خوره تا پینگ نپره؛ بازی که بسته شد همه‌چی آزاد می‌شه.', 'While a full-screen game runs, every other app gets an automatic upload cap (and, if you choose, a download cap) so the ping stays steady; it is lifted when the game closes.'}"
                                    Style="{StaticResource Body}" Margin="0,3,12,0"/>
                     </StackPanel>
                 </DockPanel>
                 <TextBlock Text="{s:Tr 'سقف آپلود هر برنامه موقع بازی:', 'Upload cap per app while gaming:'}" Style="{StaticResource Label}" Margin="0,14,0,8"/>
                 <WrapPanel x:Name="GuardChips"/>
+                <TextBlock Text="{s:Tr 'سقف دانلود هر برنامه موقع بازی:', 'Download cap per app while gaming:'}" Style="{StaticResource Label}" Margin="0,14,0,8"/>
+                <WrapPanel x:Name="GuardDownChips"/>
                 <TextBlock x:Name="GuardStatus" Style="{StaticResource Label}" Margin="0,6,0,0" TextWrapping="Wrap"/>
             </StackPanel>
         </Border>

@@ -47,6 +47,11 @@ public partial class PingPage : PageBase
             Hub.Settings.GuardCapMbps = v;
             Hub.LimitsChanged();
         });
+        Chips(GuardDownChips, new[] { 0.0, 2.0, 5.0, 10.0, 20.0 }.Select(v => (v, v == 0 ? L.T("آزاد", "Unlimited") : Mb(v))), Hub.Settings.GuardDownCapMbps, v =>
+        {
+            Hub.Settings.GuardDownCapMbps = v;
+            Hub.LimitsChanged();
+        });
         Chips(SortChips, [(false, L.T("الان", "Now")), (true, L.T("امروز", "Today"))], _sortByToday, v =>
         {
             _sortByToday = v;
@@ -167,8 +172,9 @@ public partial class PingPage : PageBase
         else
         {
             var held = Hub.Planned.Count(l => l.Automatic);
-            GuardStatus.Text = L.T($"بازی فعال: {Hub.GameProcess} · {Fa.Digits(held.ToString())} برنامه زیر سقف {Mb(settings.GuardCapMbps)}.",
-                $"Game running: {Hub.GameProcess} · {held} app(s) capped at {Mb(settings.GuardCapMbps)}.");
+            var down = settings.GuardDownCapMbps > 0 ? L.T($" و دانلود {Mb(settings.GuardDownCapMbps)}", $" and download {Mb(settings.GuardDownCapMbps)}") : "";
+            GuardStatus.Text = L.T($"بازی فعال: {Hub.GameProcess} · {Fa.Digits(held.ToString())} برنامه زیر سقف آپلود {Mb(settings.GuardCapMbps)}{down}.",
+                $"Game running: {Hub.GameProcess} · {held} app(s) capped at upload {Mb(settings.GuardCapMbps)}{down}.");
         }
     }
 

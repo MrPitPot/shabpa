@@ -58,7 +58,8 @@ public sealed class NetUsageEntry
 
 public sealed record ProcInfo(string Key, string Title, string Path);
 
-public sealed record AppTraffic(string Key, string Title, string Path, double DownMbps, double UpMbps, long DownBytes, long UpBytes, DateTime LastUpload);
+public sealed record AppTraffic(string Key, string Title, string Path, double DownMbps, double UpMbps, long DownBytes, long UpBytes, DateTime LastUpload,
+    DateTime LastDownload = default);
 
 /// <summary>Turns a stream of "pid sent/received n bytes" into per-application rates and daily totals.</summary>
 public sealed class TrafficMeter
@@ -70,7 +71,7 @@ public sealed class TrafficMeter
         public string Title = "";
         public string Path = "";
         public long Down, Up, StepDown, StepUp;
-        public DateTime LastUpload;
+        public DateTime LastUpload, LastDownload;
     }
 
     private readonly object _gate = new();
@@ -142,11 +143,12 @@ public sealed class TrafficMeter
             entry.Down += down;
             entry.Up += up;
             if (up > 0) entry.LastUpload = now;
+            if (down > 0) entry.LastDownload = now;
         }
 
         seconds = Math.Max(0.5, seconds);
         return _apps.Select(a => new AppTraffic(a.Key, a.Value.Title.Length > 0 ? a.Value.Title : a.Key, a.Value.Path,
-                a.Value.StepDown * 8 / 1e6 / seconds, a.Value.StepUp * 8 / 1e6 / seconds, a.Value.Down, a.Value.Up, a.Value.LastUpload))
+                a.Value.StepDown * 8 / 1e6 / seconds, a.Value.StepUp * 8 / 1e6 / seconds, a.Value.Down, a.Value.Up, a.Value.LastUpload, a.Value.LastDownload))
             .ToList();
     }
 }
@@ -200,30 +202,38 @@ public static class LimitPlanner
 
     private static readonly HashSet<string> NeverTouch = ["system", TrafficMeter.Other, "shabpa", "idle"];
 
+    /// <param name="capMbps">In-game upload cap per app; 0 = leave uploads alone.</param>
+    /// <param name="downCapMbps">In-game download cap per app; 0 = leave downloads alone.</param>
     public static List<EffectiveLimit> Plan(IEnumerable<AppLimit> manual, bool guard, double capMbps, string gameKey,
-        IEnumerable<AppTraffic> apps, DateTime now)
+        IEnumerable<AppTraffic> apps, DateTime now, double downCapMbps = 0)
     {
         var limits = manual.ToList();
         var plan = new Dictionary<string, EffectiveLimit>();
         foreach (var limit in limits.Where(l => l.DownMbps > 0 || l.UpMbps > 0 || l.Blocked))
             plan[limit.Key] = new EffectiveLimit(limit.Key, Math.Max(0, limit.DownMbps), Math.Max(0, limit.UpMbps), limit.Blocked, false);
 
-        if (guard && capMbps > 0 && gameKey.Length > 0)
+        if (guard && (capMbps > 0 || downCapMbps > 0) && gameKey.Length > 0)
         {
             var exempt = limits.Where(l => l.Exempt).Select(l => l.Key).ToHashSet();
             foreach (var app in apps)
             {
                 if (app.Key == gameKey || NeverTouch.Contains(app.Key) || exempt.Contains(app.Key)) continue;
-                if (now - app.LastUpload > RecentUpload) continue;
+                // Only apps that were actually busy in that direction a moment ago are touched.
+                var up = capMbps > 0 && now - app.LastUpload <= RecentUpload ? capMbps : 0;
+                var down = downCapMbps > 0 && app.LastDownload != default && now - app.LastDownload <= RecentUpload ? downCapMbps : 0;
+                if (up == 0 && down == 0) continue;
+
                 if (plan.TryGetValue(app.Key, out var existing))
                 {
-                    // The stricter of the user's own cap and the in-game cap wins.
-                    if (!existing.Blocked && (existing.UpMbps <= 0 || existing.UpMbps > capMbps))
-                        plan[app.Key] = existing with { UpMbps = capMbps };
+                    if (existing.Blocked) continue;
+                    // The stricter of the user's own cap and the in-game cap wins, per direction.
+                    var newUp = up > 0 && (existing.UpMbps <= 0 || existing.UpMbps > up) ? up : existing.UpMbps;
+                    var newDown = down > 0 && (existing.DownMbps <= 0 || existing.DownMbps > down) ? down : existing.DownMbps;
+                    plan[app.Key] = existing with { UpMbps = newUp, DownMbps = newDown };
                 }
                 else
                 {
-                    plan[app.Key] = new EffectiveLimit(app.Key, 0, capMbps, false, true);
+                    plan[app.Key] = new EffectiveLimit(app.Key, down, up, false, true);
                 }
             }
         }

@@ -15,7 +15,7 @@ public sealed record Palette(string Key, string Fa, string En, bool Light, IRead
         "Bg", "Side", "Panel", "Panel2", "Panel3", "Line", "Text", "Muted", "Faint",
         "Accent", "Accent1", "Accent2", "AccentSoft", "OnAccent",
         "Gold", "GoldSoft", "Green", "GreenSoft", "Red", "RedSoft", "RedLine",
-        "Hero", "Thumb", "Glow",
+        "Hero", "Hero2", "Thumb", "Glow",
     ];
 
     private static Palette Make(string key, string fa, string en, bool light, string spec)
@@ -23,6 +23,8 @@ public sealed record Palette(string Key, string Fa, string En, bool Light, IRead
         var colors = spec.Split([' ', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries)
             .Select(pair => pair.Split('='))
             .ToDictionary(p => p[0], p => p[1]);
+        // The hero card fades from Hero to Hero2; themes that stay single-hued repeat Hero.
+        if (!colors.ContainsKey("Hero2")) colors["Hero2"] = colors["Hero"];
         return new Palette(key, fa, en, light, colors);
     }
 
@@ -64,11 +66,46 @@ public sealed record Palette(string Key, string Fa, string En, bool Light, IRead
             Hero=3A1F73 Thumb=46347A Glow=FFFFFF
             """),
         Make("emerald", "سبز", "Emerald", false, """
-            Bg=07140F Side=0A1A14 Panel=0E211A Panel2=142D24 Panel3=1B3B30 Line=23483B
-            Text=EAF7F1 Muted=8FB6A6 Faint=67907F
-            Accent=34D399 Accent1=4ADEA8 Accent2=1FC48C AccentSoft=0F3D2E OnAccent=03261A
-            Gold=FFC764 GoldSoft=3A2F17 Green=6EE7B7 GreenSoft=124233 Red=FF7A8D RedSoft=45182A RedLine=73283A
-            Hero=0F3D2E Thumb=2B5A4A Glow=FFFFFF
+            Bg=04130D Side=071B13 Panel=0B251B Panel2=103226 Panel3=173F31 Line=21573F
+            Text=EDFFF7 Muted=A3D9C2 Faint=74B396
+            Accent=3EE6A0 Accent1=2EDC9A Accent2=14B8D2 AccentSoft=0E4A37 OnAccent=02170F
+            Gold=FFC764 GoldSoft=3A2F17 Green=7DF0C2 GreenSoft=124A38 Red=FF7A8D RedSoft=45182A RedLine=73283A
+            Hero=0D5240 Hero2=0F4C62 Thumb=2F6B54 Glow=FFFFFF
+            """),
+        Make("blurple", "بنفش‌آبی دیسکورد", "Blurple", false, """
+            Bg=1E1F22 Side=2B2D31 Panel=313338 Panel2=383A40 Panel3=424549 Line=4E5058
+            Text=F2F3F5 Muted=C1C6CE Faint=A4AAB5
+            Accent=A5B1FF Accent1=5865F2 Accent2=7A5AF0 AccentSoft=3C4270 OnAccent=FFFFFF
+            Gold=FFC764 GoldSoft=3F3519 Green=57F287 GreenSoft=1E4430 Red=FF7A8D RedSoft=4A2229 RedLine=7A3340
+            Hero=3A4290 Hero2=5A38A0 Thumb=5A5D66 Glow=FFFFFF
+            """),
+        Make("nitro", "نیترو (صورتی‌بنفش)", "Nitro", false, """
+            Bg=140F22 Side=1A1330 Panel=21183B Panel2=2B2049 Panel3=372A5C Line=47376F
+            Text=F7F1FF Muted=CDBFEA Faint=A596CC
+            Accent=FF9AD8 Accent1=D6338A Accent2=5865F2 AccentSoft=4A2468 OnAccent=FFFFFF
+            Gold=FFC764 GoldSoft=3F3118 Green=5AF0A8 GreenSoft=15412F Red=FF7A8D RedSoft=4A1C2E RedLine=7A2D44
+            Hero=5A2A8C Hero2=8A2A6E Thumb=57458A Glow=FFFFFF
+            """),
+        Make("sunset", "غروب", "Sunset", false, """
+            Bg=190C10 Side=211014 Panel=2B151B Panel2=371B23 Panel3=47242E Line=5C2F3B
+            Text=FFF1EC Muted=EBC4BA Faint=C79A8F
+            Accent=FFA06B Accent1=F2693A Accent2=D6336C AccentSoft=5C2A22 OnAccent=1A0A06
+            Gold=FFD27A GoldSoft=45331A Green=5FEDAA GreenSoft=15412F Red=FF8A9A RedSoft=4D1D27 RedLine=7F3340
+            Hero=7A2B2B Hero2=8A2A55 Thumb=6B4350 Glow=FFFFFF
+            """),
+        Make("ocean", "اقیانوس", "Ocean", false, """
+            Bg=06121C Side=0A1A28 Panel=0E2335 Panel2=143048 Panel3=1B3F5C Line=244F72
+            Text=EAF6FF Muted=A0C6E3 Faint=73A0C4
+            Accent=5CD6FF Accent1=2BB8F5 Accent2=3D6BFF AccentSoft=0F3F66 OnAccent=02101C
+            Gold=FFC764 GoldSoft=3A2F17 Green=4EE8B0 GreenSoft=0F3F33 Red=FF7A8D RedSoft=45182A RedLine=73283A
+            Hero=0F4778 Hero2=2A3F9E Thumb=36628A Glow=FFFFFF
+            """),
+        Make("aurora", "شفق", "Aurora", false, """
+            Bg=0A0F1A Side=0E1524 Panel=131C30 Panel2=1A2540 Panel3=233157 Line=2D3E6B
+            Text=EEF3FF Muted=A9B8DC Faint=7F90BB
+            Accent=7DF5C6 Accent1=34E0A1 Accent2=8B5CF6 AccentSoft=15405A OnAccent=03140E
+            Gold=FFC764 GoldSoft=3A2F17 Green=7DF5C6 GreenSoft=124A3C Red=FF7A8D RedSoft=45182A RedLine=73283A
+            Hero=2A3C8A Hero2=1B5A4E Thumb=3F4F80 Glow=FFFFFF
             """),
     ];
 

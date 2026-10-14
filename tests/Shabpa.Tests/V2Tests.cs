@@ -219,7 +219,7 @@ public class PaletteTests
     [Fact]
     public void There_are_dark_and_light_themes_including_the_requested_ones()
     {
-        Assert.Equal(["night", "black", "white", "pink", "purple", "emerald"], Palette.All.Select(p => p.Key));
+        Assert.Equal(["night", "black", "white", "pink", "purple", "emerald", "blurple", "nitro", "sunset", "ocean", "aurora"], Palette.All.Select(p => p.Key));
         Assert.Contains(Palette.All, p => p.Light);
         Assert.Equal("night", Palette.Find("no-such-theme").Key);
     }
@@ -244,7 +244,7 @@ public class PaletteTests
             Assert.True(p.Contrast(foreground, background) >= ratio,
                 $"{theme}: {foreground} on {background} is {p.Contrast(foreground, background):0.00}, needs {ratio}");
 
-        foreach (var surface in new[] { "Bg", "Side", "Panel", "Panel2", "Panel3", "Hero", "AccentSoft" })
+        foreach (var surface in new[] { "Bg", "Side", "Panel", "Panel2", "Panel3", "Hero", "Hero2", "AccentSoft" })
             AtLeast(7, "Text", surface);
         foreach (var surface in new[] { "Bg", "Side", "Panel", "Panel2" })
             AtLeast(4.5, "Muted", surface);
@@ -257,6 +257,7 @@ public class PaletteTests
             AtLeast(4.5, colour, colour + "Soft");
         }
         AtLeast(4.5, "Gold", "Hero");
+        AtLeast(4.5, "Gold", "Hero2");
         // Bold button labels on the accent gradient.
         AtLeast(3.5, "OnAccent", "Accent1");
         AtLeast(3.5, "OnAccent", "Accent2");

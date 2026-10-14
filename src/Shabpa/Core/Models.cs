@@ -74,6 +74,8 @@ public sealed class Settings
     /// <summary>While a game runs, cap the upload of everything else.</summary>
     public bool GuardEnabled { get; set; }
     public double GuardCapMbps { get; set; } = 1;
+    /// <summary>While a game runs, cap the download of everything else; 0 = leave downloads alone.</summary>
+    public double GuardDownCapMbps { get; set; }
     /// <summary>"fa" or "en".</summary>
     public string Language { get; set; } = "fa";
     public string Theme { get; set; } = Palette.Default;

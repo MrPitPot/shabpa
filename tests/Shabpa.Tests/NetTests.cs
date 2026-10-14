@@ -234,3 +234,39 @@ public class NetTextTests
         Assert.All(xml.Descendants(ns + "UserId"), u => Assert.Equal(@"PC\Amir", u.Value));
     }
 }
+
+public class GameDownloadCapTests
+{
+    private static readonly DateTime Now = new(2026, 1, 1, 20, 0, 0);
+
+    private static AppTraffic App(string key, DateTime up, DateTime down) => new(key, key, "", 0, 0, 0, 0, up, down);
+
+    [Fact]
+    public void Download_cap_applies_only_to_apps_that_were_downloading()
+    {
+        var apps = new[] { App("steam", default, Now), App("chrome", default, Now.AddMinutes(-30)), App("cs2", default, Now) };
+        var plan = LimitPlanner.Plan([], true, 0, "cs2", apps, Now, downCapMbps: 5);
+        var steam = Assert.Single(plan);
+        Assert.Equal("steam", steam.Key);
+        Assert.Equal(5, steam.DownMbps);
+        Assert.Equal(0, steam.UpMbps);
+    }
+
+    [Fact]
+    public void Upload_and_download_caps_combine_and_the_stricter_user_limit_wins()
+    {
+        var manual = new[] { new AppLimit { Key = "steam", DownMbps = 2 } };
+        var apps = new[] { App("steam", Now, Now) };
+        var steam = Assert.Single(LimitPlanner.Plan(manual, true, 1, "cs2", apps, Now, downCapMbps: 10));
+        Assert.Equal(2, steam.DownMbps);
+        Assert.Equal(1, steam.UpMbps);
+    }
+
+    [Fact]
+    public void Nothing_is_capped_without_a_game_or_when_the_guard_is_off()
+    {
+        var apps = new[] { App("steam", Now, Now) };
+        Assert.Empty(LimitPlanner.Plan([], true, 1, "", apps, Now, downCapMbps: 5));
+        Assert.Empty(LimitPlanner.Plan([], false, 1, "cs2", apps, Now, downCapMbps: 5));
+    }
+}
