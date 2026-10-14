@@ -97,7 +97,8 @@ public class UsageHistoryTests : IDisposable
         Assert.Equal((today, today), UsagePage.Bounds(UsagePage.Span.Today, now, null));
         Assert.Equal((today.AddDays(-1), today.AddDays(-1)), UsagePage.Bounds(UsagePage.Span.Yesterday, now, null));
         Assert.Equal((today.AddDays(-6), today), UsagePage.Bounds(UsagePage.Span.Week, now, null));
-        Assert.Equal((new DateOnly(2026, 5, 1), today), UsagePage.Bounds(UsagePage.Span.ThisMonth, now, null));
+        // Persian months by default: 1405/02/28 started on 1405/02/01 = 2026-04-21.
+        Assert.Equal((new DateOnly(2026, 4, 21), today), UsagePage.Bounds(UsagePage.Span.ThisMonth, now, null));
         Assert.Equal((new DateOnly(2026, 2, 3), today), UsagePage.Bounds(UsagePage.Span.All, now, new DateOnly(2026, 2, 3)));
     }
 }

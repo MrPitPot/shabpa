@@ -4,7 +4,7 @@
 
 # شب‌پا · Shabpa
 
-**نگهبان شبانه‌ی ویندوز** — خاموشی زمان‌بندی‌شده، بیدارباش، مصرف برق، پایداری پینگ، محدودیت سرعت هر برنامه و خالی کردن رم، توی یه برنامه‌ی سبک فارسی/انگلیسی.
+**نگهبان شبانه‌ی ویندوز** — خاموشی زمان‌بندی‌شده، بیدارباش، مصرف برق، پایداری پینگ، محدودیت سرعت هر برنامه، اورلی بازی، تنظیم کارت گرافیک و خالی کردن رم، توی یه برنامه‌ی سبک فارسی/انگلیسی.
 
 [**⬇️ دانلود آخرین نسخه**](../../releases/latest) · [English](#english)
 
@@ -19,16 +19,26 @@
 - **بیدارباش:** سیستم سر ساعت از خواب و هایبرنیت بیدار می‌شه.
 - **خواب و بیداری:** تاریخچه‌ی روشن و خاموش شدن از لاگ ویندوز، خاموشی‌های ناگهانی، و اینکه چی نمی‌ذاره سیستم بخوابه.
 - **مصرف برق:** وات لحظه‌ای، ۳۰ روز گذشته و هزینه به تومان.
-- **پایداری پینگ:** پینگ زنده، مصرف شبکه‌ی هر برنامه، سقف دانلود و آپلود یا بستن کامل اینترنت هر برنامه، و محافظت خودکار موقع بازی.
+- **پایداری پینگ:** پینگ زنده، مصرف شبکه‌ی هر برنامه، سقف دانلود و آپلود یا بستن کامل اینترنت هر برنامه، و محافظت خودکار موقع بازی (سقف آپلود و دانلود).
+- **تاریخچه‌ی مصرف اینترنت:** مصرف هر برنامه به تفکیک ساعت و روز، با بازه‌ی امروز، دیروز، ۷ و ۳۰ روز، این ماه و همه؛ و هشدار سقف حجم ماهانه.
+- **اورلی بازی:** فریم بر ثانیه، ۱٪ پایین، دما و کلاک و توان کارت گرافیک، پردازنده، رم و پینگ روی بازی؛ شش طرح، رنگ و اندازه‌ی کاملاً دلخواه، میان‌بر کیبورد. چیزی داخل بازی تزریق نمی‌شه.
+- **کارت گرافیک:** دما و کلاک زنده (AMD و NVIDIA)، و برای کارت‌های AMD: آندرولت، حد توان، کلاک حافظه و **فن هوشمند** که منحنی رو با دمای هات‌اسپات تطبیق می‌ده؛ هر تغییر ۲۰ ثانیه‌ی تایید داره و خودکار برمی‌گرده.
+- **دستیار:** جمله‌ی ساده بنویس («یک ساعت و نیم دیگه خاموش کن»، «هر شب ساعت ۲ بخواب»، «وقتی دانلود تموم شد خاموش کن») تا قبل از اجرا بگه چی فهمیده و تایید بگیره؛ از تلگرام هم کار می‌کنه.
+- **گزارش بعد از بازی:** مدت، میانگین فریم، پینگ، دمای کارت و حجم اینترنت بازی.
 - **حافظه:** خالی کردن رم و کش رم، دستی یا خودکار.
 - **کنترل از تلگرام** با ربات شخصی خودت، و **به‌روزرسانی** از توی برنامه یا ربات.
-- فارسی و انگلیسی، ۶ تم رنگی (آبی شب، مشکی، سفید، صورتی، بنفش، سبز).
+- **ایمنی:** هر زمان‌بندی، حذف، قفل و خالی کردن رم با زمان دقیق تایید می‌گیره؛ بعد از خاموش یا خواب شدن، دستورهای باقی‌مونده پاک می‌شن و هیچ دستوری وقتی سیستم خاموش یا خواب بود دیرهنگام اجرا نمی‌شه.
+- فارسی و انگلیسی، ۱۱ تم رنگی (آبی شب، مشکی، سفید، صورتی، بنفش، سبز، بنفش‌آبی، صورتی‌بنفش، غروب، اقیانوس، شفق).
 
 <p>
 <img src="screenshots/ping-editor.png" width="49%" alt="Ping stability">
 <img src="screenshots/system-power.png" width="49%" alt="Power commands">
+<img src="screenshots/gaming-overlay.png" width="49%" alt="In-game overlay settings">
+<img src="screenshots/gaming-gpu.png" width="49%" alt="Graphics card tuning">
+<img src="screenshots/ping-usage.png" width="49%" alt="Usage history per app">
 <img src="screenshots/en-white-home.png" width="49%" alt="English, white theme">
-<img src="screenshots/pink-home.png" width="49%" alt="Pink theme">
+<img src="screenshots/bluviolet-home.png" width="49%" alt="Blue violet theme">
+<img src="screenshots/pinkviolet-home.png" width="49%" alt="Pink violet theme">
 </p>
 
 ## نصب
@@ -69,9 +79,15 @@ bash build-installer.sh           # ساخت installer/ShabpaSetup.exe
 - **wake timers** that bring the PC out of sleep or hibernation;
 - **sleep & wake history** from the Windows event log, and what is keeping the PC awake;
 - **power use** in watts, last 30 days and cost;
-- **ping stability:** live ping, per-app network usage, per-app **download/upload caps or a full block** (via [WinDivert](https://github.com/basil00/WinDivert)), and an automatic in-game upload cap;
-- **RAM cleanup** (working sets and standby cache);
-- remote control and updates through **your own Telegram bot**; six colour themes.
+- **ping stability:** live ping, per-app network usage, per-app **download/upload caps or a full block** (via [WinDivert](https://github.com/basil00/WinDivert)), and automatic in-game upload *and* download caps;
+- **usage history:** per-app internet use by hour and day over any period, plus a monthly allowance warning;
+- **in-game overlay:** FPS, 1 % low, GPU temperature/clock/power, CPU, RAM and ping, in six layouts with fully custom colours, size and position; nothing is injected into games;
+- **graphics card:** live readings (AMD, NVIDIA) and, on AMD cards, undervolt, power limit, memory clock and a **smart fan curve** that follows the hot spot temperature; every change has a 20-second confirm-or-revert;
+- **assistant:** type plain sentences ("shut down in 90 minutes", "sleep at 1 am every night") and confirm what was understood; also works from Telegram;
+- **game report** after each session, **RAM cleanup**, and an explicit confirmation (with the exact time) before anything is scheduled, deleted or run;
+- remote control and updates through **your own Telegram bot**; eleven colour themes.
+
+GPU tuning is verified on an AMD Radeon RX 6900 XT only. NVIDIA readings use the driver's NVML library and have not been tested on real NVIDIA hardware yet; NVIDIA tuning is not implemented.
 
 Download `ShabpaSetup.exe` from [Releases](../../releases/latest). The binaries are not code-signed, so SmartScreen may warn; some antivirus products flag the WinDivert driver as a network tool. Everything stays on your PC.
 

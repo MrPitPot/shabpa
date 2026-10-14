@@ -54,6 +54,7 @@ public sealed class Telemetry : IDisposable
     private double? _vramUsed;
     private DateTime? _gameStarted;
     private string _fpsError = "";
+    private bool _wasActive;
 
     public TelemetrySample Latest { get; private set; } = new();
     public event Action<TelemetrySample>? Updated;
@@ -112,8 +113,17 @@ public sealed class Telemetry : IDisposable
                 if (!active)
                 {
                     StopFps();
+                    // One last sample says "the game is over" to whoever is keeping a session report.
+                    if (_wasActive)
+                    {
+                        _wasActive = false;
+                        var last = Sample(_sensors());
+                        lock (_gate) Latest = last;
+                        Updated?.Invoke(last);
+                    }
                     continue;
                 }
+                _wasActive = true;
                 var sample = Sample(_sensors());
                 lock (_gate)
                 {

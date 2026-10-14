@@ -68,6 +68,12 @@ public sealed class Settings
     public bool ConfirmActions { get; set; } = true;
     public OverlaySettings Overlay { get; set; } = new();
     public GpuTuneProfile GpuTune { get; set; } = new();
+    /// <summary>After a game of at least a few minutes, show how it went (and send it to Telegram).</summary>
+    public bool GameReports { get; set; } = true;
+    /// <summary>Monthly internet allowance in GB; 0 = no limit.</summary>
+    public double MonthlyLimitGb { get; set; }
+    /// <summary>"yyyy-MM:level" of the last budget warning, so each level is announced once a month.</summary>
+    public string BudgetWarned { get; set; } = "";
     public bool TrayNoticeShown { get; set; }
     public string RecorderProcesses { get; set; } = "obs64, obs32, obs, Streamlabs OBS, bdcam, CamtasiaStudio, CamRecorder, XSplit.Core, Action, ShareX, ffmpeg";
     public string TelegramTokenProtected { get; set; } = "";

@@ -60,6 +60,10 @@ public static class Fa
 
     public static int DayOfMonth(DateTime d) => L.En ? d.Day : Calendar.GetDayOfMonth(d);
 
+    /// <summary>Midnight of the first day of the month <paramref name="d"/> falls in, in the calendar the user sees
+    /// (Persian months in Persian, calendar months in English).</summary>
+    public static DateTime MonthStart(DateTime d) => L.En ? new DateTime(d.Year, d.Month, 1) : d.Date.AddDays(1 - Calendar.GetDayOfMonth(d));
+
     /// <summary>e.g. «۲۲ مهر» or "Oct 14".</summary>
     public static string Date(DateTime d) =>
         L.En ? d.ToString("MMM d", Inv) : $"{Digits(Calendar.GetDayOfMonth(d).ToString())} {Months[Calendar.GetMonth(d) - 1]}";

@@ -21,6 +21,8 @@ public sealed class BotHost
     public required Func<string> Cancel { get; init; }
     /// <summary>Checks for a new version and installs it; returns the first reply (more follow as messages).</summary>
     public Func<string>? Update { get; init; }
+    /// <summary>Free text the fixed commands did not recognise; returns a reply, or null if it is not understood either.</summary>
+    public Func<string, string?>? Assistant { get; init; }
 }
 
 /// <summary>Remote control through the user's own Telegram bot (long polling, no server needed).</summary>
@@ -240,6 +242,8 @@ public sealed class TelegramBot : IDisposable
         }
 
         var command = Parse(text);
+        // A pending "yes" is a free-text reply too, so the assistant sees it before the fixed commands give up.
+        if (command == BotCommand.Unknown && !stale && _host.Assistant?.Invoke(text) is { } assistantReply) return assistantReply;
         if (stale && command is not (BotCommand.Start or BotCommand.Status or BotCommand.Update))
             return L.T("این پیام قدیمیه و اجرا نشد. اگه هنوز لازمه دوباره بفرست.", "That message is old and was not run. Send it again if you still need it.");
 

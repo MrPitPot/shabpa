@@ -23,6 +23,8 @@
                               ToolTip="{s:Tr 'بدون این، بعد از روشن شدن سیستم زمان‌بندی‌ها و قانون‌ها کار نمی‌کنن تا خودت برنامه رو باز کنی.', 'Without this, schedules and rules do nothing after a reboot until you open the app yourself.'}"/>
                     <CheckBox x:Name="ConfirmCheck" Style="{StaticResource Check}" Content="{s:Tr 'قبل از هر کار تایید بگیر', 'Ask before every action'}" Margin="0,0,8,6" Click="OnBehaviour"
                               ToolTip="{s:Tr 'قبل از زمان‌بندی، حذف، قفل کردن و خالی کردن رم یه پیام تایید با زمان دقیق نشون می‌ده.', 'Shows a confirmation with the exact time before scheduling, deleting, locking or freeing RAM.'}"/>
+                    <CheckBox x:Name="ReportCheck" Style="{StaticResource Check}" Content="{s:Tr 'بعد از هر بازی گزارش بده', 'Report after every game'}" Margin="0,0,8,6" Click="OnBehaviour"
+                              ToolTip="{s:Tr 'فریم بر ثانیه، پینگ، دمای کارت و حجم اینترنت بازی؛ با تلگرام هم می‌فرسته.', 'Frame rate, ping, GPU temperature and the data the game used; also sent to Telegram.'}"/>
                     <CheckBox x:Name="MinimizedCheck" Style="{StaticResource Check}" Content="{s:Tr 'همیشه بی‌صدا کنار ساعت باز بشه', 'Always start quietly in the tray'}" Margin="0,0,8,6" Click="OnBehaviour"/>
                 </WrapPanel>
                 <TextBlock x:Name="AutostartHint" Style="{StaticResource Label}" FontSize="11.5" Margin="0,2,0,0" TextWrapping="Wrap"/>

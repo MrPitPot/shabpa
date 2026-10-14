@@ -253,6 +253,9 @@ public partial class App : Application
                 Save(del, Path.Combine(folder, "confirm-delete.png"));
                 del.Close();
             }
+
+            if (Environment.GetCommandLineArgs().Contains("--overlay-test"))
+                await OverlaySelfTest(folder);
         }
         catch (Exception ex)
         {
@@ -261,6 +264,54 @@ public partial class App : Application
         Hub.I.Shutdown();
         Shutdown();
     }
+
+    /// <summary>Shows the real overlay window for a moment and photographs that part of the screen.</summary>
+    private async Task OverlaySelfTest(string folder)
+    {
+        var hub = Hub.I;
+        var report = new System.Text.StringBuilder();
+        var previous = hub.Settings.Overlay.Mode;
+        hub.Settings.Overlay.Mode = OverlayMode.Always;
+        hub.Settings.Overlay.Anchor = "tr";
+        var window = new OverlayWindow(hub);
+        new System.Windows.Interop.WindowInteropHelper(window).EnsureHandle();
+        hub.Overlay = window;
+        window.Evaluate();
+        await Task.Delay(3500);
+        report.AppendLine($"visible={window.IsVisible} left={window.Left:0} top={window.Top:0} width={window.ActualWidth:0} height={window.ActualHeight:0}");
+        report.AppendLine($"topmost={window.Topmost} source={hub.Telemetry.Latest.Gpu.Name} fps={hub.Telemetry.Latest.Fps:0}");
+
+        var dpi = VisualTreeHelper.GetDpi(window);
+        var rect = new System.Drawing.Rectangle((int)(window.Left * dpi.DpiScaleX), (int)(window.Top * dpi.DpiScaleY),
+            (int)(window.ActualWidth * dpi.DpiScaleX), (int)(window.ActualHeight * dpi.DpiScaleY));
+        if (rect.Width > 0 && rect.Height > 0)
+        {
+            using var bitmap = new System.Drawing.Bitmap(rect.Width, rect.Height);
+            using (var graphics = System.Drawing.Graphics.FromImage(bitmap))
+                graphics.CopyFromScreen(rect.Location, System.Drawing.Point.Empty, rect.Size);
+            bitmap.Save(Path.Combine(folder, "overlay-on-screen.png"));
+        }
+
+        // Click-through: the window must not be what a click at its centre lands on.
+        var centre = new System.Drawing.Point(rect.Left + rect.Width / 2, rect.Top + rect.Height / 2);
+        var hit = WindowFromPoint(centre.X, centre.Y);
+        var handle = new System.Windows.Interop.WindowInteropHelper(window).Handle;
+        report.AppendLine($"click-through={(hit != handle)} (window at centre: 0x{hit:X}, overlay: 0x{handle:X})");
+
+        window.SetMoveMode(true);
+        await Task.Delay(300);
+        var movingHit = WindowFromPoint(centre.X, centre.Y);
+        report.AppendLine($"move-mode catches clicks={(movingHit == handle)}");
+        window.SetMoveMode(false);
+        hub.Settings.Overlay.Mode = previous;
+        window.Close();
+        File.WriteAllText(Path.Combine(folder, "overlay-test.txt"), report.ToString());
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr WindowFromPoint(System.Drawing.Point point);
+
+    private static IntPtr WindowFromPoint(int x, int y) => WindowFromPoint(new System.Drawing.Point(x, y));
 
     private static void Save(FrameworkElement element, string file)
     {

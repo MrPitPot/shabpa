@@ -89,6 +89,7 @@ public partial class SettingsPage : PageBase
         catch { AutostartCheck.IsEnabled = false; }
         MinimizedCheck.IsChecked = Hub.Settings.StartMinimized;
         ConfirmCheck.IsChecked = Hub.Settings.ConfirmActions;
+        ReportCheck.IsChecked = Hub.Settings.GameReports;
         AutostartHint.Text = Hub.Elevated
             ? L.T("برنامه الان با دسترسی ادمین بازه؛ اگه این رو روشن کنی، دفعه‌های بعد هم با همین دسترسی بالا میاد.", "The app is running as administrator now; turn this on and it will start that way next time too.")
             : "";
@@ -109,6 +110,7 @@ public partial class SettingsPage : PageBase
     {
         Hub.Settings.StartMinimized = MinimizedCheck.IsChecked == true;
         Hub.Settings.ConfirmActions = ConfirmCheck.IsChecked == true;
+        Hub.Settings.GameReports = ReportCheck.IsChecked == true;
         Hub.Store.Save();
         if (Hub.Demo) return;
         try

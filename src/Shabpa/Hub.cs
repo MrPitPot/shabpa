@@ -33,6 +33,7 @@ public sealed class Hub
     public UsageHistory Usage { get; } = new();
     public Telemetry Telemetry { get; }
     public GpuTuner Tuner { get; }
+    private readonly GameSessionTracker _session = new();
     /// <summary>The window drawn over games; null in screenshot runs.</summary>
     public OverlayWindow? Overlay { get; set; }
     /// <summary>Overlay settings changed (layout, colours, position, mode).</summary>
@@ -74,6 +75,7 @@ public sealed class Hub
             Request = action => OnUi(() => RequestFromBot(action)),
             Cancel = () => OnUi(CancelEverything),
             Update = () => OnUi(UpdateFromBot),
+            Assistant = AssistantFromBot,
         });
     }
 
@@ -106,6 +108,7 @@ public sealed class Hub
         if (!Demo)
         {
             Telemetry.Updated += sample => Tuner.Tick(Settings.GpuTune, sample);
+            Telemetry.Updated += OnTelemetryForReport;
             Telemetry.Start();
         }
         _clock.Tick += (_, _) => OnSecond();
@@ -176,6 +179,7 @@ public sealed class Hub
 
         CheckForUpdates(now);
         ApplyTuneAtStart(now);
+        CheckBudget(now);
 
         if (now - _lastSave > TimeSpan.FromMinutes(1))
         {
@@ -376,6 +380,67 @@ public sealed class Hub
         ];
     }
 
+    // ---- game reports and data budget -----------------------------------------------------------
+
+    private void OnTelemetryForReport(TelemetrySample sample)
+    {
+        if (!Settings.GameReports) return;
+        long down = 0, up = 0;
+        if (sample.Game.Length > 0 && Apps.FirstOrDefault(a => a.Key == sample.Game) is { } app)
+            (down, up) = (app.DownBytes, app.UpBytes);
+        var report = _session.Update(sample, down, up);
+        if (report is not null) Application.Current?.Dispatcher.BeginInvoke(() => AnnounceReport(report));
+    }
+
+    public static string DescribeReport(GameReport r)
+    {
+        var lines = new List<string>
+        {
+            L.T($"🎮 {r.Game} · {Fa.Duration(r.Duration)}", $"🎮 {r.Game} · {Fa.Duration(r.Duration)}"),
+        };
+        if (r.HasFrames)
+            lines.Add(L.T($"فریم بر ثانیه: میانگین {Fa.N(r.AvgFps, 0)}، ۱٪ پایین {Fa.N(r.Low1Fps, 0)}", $"FPS: average {Fa.N(r.AvgFps, 0)}, 1% low {Fa.N(r.Low1Fps, 0)}"));
+        if (r.AvgPing > 0)
+            lines.Add(L.T($"پینگ: میانگین {Fa.N(r.AvgPing, 0)}، بیشترین {Fa.N(r.MaxPing, 0)} میلی‌ثانیه", $"Ping: average {Fa.N(r.AvgPing, 0)}, worst {Fa.N(r.MaxPing, 0)} ms"));
+        if (r.MaxGpuTemp > 0)
+            lines.Add(L.T($"دمای کارت گرافیک: تا {Fa.N(r.MaxGpuTemp, 0)}°" + (r.MaxHotspot > 0 ? $" (هات‌اسپات {Fa.N(r.MaxHotspot, 0)}°)" : ""),
+                $"GPU temperature: up to {Fa.N(r.MaxGpuTemp, 0)}°" + (r.MaxHotspot > 0 ? $" (hotspot {Fa.N(r.MaxHotspot, 0)}°)" : "")));
+        if (r.DownBytes + r.UpBytes > 1_000_000)
+            lines.Add(L.T($"اینترنت بازی: ↓{Fa.Bytes(r.DownBytes)} ↑{Fa.Bytes(r.UpBytes)}", $"Game traffic: ↓{Fa.Bytes(r.DownBytes)} ↑{Fa.Bytes(r.UpBytes)}"));
+        return string.Join("\n", lines);
+    }
+
+    private void AnnounceReport(GameReport report)
+    {
+        var text = DescribeReport(report);
+        Notify(L.T("گزارش بازی", "Game report"), text);
+        Bot.Notify(text);
+    }
+
+    private DateTime _lastBudgetCheck = DateTime.MinValue;
+
+    /// <summary>Once a minute: compare this month's use with the limit and warn at 80 % and 100 %, once each.</summary>
+    private void CheckBudget(DateTime now)
+    {
+        if (Settings.MonthlyLimitGb <= 0 || Demo || now - _lastBudgetCheck < TimeSpan.FromMinutes(1)) return;
+        _lastBudgetCheck = now;
+        var from = DateOnly.FromDateTime(Fa.MonthStart(now));
+        var (down, up) = Usage.Total(from, DateOnly.FromDateTime(now));
+        var check = DataBudget.Evaluate(down + up, Settings.MonthlyLimitGb);
+        if (check.Level == 0) return;
+        var month = from.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+        var lastLevel = Settings.BudgetWarned.StartsWith(month + ":", StringComparison.Ordinal) && int.TryParse(Settings.BudgetWarned[(month.Length + 1)..], out var parsed) ? parsed : 0;
+        if (check.Level <= lastLevel) return;
+        Settings.BudgetWarned = $"{month}:{check.Level}";
+        Store.Save();
+        var text = check.Level == 2
+            ? L.T($"سقف اینترنت ماهانه‌ات ({Fa.N(Settings.MonthlyLimitGb, 0)} گیگ) تموم شد.", $"You reached your monthly internet allowance ({Fa.N(Settings.MonthlyLimitGb, 0)} GB).")
+            : L.T($"{Fa.N(check.Fraction * 100, 0)}٪ از سقف اینترنت ماهانه‌ات مصرف شده ({Fa.N(check.UsedGb, 1)} از {Fa.N(Settings.MonthlyLimitGb, 0)} گیگ).",
+                $"{Fa.N(check.Fraction * 100, 0)}% of your monthly allowance is used ({Fa.N(check.UsedGb, 1)} of {Fa.N(Settings.MonthlyLimitGb, 0)} GB).");
+        Notify(L.T("حجم اینترنت", "Data allowance"), text);
+        Bot.Notify("📶 " + text);
+    }
+
     // ---- graphics tuning at start ---------------------------------------------------------------
 
     private bool _tuneChecked;
@@ -463,6 +528,73 @@ public sealed class Hub
             Bot.Notify(error ?? L.T("🔄 نصب شروع شد. شب‌پا چند ثانیه بسته می‌شه و با نسخه‌ی جدید برمی‌گرده.", "🔄 Installing. Shabpa closes for a few seconds and comes back on the new version."));
         });
         return L.T("🔎 در حال بررسی به‌روزرسانی…", "🔎 Checking for updates…");
+    }
+
+    // ---- assistant ---------------------------------------------------------------------------
+
+    /// <summary>Carries out something the assistant understood (the caller has already got the user's yes).
+    /// Returns a sentence saying what happened.</summary>
+    public string RunAssistant(AssistantResult result)
+    {
+        var now = DateTime.Now;
+        switch (result.Kind)
+        {
+            case AssistantKind.Cancel:
+                return CancelEverything();
+            case AssistantKind.Status:
+                return StatusText();
+            case AssistantKind.FreeRam:
+                CleanMemory(cache: false);
+                return L.T("خالی کردن رم شروع شد.", "Freeing RAM has started.");
+            case AssistantKind.Rule when result.Rule is { } kind:
+                ActivateRule(new Rule
+                {
+                    Kind = kind, Action = result.Action, HoldMinutes = kind == RuleKind.Idle ? Math.Max(1, result.Minutes) : 5,
+                    ThresholdMbps = 1, WaitForStart = true,
+                });
+                return L.T("قانون فعال شد. از لیست «بعدی چیه؟» می‌تونی غیرفعالش کنی.", "The rule is on. You can turn it off from the “What is next?” list.");
+            case AssistantKind.Schedule when result.Due is { } due:
+                if (result.Action == PowerAction.Lock || due - now < TimeSpan.FromSeconds(10))
+                {
+                    RequestAction(result.Action, L.T("دستیار", "Assistant"), result.Action == PowerAction.Lock ? 0 : 5);
+                    return L.T("شروع شد.", "Started.");
+                }
+                if (!AddCommand(result.Action, due, result.Repeat is { Count: > 0 } r ? r : null))
+                    return L.T("همین دستور قبلاً توی لیست بود؛ دوباره اضافه نشد.", "That command was already in the list; nothing was added.");
+                return L.T($"ثبت شد: {Assistant.Describe(result, now)}", $"Scheduled: {Assistant.Describe(result, now)}");
+            default:
+                return L.T("متوجه نشدم.", "I did not understand that.");
+        }
+    }
+
+    private (AssistantResult result, DateTime at)? _botPending;
+
+    /// <summary>Free text from Telegram. Understood actions wait for an explicit yes; null means "not for me".</summary>
+    private string? AssistantFromBot(string text)
+    {
+        var t = Assistant.Normalize(text);
+        if (_botPending is { } pending)
+        {
+            if (t is "بله" or "آره" or "اره" or "تایید" or "تأیید" or "اوکی" or "yes" or "y" or "ok" or "okay" or "confirm")
+            {
+                _botPending = null;
+                if (DateTime.Now - pending.at > TimeSpan.FromMinutes(2))
+                    return L.T("این درخواست قدیمیه و اجرا نشد. دوباره بفرست.", "That request is old and was not run. Send it again.");
+                return OnUi(() => RunAssistant(pending.result));
+            }
+            if (t is "نه" or "خیر" or "نخیر" or "no" or "n" or "cancel")
+            {
+                _botPending = null;
+                return L.T("انجام نشد.", "Nothing was done.");
+            }
+        }
+
+        var result = Assistant.Parse(text, DateTime.Now);
+        if (!result.Understood) return null;
+        if (result.Kind is AssistantKind.Status) return OnUi(() => RunAssistant(result));
+        _botPending = (result, DateTime.Now);
+        return L.T($"این رو فهمیدم:\n{Assistant.Describe(result, DateTime.Now)}\nبرای تایید «بله» رو بفرست، برای انصراف «نه».",
+            $"I understood:\n{Assistant.Describe(result, DateTime.Now)}\nSend “yes” to confirm or “no” to drop it.");
     }
 
     // ---- power actions ----------------------------------------------------------------------

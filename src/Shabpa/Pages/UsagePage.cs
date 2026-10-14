@@ -19,6 +19,10 @@ public sealed class UsagePage : PageBase
     private readonly Border _summary = new() { Style = St("Card") };
     private readonly Border _chartCard = new() { Style = St("Card"), Margin = new Thickness(0, 12, 0, 0) };
     private readonly StackPanel _list = new();
+    private readonly StackPanel _budget = new();
+    private readonly WrapPanel _budgetChips = new() { Margin = new Thickness(0, 10, 0, 0) };
+    private readonly ProgressBar _budgetBar = new() { Style = St("Bar"), Maximum = 1, Margin = new Thickness(0, 12, 0, 0) };
+    private readonly TextBlock _budgetText = new() { Style = St("Body"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
     private Span _span = Span.Week;
     private string? _app;
     private DateTime _lastDraw;
@@ -32,6 +36,26 @@ public sealed class UsagePage : PageBase
         stack.Children.Add(_spanChips);
         stack.Children.Add(_summary);
         stack.Children.Add(_chartCard);
+
+        var budgetCard = new Border { Style = St("Card"), Margin = new Thickness(0, 12, 0, 0), Child = _budget };
+        _budget.Children.Add(new TextBlock { Text = L.T("سقف حجم ماهانه", "Monthly allowance"), Style = St("H2") });
+        _budget.Children.Add(new TextBlock
+        {
+            Text = L.T("اگه بسته‌ی اینترنتت حجم ماهانه داره، سقفش رو بذار تا موقع ۸۰٪ و ۱۰۰٪ خبرت کنم.", "If your plan has a monthly allowance, set it and I warn you at 80% and 100%."),
+            Style = St("Body"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0),
+        });
+        _budget.Children.Add(_budgetChips);
+        _budget.Children.Add(_budgetBar);
+        _budget.Children.Add(_budgetText);
+        stack.Children.Add(budgetCard);
+        Chips(_budgetChips, new double[] { 0, 30, 50, 100, 200, 300, 500, 1000 }.Select(v => (v, v == 0 ? L.T("بدون سقف", "No limit") : $"{Fa.N(v, 0)} {L.T("گیگ", "GB")}")),
+            Hub.Settings.MonthlyLimitGb, v =>
+            {
+                Hub.Settings.MonthlyLimitGb = v;
+                Hub.Settings.BudgetWarned = "";
+                Hub.Store.Save();
+                Draw();
+            });
 
         var header = new DockPanel { Margin = new Thickness(4, 18, 4, 8) };
         var clear = new Button { Style = St("BtnDanger"), Content = L.T("پاک کردن تاریخچه", "Clear history") };
@@ -80,7 +104,7 @@ public sealed class UsagePage : PageBase
             Span.Yesterday => (today.AddDays(-1), today.AddDays(-1)),
             Span.Week => (today.AddDays(-6), today),
             Span.Month => (today.AddDays(-29), today),
-            Span.ThisMonth => (new DateOnly(now.Year, now.Month, 1), today),
+            Span.ThisMonth => (DateOnly.FromDateTime(Fa.MonthStart(now)), today),
             _ => (first ?? today, today),
         };
     }
@@ -104,9 +128,25 @@ public sealed class UsagePage : PageBase
         var (down, up) = usage.Total(from, to);
         var days = Math.Max(1, to.DayNumber - from.DayNumber + 1);
 
+        DrawBudget(now);
         DrawSummary(down, up, days);
         DrawChart(from, to);
         DrawList(rows);
+    }
+
+    private void DrawBudget(DateTime now)
+    {
+        var limit = Hub.Settings.MonthlyLimitGb;
+        var from = DateOnly.FromDateTime(Fa.MonthStart(now));
+        var (down, up) = Hub.Usage.Total(from, DateOnly.FromDateTime(now));
+        var check = DataBudget.Evaluate(down + up, limit);
+        _budgetBar.Visibility = limit > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _budgetBar.Value = Math.Clamp(check.Fraction, 0, 1);
+        _budgetBar.Foreground = Res(check.Level == 2 ? "Red" : check.Level == 1 ? "Gold" : "Accent");
+        _budgetText.Text = limit > 0
+            ? L.T($"این ماه {Fa.N(check.UsedGb, 1)} از {Fa.N(limit, 0)} گیگ مصرف شده ({Fa.N(check.Fraction * 100, 0)}٪).",
+                $"This month: {Fa.N(check.UsedGb, 1)} of {Fa.N(limit, 0)} GB used ({Fa.N(check.Fraction * 100, 0)}%).")
+            : L.T($"این ماه تا الان {Fa.N(check.UsedGb, 1)} گیگ مصرف شده.", $"This month so far: {Fa.N(check.UsedGb, 1)} GB.");
     }
 
     private void DrawSummary(long down, long up, int days)
