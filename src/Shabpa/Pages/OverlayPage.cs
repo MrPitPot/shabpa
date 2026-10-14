@@ -80,6 +80,8 @@ public sealed class OverlayPage : PageBase
     private readonly TextBox _toggleKey = Input(), _moveKey = Input();
     private readonly Button _moveButton = new();
     private readonly TextBlock _note = new();
+    private readonly TextBlock _boardNote = new();
+    private CheckBox _board = null!;
     private Slider _scale = null!, _opacity = null!, _offsetX = null!, _offsetY = null!;
     private readonly Dictionary<string, CheckBox> _items = [];
     private CheckBox _colorByValue = null!, _labels = null!, _shadow = null!, _rounded = null!;
@@ -230,6 +232,26 @@ public sealed class OverlayPage : PageBase
         }
         root.Children.Add(itemCard);
 
+        // ---- optional advanced sensors ------------------------------------------------------------
+        var (boardCard, board) = Ui2.Card(L.T("حسگرهای پیشرفته (اختیاری)", "Advanced sensors (optional)"),
+            L.T("دمای واقعی CPU و دور و درصد فن CPU از حسگر مادربورد خونده می‌شن. به اجرای شب‌پا با دسترسی ادمین و درایور PawnIO نیاز داره؛ شب‌پا چیزی نصب نمی‌کنه.",
+                "Real CPU temperature and CPU fan speed are read from the motherboard chip. Needs Shabpa running as administrator and the PawnIO driver; Shabpa installs nothing."));
+        _board = new CheckBox { Style = St("Check"), Content = L.T("فعال‌سازی حسگرهای پیشرفته", "Enable advanced sensors"), Margin = new Thickness(0, 10, 0, 6) };
+        _board.Click += (_, _) =>
+        {
+            if (_loading) return;
+            Hub.Settings.Overlay.BoardSensors = _board.IsChecked == true;
+            Hub.Telemetry.UseBoardSensors = Hub.Settings.Overlay.BoardSensors && !Hub.Demo;
+            Hub.OverlayChanged();
+            Hub.Telemetry.Acquire();
+            Hub.Telemetry.Release();
+        };
+        _boardNote.Style = St("Label");
+        _boardNote.TextWrapping = TextWrapping.Wrap;
+        board.Children.Add(_board);
+        board.Children.Add(_boardNote);
+        root.Children.Add(boardCard);
+
         // ---- hotkeys ---------------------------------------------------------------------------
         var (keyCard, keys) = Ui2.Card(L.T("میان‌بر کیبورد", "Keyboard shortcuts"),
             L.T("همیشه با کلید Alt: یک حرف یا عدد بنویس. اگه خالی باشه آن میان‌بر غیرفعاله.", "Always used with Alt: type one letter or digit. Leave it empty to turn that shortcut off."));
@@ -358,6 +380,8 @@ public sealed class OverlayPage : PageBase
         _moveKey.Text = o.MoveKey;
         _loading = false;
 
+        _board.IsChecked = Hub.Settings.Overlay.BoardSensors;
+        UpdateBoardNote();
         _note.Text = Hub.Elevated
             ? L.T($"میان‌بر Alt+{o.ToggleKey} نمایش و پنهان می‌کنه و Alt+{o.MoveKey} اجازه‌ی جابجایی می‌ده.", $"Alt+{o.ToggleKey} shows or hides it; Alt+{o.MoveKey} lets you drag it.")
             : L.T("برای دیدن فریم بر ثانیه، شب‌پا رو با دسترسی ادمین اجرا کن. بقیه‌ی اطلاعات بدون ادمین هم کار می‌کنن.",
@@ -367,9 +391,23 @@ public sealed class OverlayPage : PageBase
         UpdatePreview();
     }
 
+    private void UpdateBoardNote()
+    {
+        _boardNote.Text = !Hub.Settings.Overlay.BoardSensors ? L.T("خاموشه؛ دمای CPU و فن CPU نشون داده نمی‌شن.", "Off; CPU temperature and CPU fan are not shown.")
+            : !Hub.Elevated ? L.T("برای کار کردن شب‌پا رو با دسترسی ادمین اجرا کن.", "Run Shabpa as administrator for this to work.")
+            : Hub.Telemetry.BoardProblem switch
+            {
+                "nodata" => L.T("حسگری خونده نشد؛ درایور PawnIO نصب نیست یا این مادربورد پشتیبانی نمی‌شه.", "No sensor could be read; PawnIO is not installed or this board is not supported."),
+                "error" => L.T("خوندن حسگرها خطا داد.", "Reading the sensors failed."),
+                _ => L.T("فعال و در حال خوندنه.", "Active and reading."),
+            };
+    }
+
     public override void OnSecond()
     {
-        if (IsVisible) UpdatePreview();
+        if (!IsVisible) return;
+        UpdatePreview();
+        UpdateBoardNote();
     }
 
     private void UpdatePreview()

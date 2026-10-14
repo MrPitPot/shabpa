@@ -66,6 +66,7 @@ public sealed class Hub
         Traffic = new TrafficMeter(_resolver.Resolve);
         Ping = new PingMeter(() => Settings.PingHost);
         Telemetry = new Telemetry(() => Sensors.Latest, () => Ping.Samples);
+        Telemetry.UseBoardSensors = Settings.Overlay.BoardSensors && !demo;
         Updater = new Updater(() => Settings);
         Bot = new TelegramBot(() => Settings, Store.Save, new BotHost
         {
@@ -73,7 +74,6 @@ public sealed class Hub
             Request = action => OnUi(() => RequestFromBot(action)),
             Cancel = () => OnUi(CancelEverything),
             Update = () => OnUi(UpdateFromBot),
-            Assistant = AssistantFromBot,
         });
     }
 
@@ -170,6 +170,7 @@ public sealed class Hub
 
         CheckForUpdates(now);
         CheckBudget(now);
+        RunDownloadPlans(now);
 
         if (now - _lastSave > TimeSpan.FromMinutes(1))
         {
@@ -477,71 +478,99 @@ public sealed class Hub
         return L.T("🔎 در حال بررسی به‌روزرسانی…", "🔎 Checking for updates…");
     }
 
-    // ---- assistant ---------------------------------------------------------------------------
+    // ---- scheduled launcher downloads ----------------------------------------------------------
 
-    /// <summary>Carries out something the assistant understood (the caller has already got the user's yes).
-    /// Returns a sentence saying what happened.</summary>
-    public string RunAssistant(AssistantResult result)
+    /// <summary>False when the same launcher is already planned for that minute.</summary>
+    public bool AddDownloadPlan(LauncherInfo launcher, DateTime at, PowerAction action, int quietMinutes)
     {
-        var now = DateTime.Now;
-        switch (result.Kind)
+        if (State.DownloadPlans.Any(p => p.LauncherKey == launcher.Key && Math.Abs((p.StartAt - at).TotalMinutes) < 1)) return false;
+        State.DownloadPlans.Add(new DownloadPlan
         {
-            case AssistantKind.Cancel:
-                return CancelEverything();
-            case AssistantKind.Status:
-                return StatusText();
-            case AssistantKind.FreeRam:
-                CleanMemory(cache: false);
-                return L.T("خالی کردن رم شروع شد.", "Freeing RAM has started.");
-            case AssistantKind.Rule when result.Rule is { } kind:
-                ActivateRule(new Rule
-                {
-                    Kind = kind, Action = result.Action, HoldMinutes = kind == RuleKind.Idle ? Math.Max(1, result.Minutes) : 5,
-                    ThresholdMbps = 1, WaitForStart = true,
-                });
-                return L.T("قانون فعال شد. از لیست «بعدی چیه؟» می‌تونی غیرفعالش کنی.", "The rule is on. You can turn it off from the “What is next?” list.");
-            case AssistantKind.Schedule when result.Due is { } due:
-                if (result.Action == PowerAction.Lock || due - now < TimeSpan.FromSeconds(10))
-                {
-                    RequestAction(result.Action, L.T("دستیار", "Assistant"), result.Action == PowerAction.Lock ? 0 : 5);
-                    return L.T("شروع شد.", "Started.");
-                }
-                if (!AddCommand(result.Action, due, result.Repeat is { Count: > 0 } r ? r : null))
-                    return L.T("همین دستور قبلاً توی لیست بود؛ دوباره اضافه نشد.", "That command was already in the list; nothing was added.");
-                return L.T($"ثبت شد: {Assistant.Describe(result, now)}", $"Scheduled: {Assistant.Describe(result, now)}");
-            default:
-                return L.T("متوجه نشدم.", "I did not understand that.");
-        }
+            LauncherKey = launcher.Key, LauncherName = launcher.Name, ExePath = launcher.ExePath,
+            StartAt = at, Action = action, QuietMinutes = Math.Clamp(quietMinutes, 1, 120),
+        });
+        Store.Save();
+        Changed?.Invoke();
+        return true;
     }
 
-    private (AssistantResult result, DateTime at)? _botPending;
-
-    /// <summary>Free text from Telegram. Understood actions wait for an explicit yes; null means "not for me".</summary>
-    private string? AssistantFromBot(string text)
+    /// <summary>Removes a plan; if it is running, the "finished" watch stops with it.</summary>
+    public void RemoveDownloadPlan(Guid id)
     {
-        var t = Assistant.Normalize(text);
-        if (_botPending is { } pending)
+        var plan = State.DownloadPlans.FirstOrDefault(p => p.Id == id);
+        if (plan is null) return;
+        State.DownloadPlans.Remove(plan);
+        if (plan.State == PlanState.Running && State.ActiveRule is not null) DeactivateRule();
+        Store.Save();
+        Changed?.Invoke();
+    }
+
+    private void RunDownloadPlans(DateTime now)
+    {
+        foreach (var plan in State.DownloadPlans.ToList())
         {
-            if (t is "بله" or "آره" or "اره" or "تایید" or "تأیید" or "اوکی" or "yes" or "y" or "ok" or "okay" or "confirm")
+            if (plan.State == PlanState.Waiting)
             {
-                _botPending = null;
-                if (DateTime.Now - pending.at > TimeSpan.FromMinutes(2))
-                    return L.T("این درخواست قدیمیه و اجرا نشد. دوباره بفرست.", "That request is old and was not run. Send it again.");
-                return OnUi(() => RunAssistant(pending.result));
+                if (now < plan.StartAt) continue;
+                // Missed (PC off or asleep, or something else kept it busy for minutes): do not start late.
+                if (now - plan.StartAt > TimeSpan.FromMinutes(3))
+                {
+                    State.DownloadPlans.Remove(plan);
+                    Store.Save();
+                    Changed?.Invoke();
+                    Notify(L.T("دانلود زمان‌بندی‌شده شروع نشد", "Scheduled download did not start"),
+                        L.T($"موقع شروع «{plan.LauncherName}» سیستم خاموش یا خواب بود، یا شب‌پا بسته بود.",
+                            $"The PC was off or asleep, or Shabpa was closed, when “{plan.LauncherName}” was due."));
+                    continue;
+                }
+                if (State.ActiveRule is not null || CountdownActive) continue; // try again next second
+
+                if (!DryRun)
+                {
+                    try
+                    {
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(plan.ExePath) { UseShellExecute = true });
+                    }
+                    catch (Exception ex)
+                    {
+                        State.DownloadPlans.Remove(plan);
+                        Store.Save();
+                        Changed?.Invoke();
+                        Notify(L.T("لانچر باز نشد", "Could not open the launcher"), $"{plan.LauncherName}: {ex.Message}");
+                        continue;
+                    }
+                }
+                plan.State = PlanState.Running;
+                plan.StartedAt = now;
+                ActivateRule(new Rule
+                {
+                    Kind = RuleKind.Network, Upload = false, ThresholdMbps = 1, WaitForStart = true,
+                    HoldMinutes = plan.QuietMinutes, ExceptRecording = false, ExceptGame = false, Action = plan.Action,
+                });
+                Notify(L.T("دانلود زمان‌بندی‌شده", "Scheduled download"),
+                    L.T($"«{plan.LauncherName}» باز شد. وقتی دانلود تموم بشه، «{Fa.ActionName(plan.Action)}» انجام می‌شه.",
+                        $"“{plan.LauncherName}” was opened. “{Fa.ActionName(plan.Action)}” runs when the download ends."));
             }
-            if (t is "نه" or "خیر" or "نخیر" or "no" or "n" or "cancel")
+            else
             {
-                _botPending = null;
-                return L.T("انجام نشد.", "Nothing was done.");
+                var finishedOrCancelled = State.ActiveRule is null;
+                var neverStarted = !finishedOrCancelled && Engine.Status.State == RuleState.Waiting
+                                   && plan.StartedAt is { } started && now - started > TimeSpan.FromMinutes(45);
+                if (neverStarted)
+                {
+                    DeactivateRule();
+                    Notify(L.T("دانلودی دیده نشد", "No download seen"),
+                        L.T($"۴۵ دقیقه بعد از باز شدن «{plan.LauncherName}» هیچ دانلودی شروع نشد؛ سیستم خاموش نمی‌شه.",
+                            $"No download started within 45 minutes of opening “{plan.LauncherName}”; the PC will not be shut down."));
+                }
+                if (finishedOrCancelled || neverStarted)
+                {
+                    State.DownloadPlans.Remove(plan);
+                    Store.Save();
+                    Changed?.Invoke();
+                }
             }
         }
-
-        var result = Assistant.Parse(text, DateTime.Now);
-        if (!result.Understood) return null;
-        if (result.Kind is AssistantKind.Status) return OnUi(() => RunAssistant(result));
-        _botPending = (result, DateTime.Now);
-        return L.T($"این رو فهمیدم:\n{Assistant.Describe(result, DateTime.Now)}\nبرای تایید «بله» رو بفرست، برای انصراف «نه».",
-            $"I understood:\n{Assistant.Describe(result, DateTime.Now)}\nSend “yes” to confirm or “no” to drop it.");
     }
 
     // ---- power actions ----------------------------------------------------------------------

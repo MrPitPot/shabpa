@@ -49,6 +49,13 @@ public sealed class Telemetry : IDisposable
     private int _demand;
 
     private IGpuProvider? _gpu;
+    private BoardSensors? _board;
+
+    /// <summary>Switches the optional motherboard sensor module (CPU temperature and fan) on or off.</summary>
+    public volatile bool UseBoardSensors;
+
+    /// <summary>"" when fine or off; "admin", "nodata" or "error" when the module is on but cannot read.</summary>
+    public string BoardProblem => _board?.Problem ?? "";
     private FpsMeter? _fps;
     private DateTime _fpsRetry = DateTime.MinValue;
     private (long idle, long kernel, long user) _cpu;
@@ -169,6 +176,7 @@ public sealed class Telemetry : IDisposable
         }
         StopFps();
         _gpu?.Dispose();
+        _board?.Dispose();
     }
 
     private TelemetrySample Sample(SensorSnapshot sensors)
@@ -177,6 +185,17 @@ public sealed class Telemetry : IDisposable
         var memory = MemoryCleaner.Read();
 
         var gpu = _gpu?.Read() ?? new GpuReading();
+        if (UseBoardSensors && _board?.LastGpu is { } extra)
+        {
+            // The vendor library wins; the hardware-sensor module only fills what it left empty (any brand of card).
+            gpu = gpu with
+            {
+                TempC = gpu.TempC ?? extra.TempC, HotspotC = gpu.HotspotC ?? extra.HotspotC, MemTempC = gpu.MemTempC ?? extra.MemTempC,
+                CoreMHz = gpu.CoreMHz ?? extra.CoreMHz, MemMHz = gpu.MemMHz ?? extra.MemMHz, FanRpm = gpu.FanRpm ?? extra.FanRpm,
+                FanPercent = gpu.FanPercent ?? extra.FanPercent, PowerW = gpu.PowerW ?? extra.PowerW,
+                VoltageMv = gpu.VoltageMv ?? extra.VoltageMv, LoadPercent = gpu.LoadPercent ?? extra.LoadPercent,
+            };
+        }
         if (gpu.LoadPercent is null) gpu = gpu with { LoadPercent = sensors.GpuLoad };
         if (gpu.VramUsedMb is null)
         {
@@ -204,11 +223,26 @@ public sealed class Telemetry : IDisposable
         if (sensors.GameRunning) _gameStarted ??= now;
         else _gameStarted = null;
 
+        var board = default(BoardSensors.Reading);
+        if (UseBoardSensors)
+        {
+            board = (_board ??= new BoardSensors()).Read();
+            _board.LastGpu = board.Gpu;
+        }
+        else if (_board is not null)
+        {
+            _board.Dispose();
+            _board = null;
+        }
+
         var (fps, low, frameMs, fpsProcess) = ReadFrames();
         return new TelemetrySample
         {
             Time = now,
             CpuLoad = ReadCpu(),
+            CpuTempC = board.CpuTempC,
+            CpuFanRpm = board.FanRpm,
+            CpuFanPercent = board.FanPercent,
             CpuMHz = ReadCpuFrequency(),
             CpuWatts = sensors.CpuMeasured ? sensors.CpuWatts : null,
             RamPercent = memory.UsedPercent,

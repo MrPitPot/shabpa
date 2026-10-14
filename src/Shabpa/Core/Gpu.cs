@@ -52,7 +52,9 @@ public static class GpuProbe
         {
             Log.Write($"nvidia gpu probe failed: {ex.Message}");
         }
-        return null;
+        // Intel (integrated or Arc) and anything else: no vendor library needed, the name and memory come from Windows
+        // and the load / memory use from the Windows graphics counters (filled in by the telemetry service).
+        return GenericGpu.TryOpen();
     }
 
     /// <summary>Dedicated video memory in MB for the adapter whose driver description matches, from the registry
@@ -82,6 +84,58 @@ public static class GpuProbe
         catch { /* registry layout differs: no figure */ }
         return null;
     }
+}
+
+// ---- any vendor: name and memory from the registry -------------------------------------------------
+
+/// <summary>Fallback for cards without a vendor management library (Intel graphics, older cards). Reports only the
+/// name, vendor and memory size; load and memory use are added from Windows' own graphics counters.</summary>
+public sealed class GenericGpu : IGpuProvider
+{
+    private readonly double? _vram;
+
+    private GenericGpu(string name, double? vram)
+    {
+        Name = name;
+        _vram = vram;
+        Vendor = name.Contains("NVIDIA", StringComparison.OrdinalIgnoreCase) ? "NVIDIA"
+            : name.Contains("AMD", StringComparison.OrdinalIgnoreCase) || name.Contains("Radeon", StringComparison.OrdinalIgnoreCase) ? "AMD"
+            : name.Contains("Intel", StringComparison.OrdinalIgnoreCase) ? "Intel" : "";
+    }
+
+    public string Name { get; }
+    public string Vendor { get; }
+
+    public GpuReading Read() => new() { Name = Name, Vendor = Vendor, VramTotalMb = _vram };
+
+    public static GenericGpu? TryOpen()
+    {
+        try
+        {
+            using var classKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}");
+            if (classKey is null) return null;
+            string? bestName = null;
+            double bestVram = -1;
+            foreach (var sub in classKey.GetSubKeyNames())
+            {
+                using var key = classKey.OpenSubKey(sub);
+                if (key?.GetValue("DriverDesc") is not string desc || desc.Contains("Microsoft", StringComparison.OrdinalIgnoreCase)) continue;
+                var vram = GpuProbe.VramTotalMb(desc) ?? 0;
+                if (vram > bestVram)
+                {
+                    bestVram = vram;
+                    bestName = desc;
+                }
+            }
+            return bestName is null ? null : new GenericGpu(bestName, bestVram > 0 ? bestVram : null);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public void Dispose() { }
 }
 
 // ---- AMD: ADL -------------------------------------------------------------------------------------

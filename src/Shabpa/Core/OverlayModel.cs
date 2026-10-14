@@ -23,6 +23,8 @@ public sealed class OverlaySettings
     public double Y { get; set; } = 24;
     public bool ColorByValue { get; set; } = true;
     public bool ShowLabels { get; set; } = true;
+    /// <summary>Optional module: CPU temperature and CPU fan from the motherboard chip (needs admin and the PawnIO driver).</summary>
+    public bool BoardSensors { get; set; } = true;
     public bool Shadow { get; set; } = true;
     public bool Rounded { get; set; } = true;
     /// <summary>Alt + this letter shows or hides the overlay.</summary>
@@ -68,12 +70,12 @@ public static class OverlayMetrics
         new("memtemp", "دمای VRAM", "VRAM temp", "gpu", "°C"),
         new("vram", "مصرف VRAM", "VRAM use", "gpu", "GB"),
         // processor
-        new("cputemp", "دمای CPU", "CPU temp", "cpu", "°C", false, true),
+        new("cputemp", "دمای CPU", "CPU temp", "cpu", "°C"),
         new("cpu", "بار CPU", "CPU load", "cpu", "%", true),
         new("cpuwatts", "توان CPU", "CPU power", "cpu", "W"),
         new("cpufreq", "فرکانس CPU", "CPU clock", "cpu", "MHz"),
-        new("cpufan", "سرعت فن CPU", "CPU fan speed", "cpu", "%", false, true),
-        new("cpufanrpm", "دور فن CPU (RPM)", "CPU fan (RPM)", "cpu", "rpm", false, true),
+        new("cpufan", "سرعت فن CPU", "CPU fan speed", "cpu", "%"),
+        new("cpufanrpm", "دور فن CPU (RPM)", "CPU fan (RPM)", "cpu", "rpm"),
         // memory
         new("ram", "مصرف RAM", "RAM use", "ram", "%", true),
         new("ramused", "RAM مصرفی (گیگ)", "RAM used (GB)", "ram", "GB"),

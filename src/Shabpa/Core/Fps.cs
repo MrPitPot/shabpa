@@ -50,7 +50,9 @@ public sealed class FpsMeter : IDisposable
     }
 
     private readonly object _gate = new();
-    private readonly Dictionary<int, Track> _tracks = [];
+    // One track per (process, swap chain): a game also has overlay swap chains (chat, store, capture) that present on their own
+    // schedule and would otherwise be added on top of the game's own frames.
+    private readonly Dictionary<(int pid, long chain), Track> _tracks = [];
     private readonly TraceEventSession _session;
 
     private FpsMeter(TraceEventSession session) => _session = session;
@@ -91,24 +93,41 @@ public sealed class FpsMeter : IDisposable
             : e.ProviderGuid == D3D9 && (int)e.ID == D3D9Present;
         if (!isPresent) return;
 
+        if (e.ProcessID == Environment.ProcessId) return;
+        long chain = 0;
+        try
+        {
+            // DXGI_PRESENT_TEST (0x1) only asks "could I present?"; it never produces a frame.
+            if (e.PayloadByName("Flags") is { } flags && (Convert.ToInt64(flags) & 0x1) != 0) return;
+            var swap = e.PayloadByName("pIDXGISwapChain") ?? e.PayloadByName("pSwapchain");
+            if (swap is not null) chain = Convert.ToInt64(swap);
+        }
+        catch { /* payload not available: all frames of the process share one track */ }
+
         lock (_gate)
         {
-            if (!_tracks.TryGetValue(e.ProcessID, out var track)) _tracks[e.ProcessID] = track = new Track();
+            if (!_tracks.TryGetValue((e.ProcessID, chain), out var track)) _tracks[(e.ProcessID, chain)] = track = new Track();
             track.Times.Enqueue(e.TimeStampRelativeMSec);
             while (track.Times.Count > KeepFrames) track.Times.Dequeue();
             track.LastSeen = Environment.TickCount64;
         }
     }
 
-    /// <summary>Frame figures for one process over its most recent frames; <see cref="FrameStats.None"/> when it is not presenting.</summary>
+    /// <summary>Frame figures for one process over its most recent frames: the swap chain presenting fastest wins
+    /// (the game's own), so overlays in the same process are not added on top. <see cref="FrameStats.None"/> when idle.</summary>
     public FrameStats Stats(int pid, double windowSeconds = 4)
     {
         lock (_gate)
         {
-            if (!_tracks.TryGetValue(pid, out var track) || Environment.TickCount64 - track.LastSeen > Stale.TotalMilliseconds) return FrameStats.None;
-            var newest = track.Times.Last();
-            var recent = track.Times.Where(t => newest - t <= windowSeconds * 1000).ToList();
-            return FrameStats.From(recent);
+            var best = FrameStats.None;
+            foreach (var (key, track) in _tracks)
+            {
+                if (key.pid != pid || Environment.TickCount64 - track.LastSeen > Stale.TotalMilliseconds || track.Times.Count == 0) continue;
+                var newest = track.Times.Last();
+                var stats = FrameStats.From(track.Times.Where(t => newest - t <= windowSeconds * 1000).ToList());
+                if (stats.Frames > best.Frames) best = stats;
+            }
+            return best;
         }
     }
 
@@ -120,7 +139,7 @@ public sealed class FpsMeter : IDisposable
         {
             var now = Environment.TickCount64;
             foreach (var old in _tracks.Where(t => now - t.Value.LastSeen > 30_000).Select(t => t.Key).ToList()) _tracks.Remove(old);
-            pids = [.. _tracks.Keys];
+            pids = [.. _tracks.Keys.Select(k => k.pid).Distinct()];
         }
         (int, FrameStats)? best = null;
         foreach (var pid in pids)

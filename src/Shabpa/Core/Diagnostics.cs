@@ -186,6 +186,19 @@ public static class Diagnostics
                    + ((gpu as AmdGpu)?.DumpSensors() is { Length: > 0 } dump ? " | sensors: " + dump : "");
         });
 
+        Line("launchers", () => string.Join(", ", LauncherDetector.Detect().Select(l => l.Name)) is { Length: > 0 } names ? names : "none found");
+
+        Line("advanced sensors", () =>
+        {
+            if (!Elevation.IsElevated) return "skipped (needs admin)";
+            using var board = new BoardSensors();
+            var r = board.Read();
+            string F(double? v, string unit) => v is { } x ? $"{x:0.#}{unit}" : "-";
+            return $"cpu temp {F(r.CpuTempC, " C")}, cpu fan {F(r.FanRpm, " rpm")} / {F(r.FanPercent, " %")}"
+                   + (r.Gpu is { } g ? $"; gpu via module: temp {F(g.TempC, " C")}, fan {F(g.FanRpm, " rpm")}, power {F(g.PowerW, " W")}, load {F(g.LoadPercent, " %")}" : "")
+                   + (board.Problem.Length > 0 ? $" (problem: {board.Problem})" : "");
+        });
+
         Line("frame rate (ETW)", () =>
         {
             using var meter = FpsMeter.TryStart(out var error);

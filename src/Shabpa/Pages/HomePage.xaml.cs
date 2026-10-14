@@ -223,37 +223,6 @@ public partial class HomePage : PageBase
                 label.Text = Fa.Countdown((DateTime)label.Tag - now);
     }
 
-    private void OnAssistantKey(object sender, System.Windows.Input.KeyEventArgs e)
-    {
-        if (e.Key == System.Windows.Input.Key.Enter) OnAssistant(sender, e);
-    }
-
-    private void OnAssistant(object sender, RoutedEventArgs e)
-    {
-        var text = AssistantBox.Text.Trim();
-        if (text.Length == 0)
-        {
-            AssistantNote.Text = Assistant.Examples();
-            return;
-        }
-        var now = DateTime.Now;
-        var result = Assistant.Parse(text, now);
-        if (!result.Understood)
-        {
-            AssistantNote.Text = L.T("متوجه نشدم. ", "I did not get that. ") + Assistant.Examples();
-            return;
-        }
-        var danger = result.Action is PowerAction.Shutdown or PowerAction.Restart && result.Kind is AssistantKind.Schedule or AssistantKind.Rule;
-        if (!Ask(L.T("این کار انجام بشه؟", "Do this?"), Assistant.Describe(result, now),
-                L.T("تایید و انجام", "Confirm"), danger: result.Kind == AssistantKind.Cancel || (danger && result.Due is { } due && due - now < TimeSpan.FromMinutes(1))))
-        {
-            AssistantNote.Text = L.T("انجام نشد.", "Nothing was done.");
-            return;
-        }
-        AssistantNote.Text = Hub.RunAssistant(result);
-        AssistantBox.Clear();
-    }
-
     private void OnPreset(object sender, RoutedEventArgs e)
     {
         var minutes = int.Parse((string)((Button)sender).Tag);
