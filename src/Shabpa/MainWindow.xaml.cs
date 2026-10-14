@@ -13,7 +13,7 @@ public partial class MainWindow : Window
 
     /// <summary>Every screen worth a screenshot, including the tabs inside «کنترل سیستم».</summary>
     public IEnumerable<string> CaptureKeys =>
-        ["home", .. SystemPage.TabKeys.Select(t => $"system:{t}"), "ping", "update", "settings"];
+        ["home", .. SystemPage.TabKeys.Select(t => $"system:{t}"), .. NetworkPage.TabKeys.Select(t => $"ping:{t}"), "update", "settings"];
 
     public FrameworkElement CaptureRoot => Root;
 
@@ -25,7 +25,7 @@ public partial class MainWindow : Window
         {
             ["home"] = (NavHome, new HomePage()),
             ["system"] = (NavSystem, new SystemPage()),
-            ["ping"] = (NavPing, new PingPage()),
+            ["ping"] = (NavPing, new NetworkPage()),
             ["update"] = (NavUpdate, new UpdatePage()),
             ["settings"] = (NavSettings, new SettingsPage()),
         };
@@ -55,6 +55,7 @@ public partial class MainWindow : Window
         var parts = key.Split(':');
         if (!_pages.TryGetValue(parts[0], out var entry)) return;
         if (parts.Length > 1 && entry.page is SystemPage system) system.Select(parts[1]);
+        if (parts.Length > 1 && entry.page is TabsPage tabs) tabs.Select(parts[1]);
         if (entry.nav.IsChecked != true)
         {
             entry.nav.IsChecked = true; // re-enters through OnNav
@@ -80,7 +81,7 @@ public partial class MainWindow : Window
         page.OnSecond();
     }
 
-    public void OpenFirstPingEditor() => ((PingPage)_pages["ping"].page).OpenFirst();
+    public void OpenFirstPingEditor() => ((NetworkPage)_pages["ping"].page).PageOf<PingPage>()?.OpenFirst();
 
     private void UpdateHeader()
     {

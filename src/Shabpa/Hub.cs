@@ -26,6 +26,7 @@ public sealed class Hub
     public TrafficMeter Traffic { get; }
     public PingMeter Ping { get; }
     public Shaper Shaper { get; } = new();
+    public UsageHistory Usage { get; } = new();
     public Updater Updater { get; }
     public bool DryRun { get; }
     public bool Demo { get; }
@@ -69,6 +70,8 @@ public sealed class Hub
         if (State.ActiveRule is { } rule) Engine.Activate(rule);
 
         Traffic.Load(State.NetUsage, DateTime.Now);
+        if (Demo) Usage.FillDemo(DateTime.Now);
+        else Usage.Load(UsageFile);
         if (!Demo)
         {
             _net = NetMonitor.TryStart(Traffic, out var netError);
@@ -100,7 +103,10 @@ public sealed class Hub
         // Limits only exist inside this process: stopping the shaper restores normal traffic.
         Shaper.Dispose();
         Store.Save();
+        if (!Store.ReadOnly && !Demo) Usage.Save(UsageFile);
     }
+
+    private string UsageFile => System.IO.Path.Combine(Store.Folder, "usage.json");
 
     private void OnSecond()
     {
@@ -131,6 +137,7 @@ public sealed class Hub
             _lastSave = now;
             // On the UI thread on purpose: everything that mutates the state lives here too.
             Store.Save();
+            if (!Store.ReadOnly && !Demo) Usage.Save(UsageFile);
         }
         Second?.Invoke();
     }
@@ -229,6 +236,7 @@ public sealed class Hub
         {
             Apps = Traffic.Snapshot(seconds, s.Time);
             State.NetUsage = Traffic.Export();
+            Usage.Update(s.Time, Apps);
         }
 
         GameProcess = s.GameProcess;
