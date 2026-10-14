@@ -107,6 +107,11 @@ public static class Fa
         };
     }
 
+    /// <summary>Like <see cref="RelativeDay"/>, plus the date once the day is further away than tomorrow,
+    /// so a schedule a week or more ahead is not mistaken for this week's weekday.</summary>
+    public static string DayOf(DateTime day, DateTime now) =>
+        (day.Date - now.Date).Days is >= -1 and <= 1 ? RelativeDay(day, now) : $"{RelativeDay(day, now)} {Date(day)}";
+
     public static string Days(IReadOnlyCollection<DayOfWeek> days)
     {
         if (days.Count is 0 or 7) return L.T("هر روز", "Every day");

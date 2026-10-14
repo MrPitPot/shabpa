@@ -750,7 +750,7 @@ public sealed class Hub
     public string NextText()
     {
         if (Queue.Next is { } next)
-            return $"{Fa.ActionName(next.Action)}{L.Comma}{Fa.RelativeDay(next.DueAt, DateTime.Now)} {Fa.Clock(next.DueAt)}";
+            return $"{Fa.ActionName(next.Action)}{L.Comma}{Fa.DayOf(next.DueAt, DateTime.Now)} {Fa.Clock(next.DueAt)}";
         if (Engine.Rule is { } rule)
             return L.T($"خاموشی شرطی فعاله: {Fa.ActionName(rule.Action)}", $"Conditional rule active: {Fa.ActionName(rule.Action)}");
         return L.T("برنامه‌ای در راه نیست", "Nothing scheduled");
@@ -767,8 +767,8 @@ public sealed class Hub
             L.T($"🧠 پردازنده {Fa.N(s.CpuLoad, 0)}٪ · گرافیک {Fa.N(s.GpuLoad, 0)}٪", $"🧠 CPU {Fa.N(s.CpuLoad, 0)}% · GPU {Fa.N(s.GpuLoad, 0)}%"),
         };
         if (Queue.Next is { } next)
-            lines.Add(L.T($"⏳ بعدی: {Fa.ActionName(next.Action)}، {Fa.RelativeDay(next.DueAt, DateTime.Now)} ساعت {Fa.Clock(next.DueAt)}",
-                $"⏳ Next: {Fa.ActionName(next.Action)}, {Fa.RelativeDay(next.DueAt, DateTime.Now)} at {Fa.Clock(next.DueAt)}"));
+            lines.Add(L.T($"⏳ بعدی: {Fa.ActionName(next.Action)}، {Fa.DayOf(next.DueAt, DateTime.Now)} ساعت {Fa.Clock(next.DueAt)}",
+                $"⏳ Next: {Fa.ActionName(next.Action)}, {Fa.DayOf(next.DueAt, DateTime.Now)} at {Fa.Clock(next.DueAt)}"));
         if (Engine.Rule is { } rule)
             lines.Add(L.T($"🎯 قانون فعال ({Fa.ActionName(rule.Action)}): {Engine.Status.Text}", $"🎯 Active rule ({Fa.ActionName(rule.Action)}): {Engine.Status.Text}"));
         if (Queue.Next is null && Engine.Rule is null) lines.Add(L.T("برنامه‌ای در راه نیست.", "Nothing scheduled."));
