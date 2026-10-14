@@ -88,3 +88,17 @@ public sealed class NetworkPage : TabsPage
         Add("usage", L.T("تاریخچه‌ی مصرف", "Usage history"), new UsagePage());
     }
 }
+
+/// <summary>«بازی»: the overlay and the graphics card.</summary>
+public sealed class GamingPage : TabsPage
+{
+    public static readonly string[] TabKeys = ["overlay", "gpu"];
+
+    public override string PageTitle => L.T("بازی", "Gaming");
+
+    public GamingPage()
+    {
+        Add("overlay", L.T("اورلی", "Overlay"), new OverlayPage());
+        Add("gpu", L.T("کارت گرافیک", "Graphics card"), new GpuPage());
+    }
+}

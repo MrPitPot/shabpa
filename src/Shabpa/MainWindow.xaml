@@ -46,6 +46,7 @@
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE80F;" Content="{s:Tr 'خانه', 'Home'}" x:Name="NavHome" Checked="OnNav"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE7E8;" Content="{s:Tr 'کنترل سیستم', 'System control'}" x:Name="NavSystem" Checked="OnNav"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE701;" Content="{s:Tr 'پایداری پینگ', 'Ping stability'}" x:Name="NavPing" Checked="OnNav"/>
+                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE7FC;" Content="{s:Tr 'بازی', 'Gaming'}" x:Name="NavGaming" Checked="OnNav"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE895;" Content="{s:Tr 'به‌روزرسانی', 'Updates'}" x:Name="NavUpdate" Checked="OnNav"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE713;" Content="{s:Tr 'تنظیمات', 'Settings'}" x:Name="NavSettings" Checked="OnNav"/>
                 </StackPanel>

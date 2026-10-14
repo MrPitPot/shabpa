@@ -66,6 +66,8 @@ public sealed class Settings
     public bool StartMinimized { get; set; }
     /// <summary>Ask "are you sure" (with the exact time it will happen) before anything is scheduled, run or deleted.</summary>
     public bool ConfirmActions { get; set; } = true;
+    public OverlaySettings Overlay { get; set; } = new();
+    public GpuTuneProfile GpuTune { get; set; } = new();
     public bool TrayNoticeShown { get; set; }
     public string RecorderProcesses { get; set; } = "obs64, obs32, obs, Streamlabs OBS, bdcam, CamtasiaStudio, CamRecorder, XSplit.Core, Action, ShareX, ffmpeg";
     public string TelegramTokenProtected { get; set; } = "";

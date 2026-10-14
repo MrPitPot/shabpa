@@ -64,7 +64,8 @@ public partial class App : Application
         }
 
         var shots = Value(e.Args, "--screenshots");
-        var demo = args.Contains("--demo") || shots is not null;
+        // --live keeps real sensors and the real graphics card in a screenshot run (nothing is saved or executed).
+        var demo = args.Contains("--demo") || (shots is not null && !args.Contains("--live"));
         var dryRun = args.Contains("--dry-run") || demo;
 
         if (shots is null)
@@ -106,7 +107,11 @@ public partial class App : Application
         var store = new Store();
         Log.File = Path.Combine(store.Folder, "shabpa.log");
         if (demo) store.ReadOnly = true;
-        else store.Load();
+        else
+        {
+            store.Load();
+            if (shots is not null) store.ReadOnly = true;
+        }
 
         // Language and theme are fixed for the lifetime of the process (command line wins, for screenshots).
         var settings = store.State.Settings;
@@ -125,6 +130,14 @@ public partial class App : Application
             _window.Show();
             _ = CaptureAll(shots, Value(e.Args, "--only"));
             return;
+        }
+
+        if (!demo)
+        {
+            var overlay = new OverlayWindow(hub);
+            new System.Windows.Interop.WindowInteropHelper(overlay).EnsureHandle(); // registers the hotkeys while hidden
+            hub.Overlay = overlay;
+            overlay.Evaluate();
         }
 
         _tray = new Tray(ShowWindow, Quit);
@@ -194,11 +207,11 @@ public partial class App : Application
             foreach (var page in _window!.CaptureKeys.Where(k => only is null || only.Split(',').Contains(k)))
             {
                 _window.Navigate(page);
-                await Task.Delay(900);
+                await Task.Delay(page.StartsWith("gaming", StringComparison.Ordinal) ? 3500 : 900);
                 var name = page.Replace(':', '-');
                 Save(_window.CaptureRoot, Path.Combine(folder, $"{name}.png"));
                 var extra = 0;
-                while (only is null && _window.ScrollPage())
+                while ((only is null || page.StartsWith("gaming", StringComparison.Ordinal)) && _window.ScrollPage())
                 {
                     await Task.Delay(300);
                     Save(_window.CaptureRoot, Path.Combine(folder, $"{name}-{++extra}.png"));

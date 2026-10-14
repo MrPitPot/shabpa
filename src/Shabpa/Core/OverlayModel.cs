@@ -1,0 +1,215 @@
+using System.Globalization;
+
+namespace Shabpa.Core;
+
+public enum OverlayMode { Off, InGame, Always }
+
+/// <summary>Everything about how the in-game overlay looks and where it sits; all of it is user-editable.</summary>
+public sealed class OverlaySettings
+{
+    public OverlayMode Mode { get; set; } = OverlayMode.InGame;
+    /// <summary>card, bar, compact, minimal, rings, graph.</summary>
+    public string Layout { get; set; } = "card";
+    /// <summary>theme (follow the app), matrix, cyber, sunset, ice, mono, rose, custom.</summary>
+    public string Look { get; set; } = "theme";
+    public string CustomAccent { get; set; } = "3EE6A0";
+    public string CustomText { get; set; } = "F2F2F2";
+    public string CustomBack { get; set; } = "0B0F1A";
+    public double BackOpacity { get; set; } = 0.78;
+    public double Scale { get; set; } = 1.0;
+    /// <summary>tl, tr, bl, br, tc, bc, or "free" (X and Y are screen coordinates).</summary>
+    public string Anchor { get; set; } = "tl";
+    public double X { get; set; } = 24;
+    public double Y { get; set; } = 24;
+    public bool ColorByValue { get; set; } = true;
+    public bool ShowLabels { get; set; } = true;
+    public bool Shadow { get; set; } = true;
+    public bool Rounded { get; set; } = true;
+    /// <summary>Alt + this letter shows or hides the overlay.</summary>
+    public string ToggleKey { get; set; } = "O";
+    /// <summary>Alt + this letter lets the overlay be dragged to a new place.</summary>
+    public string MoveKey { get; set; } = "P";
+    public List<string> Items { get; set; } = ["fps", "low1", "gpu", "gputemp", "cpu", "ram", "ping"];
+}
+
+public sealed record MetricDef(string Key, string Fa, string En, string Group, string Unit, bool AlwaysShown = false)
+{
+    public string Label => L.T(Fa, En);
+}
+
+/// <summary>One line of the overlay, ready to draw.</summary>
+public sealed record MetricView(string Key, string Label, string Value, string Unit, double? Fraction, int Level)
+{
+    public bool HasValue => Value != "—";
+}
+
+public static class OverlayMetrics
+{
+    public static readonly IReadOnlyList<MetricDef> All =
+    [
+        new("fps", "فریم بر ثانیه", "FPS", "perf", "", true),
+        new("low1", "۱٪ پایین", "1% low", "perf", "", true),
+        new("frame", "فریم‌تایم", "Frame time", "perf", "ms"),
+        new("gpu", "گرافیک", "GPU", "gpu", "%", true),
+        new("gputemp", "دمای گرافیک", "GPU temp", "gpu", "°C"),
+        new("hotspot", "هات‌اسپات", "Hotspot", "gpu", "°C"),
+        new("memtemp", "دمای VRAM", "VRAM temp", "gpu", "°C"),
+        new("gpuclock", "کلاک گرافیک", "GPU clock", "gpu", "MHz"),
+        new("memclock", "کلاک VRAM", "VRAM clock", "gpu", "MHz"),
+        new("gpupower", "توان گرافیک", "GPU power", "gpu", "W"),
+        new("gpufan", "فن گرافیک", "GPU fan", "gpu", "%"),
+        new("vram", "حافظه‌ی گرافیک", "VRAM", "gpu", "GB"),
+        new("cpu", "پردازنده", "CPU", "cpu", "%", true),
+        new("cputemp", "دمای سیستم", "System temp", "cpu", "°C"),
+        new("cpuwatts", "توان پردازنده", "CPU power", "cpu", "W"),
+        new("ram", "رم", "RAM", "system", "%", true),
+        new("ping", "پینگ", "Ping", "net", "ms", true),
+        new("down", "دانلود", "Download", "net", "Mb/s"),
+        new("up", "آپلود", "Upload", "net", "Mb/s"),
+        new("clock", "ساعت", "Clock", "system", ""),
+        new("gametime", "زمان بازی", "Game time", "system", ""),
+    ];
+
+    public static MetricDef? Find(string key) => All.FirstOrDefault(m => m.Key == key);
+
+    /// <summary>0 = fine, 1 = getting high, 2 = a problem. The limits are the usual rules of thumb for each reading.</summary>
+    public static int Level(string key, double value) => key switch
+    {
+        "cpu" or "gpu" or "ram" or "vram" => value >= 92 ? 2 : value >= 75 ? 1 : 0,
+        "gputemp" => value >= 85 ? 2 : value >= 75 ? 1 : 0,
+        "hotspot" => value >= 105 ? 2 : value >= 92 ? 1 : 0,
+        "memtemp" => value >= 95 ? 2 : value >= 85 ? 1 : 0,
+        "cputemp" => value >= 85 ? 2 : value >= 70 ? 1 : 0,
+        "fps" or "low1" => value <= 0 ? 0 : value < (key == "fps" ? 30 : 24) ? 2 : value < (key == "fps" ? 60 : 45) ? 1 : 0,
+        "frame" => value > 33 ? 2 : value > 20 ? 1 : 0,
+        "ping" => value > 100 ? 2 : value > 50 ? 1 : 0,
+        _ => 0,
+    };
+
+    private static string N(double value, int decimals = 0) => value.ToString("F" + decimals, CultureInfo.InvariantCulture);
+
+    /// <summary>Turns a sample into the lines the user chose, skipping readings this PC cannot provide.</summary>
+    public static List<MetricView> Build(TelemetrySample s, IEnumerable<string> keys)
+    {
+        var result = new List<MetricView>();
+        foreach (var key in keys)
+        {
+            var def = Find(key);
+            if (def is null) continue;
+            var view = One(def, s);
+            if (view is null) continue;
+            if (!view.HasValue && !def.AlwaysShown) continue;
+            result.Add(view);
+        }
+        return result;
+    }
+
+    private static MetricView? One(MetricDef def, TelemetrySample s)
+    {
+        MetricView Make(double? value, int decimals = 0, double? max = null, string? text = null)
+        {
+            if (value is null) return new MetricView(def.Key, def.Label, "—", def.Unit, null, 0);
+            var shown = text ?? N(value.Value, decimals);
+            return new MetricView(def.Key, def.Label, shown, def.Unit, max is { } m && m > 0 ? Math.Clamp(value.Value / m, 0, 1) : null, Level(def.Key, value.Value));
+        }
+
+        var g = s.Gpu;
+        return def.Key switch
+        {
+            "fps" => Make(s.Fps > 0 ? s.Fps : null, 0, 240),
+            "low1" => Make(s.Low1Fps > 0 ? s.Low1Fps : null, 0, 240),
+            "frame" => Make(s.FrameMs > 0 ? s.FrameMs : null, 1, 50),
+            "gpu" => Make(g.LoadPercent, 0, 100),
+            "gputemp" => Make(g.TempC, 0, 110),
+            "hotspot" => Make(g.HotspotC, 0, 110),
+            "memtemp" => Make(g.MemTempC, 0, 110),
+            "gpuclock" => Make(g.CoreMHz, 0, 3500),
+            "memclock" => Make(g.MemMHz, 0, 3000),
+            "gpupower" => Make(g.PowerW, 0, 400),
+            "gpufan" => Make(g.FanPercent, 0, 100),
+            "vram" => g.VramUsedMb is { } used
+                ? new MetricView("vram", def.Label, N(used / 1024, 1), g.VramTotalMb is { } t ? $"/ {N(t / 1024, 0)} GB" : "GB",
+                    s.VramPercent / 100, Level("vram", s.VramPercent ?? 0))
+                : new MetricView("vram", def.Label, "—", def.Unit, null, 0),
+            "cpu" => Make(s.CpuLoad, 0, 100),
+            "cputemp" => Make(s.CpuTempC, 0, 110),
+            "cpuwatts" => Make(s.CpuWatts, 0, 250),
+            "ram" => Make(s.RamPercent, 0, 100),
+            "ping" => Make(s.PingMs, 0, 200),
+            "down" => Make(s.DownMbps, s.DownMbps >= 10 ? 0 : 1, 100),
+            "up" => Make(s.UpMbps, s.UpMbps >= 10 ? 0 : 1, 100),
+            "clock" => new MetricView("clock", def.Label, s.Time.ToString("HH:mm", CultureInfo.InvariantCulture), "", null, 0),
+            "gametime" => s.InGame
+                ? new MetricView("gametime", def.Label, $"{(int)s.GameTime.TotalHours}:{s.GameTime.Minutes:00}:{s.GameTime.Seconds:00}", "", null, 0)
+                : new MetricView("gametime", def.Label, "—", "", null, 0),
+            _ => null,
+        };
+    }
+
+    /// <summary>Plausible figures for the preview and the screenshots.</summary>
+    public static TelemetrySample Demo(DateTime now)
+    {
+        var wobble = Math.Sin(now.Second / 60.0 * Math.PI * 2);
+        return new TelemetrySample
+        {
+            Time = now,
+            CpuLoad = 38 + 6 * wobble,
+            CpuTempC = 58,
+            CpuWatts = 74,
+            RamPercent = 56,
+            RamUsedGb = 17.9,
+            RamTotalGb = 32,
+            Gpu = new GpuReading
+            {
+                Name = "AMD Radeon RX 6900 XT", Vendor = "AMD", TempC = 67 + 3 * wobble, HotspotC = 84, MemTempC = 72, CoreMHz = 2310, MemMHz = 2000,
+                FanPercent = 46, PowerW = 212, LoadPercent = 96, VramUsedMb = 9400, VramTotalMb = 16368,
+            },
+            Fps = 164 + 8 * wobble,
+            Low1Fps = 121,
+            FrameMs = 6.1,
+            FpsProcess = "cs2",
+            PingMs = 24 + 3 * wobble,
+            DownMbps = 1.4,
+            UpMbps = 0.3,
+            InGame = true,
+            Game = "cs2",
+            GameTime = TimeSpan.FromMinutes(47) + TimeSpan.FromSeconds(now.Second),
+        };
+    }
+}
+
+/// <summary>Colour presets for the overlay. Colours are "RRGGBB".</summary>
+public sealed record OverlayLook(string Key, string Fa, string En, string Accent, string Text, string Back, string Accent2)
+{
+    public string Name => L.T(Fa, En);
+
+    public static readonly IReadOnlyList<OverlayLook> All =
+    [
+        new("theme", "هم‌رنگ برنامه", "Match the app", "", "", "", ""),
+        new("matrix", "ماتریکس", "Matrix", "39FF88", "D6FFE5", "021208", "00B85C"),
+        new("cyber", "سایبر", "Cyber", "00E5FF", "FFFFFF", "0A0614", "FF2BD6"),
+        new("sunset", "غروب", "Sunset", "FF9A5C", "FFF1E8", "1E0B12", "FF4D8D"),
+        new("ice", "یخی", "Ice", "7AD7FF", "F0FAFF", "06121C", "A5B4FF"),
+        new("rose", "رز", "Rose", "FF8AD0", "FFF0FA", "1B0A22", "B28CFF"),
+        new("mono", "تک‌رنگ", "Mono", "FFFFFF", "E8E8E8", "000000", "BDBDBD"),
+        new("custom", "دلخواه", "Custom", "", "", "", ""),
+    ];
+
+    public static OverlayLook Find(string key) => All.FirstOrDefault(l => l.Key == key) ?? All[0];
+
+    public static bool IsHex(string? value) =>
+        value is { Length: 6 } && value.All(Uri.IsHexDigit);
+}
+
+public static class OverlayLayouts
+{
+    public static readonly IReadOnlyList<(string key, string fa, string en)> All =
+    [
+        ("card", "کارت", "Card"),
+        ("bar", "نوار افقی", "Bar"),
+        ("compact", "فشرده", "Compact"),
+        ("minimal", "مینیمال", "Minimal"),
+        ("rings", "حلقه‌ای", "Rings"),
+        ("graph", "نمودار", "Graph"),
+    ];
+}

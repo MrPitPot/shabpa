@@ -31,6 +31,14 @@ public sealed class Hub
     public PingMeter Ping { get; }
     public Shaper Shaper { get; } = new();
     public UsageHistory Usage { get; } = new();
+    public Telemetry Telemetry { get; }
+    public GpuTuner Tuner { get; }
+    /// <summary>The window drawn over games; null in screenshot runs.</summary>
+    public OverlayWindow? Overlay { get; set; }
+    /// <summary>Overlay settings changed (layout, colours, position, mode).</summary>
+    public event Action? OverlaySettingsChanged;
+    /// <summary>The overlay entered or left the "drag me" mode.</summary>
+    public event Action<bool>? OverlayMoving;
     public Updater Updater { get; }
     public bool DryRun { get; }
     public bool Demo { get; }
@@ -57,6 +65,8 @@ public sealed class Hub
         Sensors = new SensorHub(() => Settings);
         Traffic = new TrafficMeter(_resolver.Resolve);
         Ping = new PingMeter(() => Settings.PingHost);
+        Telemetry = new Telemetry(() => Sensors.Latest, () => Ping.Samples);
+        Tuner = new GpuTuner(() => Telemetry.Gpu as AmdGpu);
         Updater = new Updater(() => Settings);
         Bot = new TelegramBot(() => Settings, Store.Save, new BotHost
         {
@@ -93,6 +103,11 @@ public sealed class Hub
 
         Sensors.Updated += s => Application.Current?.Dispatcher.BeginInvoke(() => OnSensors(s));
         Sensors.Start();
+        if (!Demo)
+        {
+            Telemetry.Updated += sample => Tuner.Tick(Settings.GpuTune, sample);
+            Telemetry.Start();
+        }
         _clock.Tick += (_, _) => OnSecond();
         _clock.Start();
         Bot.Restart();
@@ -110,6 +125,13 @@ public sealed class Hub
     {
         _clock.Stop();
         Sensors.Dispose();
+        // Whatever was tuned goes back to the driver's values; with "apply at start" it is applied again next time.
+        if (!Demo && !Store.ReadOnly && !Settings.GpuTune.IsDefault)
+        {
+            try { Tuner.ResetAll(); }
+            catch (Exception ex) { Log.Write($"gpu reset on exit failed: {ex.Message}"); }
+        }
+        Telemetry.Dispose();
         Bot.Dispose();
         Ping.Dispose();
         _net?.Dispose();
@@ -153,6 +175,7 @@ public sealed class Hub
         }
 
         CheckForUpdates(now);
+        ApplyTuneAtStart(now);
 
         if (now - _lastSave > TimeSpan.FromMinutes(1))
         {
@@ -182,6 +205,18 @@ public sealed class Hub
         }
         Tick?.Invoke(s);
     }
+
+    // ---- overlay ----------------------------------------------------------------------------
+
+    /// <summary>Call after changing <see cref="Settings.Overlay"/>: saves, redraws the overlay and tells the settings page.</summary>
+    public void OverlayChanged()
+    {
+        Store.Save();
+        Overlay?.Evaluate();
+        OverlaySettingsChanged?.Invoke();
+    }
+
+    public void OverlayMoveChanged(bool moving) => OverlayMoving?.Invoke(moving);
 
     // ---- memory ----------------------------------------------------------------------------------
 
@@ -339,6 +374,49 @@ public sealed class Hub
             new("telegram", "Telegram Desktop", "", 0.02, 0.01, 130 * mb, 24 * mb, now.AddMinutes(-1)),
             new("svchost", "Host Process for Windows Services", "", 0, 0, 310 * mb, 45 * mb, now.AddMinutes(-20)),
         ];
+    }
+
+    // ---- graphics tuning at start ---------------------------------------------------------------
+
+    private bool _tuneChecked;
+    private DateTime? _tuneStableAt;
+
+    /// <summary>Applies the saved graphics profile once the card is readable. A "pending" mark protects against a bad
+    /// profile: if the previous start never got to clear it, the profile is not applied again by itself.</summary>
+    private void ApplyTuneAtStart(DateTime now)
+    {
+        if (Demo || Store.ReadOnly) return;
+        var profile = Settings.GpuTune;
+        if (_tuneStableAt is { } stable && now >= stable)
+        {
+            _tuneStableAt = null;
+            profile.Pending = false;
+            Store.Save();
+        }
+        if (_tuneChecked || now - _started < TimeSpan.FromSeconds(20) || Telemetry.Gpu is not AmdGpu) return;
+        _tuneChecked = true;
+        if (!profile.AutoApply || profile.IsDefault) return;
+        if (profile.Pending)
+        {
+            profile.Pending = false;
+            profile.AutoApply = false;
+            Store.Save();
+            Notify(L.T("کارت گرافیک", "Graphics card"),
+                L.T("دفعه‌ی قبل بعد از اعمال تنظیمات سیستم درست پیش نرفت؛ این بار خودکار اعمال نشد. از «بازی ← کارت گرافیک» دوباره امتحان کن.",
+                    "Last time something went wrong after the settings were applied, so they were not applied automatically now. Try again from Gaming → Graphics."));
+            return;
+        }
+        profile.Pending = true;
+        Store.Save();
+        var error = Tuner.Apply(profile);
+        if (error is not null)
+        {
+            profile.Pending = false;
+            Store.Save();
+            Notify(L.T("کارت گرافیک", "Graphics card"), L.T($"تنظیمات ذخیره‌شده اعمال نشد: {error}", $"The saved settings were not applied: {error}"));
+            return;
+        }
+        _tuneStableAt = now.AddSeconds(90);
     }
 
     // ---- updates ----------------------------------------------------------------------------
