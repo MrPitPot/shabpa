@@ -33,6 +33,10 @@ public partial class WakePage : PageBase
             ShowError(L.T("همین بیدارباش رو قبلاً ساختی.", "You already have this wake-up."));
             return;
         }
+        if (!Ask(L.T("این بیدارباش ساخته بشه؟", "Create this wake-up?"),
+                L.T("سیستم از خواب یا هایبرنیت بیدار می‌شه و فقط روشن می‌شه؛ خاموشش نمی‌کنه.", "The PC wakes from sleep or hibernate and simply turns on; nothing is shut down."),
+                L.T("تایید و ثبت", "Confirm and create"), detail: L.T($"ساعت {Fa.Clock(hour, minute)} · {Fa.Days(days)}", $"{Fa.Clock(hour, minute)} · {Fa.Days(days)}")))
+            return;
         if (Hub.AddWake(new WakeSchedule { Hour = hour, Minute = minute, Days = days }) is { } error)
             ShowError(L.T($"ویندوز این زمان‌بندی رو ثبت نکرد: {error}", $"Windows did not accept this schedule: {error}"));
     }
@@ -55,7 +59,13 @@ public partial class WakePage : PageBase
             ListPanel.Children.Add(Row("", "Green",
                 L.T($"ساعت {Fa.Clock(w.Hour, w.Minute)} · {Fa.Days(w.Days)}", $"{Fa.Clock(w.Hour, w.Minute)} · {Fa.Days(w.Days)}"),
                 L.T($"بعدی: {Fa.RelativeDay(next, now)} {Fa.Date(next)}، {Fa.Duration(next - now)} دیگه", $"Next: {Fa.RelativeDay(next, now)}, {Fa.Date(next)}, in {Fa.Duration(next - now)}"),
-                IconButton("", L.T("حذف", "Remove"), () => Hub.RemoveWake(id))));
+                IconButton("\uE74D", L.T("حذف", "Remove"), () =>
+                {
+                    if (Ask(L.T("این بیدارباش حذف بشه؟", "Delete this wake-up?"),
+                            L.T("از ویندوز هم پاک می‌شه و سیستم سر اون ساعت بیدار نمی‌شه.", "It is also removed from Windows and the PC will not wake at that time."),
+                            L.T("حذف کن", "Delete"), danger: true, detail: L.T($"ساعت {Fa.Clock(w.Hour, w.Minute)} · {Fa.Days(w.Days)}", $"{Fa.Clock(w.Hour, w.Minute)} · {Fa.Days(w.Days)}")))
+                        Hub.RemoveWake(id);
+                })));
         }
         if (ListPanel.Children.Count == 0)
             ListPanel.Children.Add(new TextBlock { Text = L.T("هنوز بیدارباشی نساخته‌ای.", "No wake-ups yet."), Style = St("Body"), Margin = new Thickness(0, 8, 0, 8) });

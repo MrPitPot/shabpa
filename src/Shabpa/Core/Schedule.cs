@@ -35,7 +35,54 @@ public sealed class CommandQueue(List<ScheduledCommand> items)
         return cmd;
     }
 
+    /// <summary>Two one-shot commands for the same action this close together are the same request
+    /// (a double click, the same shortcut pressed twice).</summary>
+    public static readonly TimeSpan DuplicateWindow = TimeSpan.FromSeconds(90);
+
+    /// <summary>Adds the command unless an equivalent one is already waiting. False = it was a duplicate.</summary>
+    public bool TryAdd(PowerAction action, DateTime dueAt, IEnumerable<DayOfWeek>? repeat, string source, out ScheduledCommand command)
+    {
+        var days = repeat?.Distinct().OrderBy(d => d).ToList() ?? [];
+        var existing = items.FirstOrDefault(c => c.Action == action
+            && c.RepeatDays.OrderBy(d => d).SequenceEqual(days)
+            && (days.Count > 0 ? c.DueAt.TimeOfDay == dueAt.TimeOfDay : (c.DueAt - dueAt).Duration() <= DuplicateWindow));
+        if (existing is not null)
+        {
+            command = existing;
+            return false;
+        }
+        command = Add(action, dueAt, days, source);
+        return true;
+    }
+
     public bool Remove(Guid id) => items.RemoveAll(c => c.Id == id) > 0;
+
+    /// <summary>Removes every one-shot command (weekly schedules stay). Used once a power action has run:
+    /// a PC that has just been turned off or put to sleep must not be "shut down again" half an hour later
+    /// after the user switched it back on.</summary>
+    public List<ScheduledCommand> ClearOneShots()
+    {
+        var gone = items.Where(c => !c.Repeats).ToList();
+        items.RemoveAll(c => !c.Repeats);
+        return gone;
+    }
+
+    /// <summary>Everything that came due in (<paramref name="from"/>, <paramref name="to"/>] while nobody was watching
+    /// (app closed, PC off or asleep) is skipped, never fired late; weekly commands move to their next occurrence.</summary>
+    public List<ScheduledCommand> DropMissed(DateTime from, DateTime to)
+    {
+        var missed = new List<ScheduledCommand>();
+        foreach (var cmd in items.Where(c => c.DueAt > from && c.DueAt <= to).OrderBy(c => c.DueAt).ToList())
+        {
+            missed.Add(cmd);
+            if (cmd.Repeats) cmd.DueAt = Schedule.Next(cmd.DueAt.Hour, cmd.DueAt.Minute, cmd.RepeatDays, to);
+            else items.Remove(cmd);
+        }
+        return missed;
+    }
+
+    /// <summary>Like <see cref="DropMissed"/> for everything already overdue (used when the app starts).</summary>
+    public List<ScheduledCommand> DropOverdue(DateTime now) => DropMissed(DateTime.MinValue, now);
 
     public int Clear()
     {

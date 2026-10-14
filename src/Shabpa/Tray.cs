@@ -45,9 +45,18 @@ public sealed class Tray : IDisposable
 
     private static void Quick(int minutes)
     {
-        Hub.I.AddCommand(PowerAction.Shutdown, DateTime.Now.AddMinutes(minutes));
+        var now = DateTime.Now;
+        var due = now.AddMinutes(minutes);
         var span = Fa.Duration(TimeSpan.FromMinutes(minutes));
-        Hub.I.Notify(L.T("زمان‌بندی شد", "Scheduled"), L.T($"سیستم {span} دیگه خاموش می‌شه.", $"The PC shuts down in {span}."));
+        if (!ConfirmWindow.Ask(L.T("خاموشی ثبت بشه؟", "Schedule a shutdown?"),
+                L.T("سیستم خاموش می‌شه؛ قبلش شمارش معکوس قابل لغو می‌بینی. از لیست «بعدی چیه؟» می‌تونی حذفش کنی.", "The PC shuts down; you see a cancellable countdown first. Delete it any time from the “What's next?” list."),
+                L.T("تایید و ثبت", "Confirm and schedule"),
+                detail: L.T($"شروع: {Pages.HomePage.At(due, now)} ({span} دیگه)", $"Runs: {Pages.HomePage.At(due, now)} (in {span})")))
+            return;
+        if (Hub.I.AddCommand(PowerAction.Shutdown, due))
+            Hub.I.Notify(L.T("زمان‌بندی شد", "Scheduled"), L.T($"سیستم {span} دیگه خاموش می‌شه.", $"The PC shuts down in {span}."));
+        else
+            Hub.I.Notify(L.T("از قبل ثبت شده بود", "Already scheduled"), L.T("همین دستور قبلاً توی لیسته.", "The same command is already in the list."));
     }
 
     public void Refresh()

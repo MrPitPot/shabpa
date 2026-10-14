@@ -73,6 +73,10 @@ public class PageBase : UserControl
         return grid;
     }
 
+    /// <summary>"Are you sure" with the exact consequence spelled out; false if the user said no.</summary>
+    protected static bool Ask(string title, string message, string? yes = null, bool danger = false, string? detail = null) =>
+        ConfirmWindow.Ask(title, message, yes, null, danger, detail);
+
     protected static Border Divider() => new() { Height = 1, Background = Res("Line"), Margin = new Thickness(0, 5, 0, 5) };
 
     protected static Border PillText(string text, string tint)

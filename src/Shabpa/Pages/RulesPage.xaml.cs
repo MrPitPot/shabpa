@@ -141,8 +141,22 @@ public partial class RulesPage : PageBase
 
     private void OnToggle(object sender, RoutedEventArgs e)
     {
-        if (Hub.Engine.Rule is not null) Hub.DeactivateRule();
-        else Hub.ActivateRule(Draft);
+        if (Hub.Engine.Rule is not null)
+        {
+            if (!Ask(L.T("این قانون غیرفعال بشه؟", "Turn this rule off?"),
+                    L.T("دیگه چیزی زیر نظر گرفته نمی‌شه و سیستم به خاطر این قانون چیزی اجرا نمی‌کنه.", "Nothing is watched any more and the PC will not act because of this rule."),
+                    L.T("غیرفعال کن", "Turn off"), danger: true, detail: Fa.ActionName(Hub.Engine.Rule.Action)))
+                return;
+            Hub.DeactivateRule();
+            return;
+        }
+        if (!Ask(L.T("این قانون فعال بشه؟", "Turn this rule on?"),
+                L.T($"از همین لحظه شب‌پا شرط رو زیر نظر می‌گیره و وقتی برقرار شد، {Fa.ActionSentence(Draft.Action)} (با شمارش معکوس قابل لغو).",
+                    $"From this moment Shabpa watches the condition; once it is met, {Fa.ActionSentence(Draft.Action)} (with a cancellable countdown)."),
+                L.T("تایید و فعال کن", "Confirm and turn on"),
+                detail: L.T("شروع نظارت: همین الان", "Watching starts: right now")))
+            return;
+        Hub.ActivateRule(Draft);
     }
 
     public override void Refresh() => UpdateStatus(Hub.Snapshot);

@@ -64,6 +64,8 @@ public sealed class Settings
     /// <summary>Used only when Windows exposes no CPU energy meter.</summary>
     public double CpuMaxWatts { get; set; } = 125;
     public bool StartMinimized { get; set; }
+    /// <summary>Ask "are you sure" (with the exact time it will happen) before anything is scheduled, run or deleted.</summary>
+    public bool ConfirmActions { get; set; } = true;
     public bool TrayNoticeShown { get; set; }
     public string RecorderProcesses { get; set; } = "obs64, obs32, obs, Streamlabs OBS, bdcam, CamtasiaStudio, CamRecorder, XSplit.Core, Action, ShareX, ffmpeg";
     public string TelegramTokenProtected { get; set; } = "";

@@ -93,9 +93,27 @@ public partial class PowerPage : PageBase
         var now = DateTime.Now;
         if (Due(now) is not { } due) return;
         if (_mode == Mode.Now)
+        {
+            if (!Ask(L.T("همین الان اجرا بشه؟", "Run it right now?"),
+                    L.T($"{Fa.ActionSentence(_action)}. بعد از تایید ۵ ثانیه شمارش معکوس می‌بینی و هنوز می‌تونی لغوش کنی. کارهای ذخیره‌نشده رو ذخیره کن.",
+                        $"Then {Fa.ActionSentence(_action)}. After you confirm there is a 5-second countdown you can still cancel. Save your work first."),
+                    L.T("تایید و اجرا", "Confirm and run"), danger: _action is PowerAction.Shutdown or PowerAction.Restart,
+                    detail: L.T("شروع: همین الان", "Starts: right now")))
+                return;
             Hub.RequestAction(_action, L.T("دستور مستقیم", "Direct command"), 5);
-        else
-            Hub.AddCommand(_action, due, _mode == Mode.At ? _days() : null);
+            return;
+        }
+
+        var days = _mode == Mode.At ? _days() : [];
+        var repeat = days.Count > 0 ? L.T($" · تکرار: {Fa.Days(days)}", $" · repeats: {Fa.Days(days)}") : "";
+        if (!Ask(L.T("این زمان‌بندی ثبت بشه؟", "Schedule this?"),
+                L.T($"{Fa.ActionSentence(_action)}. {Fa.Digits(Hub.Settings.CountdownSeconds.ToString())} ثانیه قبلش شمارش معکوس می‌بینی و می‌تونی لغوش کنی. از لیست پایین هر وقت خواستی حذفش کن.",
+                    $"Then {Fa.ActionSentence(_action)}. You get a {Hub.Settings.CountdownSeconds}-second countdown first and can cancel. Delete it from the list below whenever you like."),
+                L.T("تایید و ثبت", "Confirm and schedule"),
+                detail: L.T($"شروع: {HomePage.At(due, now)} ({Fa.Duration(due - now)} دیگه){repeat}", $"Runs: {HomePage.At(due, now)} (in {Fa.Duration(due - now)}){repeat}")))
+            return;
+        if (!Hub.AddCommand(_action, due, days.Count > 0 ? days : null))
+            Hub.Notify(L.T("از قبل ثبت شده بود", "Already scheduled"), L.T("همین دستور با همین زمان قبلاً توی لیسته؛ دوباره اضافه نشد.", "The same command at about the same time is already in the list; nothing was added."));
     }
 
     public override void Refresh()
@@ -109,7 +127,15 @@ public partial class PowerPage : PageBase
             var trailing = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             trailing.Children.Add(new TextBlock { Text = Fa.Countdown(cmd.DueAt - now), Style = St("H2"), Foreground = Res("Gold"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0), Tag = cmd.DueAt });
             var id = cmd.Id;
-            trailing.Children.Add(IconButton("", L.T("حذف", "Remove"), () => Hub.RemoveCommand(id)));
+            var due = cmd.DueAt;
+            var action = cmd.Action;
+            trailing.Children.Add(IconButton("\uE74D", L.T("حذف", "Remove"), () =>
+            {
+                if (Ask(L.T("این دستور حذف بشه؟", "Delete this command?"),
+                        L.T("برای همیشه از لیست پاک می‌شه و اجرا نمی‌شه؛ هیچ شمارش معکوسی هم نمی‌بینی.", "It is removed from the list for good and will not run; no countdown will appear either."),
+                        L.T("حذف کن", "Delete"), danger: true, detail: $"{Fa.ActionName(action)} · {HomePage.At(due, DateTime.Now)}"))
+                    Hub.RemoveCommand(id);
+            }));
             QueuePanel.Children.Add(Row(ActionGlyph(cmd.Action), "Accent", Fa.ActionName(cmd.Action), HomePage.When(cmd, now), trailing));
         }
         if (QueuePanel.Children.Count == 0)

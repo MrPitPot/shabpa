@@ -182,6 +182,10 @@ public partial class PingPage : PageBase
 
     private void OnClear(object sender, RoutedEventArgs e)
     {
+        if (!Ask(L.T("همه‌ی محدودیت‌ها حذف بشه؟", "Remove every limit?"),
+                L.T("سقف سرعت و بستن اینترنت همه‌ی برنامه‌ها برداشته می‌شه و ترافیک آزاد می‌شه.", "Every speed cap and block is lifted and traffic is free again."),
+                L.T("حذف کن", "Remove all"), danger: true, detail: L.T($"{Fa.Digits(Hub.State.NetLimits.Count.ToString())} محدودیت", $"{Hub.State.NetLimits.Count} limit(s)")))
+            return;
         _openKey = null;
         foreach (var row in _rows.Values) row.Editor.Visibility = Visibility.Collapsed;
         Hub.ClearLimits();

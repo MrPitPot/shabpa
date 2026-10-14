@@ -223,6 +223,22 @@ public partial class App : Application
                 await Task.Delay(1500);
                 Save((FrameworkElement)countdown.Content, Path.Combine(folder, "countdown.png"));
                 countdown.Finish(CountdownOutcome.Cancel);
+
+                var due = DateTime.Now.AddMinutes(30);
+                var confirm = ConfirmWindow.Preview(L.T("این زمان‌بندی ثبت بشه؟", "Schedule this?"),
+                    L.T("سیستم خاموش می‌شه. ۳۰ ثانیه قبلش شمارش معکوس می‌بینی و می‌تونی لغوش کنی. هر وقت خواستی از لیست «بعدی چیه؟» با دکمه‌ی حذف پاکش کن.",
+                        "The PC shuts down. You get a 30-second countdown first and can cancel. Delete it any time from the “What's next?” list."),
+                    L.T("تایید و ثبت", "Confirm and schedule"), L.T("انصراف", "Cancel"), false,
+                    L.T($"شروع: امروز ساعت {Fa.Clock(due)} (۳۰ دقیقه دیگه)", $"Runs: today at {Fa.Clock(due)} (in 30 minutes)"));
+                await Task.Delay(600);
+                Save(confirm, Path.Combine(folder, "confirm.png"));
+                confirm.Close();
+                var del = ConfirmWindow.Preview(L.T("این دستور حذف بشه؟", "Delete this command?"),
+                    L.T("برای همیشه از لیست پاک می‌شه و اجرا نمی‌شه؛ هیچ شمارش معکوسی هم نمی‌بینی.", "It is removed from the list for good and will not run; no countdown will appear either."),
+                    L.T("حذف کن", "Delete"), L.T("انصراف", "Cancel"), true, L.T("خاموش کردن · امروز ساعت ۰۱:۳۰", "Shut down · today at 01:30"));
+                await Task.Delay(600);
+                Save(del, Path.Combine(folder, "confirm-delete.png"));
+                del.Close();
             }
         }
         catch (Exception ex)

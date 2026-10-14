@@ -13,6 +13,10 @@ public sealed class Hub
     private readonly DispatcherTimer _clock = new() { Interval = TimeSpan.FromSeconds(1) };
     private CountdownWindow? _countdown;
     private DateTime _lastSave = DateTime.Now;
+    private DateTime _lastSecond = DateTime.Now;
+    private List<ScheduledCommand>? _pendingMissed;
+    /// <summary>What the countdown on screen belongs to: a command id, "rule" or "" (direct request).</summary>
+    private string _countdownOrigin = "";
 
     public Store Store { get; }
     public AppState State => Store.State;
@@ -69,6 +73,15 @@ public sealed class Hub
     {
         if (State.ActiveRule is { } rule) Engine.Activate(rule);
 
+        // Whatever came due while Shabpa was not running (PC off or asleep) is gone, not "late": a PC that
+        // was switched off at 01:00 must not be shut down again at 01:30 because someone turned it back on.
+        var startupMissed = Queue.DropOverdue(DateTime.Now);
+        if (startupMissed.Count > 0)
+        {
+            Store.Save();
+            _pendingMissed = startupMissed;
+        }
+
         Traffic.Load(State.NetUsage, DateTime.Now);
         if (Demo) Usage.FillDemo(DateTime.Now);
         else Usage.Load(UsageFile);
@@ -112,6 +125,15 @@ public sealed class Hub
     {
         var now = DateTime.Now;
         var missed = new List<ScheduledCommand>();
+        if (_pendingMissed is not null)
+        {
+            missed.AddRange(_pendingMissed);
+            _pendingMissed = null;
+        }
+        // The one-second timer stood still for a while: the PC was asleep or hibernating. What came due
+        // meanwhile is skipped; waking the PC up is not a request to shut it down.
+        if (now - _lastSecond > TimeSpan.FromSeconds(15)) missed.AddRange(Queue.DropMissed(_lastSecond, now));
+        _lastSecond = now;
         var due = Queue.TakeDue(now, missed);
         if (due.Count > 0 || missed.Count > 0)
         {
@@ -126,7 +148,7 @@ public sealed class Hub
         foreach (var cmd in due)
         {
             // Another countdown is already on screen: try this one again in a minute rather than lose it.
-            if (!RequestAction(cmd.Action, L.T("دستور زمان‌بندی‌شده", "Scheduled command"), Settings.CountdownSeconds))
+            if (!RequestAction(cmd.Action, L.T("دستور زمان‌بندی‌شده", "Scheduled command"), Settings.CountdownSeconds, cmd.Id.ToString()))
                 Queue.Postpone(cmd.Action, now, TimeSpan.FromMinutes(1), cmd.Source);
         }
 
@@ -156,7 +178,7 @@ public sealed class Hub
             Store.Save();
             Changed?.Invoke();
             Bot.Notify(L.T($"شرط برقرار شد: {status.Text}\n{Fa.ActionSentence(rule.Action)}.", $"Condition met: {status.Text}\nNow {Fa.ActionSentence(rule.Action)}."));
-            RequestAction(rule.Action, L.T("خاموشی شرطی", "Conditional rule"), Settings.CountdownSeconds);
+            RequestAction(rule.Action, L.T("خاموشی شرطی", "Conditional rule"), Settings.CountdownSeconds, "rule");
         }
         Tick?.Invoke(s);
     }
@@ -368,7 +390,7 @@ public sealed class Hub
     // ---- power actions ----------------------------------------------------------------------
 
     /// <summary>Shows the cancellable countdown, then runs the action. False if another countdown is up.</summary>
-    public bool RequestAction(PowerAction action, string reason, int seconds)
+    public bool RequestAction(PowerAction action, string reason, int seconds, string origin = "")
     {
         if (seconds <= 0 || action == PowerAction.Lock)
         {
@@ -379,9 +401,11 @@ public sealed class Hub
 
         var window = new CountdownWindow(action, reason, seconds);
         _countdown = window;
+        _countdownOrigin = origin;
         window.Closed += (_, _) =>
         {
             _countdown = null;
+            _countdownOrigin = "";
             switch (window.Outcome)
             {
                 case CountdownOutcome.Run:
@@ -411,8 +435,36 @@ public sealed class Hub
 
     private void Run(PowerAction action)
     {
+        // Once the PC goes off or to sleep, everything else that was waiting for it is void.
+        List<ScheduledCommand>? leftovers = null;
+        var ruleWas = State.ActiveRule;
+        if (action != PowerAction.Lock)
+        {
+            leftovers = Queue.ClearOneShots();
+            if (ruleWas is not null)
+            {
+                State.ActiveRule = null;
+                Engine.Deactivate();
+            }
+        }
         Store.Save();
         var error = Executor.Execute(action);
+        if (error is not null && leftovers is not null)
+        {
+            // It did not happen after all: put things back as they were.
+            State.Queue.AddRange(leftovers);
+            if (ruleWas is not null)
+            {
+                State.ActiveRule = ruleWas;
+                Engine.Activate(ruleWas);
+            }
+            Store.Save();
+            Changed?.Invoke();
+        }
+        else if (leftovers is not null)
+        {
+            Changed?.Invoke();
+        }
         if (error is not null) Notify(L.T("انجام نشد", "Failed"), error);
         else if (DryRun) Notify(L.T("حالت آزمایشی", "Test mode"), L.T($"«{Fa.ActionName(action)}» فقط شبیه‌سازی شد.", $"“{Fa.ActionName(action)}” was only simulated."));
     }
@@ -445,16 +497,20 @@ public sealed class Hub
 
     // ---- queue / rule / wake ----------------------------------------------------------------
 
-    public void AddCommand(PowerAction action, DateTime dueAt, IEnumerable<DayOfWeek>? repeat = null)
+    /// <summary>False when an identical command was already waiting (nothing new was added).</summary>
+    public bool AddCommand(PowerAction action, DateTime dueAt, IEnumerable<DayOfWeek>? repeat = null)
     {
-        Queue.Add(action, dueAt, repeat);
+        var added = Queue.TryAdd(action, dueAt, repeat, "", out _);
         Store.Save();
         Changed?.Invoke();
+        return added;
     }
 
+    /// <summary>Deletes a waiting command for good. If its countdown is already on screen, that stops too.</summary>
     public void RemoveCommand(Guid id)
     {
         Queue.Remove(id);
+        if (_countdownOrigin == id.ToString()) CancelCountdown();
         Store.Save();
         Changed?.Invoke();
     }
@@ -472,6 +528,7 @@ public sealed class Hub
     {
         State.ActiveRule = null;
         Engine.Deactivate();
+        if (_countdownOrigin == "rule") CancelCountdown();
         Store.Save();
         Changed?.Invoke();
     }

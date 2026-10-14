@@ -58,18 +58,31 @@ public partial class HomePage : PageBase
         _ruleBar = null;
         _ruleText = null;
 
-        foreach (var cmd in Hub.Queue.Items.OrderBy(c => c.DueAt).Take(3))
+        foreach (var cmd in Hub.Queue.Items.OrderBy(c => c.DueAt).Take(4))
         {
             if (NextPanel.Children.Count > 0) NextPanel.Children.Add(Divider());
-            NextPanel.Children.Add(Row(ActionGlyph(cmd.Action), "Accent", Fa.ActionName(cmd.Action), When(cmd, now),
-                new TextBlock { Text = Fa.Countdown(cmd.DueAt - now), Style = St("H2"), Foreground = Res("Gold"), VerticalAlignment = VerticalAlignment.Center, Tag = cmd.DueAt }));
+            var trailing = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            trailing.Children.Add(new TextBlock
+            {
+                Text = Fa.Countdown(cmd.DueAt - now), Style = St("H2"), Foreground = Res("Gold"), VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 10, 0), Tag = cmd.DueAt,
+            });
+            var id = cmd.Id;
+            var due = cmd.DueAt;
+            var action = cmd.Action;
+            trailing.Children.Add(IconButton("\uE74D", L.T("حذف", "Delete"), () => DeleteCommand(id, action, due)));
+            NextPanel.Children.Add(Row(ActionGlyph(cmd.Action), "Accent", Fa.ActionName(cmd.Action), When(cmd, now), trailing));
         }
 
         if (Hub.Engine.Rule is { } rule)
         {
             if (NextPanel.Children.Count > 0) NextPanel.Children.Add(Divider());
             _ruleBar = new ProgressBar { Style = St("Bar"), Width = 110, VerticalAlignment = VerticalAlignment.Center };
-            var row = Row("", "Gold", L.T($"خاموشی شرطی: {Fa.ActionName(rule.Action)}", $"Conditional rule: {Fa.ActionName(rule.Action)}"), Hub.Engine.Status.Text, _ruleBar);
+            var ruleTrailing = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            ruleTrailing.Children.Add(_ruleBar);
+            ruleTrailing.Children.Add(new Border { Width = 10 });
+            ruleTrailing.Children.Add(IconButton("", L.T("غیرفعال کردن", "Turn off"), () => DeleteRule(rule.Action)));
+            var row = Row("", "Gold", L.T($"خاموشی شرطی: {Fa.ActionName(rule.Action)}", $"Conditional rule: {Fa.ActionName(rule.Action)}"), Hub.Engine.Status.Text, ruleTrailing);
             _ruleText = ((StackPanel)row.Children[1]).Children.OfType<TextBlock>().LastOrDefault();
             NextPanel.Children.Add(row);
             _ruleBar.Value = Hub.Engine.Status.Progress;
@@ -103,7 +116,7 @@ public partial class HomePage : PageBase
 
     internal static string When(ScheduledCommand cmd, DateTime now)
     {
-        var text = At(cmd.DueAt, now);
+        var text = L.T("اجرا: ", "Runs: ") + At(cmd.DueAt, now);
         if (cmd.Repeats) text += L.T($" · تکرار: {Fa.Days(cmd.RepeatDays)}", $" · repeats: {Fa.Days(cmd.RepeatDays)}");
         if (Hub.SourceText(cmd.Source) is { Length: > 0 } source) text += $" · {source}";
         return text;
@@ -133,26 +146,86 @@ public partial class HomePage : PageBase
         var now = DateTime.Now;
         if (_onSince is { } since) UptimeText.Text = Fa.Duration(now - since);
         foreach (var row in NextPanel.Children.OfType<Grid>())
-            if (row.Children.OfType<TextBlock>().FirstOrDefault(t => t.Tag is DateTime) is { } label)
+            if (row.Children.OfType<StackPanel>().LastOrDefault()?.Children.OfType<TextBlock>().FirstOrDefault(t => t.Tag is DateTime) is { } label)
                 label.Text = Fa.Countdown((DateTime)label.Tag - now);
     }
 
     private void OnPreset(object sender, RoutedEventArgs e)
     {
         var minutes = int.Parse((string)((Button)sender).Tag);
-        Hub.AddCommand(_action, DateTime.Now.AddMinutes(minutes));
+        var now = DateTime.Now;
+        var due = now.AddMinutes(minutes);
+        var seconds = Hub.Settings.CountdownSeconds;
+        if (!Ask(L.T("این زمان‌بندی ثبت بشه؟", "Schedule this?"),
+                L.T($"{Fa.ActionSentence(_action)}. {Fa.Digits(seconds.ToString())} ثانیه قبلش شمارش معکوس می‌بینی و می‌تونی لغوش کنی. هر وقت خواستی از لیست «بعدی چیه؟» با دکمه‌ی حذف پاکش کن.",
+                    $"Then {Fa.ActionSentence(_action)}. You get a {seconds}-second countdown first and can cancel. Delete it any time from the “What's next?” list."),
+                L.T("تایید و ثبت", "Confirm and schedule"),
+                detail: L.T($"شروع: {At(due, now)} ({Fa.Duration(due - now)} دیگه)", $"Runs: {At(due, now)} (in {Fa.Duration(due - now)})")))
+            return;
+        if (Hub.AddCommand(_action, due))
+            Hub.Notify(L.T("ثبت شد", "Scheduled"), L.T($"{Fa.ActionSentence(_action)} · {At(due, now)}", $"{Fa.ActionSentence(_action)} · {At(due, now)}"));
+        else
+            Hub.Notify(L.T("از قبل ثبت شده بود", "Already scheduled"), L.T("همین دستور با همین زمان قبلاً توی لیسته؛ دوباره اضافه نشد.", "The same command at about the same time is already in the list; nothing was added."));
     }
 
-    private void OnAfterDownload(object sender, RoutedEventArgs e) =>
+    private void OnAfterDownload(object sender, RoutedEventArgs e)
+    {
+        if (!Ask(L.T("خاموشی بعد از دانلود فعال بشه؟", "Turn on shutdown-after-download?"),
+                L.T($"شب‌پا از همین الان سرعت اینترنت رو زیر نظر می‌گیره. وقتی دانلودی شروع بشه و بعدش ۵ دقیقه سرعت زیر ۱ مگابیت بمونه، {Fa.ActionSentence(_action)} (با شمارش معکوس قابل لغو). تا وقتی دانلودی شروع نشه هیچ اتفاقی نمی‌افته.",
+                    $"Shabpa starts watching your connection right now. Once a download has started and the speed then stays under 1 Mbit for 5 minutes, {Fa.ActionSentence(_action)} (with a cancellable countdown). Nothing happens until a download has started."),
+                L.T("تایید و فعال کن", "Confirm and turn on"),
+                detail: L.T("شروع نظارت: همین الان · هر وقت خواستی از لیست «بعدی چیه؟» غیرفعالش کن", "Watching starts: right now · turn it off any time from the “What's next?” list")))
+            return;
         Hub.ActivateRule(new Rule { Kind = RuleKind.Network, ThresholdMbps = 1, HoldMinutes = 5, WaitForStart = true, Action = _action });
+    }
 
-    private void OnWhenIdle(object sender, RoutedEventArgs e) =>
+    private void OnWhenIdle(object sender, RoutedEventArgs e)
+    {
+        if (!Ask(L.T("خاموشی بعد از بی‌استفاده موندن فعال بشه؟", "Turn on shutdown-when-idle?"),
+                L.T($"اگه ۳۰ دقیقه پشت سر هم موس و کیبورد دست نخوره، {Fa.ActionSentence(_action)} (با شمارش معکوس قابل لغو). با هر حرکت موس شمارش از اول شروع می‌شه.",
+                    $"If the mouse and keyboard stay untouched for 30 minutes in a row, {Fa.ActionSentence(_action)} (with a cancellable countdown). Any movement restarts the count."),
+                L.T("تایید و فعال کن", "Confirm and turn on"),
+                detail: L.T("شروع شمارش: همین الان · هر وقت خواستی از لیست «بعدی چیه؟» غیرفعالش کن", "Counting starts: right now · turn it off any time from the “What's next?” list")))
+            return;
         Hub.ActivateRule(new Rule { Kind = RuleKind.Idle, HoldMinutes = 30, Action = _action });
+    }
 
-    private void OnLock(object sender, RoutedEventArgs e) => Hub.RequestAction(PowerAction.Lock, "", 0);
+    private void OnLock(object sender, RoutedEventArgs e)
+    {
+        if (!Ask(L.T("صفحه قفل بشه؟", "Lock the screen?"),
+                L.T("صفحه همین الان قفل می‌شه و برای ورود باید رمز یا پین بزنی. برنامه‌ها و دانلودها بازمی‌مونن.", "The screen locks right now and you will need your password or PIN. Apps and downloads keep running."),
+                L.T("قفل کن", "Lock now"), detail: L.T("شروع: همین الان", "Starts: right now")))
+            return;
+        Hub.RequestAction(PowerAction.Lock, "", 0);
+    }
+
+    private void DeleteCommand(Guid id, PowerAction action, DateTime due)
+    {
+        var now = DateTime.Now;
+        if (!Ask(L.T("این دستور حذف بشه؟", "Delete this command?"),
+                L.T("برای همیشه از لیست پاک می‌شه و اجرا نمی‌شه؛ هیچ شمارش معکوسی هم نمی‌بینی.", "It is removed from the list for good and will not run; no countdown will appear either."),
+                L.T("حذف کن", "Delete"), danger: true,
+                detail: $"{Fa.ActionName(action)} · {At(due, now)}"))
+            return;
+        Hub.RemoveCommand(id);
+    }
+
+    private void DeleteRule(PowerAction action)
+    {
+        if (!Ask(L.T("خاموشی شرطی غیرفعال بشه؟", "Turn this rule off?"),
+                L.T("دیگه چیزی زیر نظر گرفته نمی‌شه و سیستم به خاطر این قانون چیزی اجرا نمی‌کنه.", "Nothing is watched any more and the PC will not act because of this rule."),
+                L.T("غیرفعال کن", "Turn off"), danger: true, detail: Fa.ActionName(action)))
+            return;
+        Hub.DeactivateRule();
+    }
 
     private void OnFreeRam(object sender, RoutedEventArgs e)
     {
+        if (!Ask(L.T("رم خالی بشه؟", "Free up RAM?"),
+                L.T("حافظه‌ی بلااستفاده‌ی برنامه‌ها برداشته می‌شه. برنامه‌ها بسته نمی‌شن و چیزی ذخیره‌نشده از بین نمی‌ره؛ فقط ممکنه چند ثانیه کند باشن.",
+                    "Unused memory is taken back from apps. Nothing is closed and no unsaved work is lost; apps may just feel slow for a few seconds."),
+                L.T("خالی کن", "Free it")))
+            return;
         RamButton.IsEnabled = false;
         Hub.CleanMemory(cache: false);
     }
