@@ -32,7 +32,8 @@ public sealed class OverlaySettings
     public List<string> Items { get; set; } = ["fps", "low1", "gpu", "gputemp", "cpu", "ram", "ping"];
 }
 
-public sealed record MetricDef(string Key, string Fa, string En, string Group, string Unit, bool AlwaysShown = false)
+/// <param name="Advanced">Needs a sensor Windows does not expose by itself (fan speeds, memory temperature).</param>
+public sealed record MetricDef(string Key, string Fa, string En, string Group, string Unit, bool AlwaysShown = false, bool Advanced = false)
 {
     public string Label => L.T(Fa, En);
 }
@@ -47,27 +48,40 @@ public static class OverlayMetrics
 {
     public static readonly IReadOnlyList<MetricDef> All =
     [
-        new("fps", "فریم بر ثانیه", "FPS", "perf", "", true),
-        new("low1", "۱٪ پایین", "1% low", "perf", "", true),
-        new("frame", "فریم‌تایم", "Frame time", "perf", "ms"),
-        new("gpu", "گرافیک", "GPU", "gpu", "%", true),
-        new("gputemp", "دمای گرافیک", "GPU temp", "gpu", "°C"),
-        new("hotspot", "هات‌اسپات", "Hotspot", "gpu", "°C"),
+        // general
+        new("fps", "نمایش FPS", "FPS", "general", "", true),
+        new("frame", "زمان فریم", "Frame time", "general", "ms"),
+        new("low1", "Low ۱٪", "1% low", "general", "", true),
+        new("fpsgraph", "نمودار FPS", "FPS graph", "general", ""),
+        new("clock", "ساعت", "Clock", "general", ""),
+        new("gametime", "مدت بازی", "Game time", "general", ""),
+        // graphics card
+        new("gputemp", "دمای GPU", "GPU temp", "gpu", "°C"),
+        new("hotspot", "هات‌اسپات GPU", "GPU hotspot", "gpu", "°C"),
+        new("gpupower", "توان GPU", "GPU power", "gpu", "W"),
+        new("gpuvolt", "ولتاژ هسته", "Core voltage", "gpu", "mV"),
+        new("gpu", "بار GPU", "GPU load", "gpu", "%", true),
+        new("gpufan", "سرعت فن", "Fan speed", "gpu", "%"),
+        new("gpufanrpm", "دور فن (RPM)", "Fan (RPM)", "gpu", "rpm"),
+        new("gpuclock", "کلاک هسته", "Core clock", "gpu", "MHz"),
+        new("memclock", "فرکانس VRAM", "VRAM clock", "gpu", "MHz"),
         new("memtemp", "دمای VRAM", "VRAM temp", "gpu", "°C"),
-        new("gpuclock", "کلاک گرافیک", "GPU clock", "gpu", "MHz"),
-        new("memclock", "کلاک VRAM", "VRAM clock", "gpu", "MHz"),
-        new("gpupower", "توان گرافیک", "GPU power", "gpu", "W"),
-        new("gpufan", "فن گرافیک", "GPU fan", "gpu", "%"),
-        new("vram", "حافظه‌ی گرافیک", "VRAM", "gpu", "GB"),
-        new("cpu", "پردازنده", "CPU", "cpu", "%", true),
-        new("cputemp", "دمای سیستم", "System temp", "cpu", "°C"),
-        new("cpuwatts", "توان پردازنده", "CPU power", "cpu", "W"),
-        new("ram", "رم", "RAM", "system", "%", true),
+        new("vram", "مصرف VRAM", "VRAM use", "gpu", "GB"),
+        // processor
+        new("cputemp", "دمای CPU", "CPU temp", "cpu", "°C"),
+        new("cpu", "بار CPU", "CPU load", "cpu", "%", true),
+        new("cpuwatts", "توان CPU", "CPU power", "cpu", "W"),
+        new("cpufreq", "فرکانس CPU", "CPU clock", "cpu", "MHz"),
+        new("cpufan", "سرعت فن CPU", "CPU fan speed", "cpu", "%", false, true),
+        new("cpufanrpm", "دور فن CPU (RPM)", "CPU fan (RPM)", "cpu", "rpm", false, true),
+        // memory
+        new("ram", "مصرف RAM", "RAM use", "ram", "%", true),
+        new("ramused", "RAM مصرفی (گیگ)", "RAM used (GB)", "ram", "GB"),
+        new("ramtemp", "دمای RAM", "RAM temp", "ram", "°C", false, true),
+        // network
         new("ping", "پینگ", "Ping", "net", "ms", true),
-        new("down", "دانلود", "Download", "net", "Mb/s"),
-        new("up", "آپلود", "Upload", "net", "Mb/s"),
-        new("clock", "ساعت", "Clock", "system", ""),
-        new("gametime", "زمان بازی", "Game time", "system", ""),
+        new("down", "سرعت دانلود", "Download speed", "net", "Mb/s"),
+        new("up", "سرعت آپلود", "Upload speed", "net", "Mb/s"),
     ];
 
     public static MetricDef? Find(string key) => All.FirstOrDefault(m => m.Key == key);
@@ -75,11 +89,12 @@ public static class OverlayMetrics
     /// <summary>0 = fine, 1 = getting high, 2 = a problem. The limits are the usual rules of thumb for each reading.</summary>
     public static int Level(string key, double value) => key switch
     {
-        "cpu" or "gpu" or "ram" or "vram" => value >= 92 ? 2 : value >= 75 ? 1 : 0,
+        "cpu" or "gpu" or "ram" or "vram" or "gpufan" or "cpufan" => key is "gpufan" or "cpufan" ? 0 : value >= 92 ? 2 : value >= 75 ? 1 : 0,
         "gputemp" => value >= 85 ? 2 : value >= 75 ? 1 : 0,
         "hotspot" => value >= 105 ? 2 : value >= 92 ? 1 : 0,
         "memtemp" => value >= 95 ? 2 : value >= 85 ? 1 : 0,
-        "cputemp" => value >= 85 ? 2 : value >= 70 ? 1 : 0,
+        "cputemp" => value >= 90 ? 2 : value >= 75 ? 1 : 0,
+        "ramtemp" => value >= 85 ? 2 : value >= 70 ? 1 : 0,
         "fps" or "low1" => value <= 0 ? 0 : value < (key == "fps" ? 30 : 24) ? 2 : value < (key == "fps" ? 60 : 45) ? 1 : 0,
         "frame" => value > 33 ? 2 : value > 20 ? 1 : 0,
         "ping" => value > 100 ? 2 : value > 50 ? 1 : 0,
@@ -126,6 +141,8 @@ public static class OverlayMetrics
             "gpuclock" => Make(g.CoreMHz, 0, 3500),
             "memclock" => Make(g.MemMHz, 0, 3000),
             "gpupower" => Make(g.PowerW, 0, 400),
+            "gpuvolt" => Make(g.VoltageMv, 0, 1300),
+            "gpufanrpm" => Make(g.FanRpm is > 0 ? g.FanRpm : null, 0, 4000),
             "gpufan" => Make(g.FanPercent, 0, 100),
             "vram" => g.VramUsedMb is { } used
                 ? new MetricView("vram", def.Label, N(used / 1024, 1), g.VramTotalMb is { } t ? $"/ {N(t / 1024, 0)} GB" : "GB",
@@ -134,6 +151,12 @@ public static class OverlayMetrics
             "cpu" => Make(s.CpuLoad, 0, 100),
             "cputemp" => Make(s.CpuTempC, 0, 110),
             "cpuwatts" => Make(s.CpuWatts, 0, 250),
+            "cpufreq" => Make(s.CpuMHz, 0, 6000),
+            "cpufan" => Make(s.CpuFanPercent, 0, 100),
+            "cpufanrpm" => Make(s.CpuFanRpm, 0, 4000),
+            "ramtemp" => Make(s.RamTempC, 0, 100),
+            "ramused" => Make(s.RamUsedGb > 0 ? s.RamUsedGb : null, 1, s.RamTotalGb),
+            "fpsgraph" => new MetricView("fpsgraph", def.Label, "graph", "", null, 0),
             "ram" => Make(s.RamPercent, 0, 100),
             "ping" => Make(s.PingMs, 0, 200),
             "down" => Make(s.DownMbps, s.DownMbps >= 10 ? 0 : 1, 100),
@@ -156,13 +179,17 @@ public static class OverlayMetrics
             CpuLoad = 38 + 6 * wobble,
             CpuTempC = 58,
             CpuWatts = 74,
+            CpuMHz = 4900,
+            CpuFanPercent = 52,
+            CpuFanRpm = 1180,
+            RamTempC = 43,
             RamPercent = 56,
             RamUsedGb = 17.9,
             RamTotalGb = 32,
             Gpu = new GpuReading
             {
                 Name = "AMD Radeon RX 6900 XT", Vendor = "AMD", TempC = 67 + 3 * wobble, HotspotC = 84, MemTempC = 72, CoreMHz = 2310, MemMHz = 2000,
-                FanPercent = 46, PowerW = 212, LoadPercent = 96, VramUsedMb = 9400, VramTotalMb = 16368,
+                FanPercent = 46, FanRpm = 1650, VoltageMv = 1010, PowerW = 212, LoadPercent = 96, VramUsedMb = 9400, VramTotalMb = 16368,
             },
             Fps = 164 + 8 * wobble,
             Low1Fps = 121,

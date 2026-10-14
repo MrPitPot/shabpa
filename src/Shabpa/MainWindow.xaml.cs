@@ -13,7 +13,7 @@ public partial class MainWindow : Window
 
     /// <summary>Every screen worth a screenshot, including the tabs inside «کنترل سیستم».</summary>
     public IEnumerable<string> CaptureKeys =>
-        ["home", .. SystemPage.TabKeys.Select(t => $"system:{t}"), .. NetworkPage.TabKeys.Select(t => $"ping:{t}"), .. GamingPage.TabKeys.Select(t => $"gaming:{t}"), "update", "settings"];
+        ["home", .. SystemPage.TabKeys.Select(t => $"system:{t}"), .. NetworkPage.TabKeys.Select(t => $"ping:{t}"), "gaming", "update", "settings"];
 
     public FrameworkElement CaptureRoot => Root;
 
@@ -26,7 +26,7 @@ public partial class MainWindow : Window
             ["home"] = (NavHome, new HomePage()),
             ["system"] = (NavSystem, new SystemPage()),
             ["ping"] = (NavPing, new NetworkPage()),
-            ["gaming"] = (NavGaming, new GamingPage()),
+            ["gaming"] = (NavGaming, new OverlayPage()),
             ["update"] = (NavUpdate, new UpdatePage()),
             ["settings"] = (NavSettings, new SettingsPage()),
         };
@@ -40,6 +40,10 @@ public partial class MainWindow : Window
         hub.Second += () => { if (IsVisible) _current?.OnSecond(); };
         IsVisibleChanged += (_, _) => { if (IsVisible) _current?.Refresh(); };
 
+        var version = Updater.Current;
+        var shown = version.Build == 0 ? $"{version.Major}.{version.Minor}" : version.ToString(3);
+        VersionText.Text = L.T($"ساخته‌ی Mr.PitPot · نسخه‌ی {Fa.Digits(shown).Replace('.', '٫')}", $"Made by Mr.PitPot · v{shown}");
+
         Navigate("home");
         UpdateSide();
     }
@@ -48,6 +52,25 @@ public partial class MainWindow : Window
     {
         base.OnSourceInitialized(e);
         Ui.Chrome(this);
+        ApplyIcon();
+        DpiChanged += (_, _) => ApplyIcon();
+    }
+
+    /// <summary>The title-bar icon. WPF would stretch the first (16 px) frame of the .ico on a scaled screen and look
+    /// pixelated, so the frame that matches 16 DIP at this screen's scaling is picked by hand.</summary>
+    private void ApplyIcon()
+    {
+        try
+        {
+            var wanted = (int)Math.Round(16 * System.Windows.Media.VisualTreeHelper.GetDpi(this).DpiScaleX);
+            var decoder = System.Windows.Media.Imaging.BitmapDecoder.Create(new Uri("pack://application:,,,/Assets/shabpa.ico"),
+                System.Windows.Media.Imaging.BitmapCreateOptions.None, System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
+            Icon = decoder.Frames.OrderBy(f => f.PixelWidth < wanted ? int.MaxValue - f.PixelWidth : f.PixelWidth - wanted).First();
+        }
+        catch
+        {
+            // keep the icon from the XAML
+        }
     }
 
     /// <summary>"home", "ping", … or "system:rules" for a tab inside «کنترل سیستم».</summary>

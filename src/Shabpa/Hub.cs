@@ -32,7 +32,6 @@ public sealed class Hub
     public Shaper Shaper { get; } = new();
     public UsageHistory Usage { get; } = new();
     public Telemetry Telemetry { get; }
-    public GpuTuner Tuner { get; }
     private readonly GameSessionTracker _session = new();
     /// <summary>The window drawn over games; null in screenshot runs.</summary>
     public OverlayWindow? Overlay { get; set; }
@@ -67,7 +66,6 @@ public sealed class Hub
         Traffic = new TrafficMeter(_resolver.Resolve);
         Ping = new PingMeter(() => Settings.PingHost);
         Telemetry = new Telemetry(() => Sensors.Latest, () => Ping.Samples);
-        Tuner = new GpuTuner(() => Telemetry.Gpu as AmdGpu);
         Updater = new Updater(() => Settings);
         Bot = new TelegramBot(() => Settings, Store.Save, new BotHost
         {
@@ -107,7 +105,6 @@ public sealed class Hub
         Sensors.Start();
         if (!Demo)
         {
-            Telemetry.Updated += sample => Tuner.Tick(Settings.GpuTune, sample);
             Telemetry.Updated += OnTelemetryForReport;
             Telemetry.Start();
         }
@@ -128,12 +125,6 @@ public sealed class Hub
     {
         _clock.Stop();
         Sensors.Dispose();
-        // Whatever was tuned goes back to the driver's values; with "apply at start" it is applied again next time.
-        if (!Demo && !Store.ReadOnly && !Settings.GpuTune.IsDefault)
-        {
-            try { Tuner.ResetAll(); }
-            catch (Exception ex) { Log.Write($"gpu reset on exit failed: {ex.Message}"); }
-        }
         Telemetry.Dispose();
         Bot.Dispose();
         Ping.Dispose();
@@ -178,7 +169,6 @@ public sealed class Hub
         }
 
         CheckForUpdates(now);
-        ApplyTuneAtStart(now);
         CheckBudget(now);
 
         if (now - _lastSave > TimeSpan.FromMinutes(1))
@@ -439,49 +429,6 @@ public sealed class Hub
                 $"{Fa.N(check.Fraction * 100, 0)}% of your monthly allowance is used ({Fa.N(check.UsedGb, 1)} of {Fa.N(Settings.MonthlyLimitGb, 0)} GB).");
         Notify(L.T("حجم اینترنت", "Data allowance"), text);
         Bot.Notify("📶 " + text);
-    }
-
-    // ---- graphics tuning at start ---------------------------------------------------------------
-
-    private bool _tuneChecked;
-    private DateTime? _tuneStableAt;
-
-    /// <summary>Applies the saved graphics profile once the card is readable. A "pending" mark protects against a bad
-    /// profile: if the previous start never got to clear it, the profile is not applied again by itself.</summary>
-    private void ApplyTuneAtStart(DateTime now)
-    {
-        if (Demo || Store.ReadOnly) return;
-        var profile = Settings.GpuTune;
-        if (_tuneStableAt is { } stable && now >= stable)
-        {
-            _tuneStableAt = null;
-            profile.Pending = false;
-            Store.Save();
-        }
-        if (_tuneChecked || now - _started < TimeSpan.FromSeconds(20) || Telemetry.Gpu is not AmdGpu) return;
-        _tuneChecked = true;
-        if (!profile.AutoApply || profile.IsDefault) return;
-        if (profile.Pending)
-        {
-            profile.Pending = false;
-            profile.AutoApply = false;
-            Store.Save();
-            Notify(L.T("کارت گرافیک", "Graphics card"),
-                L.T("دفعه‌ی قبل بعد از اعمال تنظیمات سیستم درست پیش نرفت؛ این بار خودکار اعمال نشد. از «بازی ← کارت گرافیک» دوباره امتحان کن.",
-                    "Last time something went wrong after the settings were applied, so they were not applied automatically now. Try again from Gaming → Graphics."));
-            return;
-        }
-        profile.Pending = true;
-        Store.Save();
-        var error = Tuner.Apply(profile);
-        if (error is not null)
-        {
-            profile.Pending = false;
-            Store.Save();
-            Notify(L.T("کارت گرافیک", "Graphics card"), L.T($"تنظیمات ذخیره‌شده اعمال نشد: {error}", $"The saved settings were not applied: {error}"));
-            return;
-        }
-        _tuneStableAt = now.AddSeconds(90);
     }
 
     // ---- updates ----------------------------------------------------------------------------

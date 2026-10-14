@@ -79,14 +79,15 @@ public static class OverlayRenderer
     {
         var c = Resolve(o);
         var font = (FontFamily)Application.Current.Resources["Num"];
+        var flat = metrics.Where(m => m.Key != "fpsgraph").ToList();
         FrameworkElement body = o.Layout switch
         {
-            "bar" => Bar(o, c, font, metrics),
-            "compact" => Compact(o, c, font, metrics),
-            "minimal" => Minimal(o, c, font, metrics),
-            "rings" => Rings(o, c, font, metrics),
-            "graph" => Graph(o, c, font, metrics, history),
-            _ => Card(o, c, font, metrics),
+            "bar" => Bar(o, c, font, flat),
+            "compact" => Compact(o, c, font, flat),
+            "minimal" => Minimal(o, c, font, flat),
+            "rings" => Rings(o, c, font, flat),
+            "graph" => Graph(o, c, font, flat, history),
+            _ => Card(o, c, font, metrics, history),
         };
 
         var frame = new Border
@@ -123,8 +124,10 @@ public static class OverlayRenderer
 
     // ---- card: label on one side, value on the other -------------------------------------------
 
-    private static FrameworkElement Card(OverlaySettings o, Skin c, FontFamily font, IReadOnlyList<MetricView> metrics)
+    private static FrameworkElement Card(OverlaySettings o, Skin c, FontFamily font, IReadOnlyList<MetricView> metrics, IReadOnlyList<TelemetrySample>? history = null)
     {
+        var graphRow = metrics.Any(m => m.Key == "fpsgraph");
+        metrics = [.. metrics.Where(m => m.Key != "fpsgraph")];
         var grid = new Grid { MinWidth = 150 };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 14 });
@@ -148,7 +151,32 @@ public static class OverlayRenderer
             Grid.SetColumn(value, 2);
             grid.Children.Add(value);
         }
+        if (!graphRow) return grid;
+
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var spark = SparkLine(c, history, 150, 34);
+        spark.Margin = new Thickness(0, 6, 0, 0);
+        Grid.SetRow(spark, metrics.Count);
+        Grid.SetColumnSpan(spark, 3);
+        grid.Children.Add(spark);
         return grid;
+    }
+
+    /// <summary>The last minute of frame rate as a small line.</summary>
+    private static FrameworkElement SparkLine(Skin c, IReadOnlyList<TelemetrySample>? history, double width, double height)
+    {
+        var canvas = new Canvas { Width = width, Height = height, ClipToBounds = true };
+        canvas.Children.Add(new Rectangle { Width = width, Height = height, Fill = Brush(Color.FromArgb(0x28, c.Text.R, c.Text.G, c.Text.B)), RadiusX = 5, RadiusY = 5 });
+        var values = (history ?? []).Select(s => s.Fps).TakeLast(60).ToList();
+        if (values.Count >= 2)
+        {
+            var top = Math.Max(30, values.Max() * 1.15);
+            var points = new PointCollection();
+            for (var i = 0; i < values.Count; i++)
+                points.Add(new Point(width * i / (values.Count - 1), height - 2 - Math.Clamp(values[i] / top, 0, 1) * (height - 4)));
+            canvas.Children.Add(new Polyline { Points = points, Stroke = Brush(c.Accent), StrokeThickness = 1.6, StrokeLineJoin = PenLineJoin.Round });
+        }
+        return canvas;
     }
 
     // ---- bar: one horizontal strip --------------------------------------------------------------
@@ -176,6 +204,8 @@ public static class OverlayRenderer
         "fps" => "FPS", "low1" => "1%", "frame" => "FT", "gpu" => "GPU", "gputemp" => "GPU°", "hotspot" => "HOT", "memtemp" => "MEM°",
         "gpuclock" => "CLK", "memclock" => "VCLK", "gpupower" => "PWR", "gpufan" => "FAN", "vram" => "VRAM", "cpu" => "CPU", "cputemp" => "SYS°",
         "cpuwatts" => "CPU W", "ram" => "RAM", "ping" => "PING", "down" => "↓", "up" => "↑", "clock" => "", "gametime" => "⏱",
+        "gpuvolt" => "mV", "gpufanrpm" => "FAN", "cpufreq" => "CLK", "cpufan" => "FAN%", "cpufanrpm" => "FAN", "ramtemp" => "RAM°", "ramused" => "RAM",
+        "fpsgraph" => "",
         _ => m.Label,
     };
 

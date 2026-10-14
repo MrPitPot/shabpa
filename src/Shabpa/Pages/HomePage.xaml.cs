@@ -22,6 +22,8 @@ public partial class HomePage : PageBase
             [(PowerAction.Shutdown, L.T("خاموش بشه", "Shut down")), (PowerAction.Sleep, L.T("بخوابه", "Sleep")), (PowerAction.Hibernate, L.T("هایبرنیت بشه", "Hibernate"))],
             _action, a => _action = a);
 
+        IsVisibleChanged += (_, _) => OnVisible();
+
         Hub.MemoryCleaned += (result, cache) =>
         {
             RamButton.IsEnabled = true;
@@ -124,15 +126,8 @@ public partial class HomePage : PageBase
 
     public override void OnTick(SensorSnapshot s)
     {
-        WattsText.Text = s.TotalWatts > 0 ? $"{s.TotalWatts:0} W" : "—";
-        WattsSub.Text = L.T($"پردازنده {Fa.N(s.CpuWatts, 0)} · گرافیک {Fa.N(s.GpuWatts, 0)} وات", $"CPU {Fa.N(s.CpuWatts, 0)} · GPU {Fa.N(s.GpuWatts, 0)} W");
-        NetText.Text = $"↓ {(s.DownMbps >= 10 ? $"{s.DownMbps:0}" : $"{s.DownMbps:0.0}")} Mb";
-        NetSub.Text = L.T($"آپلود {Fa.Speed(s.UpMbps)} مگابیت بر ثانیه", $"Upload {Fa.Speed(s.UpMbps)} Mbit/s");
-        CpuText.Text = $"{s.CpuLoad:0}%";
-        CpuBar.Value = s.CpuLoad;
-        var memory = Hub.Memory;
-        RamText.Text = memory.Total > 0 ? $"{memory.UsedPercent:0}%" : "—";
-        RamBar.Value = memory.UsedPercent;
+        WattsText.Text = s.TotalWatts > 0 ? $"{s.TotalWatts:0} W" : "";
+        ShowLive();
 
         if (_ruleBar is not null)
         {
@@ -141,10 +136,88 @@ public partial class HomePage : PageBase
         }
     }
 
+    private static string CleanGpuName(string name) =>
+        string.Join(' ', name.Replace("(R)", "").Replace("(TM)", "").Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(w => w is not ("AMD" or "NVIDIA" or "Radeon" or "GeForce" or "Intel" or "Graphics")));
+
+    private static System.Windows.Media.Brush Tint(string key, double value, double warn, double bad) =>
+        Res(value >= bad ? "Red" : value >= warn ? "Gold" : key);
+
+    /// <summary>The four live cards: graphics card, processor, memory and network.</summary>
+    private void ShowLive()
+    {
+        var s = Hub.Demo ? OverlayMetrics.Demo(DateTime.Now) : Hub.Telemetry.Latest;
+        var g = s.Gpu;
+
+        // graphics card
+        if (g.Name.Length == 0 && !Hub.Demo)
+        {
+            GpuBig.Text = "—";
+            GpuUnit.Text = "";
+            GpuSide.Text = "";
+            GpuNote.Text = L.T("کارت گرافیک خونده نشد", "Graphics card not read");
+        }
+        else
+        {
+            GpuBig.Text = g.TempC is { } t ? $"{t:0}" : g.LoadPercent is { } l0 ? $"{l0:0}" : "—";
+            GpuUnit.Text = g.TempC is not null ? "°C" : "%";
+            GpuSide.Text = g.TempC is not null && g.LoadPercent is { } l ? $"{l:0}%" : "";
+            GpuBig.Foreground = g.TempC is { } temp ? Tint("Green", temp, 75, 88) : Res("Green");
+            GpuNote.Text = CleanGpuName(g.Name) + (g.VramTotalMb is { } vram ? $" · {vram / 1024:0} GB" : "");
+        }
+        GpuBar.Value = g.LoadPercent ?? 0;
+
+        // processor
+        var temperature = s.CpuTempC;
+        CpuBig.Text = temperature is { } ct ? $"{ct:0}" : $"{s.CpuLoad:0}";
+        CpuUnit.Text = temperature is not null ? "°C" : "%";
+        CpuSide.Text = temperature is not null ? $"{s.CpuLoad:0}%" : "";
+        CpuBig.Foreground = temperature is { } cpuTemp ? Tint("Green", cpuTemp, 75, 90) : Tint("Green", s.CpuLoad, 75, 92);
+        CpuBar.Value = s.CpuLoad;
+        CpuNote.Text = Telemetry.CpuName() + (s.CpuMHz is { } mhz ? $" · {mhz / 1000:0.0} GHz" : "");
+
+        // memory
+        var memory = Hub.Demo ? new MemoryInfo(32L << 30, 14L << 30, 0) : Hub.Memory;
+        if (memory.Total > 0)
+        {
+            RamBig.Text = $"{memory.Used / 1073741824.0:0.0}";
+            RamUnit.Text = $"/ {memory.Total / 1073741824.0:0} GB";
+            RamSide.Text = "";
+            RamBar.Value = memory.UsedPercent;
+            RamBig.Foreground = Tint("Green", memory.UsedPercent, 75, 92);
+            RamNote.Text = L.T($"{memory.UsedPercent:0}٪ استفاده شده", $"{memory.UsedPercent:0}% used");
+        }
+
+        // network
+        NetBig.Text = s.DownMbps >= 10 ? $"{s.DownMbps:0}" : $"{s.DownMbps:0.0}";
+        NetUnit.Text = "Mb/s ↓";
+        NetSide.Text = "";
+        NetBar.Value = Math.Min(100, s.DownMbps);
+        NetNote.Text = L.T($"آپلود {(s.UpMbps >= 10 ? $"{s.UpMbps:0}" : $"{s.UpMbps:0.0}")} Mb/s", $"Up {(s.UpMbps >= 10 ? $"{s.UpMbps:0}" : $"{s.UpMbps:0.0}")} Mb/s");
+        NetNote.FlowDirection = Flow;
+    }
+
+    private bool _acquired;
+
+    private void OnVisible()
+    {
+        if (IsVisible && !_acquired && !Hub.Demo)
+        {
+            _acquired = true;
+            Hub.Telemetry.Acquire();
+        }
+        else if (!IsVisible && _acquired)
+        {
+            _acquired = false;
+            Hub.Telemetry.Release();
+        }
+    }
+
     public override void OnSecond()
     {
         var now = DateTime.Now;
         if (_onSince is { } since) UptimeText.Text = Fa.Duration(now - since);
+        ShowLive();
         foreach (var row in NextPanel.Children.OfType<Grid>())
             if (row.Children.OfType<StackPanel>().LastOrDefault()?.Children.OfType<TextBlock>().FirstOrDefault(t => t.Tag is DateTime) is { } label)
                 label.Text = Fa.Countdown((DateTime)label.Tag - now);

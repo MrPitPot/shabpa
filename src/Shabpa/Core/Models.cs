@@ -67,7 +67,6 @@ public sealed class Settings
     /// <summary>Ask "are you sure" (with the exact time it will happen) before anything is scheduled, run or deleted.</summary>
     public bool ConfirmActions { get; set; } = true;
     public OverlaySettings Overlay { get; set; } = new();
-    public GpuTuneProfile GpuTune { get; set; } = new();
     /// <summary>After a game of at least a few minutes, show how it went (and send it to Telegram).</summary>
     public bool GameReports { get; set; } = true;
     /// <summary>Monthly internet allowance in GB; 0 = no limit.</summary>

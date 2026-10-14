@@ -10,7 +10,7 @@
             <DockPanel>
                 <Button x:Name="LanguageButton" DockPanel.Dock="Right" Style="{StaticResource Btn}" Padding="12,6" FontSize="12" VerticalAlignment="Top" Click="OnLanguage"/>
                 <StackPanel Orientation="Horizontal">
-                    <Image Source="pack://application:,,,/ShabpaSetup;component/shabpa.ico" Width="54" Height="54" RenderOptions.BitmapScalingMode="HighQuality" FlowDirection="LeftToRight"/>
+                    <Image Source="pack://application:,,,/ShabpaSetup;component/logo.png" Width="54" Height="54" RenderOptions.BitmapScalingMode="HighQuality" FlowDirection="LeftToRight"/>
                     <StackPanel Margin="16,0,0,0" VerticalAlignment="Center">
                         <TextBlock x:Name="TitleText" FontSize="22" FontWeight="Bold"/>
                         <TextBlock x:Name="SubtitleText" FontSize="12.5" Foreground="{StaticResource Muted}" Margin="0,3,0,0"/>

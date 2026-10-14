@@ -9,6 +9,11 @@ public sealed record TelemetrySample
     public double CpuLoad { get; init; }
     public double? CpuTempC { get; init; }
     public double? CpuWatts { get; init; }
+    public double? CpuMHz { get; init; }
+    /// <summary>Only available with an extra hardware sensor library; null when Windows does not expose it.</summary>
+    public double? CpuFanPercent { get; init; }
+    public double? CpuFanRpm { get; init; }
+    public double? RamTempC { get; init; }
     public double RamPercent { get; init; }
     public double RamUsedGb { get; init; }
     public double RamTotalGb { get; init; }
@@ -49,6 +54,8 @@ public sealed class Telemetry : IDisposable
     private (long idle, long kernel, long user) _cpu;
     private bool _cpuPrimed;
     private PerformanceCounter? _thermal;
+    private PerformanceCounter? _cpuFreq, _cpuPerf;
+    private bool _cpuFreqTried;
     private bool _thermalTried;
     private DateTime _vramAt = DateTime.MinValue;
     private double? _vramUsed;
@@ -63,6 +70,28 @@ public sealed class Telemetry : IDisposable
     {
         _sensors = sensors;
         _ping = ping;
+    }
+
+    private static string? _cpuName;
+
+    /// <summary>"12th Gen Intel Core i7-12700K", from the registry (no (R) / (TM) marks).</summary>
+    public static string CpuName()
+    {
+        if (_cpuName is not null) return _cpuName;
+        try
+        {
+            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"HARDWARE\DESCRIPTION\System\CentralProcessor\0");
+            var raw = key?.GetValue("ProcessorNameString") as string ?? "";
+            _cpuName = System.Text.RegularExpressions.Regex.Replace(raw.Replace("(R)", "").Replace("(TM)", ""), @"\s+", " ").Trim();
+            // "Intel Core i7-12700K CPU @ 3.60GHz" -> drop the clock, it is shown separately.
+            var at = _cpuName.IndexOf(" @ ", StringComparison.Ordinal);
+            if (at > 0) _cpuName = _cpuName[..at].Replace(" CPU", "");
+        }
+        catch
+        {
+            _cpuName = "";
+        }
+        return _cpuName;
     }
 
     /// <summary>The graphics card provider, once it has been opened (AMD cards can also be tuned through it).</summary>
@@ -181,6 +210,7 @@ public sealed class Telemetry : IDisposable
             Time = now,
             CpuLoad = ReadCpu(),
             CpuTempC = ReadThermal(),
+            CpuMHz = ReadCpuFrequency(),
             CpuWatts = sensors.CpuMeasured ? sensors.CpuWatts : null,
             RamPercent = memory.UsedPercent,
             RamUsedGb = memory.Used / 1073741824.0,
@@ -212,6 +242,31 @@ public sealed class Telemetry : IDisposable
         var total = (kernel - prev.kernel) + (user - prev.user);
         if (total <= 0) return 0;
         return Math.Clamp(100.0 * (total - (idle - prev.idle)) / total, 0, 100);
+    }
+
+    /// <summary>Current CPU clock: the base frequency counter times "% Processor Performance" (which goes above 100 when boosting).</summary>
+    private double? ReadCpuFrequency()
+    {
+        try
+        {
+            if (!_cpuFreqTried)
+            {
+                _cpuFreqTried = true;
+                _cpuFreq = new PerformanceCounter("Processor Information", "Processor Frequency", "_Total", true);
+                _cpuPerf = new PerformanceCounter("Processor Information", "% Processor Performance", "_Total", true);
+                _cpuFreq.NextValue();
+                _cpuPerf.NextValue();
+                return null;
+            }
+            if (_cpuFreq is null || _cpuPerf is null) return null;
+            var mhz = _cpuFreq.NextValue() * _cpuPerf.NextValue() / 100.0;
+            return mhz is > 100 and < 8000 ? mhz : null;
+        }
+        catch
+        {
+            _cpuFreq = _cpuPerf = null;
+            return null;
+        }
     }
 
     /// <summary>The first ACPI thermal zone, in °C. It is a board/CPU-area figure, not the die sensor, so it is

@@ -11,7 +11,7 @@
     <RootNamespace>Shabpa</RootNamespace>
     <ApplicationIcon>Assets\shabpa.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>2.1.0</Version>
+    <Version>2.1.1</Version>
     <Product>Shabpa</Product>
     <Company>Mr.PitPot</Company>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
@@ -21,6 +21,7 @@
   <ItemGroup>
     <Resource Include="Fonts\*.ttf" />
     <Resource Include="Assets\shabpa.ico" />
+    <Resource Include="Assets\logo.png" />
     <InternalsVisibleTo Include="Shabpa.Tests" />
   </ItemGroup>
 

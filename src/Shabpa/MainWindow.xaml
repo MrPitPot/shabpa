@@ -16,7 +16,7 @@
         <Border Background="{StaticResource SideGradient}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0">
             <DockPanel Margin="14,22,14,16">
                 <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,0,0,24">
-                    <Image Source="pack://application:,,,/Assets/shabpa.ico" Width="36" Height="36" RenderOptions.BitmapScalingMode="HighQuality" FlowDirection="LeftToRight"/>
+                    <Image Source="pack://application:,,,/Assets/logo.png" Width="36" Height="36" RenderOptions.BitmapScalingMode="HighQuality" FlowDirection="LeftToRight"/>
                     <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
                         <TextBlock Text="{s:Tr 'شب‌پا', 'Shabpa'}" FontSize="18" FontWeight="Bold" Foreground="{StaticResource Text}"/>
                         <TextBlock Text="{s:Tr 'نگهبان شبانه‌ی سیستم', 'Your PC night watch'}" FontSize="11" Foreground="{StaticResource Faint}" Margin="0,1,0,0"/>
@@ -39,14 +39,14 @@
                             <TextBlock x:Name="SideNext" Style="{StaticResource Label}" FontSize="11.5" Margin="0,6,0,0" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>
-                    <TextBlock Text="{s:Tr 'ساخته‌ی Mr.PitPot · نسخه‌ی ۲٫۰', 'Made by Mr.PitPot · v2.0'}" FontSize="10.5" Foreground="{StaticResource Faint}" HorizontalAlignment="Center" Margin="0,12,0,0"/>
+                    <TextBlock x:Name="VersionText" FontSize="10.5" Foreground="{StaticResource Faint}" HorizontalAlignment="Center" Margin="0,12,0,0"/>
                 </StackPanel>
 
                 <StackPanel x:Name="NavPanel">
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE80F;" Content="{s:Tr 'خانه', 'Home'}" x:Name="NavHome" Checked="OnNav"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE7E8;" Content="{s:Tr 'کنترل سیستم', 'System control'}" x:Name="NavSystem" Checked="OnNav"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE701;" Content="{s:Tr 'پایداری پینگ', 'Ping stability'}" x:Name="NavPing" Checked="OnNav"/>
-                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE7FC;" Content="{s:Tr 'بازی', 'Gaming'}" x:Name="NavGaming" Checked="OnNav"/>
+                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE7FC;" Content="{s:Tr 'اورلی بازی', 'Game overlay'}" x:Name="NavGaming" Checked="OnNav"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE895;" Content="{s:Tr 'به‌روزرسانی', 'Updates'}" x:Name="NavUpdate" Checked="OnNav"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE713;" Content="{s:Tr 'تنظیمات', 'Settings'}" x:Name="NavSettings" Checked="OnNav"/>
                 </StackPanel>

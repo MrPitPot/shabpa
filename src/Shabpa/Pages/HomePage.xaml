@@ -21,33 +21,73 @@
             </Grid>
         </Border>
 
-        <UniformGrid Columns="4" Margin="-6,8,-6,0">
-            <Border Style="{StaticResource Card}" Margin="6" Padding="18,16">
-                <StackPanel>
-                    <TextBlock Text="{s:Tr 'مصرف لحظه‌ای', 'Power right now'}" Style="{StaticResource Label}"/>
-                    <TextBlock x:Name="WattsText" FontFamily="{StaticResource Num}" Text="—" Style="{StaticResource Big}" Foreground="{StaticResource Green}" FontSize="26" Margin="0,6,0,2" FlowDirection="LeftToRight" HorizontalAlignment="Left"/>
-                    <TextBlock x:Name="WattsSub" Style="{StaticResource Label}" FontSize="11.5"/>
-                </StackPanel>
-            </Border>
-            <Border Style="{StaticResource Card}" Margin="6" Padding="18,16">
+        <DockPanel Margin="4,20,4,8">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock x:Name="WattsText" Style="{StaticResource Label}" FontFamily="{StaticResource Num}" FlowDirection="LeftToRight" Margin="0,0,12,0" VerticalAlignment="Center"/>
+                <Border Style="{StaticResource Pill}">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="7" Height="7" Fill="{StaticResource Green}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="{s:Tr 'زنده', 'Live'}" FontSize="11.5" Foreground="{StaticResource Muted}"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+            <TextBlock Text="{s:Tr 'وضعیت زنده سیستم', 'Live system status'}" Style="{StaticResource H2}" VerticalAlignment="Center"/>
+        </DockPanel>
+        <UniformGrid Columns="4" Margin="-6,0,-6,0">
+            <Border Style="{StaticResource Card}" Margin="6" Padding="18,14">
                 <StackPanel>
                     <TextBlock Text="{s:Tr 'شبکه', 'Network'}" Style="{StaticResource Label}"/>
-                    <TextBlock x:Name="NetText" FontFamily="{StaticResource Num}" Text="—" Style="{StaticResource Big}" FontSize="26" Margin="0,6,0,2" FlowDirection="LeftToRight" HorizontalAlignment="Left"/>
-                    <TextBlock x:Name="NetSub" Style="{StaticResource Label}" FontSize="11.5"/>
+                    <DockPanel Margin="0,10,0,10">
+                        <TextBlock x:Name="NetSide" DockPanel.Dock="Right" FontFamily="{StaticResource Num}" FontSize="12.5" Foreground="{StaticResource Muted}" VerticalAlignment="Bottom" FlowDirection="LeftToRight"/>
+                        <StackPanel Orientation="Horizontal" FlowDirection="LeftToRight" HorizontalAlignment="Left">
+                            <TextBlock x:Name="NetBig" FontFamily="{StaticResource Num}" Text="—" FontSize="30" FontWeight="Bold" Foreground="{StaticResource Green}"/>
+                            <TextBlock x:Name="NetUnit" FontSize="13" Foreground="{StaticResource Muted}" VerticalAlignment="Bottom" Margin="5,0,0,6"/>
+                        </StackPanel>
+                    </DockPanel>
+                    <ProgressBar x:Name="NetBar" Style="{StaticResource Bar}" Maximum="100" Foreground="{StaticResource Green}"/>
+                    <TextBlock x:Name="NetNote" Style="{StaticResource Label}" FontSize="11" Margin="0,10,0,0" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" FlowDirection="LeftToRight"/>
                 </StackPanel>
             </Border>
-            <Border Style="{StaticResource Card}" Margin="6" Padding="18,16">
+            <Border Style="{StaticResource Card}" Margin="6" Padding="18,14">
                 <StackPanel>
-                    <TextBlock Text="{s:Tr 'پردازنده', 'CPU'}" Style="{StaticResource Label}"/>
-                    <TextBlock x:Name="CpuText" FontFamily="{StaticResource Num}" Text="—" Style="{StaticResource Big}" FontSize="26" Margin="0,6,0,8" FlowDirection="LeftToRight" HorizontalAlignment="Left"/>
-                    <ProgressBar x:Name="CpuBar" Style="{StaticResource Bar}" Maximum="100"/>
+                    <TextBlock Text="{s:Tr 'حافظه', 'Memory'}" Style="{StaticResource Label}"/>
+                    <DockPanel Margin="0,10,0,10">
+                        <TextBlock x:Name="RamSide" DockPanel.Dock="Right" FontFamily="{StaticResource Num}" FontSize="12.5" Foreground="{StaticResource Muted}" VerticalAlignment="Bottom" FlowDirection="LeftToRight"/>
+                        <StackPanel Orientation="Horizontal" FlowDirection="LeftToRight" HorizontalAlignment="Left">
+                            <TextBlock x:Name="RamBig" FontFamily="{StaticResource Num}" Text="—" FontSize="30" FontWeight="Bold" Foreground="{StaticResource Green}"/>
+                            <TextBlock x:Name="RamUnit" FontSize="13" Foreground="{StaticResource Muted}" VerticalAlignment="Bottom" Margin="5,0,0,6"/>
+                        </StackPanel>
+                    </DockPanel>
+                    <ProgressBar x:Name="RamBar" Style="{StaticResource Bar}" Maximum="100" Foreground="{StaticResource Green}"/>
+                    <TextBlock x:Name="RamNote" Style="{StaticResource Label}" FontSize="11" Margin="0,10,0,0" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" FlowDirection="LeftToRight"/>
                 </StackPanel>
             </Border>
-            <Border Style="{StaticResource Card}" Margin="6" Padding="18,16">
+            <Border Style="{StaticResource Card}" Margin="6" Padding="18,14">
                 <StackPanel>
-                    <TextBlock Text="{s:Tr 'حافظه (رم)', 'Memory (RAM)'}" Style="{StaticResource Label}"/>
-                    <TextBlock x:Name="RamText" FontFamily="{StaticResource Num}" Text="—" Style="{StaticResource Big}" FontSize="26" Margin="0,6,0,8" FlowDirection="LeftToRight" HorizontalAlignment="Left"/>
-                    <ProgressBar x:Name="RamBar" Style="{StaticResource Bar}" Maximum="100" Foreground="{StaticResource Gold}"/>
+                    <TextBlock Text="{s:Tr 'پردازنده', 'Processor'}" Style="{StaticResource Label}"/>
+                    <DockPanel Margin="0,10,0,10">
+                        <TextBlock x:Name="CpuSide" DockPanel.Dock="Right" FontFamily="{StaticResource Num}" FontSize="12.5" Foreground="{StaticResource Muted}" VerticalAlignment="Bottom" FlowDirection="LeftToRight"/>
+                        <StackPanel Orientation="Horizontal" FlowDirection="LeftToRight" HorizontalAlignment="Left">
+                            <TextBlock x:Name="CpuBig" FontFamily="{StaticResource Num}" Text="—" FontSize="30" FontWeight="Bold" Foreground="{StaticResource Green}"/>
+                            <TextBlock x:Name="CpuUnit" FontSize="13" Foreground="{StaticResource Muted}" VerticalAlignment="Bottom" Margin="5,0,0,6"/>
+                        </StackPanel>
+                    </DockPanel>
+                    <ProgressBar x:Name="CpuBar" Style="{StaticResource Bar}" Maximum="100" Foreground="{StaticResource Green}"/>
+                    <TextBlock x:Name="CpuNote" Style="{StaticResource Label}" FontSize="11" Margin="0,10,0,0" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" FlowDirection="LeftToRight"/>
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Card}" Margin="6" Padding="18,14">
+                <StackPanel>
+                    <TextBlock Text="{s:Tr 'کارت گرافیک', 'Graphics card'}" Style="{StaticResource Label}"/>
+                    <DockPanel Margin="0,10,0,10">
+                        <TextBlock x:Name="GpuSide" DockPanel.Dock="Right" FontFamily="{StaticResource Num}" FontSize="12.5" Foreground="{StaticResource Muted}" VerticalAlignment="Bottom" FlowDirection="LeftToRight"/>
+                        <StackPanel Orientation="Horizontal" FlowDirection="LeftToRight" HorizontalAlignment="Left">
+                            <TextBlock x:Name="GpuBig" FontFamily="{StaticResource Num}" Text="—" FontSize="30" FontWeight="Bold" Foreground="{StaticResource Green}"/>
+                            <TextBlock x:Name="GpuUnit" FontSize="13" Foreground="{StaticResource Muted}" VerticalAlignment="Bottom" Margin="5,0,0,6"/>
+                        </StackPanel>
+                    </DockPanel>
+                    <ProgressBar x:Name="GpuBar" Style="{StaticResource Bar}" Maximum="100" Foreground="{StaticResource Green}"/>
+                    <TextBlock x:Name="GpuNote" Style="{StaticResource Label}" FontSize="11" Margin="0,10,0,0" TextTrimming="CharacterEllipsis" HorizontalAlignment="Left" FlowDirection="LeftToRight"/>
                 </StackPanel>
             </Border>
         </UniformGrid>

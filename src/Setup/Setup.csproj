@@ -12,7 +12,7 @@
     <RootNamespace>Shabpa.Setup</RootNamespace>
     <ApplicationIcon>shabpa.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>2.1.0</Version>
+    <Version>2.1.1</Version>
     <Product>Shabpa Setup</Product>
     <AssemblyTitle>Shabpa Setup</AssemblyTitle>
     <Company>Mr.PitPot</Company>
@@ -27,6 +27,7 @@
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Net.Http" />
     <Resource Include="shabpa.ico" />
+    <Resource Include="logo.png" />
     <Resource Include="..\Shabpa\Fonts\Vazirmatn-Medium.ttf" Link="Fonts\Vazirmatn-Medium.ttf" />
     <Resource Include="..\Shabpa\Fonts\Vazirmatn-Bold.ttf" Link="Fonts\Vazirmatn-Bold.ttf" />
     <EmbeddedResource Include="$(PayloadFile)" LogicalName="payload.bin" Condition="Exists('$(PayloadFile)')" />

@@ -65,8 +65,8 @@ public sealed class OverlayPage : PageBase
 
     private static readonly (string key, string fa, string en)[] Groups =
     [
-        ("perf", "عملکرد", "Performance"), ("gpu", "کارت گرافیک", "Graphics card"), ("cpu", "پردازنده", "Processor"),
-        ("system", "سیستم", "System"), ("net", "شبکه", "Network"),
+        ("general", "عمومی", "General"), ("gpu", "کارت گرافیک (GPU)", "Graphics card (GPU)"), ("cpu", "پردازنده (CPU)", "Processor (CPU)"),
+        ("ram", "حافظه (RAM)", "Memory (RAM)"), ("net", "شبکه (NET)", "Network (NET)"),
     ];
 
     private readonly DispatcherTimer _save = new() { Interval = TimeSpan.FromMilliseconds(400) };
@@ -86,7 +86,7 @@ public sealed class OverlayPage : PageBase
     private bool _loading;
     private List<TelemetrySample> _fakeHistory = [];
 
-    public override string PageTitle => L.T("بازی", "Gaming");
+    public override string PageTitle => L.T("اورلی بازی", "Game overlay");
     public override string PageSubtitle => L.T("اطلاعات سیستم روی بازی، با ظاهر و رنگ دلخواه.", "Live system stats over your game, looking the way you want.");
 
     private static TextBox Input() => new()
@@ -196,6 +196,14 @@ public sealed class OverlayPage : PageBase
             foreach (var def in OverlayMetrics.All.Where(m => m.Group == key))
             {
                 var box = new CheckBox { Style = St("Check"), Content = def.Label, Margin = new Thickness(0, 0, 8, 8), Tag = def.Key };
+                if (def.Advanced)
+                {
+                    // Fan speeds and memory temperature are not available through Windows itself.
+                    box.IsEnabled = false;
+                    box.ToolTip = L.T("این مقدار به حسگر سخت‌افزاری پیشرفته نیاز داره که هنوز فعال نیست.",
+                        "This reading needs an advanced hardware sensor module that is not enabled yet.");
+                    box.Content = def.Label + L.T(" (به‌زودی)", " (soon)");
+                }
                 box.Click += OnItem;
                 _items[def.Key] = box;
                 wrap.Children.Add(box);
@@ -280,7 +288,7 @@ public sealed class OverlayPage : PageBase
     private void OnItem(object sender, RoutedEventArgs e) => Change(o =>
     {
         // Keep the catalogue order so the overlay reads the same way every time.
-        o.Items = [.. OverlayMetrics.All.Where(m => _items[m.Key].IsChecked == true).Select(m => m.Key)];
+        o.Items = [.. OverlayMetrics.All.Where(m => _items[m.Key].IsChecked == true && !m.Advanced).Select(m => m.Key)];
     });
 
     private void OnMove(object sender, RoutedEventArgs e)

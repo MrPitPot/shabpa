@@ -204,48 +204,6 @@ public static class Diagnostics
             return found.Count == 0 ? "session ran, no process was presenting frames" : string.Join("; ", found);
         });
 
-        Line("graphics tuning write test", () =>
-        {
-            using var gpu = GpuProbe.Open() as AmdGpu;
-            if (gpu is null || !gpu.CanTune) return "not applicable";
-            var before = gpu.ReadOd8();
-            if (before is null) return "not readable";
-            // Raises the power limit by one percent, checks it took effect, then puts it back: a real but harmless write.
-            var power = before.Get(AmdGpu.PowerPercentage);
-            if (power is null) return "no adjustable power limit";
-            var original = power.Current;
-            var step = original < power.Max ? original + 1 : original - 1;
-            var writeError = gpu.SetOd8(new Dictionary<int, int> { [AmdGpu.PowerPercentage] = step });
-            var changed = gpu.ReadOd8()?.Get(AmdGpu.PowerPercentage)?.Current;
-            var restoreError = gpu.SetOd8(new Dictionary<int, int> { [AmdGpu.PowerPercentage] = original });
-            var restored = gpu.ReadOd8()?.Get(AmdGpu.PowerPercentage)?.Current;
-            return $"power limit {original} -> {step}: write {(writeError ?? "ok")}, read back {changed}; restore {(restoreError ?? "ok")}, now {restored}";
-        });
-
-        Line("graphics tuning ranges", () =>
-        {
-            using var gpu = GpuProbe.Open() as AmdGpu;
-            if (gpu is null) return "not an AMD card (tuning is AMD-only)";
-            if (!gpu.CanTune) return $"Overdrive version {gpu.Overdrive8Version}: no Overdrive 8";
-            var od = gpu.ReadOd8();
-            if (od is null) return "Overdrive 8 not readable";
-            var names = new Dictionary<int, string>
-            {
-                [AmdGpu.GfxClkFmax] = "gfx max", [AmdGpu.GfxClkFmin] = "gfx min", [AmdGpu.UclkFmax] = "vram max", [AmdGpu.UclkFmin] = "vram min",
-                [AmdGpu.PowerPercentage] = "power %", [AmdGpu.FanMinSpeed] = "fan min", [AmdGpu.FanAcousticLimit] = "fan acoustic", [AmdGpu.FanTargetTemp] = "fan target",
-                [AmdGpu.OperatingTempMax] = "temp max", [AmdGpu.FanZeroRpm] = "zero rpm", [AmdGpu.OdVoltage] = "voltage offset", [AmdGpu.GfxVoltageLimit] = "voltage limit",
-                [AmdGpu.GfxClkVoltage1] = "volt1", [AmdGpu.GfxClkVoltage2] = "volt2", [AmdGpu.GfxClkVoltage3] = "volt3",
-            };
-            for (var i = 0; i < AmdGpu.FanCurvePoints; i++)
-            {
-                names[AmdGpu.FanCurveTemp1 + i * 2] = $"curve{i + 1} temp";
-                names[AmdGpu.FanCurveSpeed1 + i * 2] = $"curve{i + 1} speed";
-            }
-            var parts = od.Features.Values.Where(f => f.Adjustable || names.ContainsKey(f.Id))
-                .Select(f => $"{(names.TryGetValue(f.Id, out var n) ? n : "id" + f.Id)} [{f.Min}..{f.Max}] def {f.Default} now {f.Current}");
-            return $"OD{gpu.Overdrive8Version}, caps 0x{od.Caps:X}, {od.Count} settings: " + string.Join("; ", parts);
-        });
-
         Line("memory", () =>
         {
             var info = MemoryCleaner.Read();

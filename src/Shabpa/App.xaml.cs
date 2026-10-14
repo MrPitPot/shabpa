@@ -128,7 +128,8 @@ public partial class App : Application
         if (shots is not null)
         {
             _window.Show();
-            _ = CaptureAll(shots, Value(e.Args, "--only"));
+            // --interactive: just show the window (real sensors, nothing saved) so it can be driven by hand or by a test.
+            if (!args.Contains("--interactive")) _ = CaptureAll(shots, Value(e.Args, "--only"));
             return;
         }
 
@@ -207,11 +208,11 @@ public partial class App : Application
             foreach (var page in _window!.CaptureKeys.Where(k => only is null || only.Split(',').Contains(k)))
             {
                 _window.Navigate(page);
-                await Task.Delay(page.StartsWith("gaming", StringComparison.Ordinal) ? 3500 : 900);
+                await Task.Delay(page == "gaming" ? 2500 : 900);
                 var name = page.Replace(':', '-');
                 Save(_window.CaptureRoot, Path.Combine(folder, $"{name}.png"));
                 var extra = 0;
-                while ((only is null || page.StartsWith("gaming", StringComparison.Ordinal)) && _window.ScrollPage())
+                while ((only is null || page == "gaming") && _window.ScrollPage())
                 {
                     await Task.Delay(300);
                     Save(_window.CaptureRoot, Path.Combine(folder, $"{name}-{++extra}.png"));
