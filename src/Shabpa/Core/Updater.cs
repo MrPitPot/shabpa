@@ -20,6 +20,9 @@ public sealed class Updater
     /// like {"version":"2.1.0","url":"https://…/ShabpaSetup.exe","sha256":"…","notes":"…"}.</summary>
     public const string DefaultFeed = "MrPitPot/shabpa";
 
+    /// <summary>The page people can open to see every release.</summary>
+    public const string ReleasesPage = "https://github.com/" + DefaultFeed + "/releases";
+
     public const string SetupName = "ShabpaSetup.exe";
     private const long MaxSetupBytes = 200L << 20;
 
@@ -48,14 +51,8 @@ public sealed class Updater
         }
     }
 
-    public string Feed
-    {
-        get
-        {
-            var feed = _settings().UpdateFeed.Trim();
-            return feed.Length > 0 ? feed : DefaultFeed;
-        }
-    }
+    /// <summary>Built in, so nobody has to find and paste a link.</summary>
+    public string Feed => DefaultFeed;
 
     private void Set(UpdateState state, string error = "")
     {

@@ -79,8 +79,6 @@ public sealed class Settings
     public string Theme { get; set; } = Palette.Default;
     /// <summary>Trim working sets automatically when RAM use passes this percentage; 0 = off.</summary>
     public int AutoTrimPercent { get; set; }
-    /// <summary>Overrides <see cref="Updater.DefaultFeed"/> when set.</summary>
-    public string UpdateFeed { get; set; } = "";
     public bool AutoUpdateCheck { get; set; } = true;
     /// <summary>The newest version the user was already told about, so each release is announced once.</summary>
     public string AnnouncedVersion { get; set; } = "";

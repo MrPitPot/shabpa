@@ -14,7 +14,6 @@ public partial class UpdatePage : PageBase
     {
         InitializeComponent();
         AutoCheck.IsChecked = Hub.Settings.AutoUpdateCheck;
-        FeedBox.Text = Updater.Feed;
         Updater.Changed += () => Dispatcher.BeginInvoke(Refresh);
     }
 
@@ -73,15 +72,9 @@ public partial class UpdatePage : PageBase
         Hub.Store.Save();
     }
 
-    private async void OnSaveFeed(object sender, RoutedEventArgs e)
+    private void OnOpenReleases(object sender, RoutedEventArgs e)
     {
-        var feed = FeedBox.Text.Trim();
-        // "https://github.com/owner/repo" is accepted too.
-        const string github = "https://github.com/";
-        if (feed.StartsWith(github, StringComparison.OrdinalIgnoreCase)) feed = feed[github.Length..].Trim('/');
-        Hub.Settings.UpdateFeed = feed;
-        FeedBox.Text = feed;
-        Hub.Store.Save();
-        await Updater.CheckAsync();
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Updater.ReleasesPage) { UseShellExecute = true }); }
+        catch { /* no browser registered */ }
     }
 }

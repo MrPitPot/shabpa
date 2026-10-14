@@ -38,11 +38,10 @@
         <TextBlock Text="{s:Tr 'تنظیمات به‌روزرسانی', 'Update settings'}" Style="{StaticResource Section}"/>
         <Border Style="{StaticResource Card}">
             <StackPanel>
-                <CheckBox x:Name="AutoCheck" Style="{StaticResource Check}" Content="{s:Tr 'خودش هر چند ساعت بررسی کنه و خبر بده', 'Check every few hours and let me know'}" Margin="0,0,0,12" HorizontalAlignment="Left" Click="OnAuto"/>
-                <TextBlock Text="{s:Tr 'منبع به‌روزرسانی (مخزن GitHub به شکل owner/repo یا آدرس https یک فایل manifest)', 'Update source (a GitHub repository as owner/repo, or the https address of a manifest file)'}" Style="{StaticResource Label}" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                <CheckBox x:Name="AutoCheck" Style="{StaticResource Check}" Content="{s:Tr 'خودش هر چند ساعت بررسی کنه و خبر بده', 'Check every few hours and let me know'}" Margin="0,0,0,14" HorizontalAlignment="Left" Click="OnAuto"/>
                 <DockPanel>
-                    <Button DockPanel.Dock="Right" Style="{StaticResource Btn}" Content="{s:Tr 'ذخیره', 'Save'}" Margin="10,0,0,0" Click="OnSaveFeed"/>
-                    <TextBox x:Name="FeedBox" Style="{StaticResource Input}" FlowDirection="LeftToRight" FontFamily="Consolas"/>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Btn}" Content="{s:Tr 'صفحه‌ی نسخه‌ها در GitHub', 'Releases on GitHub'}" Margin="10,0,0,0" Click="OnOpenReleases" VerticalAlignment="Center"/>
+                    <TextBlock Text="{s:Tr 'نسخه‌های جدید مستقیم از صفحه‌ی رسمی شب‌پا در GitHub گرفته می‌شن؛ لازم نیست لینکی وارد کنی.', 'New versions come straight from Shabpa’s official GitHub page; there is no link to enter.'}" Style="{StaticResource Label}" TextWrapping="Wrap" VerticalAlignment="Center"/>
                 </DockPanel>
             </StackPanel>
         </Border>
