@@ -209,7 +209,6 @@ public sealed class Telemetry : IDisposable
         {
             Time = now,
             CpuLoad = ReadCpu(),
-            CpuTempC = ReadThermal(),
             CpuMHz = ReadCpuFrequency(),
             CpuWatts = sensors.CpuMeasured ? sensors.CpuWatts : null,
             RamPercent = memory.UsedPercent,
@@ -265,32 +264,6 @@ public sealed class Telemetry : IDisposable
         catch
         {
             _cpuFreq = _cpuPerf = null;
-            return null;
-        }
-    }
-
-    /// <summary>The first ACPI thermal zone, in °C. It is a board/CPU-area figure, not the die sensor, so it is
-    /// labelled as such where it is shown. Not every PC exposes it.</summary>
-    private double? ReadThermal()
-    {
-        try
-        {
-            if (!_thermalTried)
-            {
-                _thermalTried = true;
-                if (PerformanceCounterCategory.Exists("Thermal Zone Information"))
-                {
-                    var instance = new PerformanceCounterCategory("Thermal Zone Information").GetInstanceNames().FirstOrDefault();
-                    if (instance is not null) _thermal = new PerformanceCounter("Thermal Zone Information", "Temperature", instance, true);
-                }
-            }
-            if (_thermal is null) return null;
-            var celsius = _thermal.NextValue() - 273.15;
-            return celsius is > 10 and < 125 ? celsius : null;
-        }
-        catch
-        {
-            _thermal = null;
             return null;
         }
     }

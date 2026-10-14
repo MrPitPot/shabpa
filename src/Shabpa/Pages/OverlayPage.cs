@@ -186,6 +186,18 @@ public sealed class OverlayPage : PageBase
         root.Children.Add(optionCard);
 
         // ---- items -------------------------------------------------------------------------------
+        // Readings this particular card does not report (checked once, on a short-lived connection).
+        GpuReading? card = null;
+        if (!Hub.Demo)
+        {
+            try
+            {
+                using var probe = GpuProbe.Open();
+                card = probe?.Read();
+            }
+            catch { /* no card information, nothing is marked */ }
+        }
+
         var (itemCard, items) = Ui2.Card(L.T("چی نشون داده بشه؟", "What to show"),
             L.T("فقط چیزهایی که این سیستم می‌تونه بخونه نشون داده می‌شن. فریم بر ثانیه به دسترسی ادمین نیاز داره.",
                 "Only readings this PC can provide are shown. Frame rate needs administrator rights."));
@@ -203,6 +215,12 @@ public sealed class OverlayPage : PageBase
                     box.ToolTip = L.T("این مقدار به حسگر سخت‌افزاری پیشرفته نیاز داره که هنوز فعال نیست.",
                         "This reading needs an advanced hardware sensor module that is not enabled yet.");
                     box.Content = def.Label + L.T(" (به‌زودی)", " (soon)");
+                }
+                else if (card is { Name.Length: > 0 } && Unsupported(def.Key, card))
+                {
+                    box.ToolTip = L.T("این کارت گرافیک این مقدار رو گزارش نمی‌ده.", "This graphics card does not report this reading.");
+                    box.Content = def.Label + L.T(" (پشتیبانی نمی‌شه)", " (not reported)");
+                    box.Opacity = 0.55;
                 }
                 box.Click += OnItem;
                 _items[def.Key] = box;
@@ -284,6 +302,17 @@ public sealed class OverlayPage : PageBase
         o.Shadow = _shadow.IsChecked == true;
         o.Rounded = _rounded.IsChecked == true;
     });
+
+    private static bool Unsupported(string key, GpuReading g) => key switch
+    {
+        "memtemp" => g.MemTempC is null,
+        "hotspot" => g.HotspotC is null,
+        "gpuvolt" => g.VoltageMv is null,
+        "gpupower" => g.PowerW is null,
+        "gpufan" => g.FanPercent is null,
+        "gpufanrpm" => g.FanRpm is null,
+        _ => false,
+    };
 
     private void OnItem(object sender, RoutedEventArgs e) => Change(o =>
     {

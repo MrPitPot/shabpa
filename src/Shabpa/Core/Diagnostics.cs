@@ -182,7 +182,8 @@ public static class Diagnostics
             string F(double? v, string unit = "") => v is { } x ? $"{x:0.#}{unit}" : "-";
             return $"{gpu.Vendor} {gpu.Name}: temp {F(r.TempC, " C")}, hotspot {F(r.HotspotC, " C")}, mem temp {F(r.MemTempC, " C")}, core {F(r.CoreMHz, " MHz")}, "
                    + $"mem {F(r.MemMHz, " MHz")}, fan {F(r.FanPercent, " %")} / {F(r.FanRpm, " rpm")}, power {F(r.PowerW, " W")}, voltage {F(r.VoltageMv, " mV")}, "
-                   + $"load {F(r.LoadPercent, " %")}, vram {F(r.VramUsedMb, " MB")} of {F(r.VramTotalMb, " MB")}";
+                   + $"load {F(r.LoadPercent, " %")}, vram {F(r.VramUsedMb, " MB")} of {F(r.VramTotalMb, " MB")}"
+                   + ((gpu as AmdGpu)?.DumpSensors() is { Length: > 0 } dump ? " | sensors: " + dump : "");
         });
 
         Line("frame rate (ETW)", () =>

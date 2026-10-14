@@ -68,7 +68,7 @@ public static class OverlayMetrics
         new("memtemp", "دمای VRAM", "VRAM temp", "gpu", "°C"),
         new("vram", "مصرف VRAM", "VRAM use", "gpu", "GB"),
         // processor
-        new("cputemp", "دمای CPU", "CPU temp", "cpu", "°C"),
+        new("cputemp", "دمای CPU", "CPU temp", "cpu", "°C", false, true),
         new("cpu", "بار CPU", "CPU load", "cpu", "%", true),
         new("cpuwatts", "توان CPU", "CPU power", "cpu", "W"),
         new("cpufreq", "فرکانس CPU", "CPU clock", "cpu", "MHz"),
@@ -77,7 +77,6 @@ public static class OverlayMetrics
         // memory
         new("ram", "مصرف RAM", "RAM use", "ram", "%", true),
         new("ramused", "RAM مصرفی (گیگ)", "RAM used (GB)", "ram", "GB"),
-        new("ramtemp", "دمای RAM", "RAM temp", "ram", "°C", false, true),
         // network
         new("ping", "پینگ", "Ping", "net", "ms", true),
         new("down", "سرعت دانلود", "Download speed", "net", "Mb/s"),
@@ -94,7 +93,6 @@ public static class OverlayMetrics
         "hotspot" => value >= 105 ? 2 : value >= 92 ? 1 : 0,
         "memtemp" => value >= 95 ? 2 : value >= 85 ? 1 : 0,
         "cputemp" => value >= 90 ? 2 : value >= 75 ? 1 : 0,
-        "ramtemp" => value >= 85 ? 2 : value >= 70 ? 1 : 0,
         "fps" or "low1" => value <= 0 ? 0 : value < (key == "fps" ? 30 : 24) ? 2 : value < (key == "fps" ? 60 : 45) ? 1 : 0,
         "frame" => value > 33 ? 2 : value > 20 ? 1 : 0,
         "ping" => value > 100 ? 2 : value > 50 ? 1 : 0,
@@ -119,13 +117,24 @@ public static class OverlayMetrics
         return result;
     }
 
+    /// <summary>The short English caption drawn on the overlay itself, like other overlay tools do.</summary>
+    public static string Abbrev(string key) => key switch
+    {
+        "fps" => "FPS", "low1" => "1% LOW", "frame" => "FRAME", "fpsgraph" => "FPS", "clock" => "TIME", "gametime" => "PLAYED",
+        "gpu" => "GPU LOAD", "gputemp" => "GPU TEMP", "hotspot" => "GPU HOT", "memtemp" => "VRAM TEMP", "gpupower" => "GPU PWR",
+        "gpuvolt" => "GPU VOLT", "gpufan" => "GPU FAN", "gpufanrpm" => "GPU RPM", "gpuclock" => "GPU CLK", "memclock" => "VRAM CLK",
+        "vram" => "VRAM", "cpu" => "CPU LOAD", "cputemp" => "CPU TEMP", "cpuwatts" => "CPU PWR", "cpufreq" => "CPU CLK",
+        "cpufan" => "CPU FAN", "cpufanrpm" => "CPU RPM", "ram" => "RAM", "ramused" => "RAM GB", "ping" => "PING", "down" => "DL", "up" => "UL",
+        _ => key.ToUpperInvariant(),
+    };
+
     private static MetricView? One(MetricDef def, TelemetrySample s)
     {
         MetricView Make(double? value, int decimals = 0, double? max = null, string? text = null)
         {
-            if (value is null) return new MetricView(def.Key, def.Label, "—", def.Unit, null, 0);
+            if (value is null) return new MetricView(def.Key, Abbrev(def.Key), "—", def.Unit, null, 0);
             var shown = text ?? N(value.Value, decimals);
-            return new MetricView(def.Key, def.Label, shown, def.Unit, max is { } m && m > 0 ? Math.Clamp(value.Value / m, 0, 1) : null, Level(def.Key, value.Value));
+            return new MetricView(def.Key, Abbrev(def.Key), shown, def.Unit, max is { } m && m > 0 ? Math.Clamp(value.Value / m, 0, 1) : null, Level(def.Key, value.Value));
         }
 
         var g = s.Gpu;
@@ -142,29 +151,28 @@ public static class OverlayMetrics
             "memclock" => Make(g.MemMHz, 0, 3000),
             "gpupower" => Make(g.PowerW, 0, 400),
             "gpuvolt" => Make(g.VoltageMv, 0, 1300),
-            "gpufanrpm" => Make(g.FanRpm is > 0 ? g.FanRpm : null, 0, 4000),
+            "gpufanrpm" => Make(g.FanRpm, 0, 4000),
             "gpufan" => Make(g.FanPercent, 0, 100),
             "vram" => g.VramUsedMb is { } used
-                ? new MetricView("vram", def.Label, N(used / 1024, 1), g.VramTotalMb is { } t ? $"/ {N(t / 1024, 0)} GB" : "GB",
+                ? new MetricView("vram", Abbrev(def.Key), N(used / 1024, 1), g.VramTotalMb is { } t ? $"/ {N(t / 1024, 0)} GB" : "GB",
                     s.VramPercent / 100, Level("vram", s.VramPercent ?? 0))
-                : new MetricView("vram", def.Label, "—", def.Unit, null, 0),
+                : new MetricView("vram", Abbrev(def.Key), "—", def.Unit, null, 0),
             "cpu" => Make(s.CpuLoad, 0, 100),
             "cputemp" => Make(s.CpuTempC, 0, 110),
             "cpuwatts" => Make(s.CpuWatts, 0, 250),
             "cpufreq" => Make(s.CpuMHz, 0, 6000),
             "cpufan" => Make(s.CpuFanPercent, 0, 100),
             "cpufanrpm" => Make(s.CpuFanRpm, 0, 4000),
-            "ramtemp" => Make(s.RamTempC, 0, 100),
-            "ramused" => Make(s.RamUsedGb > 0 ? s.RamUsedGb : null, 1, s.RamTotalGb),
-            "fpsgraph" => new MetricView("fpsgraph", def.Label, "graph", "", null, 0),
+                "ramused" => Make(s.RamUsedGb > 0 ? s.RamUsedGb : null, 1, s.RamTotalGb),
+            "fpsgraph" => new MetricView("fpsgraph", Abbrev(def.Key), "graph", "", null, 0),
             "ram" => Make(s.RamPercent, 0, 100),
             "ping" => Make(s.PingMs, 0, 200),
             "down" => Make(s.DownMbps, s.DownMbps >= 10 ? 0 : 1, 100),
             "up" => Make(s.UpMbps, s.UpMbps >= 10 ? 0 : 1, 100),
-            "clock" => new MetricView("clock", def.Label, s.Time.ToString("HH:mm", CultureInfo.InvariantCulture), "", null, 0),
+            "clock" => new MetricView("clock", Abbrev(def.Key), s.Time.ToString("HH:mm", CultureInfo.InvariantCulture), "", null, 0),
             "gametime" => s.InGame
-                ? new MetricView("gametime", def.Label, $"{(int)s.GameTime.TotalHours}:{s.GameTime.Minutes:00}:{s.GameTime.Seconds:00}", "", null, 0)
-                : new MetricView("gametime", def.Label, "—", "", null, 0),
+                ? new MetricView("gametime", Abbrev(def.Key), $"{(int)s.GameTime.TotalHours}:{s.GameTime.Minutes:00}:{s.GameTime.Seconds:00}", "", null, 0)
+                : new MetricView("gametime", Abbrev(def.Key), "—", "", null, 0),
             _ => null,
         };
     }

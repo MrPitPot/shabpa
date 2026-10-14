@@ -238,6 +238,21 @@ public sealed class AmdGpu : IGpuProvider
         }
     }
 
+    /// <summary>Every performance-log sensor the driver supports, as "id=value" (for the diagnostic report).</summary>
+    public string DumpSensors()
+    {
+        lock (_gate)
+        {
+            if (_context == IntPtr.Zero) return "";
+            Marshal.WriteInt32(_sensorBuffer, 0, 4 + SensorSlots * 8);
+            if (ADL2_New_QueryPMLogData_Get(_context, _adapter, _sensorBuffer) != 0) return "";
+            var list = new List<string>();
+            for (var id = 0; id < SensorSlots; id++)
+                if (Marshal.ReadInt32(_sensorBuffer, 4 + id * 8) != 0) list.Add($"{id}={Marshal.ReadInt32(_sensorBuffer, 4 + id * 8 + 4)}");
+            return string.Join(' ', list);
+        }
+    }
+
     private static void Zero(IntPtr buffer, int bytes)
     {
         for (var i = 0; i < bytes; i += 8) Marshal.WriteInt64(buffer, i, 0);

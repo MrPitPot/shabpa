@@ -204,7 +204,7 @@ public static class OverlayRenderer
         "fps" => "FPS", "low1" => "1%", "frame" => "FT", "gpu" => "GPU", "gputemp" => "GPU°", "hotspot" => "HOT", "memtemp" => "MEM°",
         "gpuclock" => "CLK", "memclock" => "VCLK", "gpupower" => "PWR", "gpufan" => "FAN", "vram" => "VRAM", "cpu" => "CPU", "cputemp" => "SYS°",
         "cpuwatts" => "CPU W", "ram" => "RAM", "ping" => "PING", "down" => "↓", "up" => "↑", "clock" => "", "gametime" => "⏱",
-        "gpuvolt" => "mV", "gpufanrpm" => "FAN", "cpufreq" => "CLK", "cpufan" => "FAN%", "cpufanrpm" => "FAN", "ramtemp" => "RAM°", "ramused" => "RAM",
+        "gpuvolt" => "mV", "gpufanrpm" => "FAN", "cpufreq" => "CLK", "cpufan" => "FAN%", "cpufanrpm" => "FAN", "ramused" => "RAM",
         "fpsgraph" => "",
         _ => m.Label,
     };
