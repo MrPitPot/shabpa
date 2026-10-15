@@ -20,7 +20,7 @@ public partial class MainWindow : Window
 
     /// <summary>Every screen worth a screenshot, including the tabs inside «کنترل سیستم».</summary>
     public IEnumerable<string> CaptureKeys =>
-        ["home", .. SystemPage.TabKeys.Select(t => $"system:{t}"), .. NetworkPage.TabKeys.Select(t => $"ping:{t}"), "gaming", "weather", "dns", "download", "comfort", "tasks", .. TasksPage.TabKeys.Select(t => $"tasks:{t}"), "files", .. FilesPage.TabKeys.Select(t => $"files:{t}"), "support", "update", "settings"];
+        ["home", .. SystemPage.TabKeys.Select(t => $"system:{t}"), .. NetworkPage.TabKeys.Select(t => $"ping:{t}"), "gaming", "weather", "dns", "download", "comfort", "tasks", .. TasksPage.TabKeys.Select(t => $"tasks:{t}"), "files", .. FilesPage.TabKeys.Select(t => $"files:{t}"), "health", .. HealthPage.TabKeys.Select(t => $"health:{t}"), "support", "update", "settings"];
 
     public FrameworkElement CaptureRoot => Root;
 
@@ -48,6 +48,7 @@ public partial class MainWindow : Window
             ["comfort"] = (NavComfort, () => new ComfortPage()),
             ["tasks"] = (NavTasks, () => new TasksPage()),
             ["files"] = (NavFiles, () => new FilesPage()),
+            ["health"] = (NavHealth, () => new HealthPage()),
             ["support"] = (NavSupport, () => new SupportPage()),
             ["update"] = (NavUpdate, () => new UpdatePage()),
             ["settings"] = (NavSettings, () => new SettingsPage()),

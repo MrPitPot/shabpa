@@ -188,6 +188,15 @@ public sealed class Hub
         {
             RunTasks(now);
             RunBackups(now);
+            if (!_startupChecked && now - _startedAt > TimeSpan.FromSeconds(45))
+            {
+                _startupChecked = true;
+                _ = Task.Run(() =>
+                {
+                    try { CheckStartup(announce: true); }
+                    catch (Exception ex) { Log.Write($"startup watch: {ex.GetType().Name}: {ex.Message}"); }
+                });
+            }
         }
         var missed = new List<ScheduledCommand>();
         if (_pendingMissed is not null)
@@ -634,6 +643,44 @@ public sealed class Hub
         if (BackupRunningId is not null || now - _startedAt < TimeSpan.FromMinutes(2) || Snapshot.GameRunning) return;
         var job = State.Backups.FirstOrDefault(j => j.IsDue(now) && Backups.Problem(j) is null);
         if (job is not null) StartBackup(job);
+    }
+
+    // ---- startup watch (phase E) -------------------------------------------------------------------
+
+    private bool _startupChecked;
+
+    /// <summary>The first time ever, the current startup list becomes the baseline silently. After that, every new or
+    /// changed entry is announced once.</summary>
+    public List<StartupChange> CheckStartup(bool announce)
+    {
+        var current = Health.Startup(new WindowsRegistryProbe(), Health.StartupFolders());
+        if (State.StartupBaseline is null)
+        {
+            State.StartupBaseline = current.ToDictionary(i => i.Key, i => i.Command);
+            Store.Save();
+            return [];
+        }
+        var changes = Health.Compare(current, State.StartupBaseline).Where(c => c.Kind != "removed").ToList();
+        if (announce)
+        {
+            foreach (var change in changes.Where(c => !State.StartupAnnounced.Contains(c.Item.Key + "|" + c.Item.Command)))
+            {
+                State.StartupAnnounced.Add(change.Item.Key + "|" + change.Item.Command);
+                var notes = Health.Notes(change.Item);
+                Notify(L.T("برنامه‌ی جدید توی استارتاپ", "New startup program"),
+                    L.T($"«{change.Item.Name}» " + (change.Kind == "new" ? "به برنامه‌های شروع ویندوز اضافه شد." : "تغییر کرده."), $"“{change.Item.Name}” " + (change.Kind == "new" ? "was added to the programs that start with Windows." : "was changed."))
+                    + (notes.Count > 0 ? Environment.NewLine + notes[0] : ""));
+            }
+            if (State.StartupAnnounced.Count > 200) State.StartupAnnounced.RemoveRange(0, State.StartupAnnounced.Count - 200);
+            Store.Save();
+        }
+        return changes;
+    }
+
+    public void AcceptStartup()
+    {
+        State.StartupBaseline = Health.Startup(new WindowsRegistryProbe(), Health.StartupFolders()).ToDictionary(i => i.Key, i => i.Command);
+        Store.Save();
     }
 
     private DateTime _lastTaskCheck = DateTime.MinValue;

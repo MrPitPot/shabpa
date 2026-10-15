@@ -138,6 +138,10 @@ public sealed class AppState
     public List<FocusSession> FocusLog { get; set; } = [];
     /// <summary>Folder backup jobs (phase B).</summary>
     public List<BackupJob> Backups { get; set; } = [];
+    /// <summary>Startup items as last accepted by the person (key to command); null until the first look.</summary>
+    public Dictionary<string, string>? StartupBaseline { get; set; }
+    /// <summary>Startup changes already announced, so each is announced once.</summary>
+    public List<string> StartupAnnounced { get; set; } = [];
     /// <summary>Tickets sent from this PC.</summary>
     public List<TicketRecord> Tickets { get; set; } = [];
 }

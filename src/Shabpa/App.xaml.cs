@@ -112,6 +112,22 @@ public partial class App : Application
             return;
         }
 
+        // Test aid: builds the health report for this PC (redacted) so it can be read.
+        if (Value(e.Args, "--health-test") is { } healthReport)
+        {
+            var reg = new Core.WindowsRegistryProbe();
+            var health = new List<Core.HealthCheck>();
+            health.AddRange(Core.Health.DisksNow());
+            health.Add(Core.Health.PendingReboot(reg));
+            health.Add(Core.Health.WindowsUpdate(reg, DateTime.UtcNow));
+            health.AddRange(Core.Health.Services(reg, Core.Health.ServiceStateNow));
+            var text = Core.HealthReport.Build(health, Core.Health.RecentErrors(), Core.Health.Security(reg, Core.Health.ServiceStateNow, false),
+                Core.Health.Startup(reg, Core.Health.StartupFolders()), Core.Updater.Current.ToString(3), Environment.OSVersion.VersionString, DateTime.Now);
+            File.WriteAllText(healthReport, Core.Redactor.Redact(text));
+            Shutdown();
+            return;
+        }
+
         // Test aid: links a throwaway device to the real bot server, waits for its code, then removes it again.
         if (Value(e.Args, "--bot-test") is { } botReport)
         {

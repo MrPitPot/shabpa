@@ -37,6 +37,12 @@ The 2.x and 3.0 line moved quickly while the app was taking shape; from here on 
   with a preview, verification and a restore that never overwrites. Deleting only ever sends files to the Recycle Bin
   after a preview and your confirmation.
 
+- **Health & security** (new): disk space, pending restarts, Windows Update age, key services and recent event-log
+  errors in plain language; a few Windows security settings (firewall, Defender, UAC, SmartScreen, Remote Desktop,
+  Secure Boot); a watch for new or changed startup programs with a one-click turn-off for your own entries; what
+  access each Shabpa feature needs; and a report with personal details removed that you review before sharing.
+  It reports status only: it is not an antivirus and never claims to have fixed anything.
+
 ## 3.0.1
 
 - Screen dimming no longer flashes back to full brightness once a second.
