@@ -56,6 +56,10 @@
                 </StackPanel>
 
                 <StackPanel x:Name="AtPanel" Margin="0,12,0,0" Visibility="Collapsed">
+                    <StackPanel x:Name="DayRow" Margin="0,0,0,12">
+                        <TextBlock Text="{s:Tr 'روز', 'Day'}" Style="{StaticResource Label}" Margin="0,0,0,6"/>
+                        <ContentControl x:Name="DayHost" HorizontalAlignment="Left"/>
+                    </StackPanel>
                     <StackPanel Orientation="Horizontal">
                         <StackPanel Orientation="Horizontal" FlowDirection="LeftToRight">
                             <TextBox x:Name="AtHour" Style="{StaticResource NumberInput}" Text="01" TextChanged="OnInput"/>
