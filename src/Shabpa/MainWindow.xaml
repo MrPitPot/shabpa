@@ -55,6 +55,7 @@
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE73A;" Content="{s:Tr 'کارها و تمرکز', 'Tasks &amp; focus'}" x:Name="NavTasks" Checked="OnNav"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE8B7;" Content="{s:Tr 'فایل و پشتیبان', 'Files &amp; backup'}" x:Name="NavFiles" Checked="OnNav"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE95E;" Content="{s:Tr 'سلامت و امنیت', 'Health &amp; security'}" x:Name="NavHealth" Checked="OnNav"/>
+                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE8AD;" Content="{s:Tr 'پروفایل‌ها', 'Profiles'}" x:Name="NavProfiles" Checked="OnNav"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE897;" Content="{s:Tr 'پشتیبانی', 'Support'}" x:Name="NavSupport" Checked="OnNav"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE895;" Content="{s:Tr 'به‌روزرسانی', 'Updates'}" x:Name="NavUpdate" Checked="OnNav"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE713;" Content="{s:Tr 'تنظیمات', 'Settings'}" x:Name="NavSettings" Checked="OnNav"/>

@@ -188,6 +188,17 @@ public sealed class Hub
         {
             RunTasks(now);
             RunBackups(now);
+            RunTriggers(now);
+            if (!_appStartRan && now - _startedAt > TimeSpan.FromSeconds(20))
+            {
+                _appStartRan = true;
+                foreach (var trigger in State.Triggers.Where(t => t.Enabled && t.Kind == TriggerKind.AppStart).ToList())
+                    if (State.Profiles.FirstOrDefault(p => p.Id == trigger.ProfileId) is { } profile && !Core.Profiles.HasPower(profile))
+                    {
+                        trigger.LastRun = now;
+                        RunProfile(profile, "start");
+                    }
+            }
             if (!_startupChecked && now - _startedAt > TimeSpan.FromSeconds(45))
             {
                 _startupChecked = true;
@@ -644,6 +655,135 @@ public sealed class Hub
         var job = State.Backups.FirstOrDefault(j => j.IsDue(now) && Backups.Problem(j) is null);
         if (job is not null) StartBackup(job);
     }
+
+    // ---- profiles and automation (phase D) ------------------------------------------------------------
+
+    public event Action? ProfilesChanged;
+    public void RaiseProfilesChanged() => ProfilesChanged?.Invoke();
+
+    private sealed class HubProfileHost(Hub hub) : IProfileHost
+    {
+        public void SetDim(bool on, int percent)
+        {
+            var c = hub.Settings.Comfort;
+            c.DimOn = on;
+            if (on) c.DimLevel = Math.Clamp(percent / 100.0, 0.05, 0.92);
+            hub.Store.Save();
+            hub.Dim?.Apply();
+            hub.ComfortChanged();
+        }
+
+        public void SetVolume(int percent) => MasterVolume.Set(percent / 100.0);
+
+        public void CleanRam() => hub.CleanMemory(cache: false);
+
+        public void StartFocus(int minutes)
+        {
+            hub.Settings.Focus.FocusMinutes = minutes;
+            hub.Store.Save();
+            hub.Focus.Start(DateTime.Now);
+        }
+
+        public void SetBreaks(bool on)
+        {
+            hub.Settings.Comfort.BreakOn = on;
+            hub.Store.Save();
+            hub.ComfortChanged();
+        }
+
+        public void StartSleepMode(int minutes)
+        {
+            hub.Settings.Comfort.SleepMinutes = minutes;
+            hub.Store.Save();
+            hub.StartSleepMode();
+        }
+
+        public bool SchedulePower(PowerAction action, int minutes) => hub.AddCommand(action, DateTime.Now.AddMinutes(minutes));
+
+        public void Notify(string text) => hub.Notify(L.T("پروفایل", "Profile"), text);
+    }
+
+    private (bool dimOn, double dimLevel, double? volume, bool breaks, string profile)? _profileUndo;
+
+    /// <summary>The starter profiles, added the first time the profiles page is opened.</summary>
+    public void EnsureProfiles()
+    {
+        if (Settings.ProfilesSeeded) return;
+        Settings.ProfilesSeeded = true;
+        if (State.Profiles.Count == 0) State.Profiles.AddRange(Core.Profiles.Defaults());
+        Store.Save();
+    }
+
+    public bool CanUndoProfile => _profileUndo is not null;
+
+    /// <summary>Runs a profile. <paramref name="source"/> says why: "manual", "time", "game", "start".</summary>
+    public ProfileOutcome RunProfile(WorkProfile profile, string source)
+    {
+        _profileUndo = (Settings.Comfort.DimOn, Settings.Comfort.DimLevel, MasterVolume.Get(), Settings.Comfort.BreakOn, profile.Name);
+        var outcome = Core.Profiles.Run(profile, new HubProfileHost(this));
+        State.RunLog.Add(new RunLogEntry { Time = DateTime.Now, Profile = profile.Name, Source = source, Ok = outcome.Ok, Steps = [.. outcome.Steps] });
+        if (State.RunLog.Count > 100) State.RunLog.RemoveRange(0, State.RunLog.Count - 100);
+        Store.Save();
+        ProfilesChanged?.Invoke();
+        return outcome;
+    }
+
+    /// <summary>Puts the screen, volume and break reminders back as they were before the last profile.</summary>
+    public bool UndoProfile()
+    {
+        if (_profileUndo is not { } u) return false;
+        _profileUndo = null;
+        var c = Settings.Comfort;
+        c.DimOn = u.dimOn;
+        c.DimLevel = u.dimLevel;
+        c.BreakOn = u.breaks;
+        if (u.volume is { } v) MasterVolume.Set(v);
+        Store.Save();
+        Dim?.Apply();
+        ComfortChanged();
+        State.RunLog.Add(new RunLogEntry { Time = DateTime.Now, Profile = u.profile, Source = "undo", Steps = [L.T("برگردوندن به حالت قبل", "Restored the previous state")] });
+        ProfilesChanged?.Invoke();
+        return true;
+    }
+
+    private bool _gameWas;
+    private DateTime _lastTriggerCheck = DateTime.MinValue;
+
+    private void RunTriggers(DateTime now)
+    {
+        // game start / end: edges of the "a game is running" flag
+        var game = Snapshot.GameRunning;
+        var edge = game != _gameWas;
+        _gameWas = game;
+        var timeCheck = now - _lastTriggerCheck >= TimeSpan.FromSeconds(20);
+        if (!edge && !timeCheck) return;
+        if (timeCheck) _lastTriggerCheck = now;
+        foreach (var trigger in State.Triggers.ToList())
+        {
+            var fire = trigger.Kind switch
+            {
+                TriggerKind.Time => timeCheck && trigger.IsDue(now),
+                TriggerKind.GameStart => edge && game && trigger.Enabled,
+                TriggerKind.GameEnd => edge && !game && trigger.Enabled,
+                _ => false,
+            };
+            if (!fire) continue;
+            var profile = State.Profiles.FirstOrDefault(p => p.Id == trigger.ProfileId);
+            trigger.LastRun = now;
+            if (profile is null) continue;
+            // a profile that can switch the PC off never starts by itself
+            if (Core.Profiles.HasPower(profile))
+            {
+                Notify(L.T("اتوماسیون", "Automation"), L.T($"«{profile.Name}» شامل خاموشی یا خواب‌ه و خودکار اجرا نمی‌شه؛ دستی اجراش کن.", $"“{profile.Name}” can switch the PC off, so it does not run by itself; run it by hand."));
+                continue;
+            }
+            var outcome = RunProfile(profile, trigger.Kind switch { TriggerKind.Time => "time", TriggerKind.AppStart => "start", _ => "game" });
+            Notify(L.T("اتوماسیون", "Automation"), L.T($"پروفایل «{profile.Name}» اجرا شد.", $"Profile “{profile.Name}” ran.") + (outcome.Ok ? "" : L.T(" بعضی کارها انجام نشد.", " Some steps did not work.")));
+        }
+        Store.Save();
+    }
+
+    private bool _appStartRan;
 
     // ---- startup watch (phase E) -------------------------------------------------------------------
 

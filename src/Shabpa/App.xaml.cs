@@ -112,6 +112,37 @@ public partial class App : Application
             return;
         }
 
+        // Test aid: runs a profile against the real volume control, then undoes it, and writes what happened.
+        if (Value(e.Args, "--profile-test") is { } profileReport)
+        {
+            var log = new System.Text.StringBuilder();
+            var testHub = new Hub(new Store { ReadOnly = true }, true, false);
+            var before = Core.MasterVolume.Get();
+            log.AppendLine($"volume before: {before:0.00}");
+            var profile = new Core.WorkProfile
+            {
+                Name = "test",
+                Actions =
+                [
+                    new Core.ProfileAction { Kind = Core.ActionKinds.Volume, Value = 17 },
+                    new Core.ProfileAction { Kind = Core.ActionKinds.Breaks, Value = 1 },
+                    new Core.ProfileAction { Kind = Core.ActionKinds.Dim, Value = 50, Value2 = 1 },
+                    new Core.ProfileAction { Kind = Core.ActionKinds.Notify, Text = "hi" },
+                ],
+            };
+            testHub.Settings.Comfort.BreakOn = false;
+            var outcome = testHub.RunProfile(profile, "manual");
+            log.AppendLine($"ok={outcome.Ok} steps={string.Join(" | ", outcome.Steps)}");
+            log.AppendLine($"volume after run: {Core.MasterVolume.Get():0.00} (expected 0.17), breaks on: {testHub.Settings.Comfort.BreakOn}, dim on: {testHub.Settings.Comfort.DimOn} level {testHub.Settings.Comfort.DimLevel:0.00}");
+            log.AppendLine($"undo available: {testHub.CanUndoProfile}");
+            testHub.UndoProfile();
+            log.AppendLine($"volume after undo: {Core.MasterVolume.Get():0.00} (expected {before:0.00}), breaks on: {testHub.Settings.Comfort.BreakOn}, dim on: {testHub.Settings.Comfort.DimOn}");
+            log.AppendLine($"run log entries: {testHub.State.RunLog.Count}");
+            File.WriteAllText(profileReport, log.ToString());
+            Shutdown();
+            return;
+        }
+
         // Test aid: builds the health report for this PC (redacted) so it can be read.
         if (Value(e.Args, "--health-test") is { } healthReport)
         {

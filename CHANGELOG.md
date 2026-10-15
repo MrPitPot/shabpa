@@ -43,6 +43,12 @@ The 2.x and 3.0 line moved quickly while the app was taking shape; from here on 
   access each Shabpa feature needs; and a report with personal details removed that you review before sharing.
   It reports status only: it is not an antivirus and never claims to have fixed anything.
 
+- **Profiles & automation** (new): one click runs several existing actions (screen dimming, volume, focus timer,
+  break reminders, RAM, a message, sleep mode or a delayed power action) with an undo for the last run; triggers run a
+  profile at a time of day, when a game starts or ends, or when Shabpa starts; run history; export and import of
+  profiles. A profile that can switch the PC off is always started by hand and confirmed, and an imported file can only
+  contain this fixed list of actions.
+
 ## 3.0.1
 
 - Screen dimming no longer flashes back to full brightness once a second.

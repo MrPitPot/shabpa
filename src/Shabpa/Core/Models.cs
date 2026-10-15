@@ -73,6 +73,8 @@ public sealed class Settings
     public bool Animations { get; set; } = true;
     /// <summary>Draw the window in software: less RAM while it is open, a little more CPU. Applied at start.</summary>
     public bool LowMemory { get; set; }
+    /// <summary>The starter profiles were added once; deleting them keeps them gone.</summary>
+    public bool ProfilesSeeded { get; set; }
     public FocusSettings Focus { get; set; } = new();
     /// <summary>Show a notice when a task's reminder time comes.</summary>
     public bool TaskReminders { get; set; } = true;
@@ -142,6 +144,10 @@ public sealed class AppState
     public Dictionary<string, string>? StartupBaseline { get; set; }
     /// <summary>Startup changes already announced, so each is announced once.</summary>
     public List<string> StartupAnnounced { get; set; } = [];
+    /// <summary>Work profiles, their triggers and the run history (phase D).</summary>
+    public List<WorkProfile> Profiles { get; set; } = [];
+    public List<AutomationTrigger> Triggers { get; set; } = [];
+    public List<RunLogEntry> RunLog { get; set; } = [];
     /// <summary>Tickets sent from this PC.</summary>
     public List<TicketRecord> Tickets { get; set; } = [];
 }
