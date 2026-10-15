@@ -25,6 +25,10 @@ The 2.x and 3.0 line moved quickly while the app was taking shape; from here on 
 - Weather: a new animated sky. Soft layered clouds with depth, a sun with a glow and slowly turning rays, a
   shaded moon, twinkling stars and shooting stars, rain in two layers with splashes, snow with depth, drifting fog
   and real lightning bolts; rounded corners and a soft shade behind the text so it stays readable.
+- After an update Shabpa opens again by itself, comes to the front and says which version is installed.
+- Notices show inside the window while it is open (the tray balloon is only used when it is hidden).
+- The window opens where you left it, at the same size (or maximised).
+- Keyboard: Ctrl+1 … Ctrl+9 open the sections in order, Ctrl+, opens the settings.
 
 ## 3.0.1
 

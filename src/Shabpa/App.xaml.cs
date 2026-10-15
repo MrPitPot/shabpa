@@ -231,6 +231,8 @@ public partial class App : Application
         {
             _window.Show();
             // --interactive: just show the window (real sensors, nothing saved) so it can be driven by hand or by a test.
+            if (Value(e.Args, "--toast") is { } toast) // test aid: shows an in-app notice for the screenshot
+                Dispatcher.BeginInvoke(() => _window.ShowToast(toast.Split('|')[0], toast.Split('|').ElementAtOrDefault(1) ?? ""), DispatcherPriority.ApplicationIdle);
             if (Value(e.Args, "--motion-test") is { } motionReport) _ = MotionProbe(shots, motionReport);
             else if (!args.Contains("--interactive")) _ = CaptureAll(shots, Value(e.Args, "--only"));
             if (Value(e.Args, "--mem-report") is { } memReport)
@@ -270,7 +272,7 @@ public partial class App : Application
         }
 
         _tray = new Tray(ShowWindow, Quit);
-        hub.Notified += _tray.Balloon;
+        hub.Notified += (title, text) => { if (_window?.ShowToast(title, text) != true) _tray?.Balloon(title, text); };
         hub.Changed += () => _tray.Refresh();
         _tray.Refresh();
 
@@ -299,6 +301,7 @@ public partial class App : Application
 
     public void Quit()
     {
+        if (_window is { IsVisible: true }) _window.SavePlacement();
         _tray?.Dispose();
         _window?.Hide();
         Hub.I.Shutdown();

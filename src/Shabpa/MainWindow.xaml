@@ -70,6 +70,27 @@
             <ScrollViewer x:Name="Scroller" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
                 <ContentControl x:Name="Host" Margin="34,6,24,30" MaxWidth="1000" HorizontalAlignment="Stretch" Focusable="False"/>
             </ScrollViewer>
+
+            <!-- in-app notice: shown here instead of a tray balloon while the window is open -->
+            <Border x:Name="Toast" Grid.Row="1" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="24,0,24,22" MaxWidth="560"
+                    Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="14" Padding="16,12"
+                    Visibility="Collapsed" Cursor="Hand" MouseLeftButtonUp="OnToastClick">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="24" ShadowDepth="6" Opacity="0.35" Color="Black"/>
+                </Border.Effect>
+                <Border.RenderTransform>
+                    <TranslateTransform x:Name="ToastMove"/>
+                </Border.RenderTransform>
+                <DockPanel>
+                    <Border DockPanel.Dock="Left" Width="34" Height="34" CornerRadius="10" Background="{StaticResource AccentSoft}" VerticalAlignment="Top" Margin="0,0,12,0">
+                        <TextBlock Text="&#xEA8F;" Style="{StaticResource Icon}" Foreground="{StaticResource Accent}" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock x:Name="ToastTitle" Style="{StaticResource H2}" FontSize="14"/>
+                        <TextBlock x:Name="ToastText" Style="{StaticResource Label}" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
         </Grid>
     </Grid>
 </Window>

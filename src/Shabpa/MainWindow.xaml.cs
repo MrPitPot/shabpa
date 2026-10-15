@@ -70,9 +70,103 @@ public partial class MainWindow : Window
         var shown = version.Build == 0 ? $"{version.Major}.{version.Minor}" : version.ToString(3);
         VersionText.Text = L.T($"ساخته‌ی Mr.PitPot · نسخه‌ی {Fa.Digits(shown).Replace('.', '٫')}", $"Made by Mr.PitPot · v{shown}");
 
+        RestorePlacement();
+        PreviewKeyDown += OnShortcut;
+        _toastTimer.Tick += (_, _) => HideToast();
+
         Navigate("home");
         UpdateSide();
     }
+
+    // ---- window placement: it opens where it was left -----------------------------------------
+
+    private void RestorePlacement()
+    {
+        var parts = Hub.I.Settings.WindowPlacement.Split(',');
+        if (parts.Length != 5 || !double.TryParse(parts[0], System.Globalization.CultureInfo.InvariantCulture, out var left)
+            || !double.TryParse(parts[1], System.Globalization.CultureInfo.InvariantCulture, out var top)
+            || !double.TryParse(parts[2], System.Globalization.CultureInfo.InvariantCulture, out var width)
+            || !double.TryParse(parts[3], System.Globalization.CultureInfo.InvariantCulture, out var height)) return;
+        // Only if it still fits on the screens there are now (a monitor may have been unplugged).
+        var area = new Rect(SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenTop, SystemParameters.VirtualScreenWidth, SystemParameters.VirtualScreenHeight);
+        var title = new Rect(left + 40, top, Math.Max(10, width - 80), 30);
+        if (!area.IntersectsWith(title) || width < MinWidth || height < MinHeight) return;
+        WindowStartupLocation = WindowStartupLocation.Manual;
+        Left = left;
+        Top = top;
+        Width = width;
+        Height = height;
+        if (parts[4] == "1") WindowState = WindowState.Maximized;
+    }
+
+    public void SavePlacement()
+    {
+        var b = WindowState == WindowState.Normal ? new Rect(Left, Top, ActualWidth, ActualHeight) : RestoreBounds;
+        if (b.IsEmpty || double.IsNaN(b.Left)) return;
+        var inv = System.Globalization.CultureInfo.InvariantCulture;
+        Hub.I.Settings.WindowPlacement = string.Join(',', b.Left.ToString("0", inv), b.Top.ToString("0", inv), b.Width.ToString("0", inv), b.Height.ToString("0", inv),
+            WindowState == WindowState.Maximized ? "1" : "0");
+        Hub.I.Store.Save();
+    }
+
+    // ---- keyboard: Ctrl+1…9 opens the sections in order, Ctrl+, the settings ----------------------
+
+    private void OnShortcut(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (System.Windows.Input.Keyboard.Modifiers != System.Windows.Input.ModifierKeys.Control) return;
+        string? key = e.Key switch
+        {
+            >= System.Windows.Input.Key.D1 and <= System.Windows.Input.Key.D9 => _pages.Keys.ElementAtOrDefault(e.Key - System.Windows.Input.Key.D1),
+            >= System.Windows.Input.Key.NumPad1 and <= System.Windows.Input.Key.NumPad9 => _pages.Keys.ElementAtOrDefault(e.Key - System.Windows.Input.Key.NumPad1),
+            System.Windows.Input.Key.OemComma => "settings",
+            _ => null,
+        };
+        if (key is null) return;
+        Navigate(key);
+        e.Handled = true;
+    }
+
+    // ---- in-app notices ----------------------------------------------------------------------------
+
+    private readonly System.Windows.Threading.DispatcherTimer _toastTimer = new() { Interval = TimeSpan.FromSeconds(5) };
+
+    /// <summary>True when the notice was shown here (the window is open); otherwise the caller uses the tray.</summary>
+    public bool ShowToast(string title, string text)
+    {
+        if (!Shown) return false;
+        ToastTitle.Text = title;
+        ToastText.Text = text;
+        ToastText.Visibility = text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        Toast.Visibility = Visibility.Visible;
+        _toastTimer.Stop();
+        _toastTimer.Interval = TimeSpan.FromSeconds(Math.Clamp(3 + text.Length / 25.0, 4, 9)); // longer texts stay longer
+        _toastTimer.Start();
+        if (Motion.Enabled)
+        {
+            var ease = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+            Toast.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220)));
+            ToastMove.BeginAnimation(System.Windows.Media.TranslateTransform.YProperty, new System.Windows.Media.Animation.DoubleAnimation(18, 0, TimeSpan.FromMilliseconds(320)) { EasingFunction = ease });
+        }
+        else Toast.Opacity = 1;
+        return true;
+    }
+
+    private void HideToast()
+    {
+        _toastTimer.Stop();
+        if (Toast.Visibility != Visibility.Visible) return;
+        if (!Motion.Enabled)
+        {
+            Toast.Visibility = Visibility.Collapsed;
+            return;
+        }
+        var fade = new System.Windows.Media.Animation.DoubleAnimation(0, TimeSpan.FromMilliseconds(200));
+        fade.Completed += (_, _) => { if (!_toastTimer.IsEnabled) Toast.Visibility = Visibility.Collapsed; };
+        Toast.BeginAnimation(OpacityProperty, fade);
+        ToastMove.BeginAnimation(System.Windows.Media.TranslateTransform.YProperty, new System.Windows.Media.Animation.DoubleAnimation(10, TimeSpan.FromMilliseconds(200)));
+    }
+
+    private void OnToastClick(object sender, System.Windows.Input.MouseButtonEventArgs e) => HideToast();
 
     protected override void OnSourceInitialized(EventArgs e)
     {
@@ -189,6 +283,7 @@ public partial class MainWindow : Window
         // Closing the window keeps the app running in the tray; schedules and rules need it alive.
         var hub = Hub.I;
         e.Cancel = true;
+        SavePlacement();
         Hide();
         if (!hub.Settings.TrayNoticeShown)
         {
