@@ -68,6 +68,7 @@ public abstract class TabsPage : PageBase
         page.Refresh();
         page.OnTick(Hub.Snapshot);
         page.OnSecond();
+        Motion.Switch(page);
     }
 
     public override void Refresh() => Current.Refresh();

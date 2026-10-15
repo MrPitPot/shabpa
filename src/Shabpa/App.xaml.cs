@@ -220,7 +220,8 @@ public partial class App : Application
         {
             _window.Show();
             // --interactive: just show the window (real sensors, nothing saved) so it can be driven by hand or by a test.
-            if (!args.Contains("--interactive")) _ = CaptureAll(shots, Value(e.Args, "--only"));
+            if (Value(e.Args, "--motion-test") is { } motionReport) _ = MotionProbe(shots, motionReport);
+            else if (!args.Contains("--interactive")) _ = CaptureAll(shots, Value(e.Args, "--only"));
             return;
         }
 
@@ -353,8 +354,40 @@ public partial class App : Application
 
     // ---- self-screenshots: lets the UI be reviewed without touching the real desktop ---------
 
+    /// <summary>Test aid: opens every tab and samples how far its first block has faded in, 30 ms, 200 ms and 1.5 s later.</summary>
+    private async Task MotionProbe(string folder, string report)
+    {
+        var log = new System.Text.StringBuilder();
+        try
+        {
+            Directory.CreateDirectory(folder);
+            await Task.Delay(2500);
+            Hub.I.Settings.Animations = true;
+            foreach (var key in new[] { "home", "system", "ping", "gaming", "weather", "dns", "download", "comfort", "support", "update", "settings", "home" })
+            {
+                _window!.Navigate(key);
+                await Task.Delay(30);
+                var a = _window.FirstBlockOpacity();
+                await Task.Delay(170);
+                var b = _window.FirstBlockOpacity();
+                if (key is "home" or "support" or "weather" or "settings" or "download") Save(_window.CaptureRoot, Path.Combine(folder, $"motion-{key}.png"));
+                await Task.Delay(1300);
+                var c = _window.FirstBlockOpacity();
+                var transform = _window.FirstBlockHasTransform();
+                log.AppendLine($"{key}: opacity {a:0.00} -> {b:0.00} -> {c:0.00}, transform left: {transform}");
+            }
+        }
+        catch (Exception ex)
+        {
+            log.AppendLine("error: " + ex);
+        }
+        File.WriteAllText(report, log.ToString());
+        Shutdown();
+    }
+
     private async Task CaptureAll(string folder, string? only)
     {
+        Hub.I.Settings.Animations = false; // screenshots show the settled page
         try
         {
             Directory.CreateDirectory(folder);

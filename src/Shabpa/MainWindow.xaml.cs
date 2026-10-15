@@ -17,6 +17,14 @@ public partial class MainWindow : Window
 
     public FrameworkElement CaptureRoot => Root;
 
+    private FrameworkElement? FirstBlock =>
+        Host.Content is ContentControl { Content: Panel panel } ? panel.Children.OfType<FrameworkElement>().FirstOrDefault() : Host.Content as FrameworkElement;
+
+    /// <summary>Test aid: how visible the first block of the current page is (0 to 1).</summary>
+    public double FirstBlockOpacity() => FirstBlock?.Opacity ?? -1;
+
+    public bool FirstBlockHasTransform() => FirstBlock?.RenderTransform is { } t && t != System.Windows.Media.Transform.Identity;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -108,6 +116,9 @@ public partial class MainWindow : Window
         page.Refresh();
         page.OnTick(Hub.I.Snapshot);
         page.OnSecond();
+        var key = _pages.FirstOrDefault(p => ReferenceEquals(p.Value.page, page)).Key ?? "";
+        Motion.Header(PageTitle, PageSub);
+        Motion.Enter(key, page);
     }
 
     public void OpenFirstPingEditor() => ((NetworkPage)_pages["ping"].page).PageOf<PingPage>()?.OpenFirst();
