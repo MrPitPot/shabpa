@@ -53,6 +53,16 @@ public partial class App : Application
             return;
         }
 
+        // Test aid: press Steam's resume button once (as the scheduled download does) and write what happened.
+        if (Value(e.Args, "--steam-resume-test") is { } steamReport)
+        {
+            var folder = Path.GetDirectoryName(Core.LauncherDetector.Detect().FirstOrDefault(l => l.Key == "steam")?.ExePath) ?? "";
+            var outcome = Core.SteamResume.Run(() => Core.SteamResume.LogShowsDownload(folder, DateTime.Now));
+            File.WriteAllText(steamReport, outcome.ToString());
+            Shutdown();
+            return;
+        }
+
         // Used by the installer: switch start-with-Windows on or off for this exe, then exit.
         if (Value(e.Args, "--autostart") is { } autostart)
         {

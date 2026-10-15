@@ -569,6 +569,25 @@ public sealed class Hub
                         continue;
                     }
                 }
+                if (!DryRun && plan.LauncherKey == "steam" && !plan.OpenOnly)
+                {
+                    // A paused Steam queue ignores being opened; press its resume button like a person would.
+                    var steamFolder = System.IO.Path.GetDirectoryName(plan.ExePath) ?? "";
+                    var name = plan.LauncherName;
+                    Task.Run(() =>
+                    {
+                        var outcome = SteamResume.Run(() => SteamResume.LogShowsDownload(steamFolder, DateTime.Now));
+                        var text = outcome switch
+                        {
+                            SteamResume.Outcome.Resumed => L.T("دانلود توی Steam ادامه داده شد.", "The download in Steam was resumed."),
+                            SteamResume.Outcome.AlreadyRunning => L.T("دانلود توی Steam از قبل در جریان بود.", "A download in Steam was already running."),
+                            SteamResume.Outcome.NothingQueued => L.T("توی صف Steam چیزی برای دانلود پیدا نشد.", "Nothing was waiting in Steam's queue."),
+                            SteamResume.Outcome.ScreenLocked => L.T("صفحه قفل بود و دکمه‌ی ادامه زده نشد.", "The screen was locked, so the resume button was not pressed."),
+                            _ => L.T("پنجره‌ی Steam پیدا نشد.", "Steam's window was not found."),
+                        };
+                        Application.Current?.Dispatcher.BeginInvoke(() => Notify(L.T("دانلود زمان‌بندی‌شده", "Scheduled download"), $"{name}: {text}"));
+                    });
+                }
                 if (plan.OpenOnly)
                 {
                     EndPlan(plan, now);
@@ -579,7 +598,9 @@ public sealed class Hub
                 plan.StartedAt = now;
                 ActivateRule(new Rule
                 {
-                    Kind = RuleKind.Network, Upload = false, ThresholdMbps = plan.ThresholdMbps, WaitForStart = true,
+                    Kind = RuleKind.Network, Upload = false, WaitForStart = true,
+                    // Steam is often limited to a few hundred KB/s by its own setting; a 1 Mbit line would call that "quiet".
+                    ThresholdMbps = plan.LauncherKey == "steam" ? Math.Min(plan.ThresholdMbps, 0.2) : plan.ThresholdMbps,
                     HoldMinutes = plan.QuietMinutes, ExceptRecording = false, ExceptGame = false, Action = plan.Action,
                 });
                 Notify(L.T("دانلود زمان‌بندی‌شده", "Scheduled download"),

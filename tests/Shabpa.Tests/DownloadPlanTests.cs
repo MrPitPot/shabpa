@@ -112,7 +112,7 @@ public class DownloadPlanTests
             var due = DateTime.Now.AddSeconds(-2);
             Assert.True(hub.AddDownloadPlan(new DownloadPlan
             {
-                LauncherKey = "steam", LauncherName = "Steam", ExePath = @"C:\steam.exe", StartAt = due,
+                LauncherKey = "epic", LauncherName = "Epic", ExePath = @"C:\steam.exe", StartAt = due,
                 RepeatDays = [.. Enum.GetValues<DayOfWeek>()], ThresholdMbps = 3, QuietMinutes = 7,
             }));
             run(DateTime.Now);
