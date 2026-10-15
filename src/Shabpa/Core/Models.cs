@@ -78,6 +78,8 @@ public sealed class Settings
     public FocusSettings Focus { get; set; } = new();
     /// <summary>Show a notice when a task's reminder time comes.</summary>
     public bool TaskReminders { get; set; } = true;
+    /// <summary>Let the Telegram bot read today's task titles. Off by default: titles are personal.</summary>
+    public bool TasksToBot { get; set; }
     /// <summary>Where the window was last: "left,top,width,height,maximized" in device-independent pixels.</summary>
     public string WindowPlacement { get; set; } = "";
     /// <summary>Eye comfort (dimming), break reminders and sleep mode.</summary>

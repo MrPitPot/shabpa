@@ -16,6 +16,7 @@ public partial class RemotePage : PageBase
     {
         InitializeComponent();
         ProxyBox.Text = Hub.Settings.ProxyUrl;
+        TasksToBotCheck.IsChecked = Hub.Settings.TasksToBot;
         Hub.Bot.Changed += () => Dispatcher.BeginInvoke(Refresh);
         // keeps the "code is valid for m:ss" line current
         _ticker.Tick += (_, _) => { if (IsVisible) UpdateCodeHint(); };
@@ -38,6 +39,12 @@ public partial class RemotePage : PageBase
     {
         Hub.Bot.NewCode();
         Refresh();
+    }
+
+    private void OnTasksToBot(object sender, RoutedEventArgs e)
+    {
+        Hub.Settings.TasksToBot = TasksToBotCheck.IsChecked == true;
+        Hub.Store.Save();
     }
 
     private void OnSaveProxy(object sender, RoutedEventArgs e)

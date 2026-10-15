@@ -76,11 +76,34 @@
         </Border>
 
         <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+            <StackPanel>
+                <TextBlock Text="{s:Tr 'ذخیره و بازیابی تنظیمات', 'Back up and restore settings'}" Style="{StaticResource H2}"/>
+                <TextBlock Text="{s:Tr 'یه فایل از تنظیمات (و اگه بخوای پروفایل‌ها و کارها) می‌سازه که روی سیستم دیگه یا بعد از نصب دوباره برمی‌گردونیش. اطلاعات اتصال به ربات و کلیدهای خصوصی توش نیست.', 'Makes a file of your settings (and, if you choose, profiles and tasks) to bring back on another PC or after a reinstall. Bot link details and private keys are not included.'}"
+                           Style="{StaticResource Body}" Margin="0,4,0,8" TextWrapping="Wrap"/>
+                <CheckBox x:Name="BackupProfiles" Style="{StaticResource Check}" IsChecked="True" Content="{s:Tr 'پروفایل‌ها و خودکارسازی‌ها هم باشن', 'Include profiles and automations'}" HorizontalAlignment="Left"/>
+                <CheckBox x:Name="BackupTasks" Style="{StaticResource Check}" Content="{s:Tr 'کارها (لیست کارهای من) هم باشن', 'Include my tasks'}" HorizontalAlignment="Left" Margin="0,8,0,0"/>
+                <WrapPanel Margin="0,12,0,0">
+                    <Button Style="{StaticResource Btn}" Content="{s:Tr 'ذخیره‌ی تنظیمات…', 'Save settings…'}" Margin="0,0,8,0" Click="OnExportSettings"/>
+                    <Button Style="{StaticResource Btn}" Content="{s:Tr 'بازیابی از فایل…', 'Restore from a file…'}" Click="OnImportSettings"/>
+                </WrapPanel>
+                <TextBlock x:Name="BackupHint" Style="{StaticResource Label}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+            <StackPanel>
+                <TextBlock Text="{s:Tr 'اعلان‌های اخیر', 'Recent notices'}" Style="{StaticResource H2}"/>
+                <TextBlock Text="{s:Tr 'فقط توی حافظه نگه داشته می‌شن و با بستن برنامه پاک می‌شن.', 'Kept in memory only and gone when the app closes.'}" Style="{StaticResource Label}" Margin="0,3,0,0"/>
+                <StackPanel x:Name="NoticeList" Margin="0,8,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <Border Style="{StaticResource Card}" Margin="0,12,0,0">
             <DockPanel>
                 <Button DockPanel.Dock="Right" Style="{StaticResource Btn}" Content="{s:Tr 'پوشه‌ی داده‌ها', 'Data folder'}" VerticalAlignment="Center" Click="OnOpenFolder"/>
                 <StackPanel>
-                    <TextBlock Text="{s:Tr 'شب‌پا ۲٫۰', 'Shabpa 2.0'}" Style="{StaticResource H2}"/>
-                    <TextBlock Text="{s:Tr 'ساخته‌ی Mr.PitPot. همه‌چی فقط روی همین سیستم ذخیره می‌شه و هیچ داده‌ای جایی فرستاده نمی‌شه.', 'Made by Mr.PitPot. Everything is stored on this PC only; no data is sent anywhere.'}" Style="{StaticResource Body}" Margin="0,4,0,0"/>
+                    <TextBlock Text="{s:Tr 'شب‌پا', 'Shabpa'}" Style="{StaticResource H2}"/>
+                    <TextBlock Text="{s:Tr 'ساخته‌ی Mr.PitPot. داده‌هات روی همین سیستم می‌مونن. فقط چیزهایی که خودت روشن می‌کنی به اینترنت وصل می‌شن: بررسی به‌روزرسانی (GitHub)، آب‌وهوا، ربات تلگرام و ارسال تیکت پشتیبانی.', 'Made by Mr.PitPot. Your data stays on this PC. Only what you switch on uses the internet: the update check (GitHub), weather, the Telegram bot and support tickets.'}" Style="{StaticResource Body}" Margin="0,4,0,0" TextWrapping="Wrap"/>
                 </StackPanel>
             </DockPanel>
         </Border>

@@ -49,6 +49,13 @@ The 2.x and 3.0 line moved quickly while the app was taking shape; from here on 
   profiles. A profile that can switch the PC off is always started by hand and confirmed, and an imported file can only
   contain this fixed list of actions.
 
+- **Settings backup** (new): save your settings (and, if you choose, profiles and tasks) to a file and restore them
+  after a reinstall or on another PC. The file never contains the bot link, device secret or support key.
+- Recent notices are kept (in memory only) in Settings; the bot can start a profile, start or stop a focus session and
+  tell you how many tasks you have today (titles only if you switch that on). Profiles that can switch the PC off are
+  never started remotely.
+- The privacy line in Settings now says exactly what uses the internet.
+
 ## 3.0.1
 
 - Screen dimming no longer flashes back to full brightness once a second.

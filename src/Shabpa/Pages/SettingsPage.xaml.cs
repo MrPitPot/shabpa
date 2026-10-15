@@ -90,6 +90,7 @@ public partial class SettingsPage : PageBase
         MinimizedCheck.IsChecked = Hub.Settings.StartMinimized;
         ConfirmCheck.IsChecked = Hub.Settings.ConfirmActions;
         ReportCheck.IsChecked = Hub.Settings.GameReports;
+        RefreshNotices();
         AnimCheck.IsChecked = Hub.Settings.Animations;
         LowMemoryCheck.IsChecked = Hub.Settings.LowMemory;
         AutostartHint.Text = Hub.Elevated
@@ -106,6 +107,74 @@ public partial class SettingsPage : PageBase
             ? L.T("توان پردازنده واقعی خونده می‌شه. گرافیک و بقیه‌ی قطعات تخمینی‌ان؛ اگه عدد دقیق کارت گرافیکت رو می‌دونی اینجا وارد کن.",
                 "CPU power is read from the real sensor. GPU and the rest are estimates; enter your graphics card's real figures here if you know them.")
             : L.T("همه‌ی عددها تخمینی‌ان؛ هر چی به سیستم خودت نزدیک‌تر باشن، هزینه دقیق‌تر درمیاد.", "All figures are estimates; the closer they are to your PC, the more accurate the cost.");
+    }
+
+    private void OnExportSettings(object sender, RoutedEventArgs e)
+    {
+        using var dialog = new System.Windows.Forms.SaveFileDialog
+        {
+            FileName = $"shabpa-settings-{DateTime.Now:yyyyMMdd}.json", Filter = "Shabpa settings|*.json",
+            InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
+        };
+        if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
+        try
+        {
+            System.IO.File.WriteAllText(dialog.FileName, SettingsBackup.Export(Hub.State, BackupProfiles.IsChecked == true, BackupTasks.IsChecked == true, DateTime.Now));
+            BackupHint.Foreground = Res("Muted");
+            BackupHint.Text = L.T("ذخیره شد.", "Saved.");
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+        {
+            BackupHint.Foreground = Res("Red");
+            BackupHint.Text = L.T("ذخیره نشد.", "Could not save.");
+        }
+    }
+
+    private void OnImportSettings(object sender, RoutedEventArgs e)
+    {
+        using var dialog = new System.Windows.Forms.OpenFileDialog { Filter = "Shabpa settings|*.json", CheckFileExists = true };
+        if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
+        SettingsPack? pack;
+        try
+        {
+            if (new System.IO.FileInfo(dialog.FileName).Length > SettingsBackup.MaxBytes) pack = null;
+            else pack = SettingsBackup.Read(System.IO.File.ReadAllText(dialog.FileName));
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+        {
+            pack = null;
+        }
+        if (pack is null)
+        {
+            BackupHint.Foreground = Res("Red");
+            BackupHint.Text = L.T("این فایل تنظیمات شب‌پا نیست یا خونده نشد.", "This is not a Shabpa settings file, or it could not be read.");
+            return;
+        }
+        var detail = L.T($"تنظیمات{(pack.Profiles is not null ? $"، {Fa.Digits(pack.Profiles.Count.ToString())} پروفایل" : "")}{(pack.Tasks is not null ? $"، {Fa.Digits(pack.Tasks.Count.ToString())} کار" : "")}",
+            $"settings{(pack.Profiles is not null ? $", {pack.Profiles.Count} profile(s)" : "")}{(pack.Tasks is not null ? $", {pack.Tasks.Count} task(s)" : "")}");
+        if (!ConfirmWindow.AskAlways(L.T("بازیابی تنظیمات", "Restore settings"),
+                L.T($"تنظیمات فعلی با محتوای فایل ({pack.Created}) جایگزین می‌شن: {detail}. برنامه یه لحظه بسته و دوباره باز می‌شه. اطلاعات اتصال ربات و کلیدهای این سیستم دست‌نخورده می‌مونن.",
+                    $"Your current settings are replaced by the file ({pack.Created}): {detail}. The app restarts for a moment. The bot link and keys of this PC are kept."),
+                L.T("بازیابی کن", "Restore"))) return;
+        SettingsBackup.Apply(pack, Hub.State);
+        Hub.Store.Save();
+        if (Hub.Store.ReadOnly) return;
+        (Application.Current as App)?.Restart(page: "settings");
+    }
+
+    private void RefreshNotices()
+    {
+        NoticeList.Children.Clear();
+        var items = Hub.Notices.AsEnumerable().Reverse().Take(15).ToList();
+        if (items.Count == 0)
+            NoticeList.Children.Add(new TextBlock { Text = L.T("اعلانی نبوده.", "No notices yet."), Style = St("Body") });
+        foreach (var n in items)
+        {
+            var box = new StackPanel { Margin = new Thickness(0, 5, 0, 5) };
+            box.Children.Add(new TextBlock { Text = $"{Fa.Clock(n.Time)} · {n.Title}", Style = St("Body"), FontWeight = FontWeights.SemiBold });
+            if (n.Text.Length > 0) box.Children.Add(new TextBlock { Text = n.Text, Style = St("Label"), TextWrapping = TextWrapping.Wrap });
+            NoticeList.Children.Add(box);
+        }
     }
 
     private void OnLowMemory(object sender, RoutedEventArgs e)

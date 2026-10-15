@@ -1216,6 +1216,45 @@ public sealed class Hub
                 if (!SleepActive) return RemoteReply.Done("حالت شب‌خواب روشن نبود.", "Sleep mode was not on.");
                 CancelSleepMode();
                 return RemoteReply.Done("حالت شب‌خواب لغو شد.", "Sleep mode is cancelled.");
+            case "profile":
+            {
+                EnsureProfiles();
+                var wanted = (StringArg(args, "name") ?? "").Trim();
+                var profile = State.Profiles.FirstOrDefault(p => p.Name.Equals(wanted, StringComparison.CurrentCultureIgnoreCase));
+                if (profile is null)
+                    return RemoteReply.Fail("پروفایلی با این اسم پیدا نشد.", "No profile with that name.");
+                // switching the PC off is never started from afar through a profile: the power commands have their own
+                // confirmation and countdown
+                if (Core.Profiles.HasPower(profile))
+                    return RemoteReply.Fail("این پروفایل شامل خاموشی یا خواب‌ه؛ از اینجا اجرا نمی‌شه.", "This profile can switch the PC off, so it cannot be run from here.");
+                var outcome = RunProfile(profile, "bot");
+                var text = string.Join("\n", outcome.Steps);
+                return outcome.Ok ? RemoteReply.Done(text, text) : RemoteReply.Fail(text, text);
+            }
+            case "focus":
+            {
+                if (string.Equals(StringArg(args, "action"), "stop", StringComparison.OrdinalIgnoreCase))
+                {
+                    Focus.Stop(DateTime.Now);
+                    Store.Save();
+                    return RemoteReply.Done("تایمر تمرکز متوقف شد.", "The focus timer is stopped.");
+                }
+                var minutes = IntArg(args, "minutes", 0);
+                if (minutes > 0) Settings.Focus.FocusMinutes = Math.Clamp(minutes, 5, 90);
+                Store.Save();
+                Focus.Start(DateTime.Now);
+                return RemoteReply.Done($"تمرکز {Fa.Digits(Settings.Focus.FocusMinutes.ToString())} دقیقه‌ای شروع شد.", $"A {Settings.Focus.FocusMinutes}-minute focus started.");
+            }
+            case "tasks":
+            {
+                var today = Tasks.View(TaskView.Today, DateTime.Now).ToList();
+                // task titles are personal: they only leave this PC when the person switched that on
+                if (!Settings.TasksToBot)
+                    return RemoteReply.Done($"{Fa.Digits(today.Count.ToString())} کار برای امروز داری. (نمایش عنوان‌ها توی تنظیمات ربات خاموشه.)",
+                        $"You have {today.Count} task(s) for today. (Showing titles is off in the bot settings.)");
+                var list = string.Join("\n", today.Take(10).Select(t => "• " + t.Title + (t.Due is { } d ? $" ({Fa.Clock(d)})" : "")));
+                return RemoteReply.Done(today.Count == 0 ? "برای امروز کاری نداری." : list, today.Count == 0 ? "Nothing for today." : list);
+            }
             default:
                 // "after-download" and anything newer than this version
                 return RemoteReply.Fail("این نسخه‌ی شب‌پا هنوز این دستور رو نداره.", "This version of Shabpa does not support that yet.");
@@ -1345,7 +1384,15 @@ public sealed class Hub
 
     // ---- misc -------------------------------------------------------------------------------
 
-    public void Notify(string title, string text) => Notified?.Invoke(title, text);
+    /// <summary>The last notices shown, newest last; memory only (they may mention task titles).</summary>
+    public List<(DateTime Time, string Title, string Text)> Notices { get; } = [];
+
+    public void Notify(string title, string text)
+    {
+        Notices.Add((DateTime.Now, title, text));
+        if (Notices.Count > 30) Notices.RemoveAt(0);
+        Notified?.Invoke(title, text);
+    }
 
     public void RaiseChanged() => Changed?.Invoke();
 

@@ -35,6 +35,16 @@
             </Border>
         </StackPanel>
 
+        <TextBlock Text="{s:Tr 'حریم خصوصی', 'Privacy'}" Style="{StaticResource Section}"/>
+        <Border Style="{StaticResource Card}">
+            <StackPanel>
+                <CheckBox x:Name="TasksToBotCheck" Style="{StaticResource Check}" HorizontalAlignment="Left"
+                          Content="{s:Tr 'ربات بتونه عنوان کارهای امروزم رو بهم نشون بده', 'Let the bot show me the titles of today\'s tasks'}" Click="OnTasksToBot"/>
+                <TextBlock Style="{StaticResource Label}" Margin="0,8,0,0" TextWrapping="Wrap" LineHeight="20"
+                           Text="{s:Tr 'پیش‌فرض خاموشه: ربات فقط تعداد کارها رو می‌گه. اگه روشنش کنی، عنوان کارهای امروز از طریق سرور شب‌پا و تلگرام به حساب‌های وصل‌شده می‌رسه.', 'Off by default: the bot only says how many tasks there are. If you turn it on, the titles of today\'s tasks travel through the Shabpa server and Telegram to the linked accounts.'}"/>
+            </StackPanel>
+        </Border>
+
         <TextBlock Text="{s:Tr 'پروکسی', 'Proxy'}" Style="{StaticResource Section}"/>
         <Border Style="{StaticResource Card}">
             <StackPanel>

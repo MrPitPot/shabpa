@@ -273,6 +273,12 @@ public partial class App : Application
         hub.Start();
 
         _window = new MainWindow();
+        // test aid: --size 960x620 shows the window at its smallest, to check nothing is cut off
+        if (Value(e.Args, "--size") is { } size && size.Split('x') is [var w, var h] && double.TryParse(w, out var width) && double.TryParse(h, out var height))
+        {
+            _window.Width = width;
+            _window.Height = height;
+        }
         if (Value(e.Args, "--page") is { } page) _window.Navigate(page);
         if (shots is not null)
         {
