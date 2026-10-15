@@ -196,6 +196,7 @@ public static class Diagnostics
             string F(double? v, string unit) => v is { } x ? $"{x:0.#}{unit}" : "-";
             return $"cpu temp {F(r.CpuTempC, " C")}, cpu fan {F(r.FanRpm, " rpm")} / {F(r.FanPercent, " %")}"
                    + (r.Gpu is { } g ? $"; gpu via module: temp {F(g.TempC, " C")}, fan {F(g.FanRpm, " rpm")}, power {F(g.PowerW, " W")}, load {F(g.LoadPercent, " %")}" : "")
+                   + (r.Board is { Count: > 0 } b ? "; board: " + string.Join(", ", b.Select(kv => $"{kv.Key} {kv.Value:0.##}")) : "")
                    + (board.Problem.Length > 0 ? $" (problem: {board.Problem})" : "");
         });
 

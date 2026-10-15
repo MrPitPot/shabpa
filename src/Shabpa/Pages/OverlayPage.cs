@@ -66,7 +66,7 @@ public sealed class OverlayPage : PageBase
     private static readonly (string key, string fa, string en)[] Groups =
     [
         ("general", "عمومی", "General"), ("gpu", "کارت گرافیک (GPU)", "Graphics card (GPU)"), ("cpu", "پردازنده (CPU)", "Processor (CPU)"),
-        ("ram", "حافظه (RAM)", "Memory (RAM)"), ("net", "شبکه (NET)", "Network (NET)"),
+        ("ram", "حافظه (RAM)", "Memory (RAM)"), ("board", "مادربورد (نیاز به حسگر پیشرفته)", "Motherboard (needs advanced sensors)"), ("net", "شبکه (NET)", "Network (NET)"),
     ];
 
     private readonly DispatcherTimer _save = new() { Interval = TimeSpan.FromMilliseconds(400) };

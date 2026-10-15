@@ -7,7 +7,8 @@ namespace Shabpa.Core;
 /// the user installed themselves; without both it simply reports nothing.</summary>
 public sealed class BoardSensors : IDisposable
 {
-    public readonly record struct Reading(double? CpuTempC, double? FanRpm, double? FanPercent, GpuReading? Gpu = null);
+    public readonly record struct Reading(double? CpuTempC, double? FanRpm, double? FanPercent, GpuReading? Gpu = null,
+        IReadOnlyDictionary<string, double>? Board = null);
 
     private Computer? _computer;
     private bool _failed;
@@ -37,8 +38,9 @@ public sealed class BoardSensors : IDisposable
 
             double? temp = null, rpm = null, percent = null;
             double? coreMax = null, package = null;
+            var extra = new Dictionary<string, double>();
             foreach (var hardware in _computer.Hardware)
-                Visit(hardware, ref coreMax, ref package, ref rpm, ref percent);
+                Visit(hardware, extra, ref coreMax, ref package, ref rpm, ref percent);
             temp = package ?? coreMax;
             var gpu = ReadGpu(_computer);
             if (temp is null && rpm is null && percent is null && gpu is null)
@@ -47,7 +49,7 @@ public sealed class BoardSensors : IDisposable
                 return default;
             }
             Problem = "";
-            return new Reading(temp, rpm, percent, gpu);
+            return new Reading(temp, rpm, percent, gpu, extra);
         }
         catch (Exception ex)
         {
@@ -91,13 +93,38 @@ public sealed class BoardSensors : IDisposable
         };
     }
 
-    private static void Visit(IHardware hardware, ref double? coreMax, ref double? package, ref double? rpm, ref double? percent)
+    /// <summary>Motherboard readings the overlay can show, by key.</summary>
+    private static void CollectBoard(Dictionary<string, double> extra, SensorType type, string name, double value)
+    {
+        bool Has(string part) => name.Contains(part, StringComparison.OrdinalIgnoreCase);
+        switch (type)
+        {
+            case SensorType.Temperature:
+                if (name.Equals("System", StringComparison.OrdinalIgnoreCase)) extra.TryAdd("systemp", value);
+                else if (Has("VRM")) extra.TryAdd("vrmtemp", value);
+                else if (Has("PCH") || Has("Chipset")) extra.TryAdd("pchtemp", value);
+                else if (Has("Socket")) extra.TryAdd("sockettemp", value);
+                break;
+            case SensorType.Fan:
+                if (Has("Pump")) extra.TryAdd("pumprpm", value);
+                else if (Has("System Fan") && value > 0) extra.TryAdd("sysfanrpm", value);
+                break;
+            case SensorType.Voltage:
+                if (name.Equals("Vcore", StringComparison.OrdinalIgnoreCase)) extra.TryAdd("vcore", value);
+                else if (name.Equals("+12V", StringComparison.OrdinalIgnoreCase)) extra.TryAdd("v12", value);
+                else if (name.Equals("+5V", StringComparison.OrdinalIgnoreCase)) extra.TryAdd("v5", value);
+                break;
+        }
+    }
+
+    private static void Visit(IHardware hardware, Dictionary<string, double> extra, ref double? coreMax, ref double? package, ref double? rpm, ref double? percent)
     {
         hardware.Update();
         foreach (var sensor in hardware.Sensors)
         {
             if (sensor.Value is not { } value) continue;
             var name = sensor.Name;
+            if (hardware.HardwareType == HardwareType.SuperIO) CollectBoard(extra, sensor.SensorType, name, value);
             switch (sensor.SensorType)
             {
                 case SensorType.Temperature when hardware.HardwareType == HardwareType.Cpu:
@@ -113,7 +140,7 @@ public sealed class BoardSensors : IDisposable
                     break;
             }
         }
-        foreach (var sub in hardware.SubHardware) Visit(sub, ref coreMax, ref package, ref rpm, ref percent);
+        foreach (var sub in hardware.SubHardware) Visit(sub, extra, ref coreMax, ref package, ref rpm, ref percent);
     }
 
     public void Dispose()

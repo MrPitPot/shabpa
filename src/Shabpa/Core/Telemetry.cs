@@ -12,6 +12,8 @@ public sealed record TelemetrySample
     public double? CpuMHz { get; init; }
     /// <summary>Only available with an extra hardware sensor library; null when Windows does not expose it.</summary>
     public double? CpuFanPercent { get; init; }
+    /// <summary>Motherboard readings by key (system / VRM / chipset / socket temperature, pump and system fan, voltages).</summary>
+    public IReadOnlyDictionary<string, double>? Board { get; init; }
     public double? CpuFanRpm { get; init; }
     public double? RamTempC { get; init; }
     public double RamPercent { get; init; }
@@ -243,6 +245,7 @@ public sealed class Telemetry : IDisposable
             CpuTempC = board.CpuTempC,
             CpuFanRpm = board.FanRpm,
             CpuFanPercent = board.FanPercent,
+            Board = board.Board,
             CpuMHz = ReadCpuFrequency(),
             CpuWatts = sensors.CpuMeasured ? sensors.CpuWatts : null,
             RamPercent = memory.UsedPercent,

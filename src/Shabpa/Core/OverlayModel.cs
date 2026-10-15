@@ -80,6 +80,15 @@ public static class OverlayMetrics
         new("ram", "مصرف RAM", "RAM use", "ram", "%", true),
         new("ramused", "RAM مصرفی (گیگ)", "RAM used (GB)", "ram", "GB"),
         // network
+        new("systemp", "دمای سیستم", "System temp", "board", "°C"),
+        new("sockettemp", "دمای سوکت CPU", "CPU socket temp", "board", "°C"),
+        new("vrmtemp", "دمای VRM", "VRM temp", "board", "°C"),
+        new("pchtemp", "دمای چیپست", "Chipset temp", "board", "°C"),
+        new("pumprpm", "دور پمپ (RPM)", "Pump (RPM)", "board", "rpm"),
+        new("sysfanrpm", "دور فن کیس (RPM)", "Case fan (RPM)", "board", "rpm"),
+        new("vcore", "ولتاژ Vcore", "Vcore", "board", "V"),
+        new("v12", "ولتاژ ۱۲ ولت", "12 V rail", "board", "V"),
+
         new("ping", "پینگ", "Ping", "net", "ms", true),
         new("down", "سرعت دانلود", "Download speed", "net", "Mb/s"),
         new("up", "سرعت آپلود", "Upload speed", "net", "Mb/s"),
@@ -97,6 +106,8 @@ public static class OverlayMetrics
         "cputemp" => value >= 90 ? 2 : value >= 75 ? 1 : 0,
         "fps" or "low1" => value <= 0 ? 0 : value < (key == "fps" ? 30 : 24) ? 2 : value < (key == "fps" ? 60 : 45) ? 1 : 0,
         "frame" => value > 33 ? 2 : value > 20 ? 1 : 0,
+        "systemp" or "sockettemp" or "pchtemp" => value >= 80 ? 2 : value >= 65 ? 1 : 0,
+        "vrmtemp" => value >= 100 ? 2 : value >= 85 ? 1 : 0,
         "ping" => value > 100 ? 2 : value > 50 ? 1 : 0,
         _ => 0,
     };
@@ -126,7 +137,8 @@ public static class OverlayMetrics
         "gpu" => "GPU LOAD", "gputemp" => "GPU TEMP", "hotspot" => "GPU HOT", "memtemp" => "VRAM TEMP", "gpupower" => "GPU PWR",
         "gpuvolt" => "GPU VOLT", "gpufan" => "GPU FAN", "gpufanrpm" => "GPU RPM", "gpuclock" => "GPU CLK", "memclock" => "VRAM CLK",
         "vram" => "VRAM", "cpu" => "CPU LOAD", "cputemp" => "CPU TEMP", "cpuwatts" => "CPU PWR", "cpufreq" => "CPU CLK",
-        "cpufan" => "CPU FAN", "cpufanrpm" => "CPU RPM", "ram" => "RAM", "ramused" => "RAM GB", "ping" => "PING", "down" => "DL", "up" => "UL",
+        "cpufan" => "CPU FAN", "cpufanrpm" => "CPU RPM", "systemp" => "SYS TEMP", "sockettemp" => "SOCKET", "vrmtemp" => "VRM", "pchtemp" => "PCH",
+        "pumprpm" => "PUMP", "sysfanrpm" => "CASE FAN", "vcore" => "VCORE", "v12" => "12V", "ram" => "RAM", "ramused" => "RAM GB", "ping" => "PING", "down" => "DL", "up" => "UL",
         _ => key.ToUpperInvariant(),
     };
 
@@ -168,6 +180,9 @@ public static class OverlayMetrics
                 "ramused" => Make(s.RamUsedGb > 0 ? s.RamUsedGb : null, 1, s.RamTotalGb),
             "fpsgraph" => new MetricView("fpsgraph", Abbrev(def.Key), "graph", "", null, 0),
             "ram" => Make(s.RamPercent, 0, 100),
+            "systemp" or "sockettemp" or "vrmtemp" or "pchtemp" or "pumprpm" or "sysfanrpm" or "vcore" or "v12"
+                => Make(s.Board is { } b && b.TryGetValue(def.Key, out var bv) ? bv : null, def.Key is "vcore" or "v12" ? 2 : 0,
+                    def.Key switch { "pumprpm" or "sysfanrpm" => 4000, "vcore" => 1.8, "v12" => 13, _ => 110 }),
             "ping" => Make(s.PingMs, 0, 200),
             "down" => Make(s.DownMbps, s.DownMbps >= 10 ? 0 : 1, 100),
             "up" => Make(s.UpMbps, s.UpMbps >= 10 ? 0 : 1, 100),
@@ -192,6 +207,7 @@ public static class OverlayMetrics
             CpuMHz = 4900,
             CpuFanPercent = 52,
             CpuFanRpm = 1180,
+            Board = new Dictionary<string, double> { ["systemp"] = 42, ["sockettemp"] = 39, ["vrmtemp"] = 38, ["pchtemp"] = 58, ["pumprpm"] = 2560, ["sysfanrpm"] = 1150, ["vcore"] = 1.31, ["v12"] = 12.02 },
             RamTempC = 43,
             RamPercent = 56,
             RamUsedGb = 17.9,
