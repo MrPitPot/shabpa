@@ -22,6 +22,9 @@ The 2.x and 3.0 line moved quickly while the app was taking shape; from here on 
   longer redrawn every second.
 - New setting "Use less RAM": draws the window without the graphics card (about 120 → 75 MB while it is open,
   a little more CPU).
+- Weather: a new animated sky. Soft layered clouds with depth, a sun with a glow and slowly turning rays, a
+  shaded moon, twinkling stars and shooting stars, rain in two layers with splashes, snow with depth, drifting fog
+  and real lightning bolts; rounded corners and a soft shade behind the text so it stays readable.
 
 ## 3.0.1
 
