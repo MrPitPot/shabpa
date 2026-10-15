@@ -8,8 +8,31 @@
             <StackPanel x:Name="StatusPanel"/>
         </Border>
 
+        <StackPanel x:Name="SharedPanel">
+            <TextBlock Text="{s:Tr 'وصل کردن تلگرام', 'Link Telegram'}" Style="{StaticResource Section}"/>
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource Body}"
+                               Text="{s:Tr 'نه ربات ساختن لازمه، نه توکن. دکمه‌ی «باز کردن در تلگرام» رو بزن و توی تلگرام Start رو بزن، یا این کد رو برای ربات شب‌پا بفرست. بعد همین‌جا اجازه بده.', 'No bot to create, no token. Press “Open in Telegram” and tap Start there, or send this code to the Shabpa bot. Then allow it here.'}"/>
+                    <DockPanel Margin="0,12,0,0">
+                        <Border Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="12" Padding="22,10" DockPanel.Dock="Left">
+                            <TextBlock x:Name="LinkCodeText" FontSize="26" FontWeight="Bold" Foreground="{StaticResource Gold}" FontFamily="Consolas" FlowDirection="LeftToRight"/>
+                        </Border>
+                        <StackPanel Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
+                            <Button x:Name="OpenTelegram" Style="{StaticResource BtnPrimary}" Content="{s:Tr 'باز کردن در تلگرام', 'Open in Telegram'}" Click="OnOpenTelegram"/>
+                            <Button Style="{StaticResource Btn}" Content="{s:Tr 'کد تازه', 'New code'}" Margin="8,0,0,0" Click="OnNewCode"/>
+                        </StackPanel>
+                    </DockPanel>
+                    <TextBlock x:Name="LinkHint" Style="{StaticResource Label}" Margin="0,8,0,0" TextWrapping="Wrap"
+                               Text="{s:Tr 'کد ۱۰ دقیقه اعتبار داره و فقط یه بار کار می‌کنه. تا روی همین سیستم اجازه ندی، هیچ دستوری اجرا نمی‌شه.', 'The code lasts 10 minutes and works once. Nothing runs until you allow it on this PC.'}"/>
+                </StackPanel>
+            </Border>
+            <Button x:Name="PersonalToggle" Style="{StaticResource Btn}" HorizontalAlignment="Left" Margin="0,12,0,0" Click="OnTogglePersonal"
+                    Content="{s:Tr 'پیشرفته: استفاده از ربات شخصی خودم', 'Advanced: use my own bot instead'}"/>
+        </StackPanel>
+
         <StackPanel x:Name="SetupPanel">
-            <TextBlock Text="{s:Tr 'راه‌اندازی', 'Setup'}" Style="{StaticResource Section}"/>
+            <TextBlock x:Name="SetupHeader" Text="{s:Tr 'راه‌اندازی', 'Setup'}" Style="{StaticResource Section}"/>
             <Border Style="{StaticResource Card}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource H2}" Text="{s:Tr 'قدم ۱: ربات خودت رو بساز', 'Step 1: create your own bot'}"/>
@@ -45,7 +68,7 @@
                     <TextBox x:Name="ProxyBox" Style="{StaticResource Input}" FlowDirection="LeftToRight" FontFamily="Consolas"/>
                 </DockPanel>
                 <TextBlock Style="{StaticResource Label}" Margin="0,8,0,0" TextWrapping="Wrap" LineHeight="20"
-                           Text="{s:Tr 'اگه تلگرام بدون فیلترشکن باز نمی‌شه، آدرس پروکسی محلی‌ات رو بنویس؛ مثلاً socks5://127.0.0.1:1080 یا http://127.0.0.1:8080. خالی بذاری از پروکسی خودِ ویندوز استفاده می‌شه.', 'If Telegram needs a proxy, enter your local proxy address, for example socks5://127.0.0.1:1080 or http://127.0.0.1:8080. Leave it empty to use the Windows proxy.'}"/>
+                           Text="{s:Tr 'اگه تلگرام یا سرور شب‌پا بدون فیلترشکن باز نمی‌شه، آدرس پروکسی محلی‌ات رو بنویس؛ مثلاً socks5://127.0.0.1:1080 یا http://127.0.0.1:8080. خالی بذاری از پروکسی خودِ ویندوز استفاده می‌شه.', 'If Telegram or the Shabpa server needs a proxy, enter your local proxy address, for example socks5://127.0.0.1:1080 or http://127.0.0.1:8080. Leave it empty to use the Windows proxy.'}"/>
             </StackPanel>
         </Border>
 

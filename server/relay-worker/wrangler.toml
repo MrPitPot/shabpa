@@ -1,0 +1,26 @@
+name = "shabpa-relay"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+[vars]
+# The official bot's username, without @. It is public; the token is not (see README).
+BOT_USERNAME = "PASTE_BOT_USERNAME_HERE"
+
+# Create once with: wrangler d1 create shabpa-relay   then paste its id here.
+[[d1_databases]]
+binding = "DB"
+database_name = "shabpa-relay"
+database_id = "PASTE_D1_DATABASE_ID_HERE"
+
+# One Durable Object per device holds that device's WebSocket.
+[[durable_objects.bindings]]
+name = "HUB"
+class_name = "DeviceHub"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["DeviceHub"]
+
+# Daily cleanup of expired codes, counters and devices that have been silent for 90 days.
+[triggers]
+crons = ["17 3 * * *"]

@@ -92,6 +92,8 @@ public sealed class Settings
     public long TelegramChatId { get; set; }
     public string TelegramUser { get; set; } = "";
     public string ProxyUrl { get; set; } = "";
+    /// <summary>The shared Shabpa bot (used whenever no personal bot token is set).</summary>
+    public RelaySettings Relay { get; set; } = new();
     public string PingHost { get; set; } = "8.8.8.8";
     /// <summary>While a game runs, cap the upload of everything else.</summary>
     public bool GuardEnabled { get; set; }
@@ -123,4 +125,22 @@ public sealed class AppState
     public List<GameLogEntry> GameHistory { get; set; } = [];
     /// <summary>Tickets sent from this PC.</summary>
     public List<TicketRecord> Tickets { get; set; } = [];
+}
+
+/// <summary>This PC's registration on the Shabpa relay server, and the Telegram accounts linked through it.</summary>
+public sealed class RelaySettings
+{
+    public string DeviceId { get; set; } = "";
+    /// <summary>The device secret, DPAPI-protected like the personal bot token.</summary>
+    public string SecretProtected { get; set; } = "";
+    /// <summary>Overrides <see cref="TelegramBot.DefaultRelay"/>, e.g. for a self-hosted relay.</summary>
+    public string Endpoint { get; set; } = "";
+    /// <summary>Linked chats with the name shown when each was approved; the server keeps only the ids.</summary>
+    public List<RelayChat> Chats { get; set; } = [];
+}
+
+public sealed class RelayChat
+{
+    public long Id { get; set; }
+    public string Name { get; set; } = "";
 }

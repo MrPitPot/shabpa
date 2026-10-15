@@ -89,6 +89,10 @@ public sealed class Hub
             Cancel = () => OnUi(CancelEverything),
             Update = () => OnUi(UpdateFromBot),
         });
+        Bot.LinkRequested += request => Application.Current?.Dispatcher.BeginInvoke(() =>
+            Notify(L.T("درخواست اتصال تلگرام", "Telegram link request"),
+                L.T($"«{request.Name}» می‌خواد به این سیستم وصل بشه. توی «کنترل از راه دور» اجازه بده یا رد کن.",
+                    $"“{request.Name}” wants to link to this PC. Allow or decline it in Remote control.")));
     }
 
     private static T OnUi<T>(Func<T> f) => Application.Current.Dispatcher.Invoke(f);

@@ -49,7 +49,7 @@
 
 **درباره‌ی هشدار ویندوز و آنتی‌ویروس:** فایل‌ها امضای دیجیتال پولی ندارن، پس ویندوز ممکنه بگه «Windows protected your PC»؛ روی *More info* و بعد *Run anyway* بزن. بعضی آنتی‌ویروس‌ها درایور WinDivert (برای محدودیت سرعت) رو به‌عنوان «ابزار شبکه» علامت می‌زنن. کل سورس اینجاست و هر کس می‌تونه خودش بسازدش؛ کد SHA-256 هر فایل هم کنار هر نسخه منتشر می‌شه.
 
-**حریم خصوصی:** همه‌چی فقط روی همین سیستم ذخیره می‌شه (`%AppData%\Shabpa`). برنامه به جایی داده نمی‌فرسته؛ تنها ارتباط‌هاش بررسی نسخه‌ی جدید از GitHub، پینگ به مقصدی که خودت تعیین می‌کنی، و ربات تلگرام خودت (اگه فعالش کنی) هستن.
+**حریم خصوصی:** همه‌چی فقط روی همین سیستم ذخیره می‌شه (`%AppData%\Shabpa`). برنامه به جایی داده نمی‌فرسته؛ تنها ارتباط‌هاش بررسی نسخه‌ی جدید از GitHub، پینگ به مقصدی که خودت تعیین می‌کنی، و ربات تلگرام (اگه فعالش کنی) هستن. با ربات مشترک شب‌پا، متن دستورها و جواب‌ها از سرور رله‌ی شب‌پا رد می‌شه ولی اونجا ذخیره نمی‌شه (جزئیات در `server/relay-worker/README.md`)؛ با ربات شخصی خودت، مستقیم بین سیستم و تلگرام می‌ره.
 
 ## ساختن از روی سورس
 
@@ -90,7 +90,7 @@ bash build-installer.sh           # ساخت installer/ShabpaSetup.exe
 - **scheduled download:** finds installed launchers (Steam, Epic, Riot, EA, Ubisoft, GOG, Battle.net) with your permission, opens one at a set time and shuts the PC down when its download is done;
 - **advanced sensors (optional):** real CPU temperature, CPU fan speed and any-brand graphics-card readings, with administrator rights and the PawnIO driver;
 - **game report** after each session, **RAM cleanup**, and an explicit confirmation (with the exact time) before anything is scheduled, deleted or run;
-- remote control and updates through **your own Telegram bot**; eleven colour themes.
+- remote control and updates through **the shared Shabpa Telegram bot** (link with a one-time code, no bot to create) or your own bot; eleven colour themes.
 
 Graphics readings are verified on an AMD Radeon RX 6900 XT. NVIDIA readings use the driver's NVML library and have not been tested on real NVIDIA hardware yet. CPU fan speed and memory temperature need a hardware-sensor driver and are not available yet.
 

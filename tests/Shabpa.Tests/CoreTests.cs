@@ -605,6 +605,103 @@ public class TelegramBotTests
     }
 }
 
+public class SharedBotTests
+{
+    private readonly Settings _settings = new() { Relay = { Endpoint = "https://relay.test" } };
+    private readonly List<PowerAction> _requested = [];
+    private readonly List<System.Text.Json.JsonElement> _out = [];
+
+    private TelegramBot Bot()
+    {
+        var bot = new TelegramBot(() => _settings, () => { }, new BotHost
+        {
+            Status = () => "STATUS",
+            Request = a => { _requested.Add(a); return 15; },
+            Cancel = () => "CANCELLED",
+        });
+        bot.RelayTap = text => _out.Add(System.Text.Json.JsonDocument.Parse(text).RootElement.Clone());
+        return bot;
+    }
+
+    private static string Msg(long chat, string text, DateTimeOffset? at = null) =>
+        $$"""{"t":"msg","chat":{{chat}},"text":"{{text}}","date":{{(at ?? DateTimeOffset.UtcNow).ToUnixTimeSeconds()}}}""";
+
+    [Fact]
+    public void Shared_bot_is_used_only_without_a_personal_token()
+    {
+        var bot = Bot();
+        Assert.True(bot.Shared);
+        _settings.TelegramTokenProtected = "something";
+        Assert.False(bot.Shared);
+        _settings.TelegramTokenProtected = "";
+        _settings.Relay.Endpoint = "http://plain.test";
+        Assert.False(bot.Shared);
+    }
+
+    [Fact]
+    public void Nothing_runs_until_the_link_is_allowed_on_the_pc()
+    {
+        var bot = Bot();
+        bot.OnRelay("""{"t":"pair","chat":42,"name":"Amir","username":"amir"}""");
+        Assert.Equal(42, bot.Pending?.Chat);
+        bot.OnRelay(Msg(42, "خاموش"));
+        Assert.Empty(_requested);
+        Assert.Empty(_out);
+
+        bot.ApproveLink();
+        Assert.Null(bot.Pending);
+        Assert.Equal("pair-ok", _out[^1].GetProperty("t").GetString());
+        Assert.Equal("Amir", Assert.Single(_settings.Relay.Chats).Name);
+
+        bot.OnRelay(Msg(42, "خاموش"));
+        Assert.Equal([PowerAction.Shutdown], _requested);
+        Assert.Equal("send", _out[^1].GetProperty("t").GetString());
+        Assert.Equal(42, _out[^1].GetProperty("chat").GetInt64());
+    }
+
+    [Fact]
+    public void Declined_and_stale_requests_do_nothing()
+    {
+        var bot = Bot();
+        bot.OnRelay("""{"t":"pair","chat":7,"name":"Eve","username":""}""");
+        bot.RejectLink();
+        Assert.Equal("pair-no", _out[^1].GetProperty("t").GetString());
+        Assert.Empty(_settings.Relay.Chats);
+
+        _settings.Relay.Chats.Add(new RelayChat { Id = 42, Name = "Amir" });
+        bot.OnRelay(Msg(42, "خاموش", DateTimeOffset.UtcNow.AddMinutes(-10)));
+        Assert.Empty(_requested);
+        Assert.Contains("قدیمیه", _out[^1].GetProperty("text").GetString());
+    }
+
+    [Fact]
+    public void The_server_list_of_linked_chats_wins_and_local_names_stay()
+    {
+        _settings.Relay.Chats.Add(new RelayChat { Id = 1, Name = "Phone" });
+        _settings.Relay.Chats.Add(new RelayChat { Id = 2, Name = "Gone" });
+        var bot = Bot();
+        bot.OnRelay("""{"t":"ready","bot":"ShabpaBot","chats":[1,3]}""");
+        Assert.Equal([1L, 3L], _settings.Relay.Chats.Select(c => c.Id).Order());
+        Assert.Equal("Phone", _settings.Relay.Chats.Single(c => c.Id == 1).Name);
+        Assert.Equal(BotState.Connected, bot.State);
+        Assert.Equal("ShabpaBot", bot.BotName);
+
+        bot.OnRelay("""{"t":"unlinked","chat":1}""");
+        bot.OnRelay("""{"t":"unlinked","chat":3}""");
+        Assert.Equal(BotState.WaitingForPair, bot.State);
+        Assert.Equal("code", _out[^1].GetProperty("t").GetString());
+    }
+
+    [Fact]
+    public void Link_code_becomes_a_deep_link()
+    {
+        var bot = Bot();
+        bot.OnRelay("""{"t":"code","code":"K7QM3XPD","ttl":600,"bot":"ShabpaBot"}""");
+        Assert.Equal("K7QM-3XPD", bot.LinkCodeDisplay);
+        Assert.Equal("https://t.me/ShabpaBot?start=K7QM3XPD", bot.LinkUrl);
+    }
+}
+
 public class StoreTests
 {
     [Fact]
