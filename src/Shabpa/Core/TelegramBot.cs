@@ -40,7 +40,7 @@ public sealed class TelegramBot : IDisposable
     private static readonly TimeSpan StaleAfter = TimeSpan.FromSeconds(90);
 
     /// <summary>The official relay's address; empty until it is deployed and this constant (or the setting) is filled in.</summary>
-    public const string DefaultRelay = "";
+    public const string DefaultRelay = "https://shabpa-relay.amber-garden-174c.workers.dev";
 
     private readonly Func<Settings> _settings;
     private readonly Action _save;
