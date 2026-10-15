@@ -130,4 +130,14 @@ public sealed class DownloadPlan
     public int QuietMinutes { get; set; } = 10;
     public PlanState State { get; set; } = PlanState.Waiting;
     public DateTime? StartedAt { get; set; }
+    /// <summary>Empty = once. Otherwise the plan comes back every week on these days at the same time.</summary>
+    public List<DayOfWeek> RepeatDays { get; set; } = [];
+    /// <summary>Download speed (Mbit/s) below which the connection counts as quiet.</summary>
+    public double ThresholdMbps { get; set; } = 1;
+    /// <summary>If no download is seen within this many minutes of opening the launcher, nothing is switched off.</summary>
+    public int GiveUpMinutes { get; set; } = 45;
+    /// <summary>Only open the launcher at the set time; do not watch the download or switch anything off.</summary>
+    public bool OpenOnly { get; set; }
+
+    public bool Repeats => RepeatDays.Count > 0;
 }

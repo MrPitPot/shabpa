@@ -102,4 +102,41 @@ public class DownloadPlanTests
             Assert.Empty(hub.State.DownloadPlans);
         });
     }
+
+    [Fact]
+    public void Repeating_plan_waits_for_its_next_day_instead_of_disappearing()
+    {
+        OnSta(() =>
+        {
+            var (hub, run) = NewHub();
+            var due = DateTime.Now.AddSeconds(-2);
+            Assert.True(hub.AddDownloadPlan(new DownloadPlan
+            {
+                LauncherKey = "steam", LauncherName = "Steam", ExePath = @"C:\steam.exe", StartAt = due,
+                RepeatDays = [.. Enum.GetValues<DayOfWeek>()], ThresholdMbps = 3, QuietMinutes = 7,
+            }));
+            run(DateTime.Now);
+            Assert.Equal(3, hub.State.ActiveRule!.ThresholdMbps);
+            hub.DeactivateRule();
+            run(DateTime.Now);
+            var plan = Assert.Single(hub.State.DownloadPlans);
+            Assert.Equal(PlanState.Waiting, plan.State);
+            Assert.True(plan.StartAt > DateTime.Now);
+            Assert.Equal(due.Hour, plan.StartAt.Hour);
+            Assert.Equal(due.Minute, plan.StartAt.Minute);
+        });
+    }
+
+    [Fact]
+    public void Open_only_plan_opens_the_launcher_and_sets_no_rule()
+    {
+        OnSta(() =>
+        {
+            var (hub, run) = NewHub();
+            hub.AddDownloadPlan(new DownloadPlan { LauncherKey = "epic", LauncherName = "Epic", ExePath = @"C:\e.exe", StartAt = DateTime.Now.AddSeconds(-1), OpenOnly = true });
+            run(DateTime.Now);
+            Assert.Null(hub.State.ActiveRule);
+            Assert.Empty(hub.State.DownloadPlans);
+        });
+    }
 }

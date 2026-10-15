@@ -494,6 +494,30 @@ public sealed class Hub
         return true;
     }
 
+    /// <summary>Adds a fully customised plan (repeat days, thresholds, open-only…). False when an identical one exists.</summary>
+    public bool AddDownloadPlan(DownloadPlan plan)
+    {
+        if (State.DownloadPlans.Any(p => p.LauncherKey == plan.LauncherKey && Math.Abs((p.StartAt - plan.StartAt).TotalMinutes) < 1)) return false;
+        State.DownloadPlans.Add(plan);
+        Store.Save();
+        Changed?.Invoke();
+        return true;
+    }
+
+    /// <summary>A finished, missed or abandoned plan: repeating plans wait for their next day, one-off plans go away.</summary>
+    private void EndPlan(DownloadPlan plan, DateTime now)
+    {
+        if (plan.Repeats)
+        {
+            plan.StartAt = Schedule.Next(plan.StartAt.Hour, plan.StartAt.Minute, plan.RepeatDays, now);
+            plan.State = PlanState.Waiting;
+            plan.StartedAt = null;
+        }
+        else State.DownloadPlans.Remove(plan);
+        Store.Save();
+        Changed?.Invoke();
+    }
+
     /// <summary>Removes a plan; if it is running, the "finished" watch stops with it.</summary>
     public void RemoveDownloadPlan(Guid id)
     {
@@ -515,9 +539,7 @@ public sealed class Hub
                 // Missed (PC off or asleep, or something else kept it busy for minutes): do not start late.
                 if (now - plan.StartAt > TimeSpan.FromMinutes(3))
                 {
-                    State.DownloadPlans.Remove(plan);
-                    Store.Save();
-                    Changed?.Invoke();
+                    EndPlan(plan, now);
                     Notify(L.T("دانلود زمان‌بندی‌شده شروع نشد", "Scheduled download did not start"),
                         L.T($"موقع شروع «{plan.LauncherName}» سیستم خاموش یا خواب بود، یا شب‌پا بسته بود.",
                             $"The PC was off or asleep, or Shabpa was closed, when “{plan.LauncherName}” was due."));
@@ -533,18 +555,22 @@ public sealed class Hub
                     }
                     catch (Exception ex)
                     {
-                        State.DownloadPlans.Remove(plan);
-                        Store.Save();
-                        Changed?.Invoke();
+                        EndPlan(plan, now);
                         Notify(L.T("لانچر باز نشد", "Could not open the launcher"), $"{plan.LauncherName}: {ex.Message}");
                         continue;
                     }
+                }
+                if (plan.OpenOnly)
+                {
+                    EndPlan(plan, now);
+                    Notify(L.T("دانلود زمان‌بندی‌شده", "Scheduled download"), L.T($"«{plan.LauncherName}» باز شد.", $"“{plan.LauncherName}” was opened."));
+                    continue;
                 }
                 plan.State = PlanState.Running;
                 plan.StartedAt = now;
                 ActivateRule(new Rule
                 {
-                    Kind = RuleKind.Network, Upload = false, ThresholdMbps = 1, WaitForStart = true,
+                    Kind = RuleKind.Network, Upload = false, ThresholdMbps = plan.ThresholdMbps, WaitForStart = true,
                     HoldMinutes = plan.QuietMinutes, ExceptRecording = false, ExceptGame = false, Action = plan.Action,
                 });
                 Notify(L.T("دانلود زمان‌بندی‌شده", "Scheduled download"),
@@ -555,20 +581,15 @@ public sealed class Hub
             {
                 var finishedOrCancelled = State.ActiveRule is null;
                 var neverStarted = !finishedOrCancelled && Engine.Status.State == RuleState.Waiting
-                                   && plan.StartedAt is { } started && now - started > TimeSpan.FromMinutes(45);
+                                   && plan.StartedAt is { } started && now - started > TimeSpan.FromMinutes(plan.GiveUpMinutes);
                 if (neverStarted)
                 {
                     DeactivateRule();
                     Notify(L.T("دانلودی دیده نشد", "No download seen"),
-                        L.T($"۴۵ دقیقه بعد از باز شدن «{plan.LauncherName}» هیچ دانلودی شروع نشد؛ سیستم خاموش نمی‌شه.",
-                            $"No download started within 45 minutes of opening “{plan.LauncherName}”; the PC will not be shut down."));
+                        L.T($"{Fa.Digits(plan.GiveUpMinutes.ToString())} دقیقه بعد از باز شدن «{plan.LauncherName}» هیچ دانلودی شروع نشد؛ سیستم خاموش نمی‌شه.",
+                            $"No download started within {plan.GiveUpMinutes} minutes of opening “{plan.LauncherName}”; the PC will not be shut down."));
                 }
-                if (finishedOrCancelled || neverStarted)
-                {
-                    State.DownloadPlans.Remove(plan);
-                    Store.Save();
-                    Changed?.Invoke();
-                }
+                if (finishedOrCancelled || neverStarted) EndPlan(plan, now);
             }
         }
     }
@@ -780,6 +801,20 @@ public sealed class Hub
     {
         var now = DateTime.Now;
         var random = new Random(7);
+        Settings.Launchers =
+        [
+            new LauncherInfo { Key = "steam", Name = "Steam", ExePath = @"C:\Program Files (x86)\Steam\steam.exe", Process = "steam" },
+            new LauncherInfo { Key = "epic", Name = "Epic Games", ExePath = @"C:\Program Files (x86)\Epic Games\Launcher\Portal\Binaries\Win64\EpicGamesLauncher.exe", Process = "epicgameslauncher" },
+        ];
+        Settings.LaunchersScanned = true;
+        State.DownloadPlans =
+        [
+            new DownloadPlan
+            {
+                LauncherKey = "steam", LauncherName = "Steam", StartAt = now.Date.AddDays(1).AddHours(3), Action = PowerAction.Shutdown,
+                RepeatDays = [DayOfWeek.Friday, DayOfWeek.Saturday],
+            },
+        ];
         State.Energy.Clear();
         for (var i = 0; i < 30; i++)
         {

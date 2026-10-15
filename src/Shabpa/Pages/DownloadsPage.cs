@@ -21,6 +21,11 @@ public sealed class DownloadsPage : PageBase
     private Border _form = null!;
     private string? _launcher;
     private PowerAction _action = PowerAction.Shutdown;
+    private bool _openOnly;
+    private readonly WrapPanel _repeat = new() { Margin = new Thickness(0, 6, 0, 0) };
+    private Func<List<DayOfWeek>> _repeatDays = () => [];
+    private readonly TextBox _threshold = new() { Style = St("Input"), Width = 70, FlowDirection = FlowDirection.LeftToRight, Text = "1", Padding = new Thickness(10, 6, 10, 6) };
+    private readonly TextBox _giveUp = new() { Style = St("Input"), Width = 70, FlowDirection = FlowDirection.LeftToRight, Text = "45", Padding = new Thickness(10, 6, 10, 6) };
 
     public override string PageTitle => L.T("دانلود زمان‌بندی‌شده", "Scheduled download");
     public override string PageSubtitle => L.T("لانچر بازی رو توی ساعت مشخص باز کن و بعد از تموم شدن دانلود، سیستم رو خاموش کن.",
@@ -65,10 +70,20 @@ public sealed class DownloadsPage : PageBase
             },
         });
         form.Children.Add(_when);
+        form.Children.Add(Ui2.Label(L.T("تکرار هفتگی (اگه روزی انتخاب کنی، هر هفته همون روزها و همین ساعت تکرار می‌شه؛ خالی = فقط یک بار)",
+            "Weekly repeat (pick days to repeat every week at this time; none = once)")));
+        form.Children.Add(_repeat);
+        _repeatDays = DayToggles(_repeat, ShowWhen);
         form.Children.Add(Ui2.Label(L.T("وقتی دانلود تموم شد", "When the download finishes")));
         form.Children.Add(_actions);
         form.Children.Add(Ui2.Label(L.T("دانلود وقتی تموم‌شده حساب می‌شه که اینترنت این‌قدر دقیقه آروم بمونه", "Finished means the connection stayed quiet for this many minutes")));
         form.Children.Add(new StackPanel { Children = { _quiet }, HorizontalAlignment = HorizontalAlignment.Left });
+        form.Children.Add(Ui2.Label(L.T("سرعت دانلودِ «آروم» (مگابیت بر ثانیه)؛ پایین‌تر از این یعنی دانلود تموم شده یا متوقفه",
+            "\"Quiet\" download speed (Mbit/s); below this the download counts as done or paused")));
+        form.Children.Add(new StackPanel { Children = { _threshold }, HorizontalAlignment = HorizontalAlignment.Left });
+        form.Children.Add(Ui2.Label(L.T("اگه این‌قدر دقیقه بعد از باز شدن لانچر دانلودی شروع نشد، منصرف شو و خاموش نکن",
+            "If no download starts this many minutes after opening the launcher, give up and do not switch off")));
+        form.Children.Add(new StackPanel { Children = { _giveUp }, HorizontalAlignment = HorizontalAlignment.Left });
         var add = new Button { Style = St("BtnPrimary"), Content = L.T("ثبت زمان‌بندی", "Add plan"), HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(18, 9, 18, 9), Margin = new Thickness(0, 14, 0, 0) };
         add.Click += (_, _) => AddPlan();
         form.Children.Add(add);
@@ -81,10 +96,16 @@ public sealed class DownloadsPage : PageBase
 
         Chips(_actions, new[]
         {
-            (PowerAction.Shutdown, L.T("خاموش کردن", "Shut down")),
-            (PowerAction.Sleep, L.T("خواب", "Sleep")),
-            (PowerAction.Hibernate, L.T("هایبرنیت", "Hibernate")),
-        }, _action, a => _action = a);
+            ("shutdown", L.T("خاموش کردن", "Shut down")),
+            ("sleep", L.T("خواب", "Sleep")),
+            ("hibernate", L.T("هایبرنیت", "Hibernate")),
+            ("restart", L.T("ری‌استارت", "Restart")),
+            ("open", L.T("فقط باز کردن لانچر", "Only open the launcher")),
+        }, "shutdown", key =>
+        {
+            _openOnly = key == "open";
+            _action = key switch { "sleep" => PowerAction.Sleep, "hibernate" => PowerAction.Hibernate, "restart" => PowerAction.Restart, _ => PowerAction.Shutdown };
+        });
         ShowWhen();
     }
 
@@ -102,6 +123,15 @@ public sealed class DownloadsPage : PageBase
     {
         var now = DateTime.Now;
         _day.Update(now);
+        var days = _repeatDays();
+        if (days.Count > 0 && TimeBoxes.TryRead(_hour, _minute, out var rh, out var rm))
+        {
+            var next = Schedule.Next(rh, rm, days, now);
+            _when.Foreground = Res("Muted");
+            _when.Text = L.T($"هر هفته: {Fa.Days(days)} ساعت {Fa.Clock(rh, rm)}. اولین بار: {When(next)}",
+                $"Every week: {Fa.Days(days)} at {Fa.Clock(rh, rm)}. First run: {When(next)}");
+            return;
+        }
         var at = _day.Value(now);
         _when.Foreground = Res(at is { } t && t > now.AddMinutes(1) ? "Muted" : "Red");
         _when.Text = at is not { } a
@@ -135,23 +165,35 @@ public sealed class DownloadsPage : PageBase
             return;
         }
         var now = DateTime.Now;
-        if (_day.Value(now) is not { } at)
+        if (!TimeBoxes.TryRead(_hour, _minute, out var hour, out var minute))
         {
             _note.Text = L.T("ساعت باید بین ۰۰:۰۰ تا ۲۳:۵۹ باشه.", "The time must be between 00:00 and 23:59.");
             return;
         }
+        var repeat = _repeatDays();
+        var at = repeat.Count > 0 ? Schedule.Next(hour, minute, repeat, now) : _day.Value(now) ?? now;
         if (at <= now.AddMinutes(1))
         {
             _note.Text = L.T("این زمان گذشته؛ یه روز یا ساعت بعدتر انتخاب کن.", "That time has passed; pick a later day or time.");
             return;
         }
         var quiet = Int(_quiet, 1, 120, 10);
+        var threshold = Number(_threshold, 0.1, 1000, 1);
+        var giveUp = Int(_giveUp, 5, 600, 45);
 
-        var message = L.T($"«{launcher.Name}» {When(at)} باز می‌شه و بعد از تموم شدن دانلود (وقتی {Fa.Digits(quiet.ToString())} دقیقه اینترنت آروم بمونه) «{Fa.ActionName(_action)}» انجام می‌شه.",
-            $"“{launcher.Name}” opens {When(at)}; once the download is done ({quiet} quiet minutes) the PC will “{Fa.ActionName(_action)}”.");
+        var every = repeat.Count > 0 ? L.T($" و هر هفته ({Fa.Days(repeat)}) تکرار می‌شه", $" and repeats every week ({Fa.Days(repeat)})") : "";
+        var message = _openOnly
+            ? L.T($"«{launcher.Name}» {When(at)} فقط باز می‌شه{every}. هیچ خاموشی‌ای در کار نیست.", $"“{launcher.Name}” only opens {When(at)}{every}. Nothing is switched off.")
+            : L.T($"«{launcher.Name}» {When(at)} باز می‌شه{every} و بعد از تموم شدن دانلود (وقتی {Fa.Digits(quiet.ToString())} دقیقه اینترنت زیر {Fa.Digits(threshold.ToString("0.#"))} مگابیت بمونه) «{Fa.ActionName(_action)}» انجام می‌شه. اگه {Fa.Digits(giveUp.ToString())} دقیقه دانلودی شروع نشه، خاموش نمی‌شه.",
+                $"“{launcher.Name}” opens {When(at)}{every}; once the download is done ({quiet} minutes below {threshold:0.#} Mbit/s) the PC will “{Fa.ActionName(_action)}”. If no download starts within {giveUp} minutes nothing is switched off.");
         if (!Ask(L.T("این زمان‌بندی ثبت بشه؟", "Add this plan?"), message, L.T("ثبت", "Add"))) return;
 
-        _note.Text = Hub.AddDownloadPlan(launcher, at, _action, quiet)
+        var plan = new DownloadPlan
+        {
+            LauncherKey = launcher.Key, LauncherName = launcher.Name, ExePath = launcher.ExePath, StartAt = at, Action = _action,
+            QuietMinutes = quiet, RepeatDays = repeat, ThresholdMbps = threshold, GiveUpMinutes = giveUp, OpenOnly = _openOnly,
+        };
+        _note.Text = Hub.AddDownloadPlan(plan)
             ? L.T("ثبت شد.", "Added.")
             : L.T("همین زمان‌بندی قبلاً ثبت شده بود.", "That plan already exists.");
     }
@@ -186,9 +228,11 @@ public sealed class DownloadsPage : PageBase
                 if (Ask(L.T("این زمان‌بندی حذف بشه؟", "Delete this plan?"), $"{p.LauncherName} · {When(p.StartAt)}", L.T("حذف", "Delete"), danger: true))
                     Hub.RemoveDownloadPlan(id);
             });
+            var then = plan.OpenOnly ? L.T("فقط باز کردن", "open only") : Fa.ActionName(plan.Action);
+            var weekly = plan.Repeats ? L.T($" · هر هفته: {Fa.Days(plan.RepeatDays)}", $" · weekly: {Fa.Days(plan.RepeatDays)}") : "";
             var sub = plan.State == PlanState.Running
                 ? L.T("در حال دانلود؛ منتظر تموم شدنش هستم.", "Running; waiting for it to finish.")
-                : L.T($"شروع: {When(plan.StartAt)} · بعدش: {Fa.ActionName(plan.Action)}", $"Starts {When(plan.StartAt)} · then: {Fa.ActionName(plan.Action)}");
+                : L.T($"شروع: {When(plan.StartAt)} · بعدش: {then}{weekly}", $"Starts {When(plan.StartAt)} · then: {then}{weekly}");
             _plans.Children.Add(Row("\uE896", plan.State == PlanState.Running ? "Green" : "Gold", plan.LauncherName, sub, delete));
         }
     }
