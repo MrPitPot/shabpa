@@ -10,7 +10,7 @@ BOT_USERNAME = "ShabPa_Bot"
 [[d1_databases]]
 binding = "DB"
 database_name = "shabpa-relay"
-database_id = "PASTE_D1_DATABASE_ID_HERE"
+database_id = "c28736cc-b216-4532-be97-3a45fa72601a"
 
 # One Durable Object per device holds that device's WebSocket.
 [[durable_objects.bindings]]
