@@ -125,7 +125,10 @@ public sealed class TodoPage : PageBase
         root.Children.Add(listCard);
         Content = root;
 
-        Hub.TasksChanged += () => Dispatcher.BeginInvoke(RefreshList);
+        Hub.TasksChanged += () => Dispatcher.BeginInvoke(() =>
+        {
+            if (IsVisible) RefreshList();
+        });
         ResetForm();
     }
 

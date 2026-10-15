@@ -155,6 +155,8 @@ public static class Health
     /// <summary>"RUNNING", "STOPPED", … from the service control manager, or null if it cannot be read.</summary>
     public static string? ServiceStateNow(string name)
     {
+        // only plain service names reach the command line
+        if (!Regex.IsMatch(name, @"^[A-Za-z0-9_.\-]{1,64}$")) return null;
         try
         {
             using var p = new System.Diagnostics.Process();

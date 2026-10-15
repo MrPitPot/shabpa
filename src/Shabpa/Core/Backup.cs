@@ -134,6 +134,8 @@ public static class Backups
         if (job.Name.Trim().Length == 0) return L.T("اسم نداره.", "It has no name.");
         if (job.Sources.Count == 0) return L.T("هیچ پوشه‌ای برای پشتیبان‌گیری انتخاب نشده.", "No folder is chosen to back up.");
         if (job.Destination.Trim().Length == 0) return L.T("مقصد انتخاب نشده.", "No destination is chosen.");
+        if (!Path.IsPathRooted(job.Destination) || job.Destination.StartsWith("\\\\?\\", StringComparison.Ordinal))
+            return L.T("آدرس مقصد باید کامل باشه (مثلاً D:\\Backup).", "The destination must be a full path (for example D:\\Backup).");
         string dest;
         try { dest = Path.GetFullPath(job.Destination).TrimEnd('\\') + "\\"; }
         catch { return L.T("آدرس مقصد درست نیست.", "The destination path is not valid."); }

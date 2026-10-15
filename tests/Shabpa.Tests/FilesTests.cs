@@ -300,6 +300,14 @@ public class BackupTests
     }
 
     [Fact]
+    public void A_relative_destination_is_refused_so_nothing_is_written_next_to_the_app()
+    {
+        using var src = new TempTree();
+        Assert.NotNull(Backups.Problem(new BackupJob { Name = "x", Sources = [src.Root], Destination = "backups" }));
+        Assert.NotNull(Backups.Problem(new BackupJob { Name = "x", Sources = [src.Root], Destination = @"..\elsewhere" }));
+    }
+
+    [Fact]
     public void The_schedule_says_when_a_run_is_owed()
     {
         var job = new BackupJob { Frequency = BackupFrequency.Daily, Hour = 22, Minute = 0, Created = new DateTime(2026, 10, 10, 9, 0, 0) };

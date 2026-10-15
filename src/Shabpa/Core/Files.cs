@@ -231,7 +231,7 @@ public static class Recycler
     private static extern int SHFileOperation(ref ShFileOp op);
 
     private const uint FoDelete = 3;
-    private const ushort FofSilent = 0x4, FofNoConfirmation = 0x10, FofAllowUndo = 0x40, FofNoErrorUi = 0x400;
+    private const ushort FofAllowUndo = 0x40, FofNoErrorUi = 0x400, FofWantNukeWarning = 0x4000;
 
     /// <summary>Why this path must not be deleted, or null if it may be. Only existing regular files outside protected
     /// folders, and (when given) only inside the folders that were scanned.</summary>
@@ -272,7 +272,7 @@ public static class Recycler
                 results.Add((path, false, refusal));
                 continue;
             }
-            var op = new ShFileOp { wFunc = FoDelete, pFrom = Path.GetFullPath(path) + "\0\0", fFlags = FofAllowUndo | FofNoConfirmation | FofSilent | FofNoErrorUi };
+            var op = new ShFileOp { wFunc = FoDelete, pFrom = Path.GetFullPath(path) + "\0\0", fFlags = FofAllowUndo | FofWantNukeWarning | FofNoErrorUi }; // Windows asks if a file is too big for the bin and would be deleted for good
             var code = SHFileOperation(ref op);
             results.Add((path, code == 0 && !op.fAnyOperationsAborted, code == 0 && !op.fAnyOperationsAborted ? null : $"error {code}"));
         }

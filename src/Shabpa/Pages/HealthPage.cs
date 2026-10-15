@@ -186,18 +186,19 @@ public sealed class SecurityPage : PageBase
     {
         if (_busy) return;
         _busy = true;
+        // the startup comparison touches saved state, so it is done here on the UI thread (a few registry reads)
+        List<StartupChange> changes;
+        try { changes = Hub.CheckStartup(announce: false); }
+        catch (Exception ex)
+        {
+            Log.Write($"startup compare: {ex.Message}");
+            changes = [];
+        }
         _ = Task.Run(() =>
         {
             var reg = new WindowsRegistryProbe();
             var security = Health.Security(reg, Health.ServiceStateNow, Hub.Elevated);
             var startup = Health.Startup(reg, Health.StartupFolders());
-            List<StartupChange> changes;
-            try { changes = Hub.CheckStartup(announce: false); }
-            catch (Exception ex)
-            {
-                Log.Write($"startup compare: {ex.Message}");
-                changes = [];
-            }
             Dispatcher.BeginInvoke(() =>
             {
                 _busy = false;

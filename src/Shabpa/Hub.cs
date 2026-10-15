@@ -202,11 +202,8 @@ public sealed class Hub
             if (!_startupChecked && now - _startedAt > TimeSpan.FromSeconds(45))
             {
                 _startupChecked = true;
-                _ = Task.Run(() =>
-                {
-                    try { CheckStartup(announce: true); }
-                    catch (Exception ex) { Log.Write($"startup watch: {ex.GetType().Name}: {ex.Message}"); }
-                });
+                try { CheckStartup(announce: true); }
+                catch (Exception ex) { Log.Write($"startup watch: {ex.GetType().Name}: {ex.Message}"); }
             }
         }
         var missed = new List<ScheduledCommand>();
@@ -828,7 +825,6 @@ public sealed class Hub
     /// <summary>Reminders for tasks, and the end of focus and break phases.</summary>
     private void RunTasks(DateTime now)
     {
-        if (Focus.Phase != FocusPhase.Idle) TasksChanged?.Invoke(); // keeps the timer on screen ticking
         if (Focus.Tick(now) is { } ended)
         {
             Store.Save();
@@ -1389,6 +1385,11 @@ public sealed class Hub
 
     public void Notify(string title, string text)
     {
+        if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+        {
+            dispatcher.BeginInvoke(() => Notify(title, text));
+            return;
+        }
         Notices.Add((DateTime.Now, title, text));
         if (Notices.Count > 30) Notices.RemoveAt(0);
         Notified?.Invoke(title, text);

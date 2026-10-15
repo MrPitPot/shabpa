@@ -112,6 +112,37 @@ public partial class App : Application
             return;
         }
 
+        // Test aid: sends the app the kinds of commands the bot server can send and records the answers.
+        if (Value(e.Args, "--remote-test") is { } remoteReport)
+        {
+            var log = new System.Text.StringBuilder();
+            var rHub = new Hub(new Store { ReadOnly = true }, true, false);
+            rHub.Tasks.Add("secret doctor appointment", DateTime.Now.AddHours(1));
+            rHub.State.Profiles.Add(new Core.WorkProfile { Name = "Sleepy", Actions = [new Core.ProfileAction { Kind = Core.ActionKinds.PowerLater, Value = 10, Value2 = 0 }] });
+            rHub.State.Profiles.Add(new Core.WorkProfile { Name = "Calm", Actions = [new Core.ProfileAction { Kind = Core.ActionKinds.Breaks, Value = 0 }] });
+            rHub.Settings.ProfilesSeeded = true;
+            System.Text.Json.JsonElement Args(string json) => System.Text.Json.JsonDocument.Parse(json).RootElement.Clone();
+            void Try(string type, string json)
+            {
+                var r = rHub.ExecuteRemote(type, Args(json));
+                log.AppendLine($"{type} {json} -> ok={r.Ok} | {r.En.Replace('\n', ' ')}");
+            }
+            Try("tasks", "{}");
+            rHub.Settings.TasksToBot = true;
+            Try("tasks", "{}");
+            rHub.Settings.TasksToBot = false;
+            Try("profile", "{\"name\":\"Sleepy\"}");
+            Try("profile", "{\"name\":\"Calm\"}");
+            Try("profile", "{\"name\":\"nope\"}");
+            Try("power", "{\"action\":\"format-disk\",\"delaySeconds\":0}");
+            Try("volume", "{}");
+            Try("run-program", "{\"path\":\"calc.exe\"}");
+            Try("focus", "{\"action\":\"stop\"}");
+            File.WriteAllText(remoteReport, log.ToString());
+            Shutdown();
+            return;
+        }
+
         // Test aid: runs a profile against the real volume control, then undoes it, and writes what happened.
         if (Value(e.Args, "--profile-test") is { } profileReport)
         {
