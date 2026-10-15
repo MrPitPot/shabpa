@@ -1,0 +1,8 @@
+name = "shabpa-support"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+# Create the namespace once with: wrangler kv namespace create TICKETS   then paste its id here.
+[[kv_namespaces]]
+binding = "TICKETS"
+id = "PASTE_KV_NAMESPACE_ID_HERE"

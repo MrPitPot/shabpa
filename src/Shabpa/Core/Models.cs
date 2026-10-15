@@ -71,6 +71,8 @@ public sealed class Settings
     public bool GameReports { get; set; } = true;
     /// <summary>Eye comfort (dimming), break reminders and sleep mode.</summary>
     public ComfortSettings Comfort { get; set; } = new();
+    /// <summary>Support tickets: device id, server address, admin key (owner only).</summary>
+    public SupportSettings Support { get; set; } = new();
     /// <summary>Monthly internet allowance in GB; 0 = no limit.</summary>
     public double MonthlyLimitGb { get; set; }
     /// <summary>"yyyy-MM:level" of the last budget warning, so each level is announced once a month.</summary>
@@ -117,4 +119,6 @@ public sealed class AppState
     public List<DownloadPlan> DownloadPlans { get; set; } = [];
     /// <summary>The last games played, newest last (at most 60).</summary>
     public List<GameLogEntry> GameHistory { get; set; } = [];
+    /// <summary>Tickets sent from this PC.</summary>
+    public List<TicketRecord> Tickets { get; set; } = [];
 }

@@ -31,6 +31,8 @@ public sealed class Hub
     public PingMeter Ping { get; }
     public Shaper Shaper { get; } = new();
     public UsageHistory Usage { get; } = new();
+    /// <summary>Support tickets (GitHub link or the project server).</summary>
+    public SupportClient Support { get; }
     public Telemetry Telemetry { get; }
     private readonly GameSessionTracker _session = new();
     private readonly BreakPlanner _breaks = new();
@@ -78,6 +80,8 @@ public sealed class Hub
         Telemetry = new Telemetry(() => Sensors.Latest, () => Ping.Samples);
         Telemetry.UseBoardSensors = Settings.Overlay.BoardSensors && !demo;
         Updater = new Updater(() => Settings);
+        if (Settings.Support.DeviceId.Length != 32) Settings.Support.DeviceId = Guid.NewGuid().ToString("N");
+        Support = new SupportClient(() => Settings.Support, () => Settings.ProxyUrl);
         Bot = new TelegramBot(() => Settings, Store.Save, new BotHost
         {
             Status = () => OnUi(StatusText),
