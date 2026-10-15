@@ -274,8 +274,19 @@ public partial class App : Application
         hub.Changed += () => _tray.Refresh();
         _tray.Refresh();
 
-        if (!args.Contains("--restart") && (args.Contains("--minimized") || hub.Settings.StartMinimized)) return;
-        _window.Show();
+        // Just updated: always come to the front and say so, even if the app normally starts hidden in the tray.
+        var updated = args.Contains("--updated");
+        if (!updated && !args.Contains("--restart") && (args.Contains("--minimized") || hub.Settings.StartMinimized)) return;
+        ShowWindow();
+        if (updated)
+        {
+            // started by the installer, which has no window: without this Windows may only flash the taskbar button
+            _window.Topmost = true;
+            _window.Topmost = false;
+            var version = Updater.Current.ToString(3);
+            hub.Notify(L.T("شب‌پا به‌روز شد", "Shabpa is up to date"),
+                L.T($"نسخه‌ی {Fa.Digits(version)} نصب شد و همه‌ی تنظیماتت سر جاشه.", $"Version {version} is installed and all your settings are kept."));
+        }
     }
 
     public void ShowWindow()

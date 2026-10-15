@@ -116,6 +116,13 @@ public sealed class InstallerTests : IDisposable
     }
 
     [Fact]
+    public void After_an_update_the_app_is_told_so_it_comes_to_the_front()
+    {
+        Assert.Equal("--updated", Installer.LaunchArguments(updated: true));
+        Assert.Equal("", Installer.LaunchArguments(updated: false));
+    }
+
+    [Fact]
     public void Uninstall_removes_everything_it_created()
     {
         Installer.Install(_target, Build("2.0.0", ("Shabpa.exe", "app"), ("sub/x.dll", "x")), new InstallOptions(true, false), null);

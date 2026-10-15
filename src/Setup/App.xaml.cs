@@ -45,7 +45,7 @@ public partial class App : Application
                     var desktop = update ? File.Exists(target.DesktopLink) : !args.Contains("--no-desktop");
                     Installer.Install(target, Installer.EmbeddedPayload(), new InstallOptions(desktop, args.Contains("--autostart")), SelfPath);
                     if (args.Contains("--autostart")) Installer.SetAutostart(target, true);
-                    if (args.Contains("--launch")) Installer.Launch(target);
+                    if (args.Contains("--launch")) Installer.Launch(target, updated: update);
                 }
             }
             catch

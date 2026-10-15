@@ -119,8 +119,12 @@ public static class Installer
         process?.WaitForExit(20000);
     }
 
-    public static void Launch(InstallTarget target) =>
-        Process.Start(new ProcessStartInfo(target.Exe) { UseShellExecute = true, WorkingDirectory = target.Dir });
+    /// <summary>Starts the installed app. After an update it gets "--updated", so it comes to the front (even when it
+    /// normally starts hidden next to the clock) and says which version it is now.</summary>
+    public static void Launch(InstallTarget target, bool updated = false) =>
+        Process.Start(new ProcessStartInfo(target.Exe, LaunchArguments(updated)) { UseShellExecute = true, WorkingDirectory = target.Dir });
+
+    public static string LaunchArguments(bool updated) => updated ? "--updated" : "";
 
     /// <summary>Removes everything the installer and the app created. The folder itself is deleted by a
     /// short-lived helper once this process (which lives in it) has exited.</summary>
