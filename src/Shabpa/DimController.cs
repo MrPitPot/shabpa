@@ -33,6 +33,8 @@ public sealed class DimController : IDisposable
     /// <summary>When set (sleep mode), this level is used and the screen is dimmed whatever the settings say.</summary>
     public double? Override { get; set; }
     public bool Active { get; private set; }
+    /// <summary>How many times the cover was drawn from scratch; repeated Apply calls must not add to it.</summary>
+    public int Builds { get; private set; }
     public IReadOnlyList<string> FailedHotkeys { get; private set; } = [];
 
     public DimController(Hub hub)
@@ -107,8 +109,9 @@ public sealed class DimController : IDisposable
         }
         var shape = $"{level:0.000}|{S.DimWarm}|{string.Join(';', WF.Screen.AllScreens.Select(s => s.Bounds.ToString()))}";
         if (shape == _shape && _windows.Count > 0) return;
+        Close(); // clears _shape, so remember the new one only afterwards or every call would rebuild the layer
         _shape = shape;
-        Close();
+        Builds++;
         // Warm cover: a hint of amber keeps blue light down on top of simply being darker.
         var colour = S.DimWarm ? Color.FromRgb(38, 14, 0) : Colors.Black;
         foreach (var screen in WF.Screen.AllScreens)

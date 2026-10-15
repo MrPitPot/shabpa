@@ -328,6 +328,7 @@ public partial class App : Application
         double before = 0, dimmed = 0;
         steps.Enqueue(() => { before = Brightness(); dim.Apply(); log.AppendLine($"hotkey failed: [{string.Join(",", dim.FailedHotkeys)}]"); });
         steps.Enqueue(() => { Press(); });          // toggles on (it was off)
+        steps.Enqueue(() => { var built = dim.Builds; dim.Apply(); dim.Apply(); dim.Apply(); log.AppendLine($"flicker check: builds {built} -> {dim.Builds} after 3 more Apply calls (must be equal)"); });
         steps.Enqueue(() => { dimmed = Brightness(); log.AppendLine($"active after hotkey={dim.Active} before={before:0.0} dimmed={dimmed:0.0}"); Press(); }); // toggles off
         steps.Enqueue(() => { var back = Brightness(); log.AppendLine($"active after second hotkey={dim.Active} back={back:0.0}"); });
         var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
