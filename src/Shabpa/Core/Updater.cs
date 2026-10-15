@@ -187,6 +187,26 @@ public sealed class Updater
         }
 
         Set(UpdateState.Installing);
+        FileStream hold;
+        try
+        {
+            // Keep the file open (nobody else may write or replace it) and check it once more right before it runs;
+            // the temp folder is writable by any program of this user and the installer runs elevated.
+            hold = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using var check = SHA256.Create();
+            var actual = Convert.ToHexString(check.ComputeHash(hold)).ToLowerInvariant();
+            if (info.Sha256 is not { Length: > 0 } expected || actual != expected)
+            {
+                hold.Dispose();
+                Set(UpdateState.Error, L.T("فایل دانلودشده تغییر کرده بود و اجرا نشد.", "The downloaded file had changed and was not run."));
+                return Error;
+            }
+        }
+        catch (IOException)
+        {
+            Set(UpdateState.Error, L.T("فایل به‌روزرسانی در دسترس نیست.", "The update file is not available."));
+            return Error;
+        }
         try
         {
             // --update keeps the user's shortcut and start-up choices; --launch starts the new version.
@@ -199,6 +219,7 @@ public sealed class Updater
         }
         catch (System.ComponentModel.Win32Exception)
         {
+            hold.Dispose();
             var message = L.T("نصب به تأیید ادمین نیاز داشت و انجام نشد.", "Installing needed administrator approval and was cancelled.");
             Set(UpdateState.Available, message);
             return message;
@@ -243,7 +264,12 @@ public sealed class Updater
     /// <summary>The file must match the published checksum and actually be a Shabpa installer.</summary>
     internal static void Verify(string file, string? sha256)
     {
-        if (sha256 is { Length: > 0 })
+        // No published checksum, no install: an unverifiable file is never run (it would run elevated).
+        if (sha256 is not { Length: > 0 })
+        {
+            File.Delete(file);
+            throw new InvalidDataException(L.T("برای این نسخه چک‌سام منتشر نشده و نصب نشد.", "No checksum was published for this version; it was not installed."));
+        }
         {
             string actual;
             using (var stream = File.OpenRead(file))

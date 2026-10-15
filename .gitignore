@@ -5,3 +5,4 @@ dist/
 *.user
 .vs/
 PROJECT_STATUS.md
+*.log

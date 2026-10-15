@@ -547,6 +547,15 @@ public sealed class Hub
                 }
                 if (State.ActiveRule is not null || CountdownActive) continue; // try again next second
 
+                // The path comes from a file the user's other programs can write; Shabpa may be running elevated, so
+                // only a launcher that is really installed (found again right now) is ever started.
+                if (!DryRun && !LauncherDetector.Detect().Any(l => string.Equals(l.ExePath, plan.ExePath, StringComparison.OrdinalIgnoreCase)))
+                {
+                    EndPlan(plan, now);
+                    Notify(L.T("لانچر باز نشد", "Could not open the launcher"),
+                        L.T($"«{plan.LauncherName}» دیگه جای شناخته‌شده‌ش نیست؛ دوباره لانچرها رو پیدا کن.", $"“{plan.LauncherName}” is no longer where it was found; search for launchers again."));
+                    continue;
+                }
                 if (!DryRun)
                 {
                     try

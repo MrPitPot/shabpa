@@ -41,6 +41,7 @@ public sealed class TelegramBot : IDisposable
     private CancellationTokenSource? _cts;
     private HttpClient? _http;
     private int _wrongCodes;
+    private DateTime _pairLockUntil = DateTime.MinValue;
 
     public BotState State { get; private set; } = BotState.Off;
     public string Detail { get; private set; } = "";
@@ -219,6 +220,7 @@ public sealed class TelegramBot : IDisposable
         {
             if (settings.TelegramChatId != 0) return L.T("این ربات به حساب دیگه‌ای وصله.", "This bot is linked to another account.");
             if (stale) return null;
+            if (DateTime.Now < _pairLockUntil) return null; // too many wrong codes: silent for a while
             var candidate = text.Trim().Split(' ')[^1];
             if (candidate == PairCode)
             {
@@ -235,6 +237,7 @@ public sealed class TelegramBot : IDisposable
             {
                 _wrongCodes = 0;
                 PairCode = NewCode();
+                _pairLockUntil = DateTime.Now.AddMinutes(10);
                 Changed?.Invoke();
             }
             return L.T("برای اتصال، کد ۶ رقمی‌ای که توی شب‌پا می‌بینی رو بفرست.", "To connect, send the 6-digit code shown in Shabpa.");

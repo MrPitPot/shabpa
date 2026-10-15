@@ -75,6 +75,15 @@ public class UpdaterTests
     }
 
     [Fact]
+    public void A_file_without_a_published_checksum_is_never_accepted()
+    {
+        var file = Path.Combine(Path.GetTempPath(), $"shabpa-update-{Guid.NewGuid():N}.exe");
+        File.WriteAllText(file, "anything");
+        Assert.Throws<InvalidDataException>(() => Updater.Verify(file, ""));
+        Assert.False(File.Exists(file));
+    }
+
+    [Fact]
     public void The_bot_understands_update()
     {
         Assert.Equal(BotCommand.Update, TelegramBot.Parse("به‌روزرسانی"));
