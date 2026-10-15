@@ -186,6 +186,15 @@ public static class Diagnostics
                    + ((gpu as AmdGpu)?.DumpSensors() is { Length: > 0 } dump ? " | sensors: " + dump : "");
         });
 
+        Line("weather (Open-Meteo)", () =>
+        {
+            var client = new WeatherClient(() => "");
+            var found = client.SearchAsync("Tehran", persian: false).GetAwaiter().GetResult();
+            if (found.Count == 0) return "search returned nothing";
+            var report = client.ForecastAsync(found[0]).GetAwaiter().GetResult();
+            return $"{found.Count} suggestions; {report.City.Title}: {report.Now.Temp:0.#} C, code {report.Now.Code}, {report.Hours.Count} hours, {report.Days.Count} days";
+        });
+
         Line("launchers", () => string.Join(", ", LauncherDetector.Detect().Select(l => l.Name)) is { Length: > 0 } names ? names : "none found");
 
         Line("advanced sensors", () =>

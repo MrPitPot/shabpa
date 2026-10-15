@@ -62,7 +62,7 @@ public sealed class DnsPage : PageBase
         root.Children.Add(listCard);
 
         var (manualCard, manual) = Ui2.Card(L.T("دی‌ان‌اس دلخواه", "Your own DNS"),
-            L.T("آدرس IPv4 دی‌ان‌اس رو بنویس. می‌تونی فقط اعمالش کنی یا توی لیست هم ذخیره کنی.", "Type IPv4 addresses. You can apply it only, or save it to the list too."));
+            L.T("آدرس IPv4 دی‌ان‌اس رو بنویس. «اعمال» فقط ثبتش می‌کنه، «فقط اضافه به لیست» فقط توی لیست نگه می‌داره و چیزی روی سیستم عوض نمی‌شه.", "Type IPv4 addresses. “Apply” only sets it; “Add to list only” just keeps it in the list and changes nothing on the system."));
         manual.Children.Add(Ui2.Label(L.T("نام (برای ذخیره)", "Name (to save)")));
         manual.Children.Add(new StackPanel { Children = { _name }, HorizontalAlignment = HorizontalAlignment.Left });
         manual.Children.Add(Ui2.Label(L.T("دی‌ان‌اس اصلی", "Primary DNS")));
@@ -70,9 +70,9 @@ public sealed class DnsPage : PageBase
         manual.Children.Add(Ui2.Label(L.T("دی‌ان‌اس دوم (اختیاری)", "Secondary DNS (optional)")));
         manual.Children.Add(new StackPanel { Children = { _dns2 }, HorizontalAlignment = HorizontalAlignment.Left });
         var applyOwn = new Button { Style = St("BtnPrimary"), Content = L.T("اعمال", "Apply"), Padding = new Thickness(18, 9, 18, 9), Margin = new Thickness(0, 0, 8, 0) };
-        applyOwn.Click += (_, _) => ApplyOwn(save: false);
-        var saveOwn = new Button { Style = St("Btn"), Content = L.T("ذخیره در لیست و اعمال", "Save to list and apply"), Padding = new Thickness(18, 9, 18, 9) };
-        saveOwn.Click += (_, _) => ApplyOwn(save: true);
+        applyOwn.Click += (_, _) => ApplyOwn();
+        var saveOwn = new Button { Style = St("Btn"), Content = L.T("فقط اضافه به لیست", "Add to list only"), Padding = new Thickness(18, 9, 18, 9) };
+        saveOwn.Click += (_, _) => AddOwn();
         manual.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 14, 0, 0), Children = { applyOwn, saveOwn } });
         root.Children.Add(manualCard);
 
@@ -139,51 +139,88 @@ public sealed class DnsPage : PageBase
             return;
         }
 
+        _rows.Children.Add(Columns(header: true, null, 0));
+        var number = 0;
         foreach (var entry in entries)
         {
-            var grid = new Grid { Margin = new Thickness(0, 3, 0, 3), FlowDirection = Flow };
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2.2, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-            var name = new TextBlock { Text = entry.Name, Style = St("Body"), FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, FlowDirection = FlowDirection.LeftToRight, HorizontalAlignment = L.En ? HorizontalAlignment.Left : HorizontalAlignment.Right };
-            var addr = new TextBlock
-            {
-                Text = entry.Secondary.Length > 0 ? $"{entry.Primary}   {entry.Secondary}" : entry.Primary,
-                Style = St("Label"), FontFamily = (FontFamily)Application.Current.Resources["Num"], FlowDirection = FlowDirection.LeftToRight,
-                VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Left,
-            };
-            var key = Key(entry);
-            var pingText = new TextBlock { VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeights.SemiBold, FlowDirection = FlowDirection.LeftToRight, HorizontalAlignment = HorizontalAlignment.Left };
-            ShowPing(pingText, key);
-            var apply = new Button { Style = St("Btn"), Content = L.T("اعمال", "Apply"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(4, 0, 0, 0) };
-            var captured = entry;
-            apply.Click += (_, _) => ApplyDns(captured.Name, captured.Primary, captured.Secondary);
-            var buttons = new StackPanel { Orientation = Orientation.Horizontal, Children = { apply } };
-            if (entry.IsCustom)
-            {
-                var remove = IconButton("", L.T("حذف از لیست", "Remove"), () =>
-                {
-                    if (!Ask(L.T("این دی‌ان‌اس از لیست حذف بشه؟", "Remove this DNS from the list?"), entry.Name, L.T("حذف", "Remove"), danger: true)) return;
-                    Hub.Settings.CustomDns.Remove(captured);
-                    Hub.Store.Save();
-                    DrawRows();
-                });
-                buttons.Children.Add(remove);
-            }
-
-            Grid.SetColumn(name, 0);
-            Grid.SetColumn(addr, 1);
-            Grid.SetColumn(pingText, 2);
-            Grid.SetColumn(buttons, 3);
-            grid.Children.Add(name);
-            grid.Children.Add(addr);
-            grid.Children.Add(pingText);
-            grid.Children.Add(buttons);
-            _rows.Children.Add(grid);
+            number++;
+            _rows.Children.Add(Columns(header: false, entry, number));
             _rows.Children.Add(new Border { Height = 1, Background = Res("Line"), Opacity = 0.5 });
         }
+    }
+
+    private static string GroupName(string key) => key switch
+    {
+        "iran" => L.T("ایران", "Iran"),
+        "global" => L.T("عمومی", "Public"),
+        "secure" => L.T("امنیتی", "Secure"),
+        "custom" => L.T("من", "Mine"),
+        _ => key,
+    };
+
+    /// <summary>One table row: # · name · DNS 1 · DNS 2 · ping · type · actions (or the header when <paramref name="header"/>).</summary>
+    private Grid Columns(bool header, DnsEntry? entry, int number)
+    {
+        var grid = new Grid { Margin = new Thickness(0, header ? 4 : 3, 0, header ? 6 : 3), FlowDirection = Flow };
+        foreach (var width in new[] { 34.0, 190.0, 125.0, 125.0, 78.0, 80.0 })
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(width) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        TextBlock Cell(string text, int column, bool ltr = false, bool bold = false)
+        {
+            var t = new TextBlock
+            {
+                Text = text, Style = St(header ? "Label" : bold ? "Body" : "Label"), VerticalAlignment = VerticalAlignment.Center,
+                FontWeight = bold || header ? FontWeights.SemiBold : FontWeights.Normal, TextTrimming = TextTrimming.CharacterEllipsis,
+                Margin = new Thickness(4, 0, 4, 0),
+            };
+            if (ltr)
+            {
+                t.FlowDirection = FlowDirection.LeftToRight;
+                t.HorizontalAlignment = HorizontalAlignment.Left;
+                if (!header) t.FontFamily = (FontFamily)Application.Current.Resources["Num"];
+            }
+            Grid.SetColumn(t, column);
+            grid.Children.Add(t);
+            return t;
+        }
+
+        if (header)
+        {
+            Cell("#", 0);
+            Cell(L.T("نام", "Name"), 1);
+            Cell("DNS 1", 2, ltr: true);
+            Cell("DNS 2", 3, ltr: true);
+            Cell(L.T("پینگ", "Ping"), 4, ltr: true);
+            Cell(L.T("نوع", "Type"), 5);
+            return grid;
+        }
+
+        var e = entry!;
+        Cell(Fa.Digits(number.ToString()), 0);
+        var name = Cell(e.Name, 1, bold: true);
+        name.FlowDirection = FlowDirection.LeftToRight;
+        name.HorizontalAlignment = L.En ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+        Cell(e.Primary, 2, ltr: true);
+        Cell(e.Secondary.Length > 0 ? e.Secondary : "—", 3, ltr: true);
+        var pingText = Cell("", 4, ltr: true, bold: true);
+        ShowPing(pingText, Key(e));
+        Cell(GroupName(e.Group), 5);
+
+        var apply = new Button { Style = St("Btn"), Content = L.T("اعمال", "Apply"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(4, 0, 0, 0) };
+        apply.Click += (_, _) => ApplyDns(e.Name, e.Primary, e.Secondary);
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Children = { apply } };
+        if (e.IsCustom)
+            buttons.Children.Add(IconButton("", L.T("حذف از لیست", "Remove"), () =>
+            {
+                if (!Ask(L.T("این دی‌ان‌اس از لیست حذف بشه؟", "Remove this DNS from the list?"), e.Name, L.T("حذف", "Remove"), danger: true)) return;
+                Hub.Settings.CustomDns.Remove(e);
+                Hub.Store.Save();
+                DrawRows();
+            }));
+        Grid.SetColumn(buttons, 6);
+        grid.Children.Add(buttons);
+        return grid;
     }
 
     private static string Key(DnsEntry e) => e.Primary + "/" + e.Secondary;
@@ -269,24 +306,39 @@ public sealed class DnsPage : PageBase
         }
     }
 
-    private void ApplyOwn(bool save)
+    /// <summary>Reads and checks the manual fields; false (with a message) when they are not valid IPv4 addresses.</summary>
+    private bool ReadOwn(out string a, out string b, out string name)
     {
-        var a = _dns1.Text.Trim();
-        var b = _dns2.Text.Trim();
-        if (!DnsCatalog.TryParseIPv4(Latin(a), out _) || (b.Length > 0 && !DnsCatalog.TryParseIPv4(Latin(b), out _)))
+        a = Latin(_dns1.Text.Trim());
+        b = Latin(_dns2.Text.Trim());
+        name = _name.Text.Trim().Length > 0 ? _name.Text.Trim() : a;
+        if (DnsCatalog.TryParseIPv4(a, out _) && (b.Length == 0 || DnsCatalog.TryParseIPv4(b, out _))) return true;
+        _status.Text = L.T("آدرس‌ها باید IPv4 درست باشن؛ مثل 1.1.1.1", "Addresses must be valid IPv4, like 1.1.1.1");
+        _status.Foreground = Res("Red");
+        return false;
+    }
+
+    private void ApplyOwn()
+    {
+        if (ReadOwn(out var a, out var b, out var name)) ApplyDns(name, a, b);
+    }
+
+    /// <summary>Only keeps the entry in the list: no change is made to the system.</summary>
+    private void AddOwn()
+    {
+        if (!ReadOwn(out var a, out var b, out var name)) return;
+        if (Hub.Settings.CustomDns.Any(e => e.Primary == a && e.Secondary == b) || DnsCatalog.All.Any(e => e.Primary == a && e.Secondary == b))
         {
-            _status.Text = L.T("آدرس‌ها باید IPv4 درست باشن؛ مثل 1.1.1.1", "Addresses must be valid IPv4, like 1.1.1.1");
-            _status.Foreground = Res("Red");
+            _status.Foreground = Res("Muted");
+            _status.Text = L.T("این دی‌ان‌اس قبلاً توی لیست هست.", "That DNS is already in the list.");
             return;
         }
-        a = Latin(a);
-        b = Latin(b);
-        var name = _name.Text.Trim().Length > 0 ? _name.Text.Trim() : a;
-        if (!ApplyDns(name, a, b)) return;
-        if (!save) return;
-        if (Hub.Settings.CustomDns.Any(e => e.Primary == a && e.Secondary == b)) return;
         Hub.Settings.CustomDns.Add(new DnsEntry { Name = name, Primary = a, Secondary = b, Group = "custom" });
         Hub.Store.Save();
+        _status.Foreground = Res("Green");
+        _status.Text = L.T($"«{name}» به لیست اضافه شد (اعمال نشد).", $"“{name}” was added to the list (not applied).");
+        _group = "all";
+        DrawGroupChips();
         DrawRows();
     }
 

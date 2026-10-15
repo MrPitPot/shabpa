@@ -47,13 +47,7 @@ public partial class HomePage : PageBase
     public override void Refresh()
     {
         var now = DateTime.Now;
-        Greeting.Text = now.Hour switch
-        {
-            >= 5 and < 12 => L.T("صبح بخیر", "Good morning"),
-            >= 12 and < 17 => L.T("ظهر بخیر", "Good afternoon"),
-            >= 17 and < 21 => L.T("عصر بخیر", "Good evening"),
-            _ => L.T("شب بخیر", "Good night"),
-        };
+        Greeting.Text = Greetings.Pick(now);
         DateText.Text = L.T($"{Fa.DayName(now.DayOfWeek)} {Fa.Date(now)} · ساعت {Fa.Clock(now)}", $"{Fa.DayName(now.DayOfWeek)}, {Fa.Date(now)} · {Fa.Clock(now)}");
 
         NextPanel.Children.Clear();

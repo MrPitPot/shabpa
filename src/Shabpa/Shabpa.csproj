@@ -11,7 +11,7 @@
     <RootNamespace>Shabpa</RootNamespace>
     <ApplicationIcon>Assets\shabpa.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>2.4.0</Version>
+    <Version>2.5.0</Version>
     <Product>Shabpa</Product>
     <Company>Mr.PitPot</Company>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>

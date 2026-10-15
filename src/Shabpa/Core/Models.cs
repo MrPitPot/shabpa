@@ -79,6 +79,8 @@ public sealed class Settings
     public bool LaunchersScanned { get; set; }
     /// <summary>DNS servers the user added to the list.</summary>
     public List<DnsEntry> CustomDns { get; set; } = [];
+    /// <summary>The city shown on the weather page.</summary>
+    public WeatherCity? WeatherCity { get; set; }
     public string RecorderProcesses { get; set; } = "obs64, obs32, obs, Streamlabs OBS, bdcam, CamtasiaStudio, CamRecorder, XSplit.Core, Action, ShareX, ffmpeg";
     public string TelegramTokenProtected { get; set; } = "";
     public long TelegramChatId { get; set; }

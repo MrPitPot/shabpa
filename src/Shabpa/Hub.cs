@@ -843,6 +843,7 @@ public sealed class Hub
             new LauncherInfo { Key = "epic", Name = "Epic Games", ExePath = @"C:\Program Files (x86)\Epic Games\Launcher\Portal\Binaries\Win64\EpicGamesLauncher.exe", Process = "epicgameslauncher" },
         ];
         Settings.LaunchersScanned = true;
+        Settings.WeatherCity = new WeatherCity { Name = "تهران", Region = "استان تهران", Country = "ایران", Latitude = 35.69, Longitude = 51.42 };
         State.DownloadPlans =
         [
             new DownloadPlan
