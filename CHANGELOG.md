@@ -1,0 +1,27 @@
+# Changelog
+
+## How versions are numbered
+
+`MAJOR.MINOR.PATCH`, applied strictly from 3.0.1 on:
+
+- **PATCH** (3.0.1 → 3.0.2): fixes only, no new features.
+- **MINOR** (3.0 → 3.1): a planned batch of new features, released only after it has been tested for a while.
+  Work in progress collects under "Unreleased" below; one minor release, not one per feature.
+- **MAJOR** (3 → 4): only for a real break (settings or data that older versions cannot read, Windows support
+  dropped, and the like). Not expected any time soon.
+- Test builds can be shared as GitHub pre-releases (`3.1.0-beta.1`); the in-app updater only offers full releases.
+
+The 2.x and 3.0 line moved quickly while the app was taking shape; from here on releases are fewer and larger.
+
+## Unreleased (planned 3.1.0)
+
+- Telegram control goes through the project's bot, @ShabPa_Bot: press "Connect to the bot", send the one-time
+  code to the bot, done. Personal bot tokens are no longer accepted.
+
+## 3.0.1
+
+- Screen dimming no longer flashes back to full brightness once a second.
+
+## 3.0.0 and earlier
+
+See the [GitHub releases](https://github.com/MrPitPot/shabpa/releases).
