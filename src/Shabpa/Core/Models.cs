@@ -77,6 +77,8 @@ public sealed class Settings
     /// <summary>The launchers found the last time the user asked Shabpa to look.</summary>
     public List<LauncherInfo> Launchers { get; set; } = [];
     public bool LaunchersScanned { get; set; }
+    /// <summary>DNS servers the user added to the list.</summary>
+    public List<DnsEntry> CustomDns { get; set; } = [];
     public string RecorderProcesses { get; set; } = "obs64, obs32, obs, Streamlabs OBS, bdcam, CamtasiaStudio, CamRecorder, XSplit.Core, Action, ShareX, ffmpeg";
     public string TelegramTokenProtected { get; set; } = "";
     public long TelegramChatId { get; set; }

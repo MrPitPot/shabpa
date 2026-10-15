@@ -23,6 +23,7 @@
 - **تاریخچه‌ی مصرف اینترنت:** مصرف هر برنامه به تفکیک ساعت و روز، با بازه‌ی امروز، دیروز، ۷ و ۳۰ روز، این ماه و همه؛ و هشدار سقف حجم ماهانه.
 - **اورلی بازی:** فریم بر ثانیه، ۱٪ پایین، نمودار FPS، دما/کلاک/توان/ولتاژ/فن کارت گرافیک، بار و فرکانس پردازنده، رم و پینگ و سرعت شبکه روی بازی؛ ۶ طرح، رنگ و اندازه‌ی کاملاً دلخواه، میان‌بر کیبورد. چیزی داخل بازی تزریق نمی‌شه.
 - **وضعیت زنده‌ی سیستم** توی صفحه‌ی خانه: کارت گرافیک، پردازنده، حافظه و شبکه با نام قطعه و مقدار درگیری (AMD و NVIDIA).
+- **دی‌ان‌اس:** لیست آماده‌ی دی‌ان‌اس‌ها (ایران و دور زدن تحریم، عمومی، امنیتی) با پینگ زنده، اعمال روی کارت شبکه با تایید از ویندوز، برگشت به حالت خودکار و افزودن دی‌ان‌اس دلخواه.
 - **دانلود زمان‌بندی‌شده:** لانچرهای نصب‌شده (Steam، Epic، Riot، EA، Ubisoft، GOG، Battle.net) رو با اجازه‌ی خودت پیدا می‌کنه، توی ساعت مشخص بازشون می‌کنه و وقتی دانلود تموم شد سیستم رو خاموش (یا خواب) می‌کنه.
 - **حسگرهای پیشرفته (اختیاری):** دمای واقعی CPU، دور و درصد فن CPU و داده‌های کارت‌های هر برند، با دسترسی ادمین و درایور PawnIO.
 - **گزارش بعد از بازی:** مدت، میانگین فریم، پینگ، دمای کارت و حجم اینترنت بازی.
@@ -83,6 +84,7 @@ bash build-installer.sh           # ساخت installer/ShabpaSetup.exe
 - **usage history:** per-app internet use by hour and day over any period, plus a monthly allowance warning;
 - **in-game overlay:** FPS, 1 % low, GPU temperature/clock/power, CPU, RAM and ping, in six layouts with fully custom colours, size and position; nothing is injected into games;
 - **live system status** on the home page: graphics card, processor, memory and network with part names and load (AMD, NVIDIA);
+- **DNS:** a ready list of DNS servers (Iran / sanction bypass, public, secure) with live ping, apply to your adapter (confirmed by Windows), back to automatic, and your own entries;
 - **scheduled download:** finds installed launchers (Steam, Epic, Riot, EA, Ubisoft, GOG, Battle.net) with your permission, opens one at a set time and shuts the PC down when its download is done;
 - **advanced sensors (optional):** real CPU temperature, CPU fan speed and any-brand graphics-card readings, with administrator rights and the PawnIO driver;
 - **game report** after each session, **RAM cleanup**, and an explicit confirmation (with the exact time) before anything is scheduled, deleted or run;

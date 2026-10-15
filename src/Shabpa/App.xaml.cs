@@ -77,6 +77,33 @@ public partial class App : Application
             return;
         }
 
+        // Test aid (needs admin): sets a DNS on the main adapter, reads it back, then restores what was there.
+        if (Value(e.Args, "--dns-test") is { } dnsReport)
+        {
+            var log = new System.Text.StringBuilder();
+            var adapters = Core.DnsConfig.Adapters();
+            foreach (var a in adapters) log.AppendLine($"adapter {a.Name} #{a.Index} main={a.IsLikelyMain} auto={a.IsAutomatic} dns=[{string.Join(", ", a.Servers)}]");
+            var main = adapters.FirstOrDefault(a => a.IsLikelyMain) ?? adapters.FirstOrDefault();
+            if (main is null) log.AppendLine("no adapter");
+            else
+            {
+                var before = main;
+                var pings = Core.DnsCatalog.All.Take(12).Select(d => (d, ms: Task.Run(() => Core.DnsProbe.PingAsync(d.Primary)).GetAwaiter().GetResult())).ToList();
+                foreach (var (d, ms) in pings) log.AppendLine($"ping {d.Name} {d.Primary}: {(ms is null ? "timeout" : $"{ms:0} ms")}");
+                log.AppendLine($"elevated={Core.Elevation.IsElevated}");
+                log.AppendLine("apply 1.1.1.1/1.0.0.1: " + (Core.DnsConfig.Apply(main, "1.1.1.1", "1.0.0.1") ?? "OK (read back)"));
+                var mid = Core.DnsConfig.Adapters().First(a => a.Index == main.Index);
+                log.AppendLine($"now: auto={mid.IsAutomatic} dns=[{string.Join(", ", mid.Servers)}]");
+                var restore = before.IsAutomatic ? [] : before.Servers;
+                log.AppendLine("restore: " + (Core.DnsConfig.Apply(main, restore) ?? "OK (read back)"));
+                var after = Core.DnsConfig.Adapters().First(a => a.Index == main.Index);
+                log.AppendLine($"after: auto={after.IsAutomatic} dns=[{string.Join(", ", after.Servers)}]");
+            }
+            File.WriteAllText(dnsReport, log.ToString());
+            Shutdown();
+            return;
+        }
+
         // Used by the installer: switch start-with-Windows on or off for this exe, then exit.
         if (Value(e.Args, "--autostart") is { } autostart)
         {
