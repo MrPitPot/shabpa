@@ -69,6 +69,8 @@ public sealed class Settings
     public OverlaySettings Overlay { get; set; } = new();
     /// <summary>After a game of at least a few minutes, show how it went (and send it to Telegram).</summary>
     public bool GameReports { get; set; } = true;
+    /// <summary>Eye comfort (dimming), break reminders and sleep mode.</summary>
+    public ComfortSettings Comfort { get; set; } = new();
     /// <summary>Monthly internet allowance in GB; 0 = no limit.</summary>
     public double MonthlyLimitGb { get; set; }
     /// <summary>"yyyy-MM:level" of the last budget warning, so each level is announced once a month.</summary>
@@ -113,4 +115,6 @@ public sealed class AppState
     public List<AppLimit> NetLimits { get; set; } = [];
     public NetUsage? NetUsage { get; set; }
     public List<DownloadPlan> DownloadPlans { get; set; } = [];
+    /// <summary>The last games played, newest last (at most 60).</summary>
+    public List<GameLogEntry> GameHistory { get; set; } = [];
 }

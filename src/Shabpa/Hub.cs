@@ -33,6 +33,16 @@ public sealed class Hub
     public UsageHistory Usage { get; } = new();
     public Telemetry Telemetry { get; }
     private readonly GameSessionTracker _session = new();
+    private readonly BreakPlanner _breaks = new();
+    private readonly WakeTimer _wake = new();
+    private bool _holdingAwake;
+    private DateTime _lastWakeCheck = DateTime.MinValue;
+    private DateTime? _volumeRestoreAt;
+    /// <summary>Dims the screen (null in screenshot runs).</summary>
+    public DimController? Dim { get; private set; }
+    /// <summary>Eye comfort, break reminders, sleep mode or the game history changed.</summary>
+    public event Action? ComfortUpdated;
+    public void ComfortChanged() => ComfortUpdated?.Invoke();
     /// <summary>The window drawn over games; null in screenshot runs.</summary>
     public OverlayWindow? Overlay { get; set; }
     /// <summary>Overlay settings changed (layout, colours, position, mode).</summary>
@@ -108,6 +118,18 @@ public sealed class Hub
             Telemetry.Updated += OnTelemetryForReport;
             Telemetry.Start();
         }
+        if (!Demo)
+        {
+            Dim = new DimController(this);
+            Dim.Apply();
+            // Sleep mode lowered the volume and the PC was switched off before it could be put back.
+            if (Settings.Comfort.PendingVolume is { } pending)
+            {
+                MasterVolume.Set(pending);
+                Settings.Comfort.PendingVolume = null;
+                Store.Save();
+            }
+        }
         _clock.Tick += (_, _) => OnSecond();
         _clock.Start();
         Bot.Restart();
@@ -124,6 +146,13 @@ public sealed class Hub
     public void Shutdown()
     {
         _clock.Stop();
+        if (_sleepStart is not null && _sleepVolume is { } startVolume)
+        {
+            MasterVolume.Set(startVolume);
+            Settings.Comfort.PendingVolume = null;
+        }
+        Dim?.Dispose();
+        _wake.Dispose();
         Sensors.Dispose();
         Telemetry.Dispose();
         Bot.Dispose();
@@ -171,6 +200,7 @@ public sealed class Hub
         CheckForUpdates(now);
         CheckBudget(now);
         RunDownloadPlans(now);
+        RunComfort(now);
 
         if (now - _lastSave > TimeSpan.FromMinutes(1))
         {
@@ -403,6 +433,10 @@ public sealed class Hub
 
     private void AnnounceReport(GameReport report)
     {
+        State.GameHistory.Add(GameLogEntry.From(report));
+        if (State.GameHistory.Count > 60) State.GameHistory.RemoveRange(0, State.GameHistory.Count - 60);
+        Store.Save();
+        ComfortUpdated?.Invoke();
         var text = DescribeReport(report);
         Notify(L.T("گزارش بازی", "Game report"), text);
         Bot.Notify(text);
@@ -476,6 +510,128 @@ public sealed class Hub
             Bot.Notify(error ?? L.T("🔄 نصب شروع شد. شب‌پا چند ثانیه بسته می‌شه و با نسخه‌ی جدید برمی‌گرده.", "🔄 Installing. Shabpa closes for a few seconds and comes back on the new version."));
         });
         return L.T("🔎 در حال بررسی به‌روزرسانی…", "🔎 Checking for updates…");
+    }
+
+    // ---- comfort: dimming, break reminders, sleep mode, waking for downloads ----------------------
+
+    private DateTime? _sleepStart;
+    private TimeSpan _sleepLength;
+    private double? _sleepVolume;
+    private double _sleepDim;
+
+    public bool SleepActive => _sleepStart is not null;
+    public DateTime? SleepEndsAt => _sleepStart is { } s ? s + _sleepLength : null;
+
+    /// <summary>Begins fading the volume and the screen out; the chosen power action runs at the end.</summary>
+    public void StartSleepMode()
+    {
+        if (SleepActive) return;
+        var c = Settings.Comfort;
+        _sleepLength = TimeSpan.FromMinutes(Math.Clamp(c.SleepMinutes, 1, 600));
+        _sleepStart = DateTime.Now;
+        _sleepVolume = c.SleepVolume ? MasterVolume.Get() : null;
+        _sleepDim = Dim is { Active: true } ? c.DimLevel : 0.05;
+        if (_sleepVolume is { } v)
+        {
+            c.PendingVolume = v;
+            Store.Save();
+        }
+        ComfortUpdated?.Invoke();
+    }
+
+    public void CancelSleepMode()
+    {
+        if (!SleepActive) return;
+        _sleepStart = null;
+        if (_sleepVolume is { } v)
+        {
+            MasterVolume.Set(v);
+            Settings.Comfort.PendingVolume = null;
+            Store.Save();
+        }
+        _sleepVolume = null;
+        if (Dim is not null)
+        {
+            Dim.Override = null;
+            Dim.Apply();
+        }
+        ComfortUpdated?.Invoke();
+    }
+
+    private void RunComfort(DateTime now)
+    {
+        if (Demo) return;
+        var c = Settings.Comfort;
+        Dim?.Apply();
+
+        // break reminders: only time the person is really at the PC counts
+        var active = UserIdle.Since() < TimeSpan.FromMinutes(2);
+        if (_breaks.Tick(now, active, Snapshot.GameRunning, c, L.En) is { } nudge)
+            Notify(L.T("وقت یه استراحته", "Break time"), nudge);
+
+        // sleep mode: volume and screen fade out, then the power action
+        if (_sleepStart is { } start)
+        {
+            var progress = SleepRamp.Progress(start, _sleepLength, now);
+            if (_sleepVolume is { } volume) MasterVolume.Set(SleepRamp.Volume(volume, progress));
+            if (c.SleepDim && Dim is not null)
+            {
+                Dim.Override = SleepRamp.Dim(_sleepDim, progress);
+                Dim.Apply();
+            }
+            if (progress >= 1)
+            {
+                var action = c.SleepAction;
+                if (RequestAction(action, L.T("حالت شب‌خواب", "Sleep mode"), Settings.CountdownSeconds, ""))
+                {
+                    _sleepStart = null;
+                    if (_sleepVolume is not null) _volumeRestoreAt = now.AddSeconds(Settings.CountdownSeconds + 60);
+                    _sleepVolume = null;
+                    // After a lock or sleep the app keeps running; the dim cover is lifted then too.
+                    if (Dim is not null && action is PowerAction.Lock or PowerAction.Sleep or PowerAction.Hibernate)
+                    {
+                        Dim.Override = null;
+                        Dim.Apply();
+                    }
+                    ComfortUpdated?.Invoke();
+                }
+            }
+        }
+        if (_volumeRestoreAt is { } at && now >= at && c.PendingVolume is { } pending)
+        {
+            MasterVolume.Set(pending);
+            c.PendingVolume = null;
+            _volumeRestoreAt = null;
+            Store.Save();
+        }
+
+        // keep the PC awake around a scheduled download, and wake it up for the next one
+        var soon = State.DownloadPlans.Any(p => p.State == PlanState.Running || (p.State == PlanState.Waiting && Math.Abs((p.StartAt - now).TotalMinutes) < 3));
+        if (soon != _holdingAwake)
+        {
+            _holdingAwake = soon;
+            Native.SetThreadExecutionState(Native.ES_CONTINUOUS | (soon ? Native.ES_SYSTEM_REQUIRED : 0));
+        }
+        if (now - _lastWakeCheck > TimeSpan.FromSeconds(30))
+        {
+            _lastWakeCheck = now;
+            if (NextWakeForDownloads(now) is { } wake) _wake.Set(wake);
+            else _wake.Clear();
+        }
+    }
+
+    /// <summary>When the PC should wake up for the next scheduled download: one minute before it is due.</summary>
+    public DateTime? NextWakeForDownloads(DateTime now)
+    {
+        DateTime? best = null;
+        foreach (var plan in State.DownloadPlans)
+        {
+            if (plan.State != PlanState.Waiting || !plan.WakeUp) continue;
+            var at = plan.StartAt.AddMinutes(-1);
+            if (at <= now.AddSeconds(5)) continue;
+            if (best is null || at < best) best = at;
+        }
+        return best;
     }
 
     // ---- scheduled launcher downloads ----------------------------------------------------------

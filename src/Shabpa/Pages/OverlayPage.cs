@@ -80,6 +80,10 @@ public sealed class OverlayPage : PageBase
     private readonly HotkeyBox _toggleKey = new(), _moveKey = new();
     private readonly TextBlock _keyNote = new();
     private readonly Border _adminBanner = new();
+    private readonly TextBox _profileGame = new();
+    private readonly TextBlock _profileNote = new();
+    private readonly StackPanel _profileList = new();
+    private readonly StackPanel _historyList = new();
     private readonly Button _moveButton = new();
     private readonly TextBlock _note = new();
     private readonly TextBlock _boardNote = new();
@@ -302,6 +306,33 @@ public sealed class OverlayPage : PageBase
         keys.Children.Add(_keyNote);
         root.Children.Add(keyCard);
 
+        // ---- per-game profiles ----------------------------------------------------------------------
+        var (profileCard, profiles) = Ui2.Card(L.T("پروفایل هر بازی", "Per-game profiles"),
+            L.T("چیدمان، رنگ و آیتم‌های الان رو برای یه بازی ذخیره کن؛ هر وقت اون بازی باز بشه خودکار همون اعمال می‌شه.",
+                "Save the current layout, colours and items for one game; they are applied by themselves whenever that game runs."));
+        _profileGame.Style = St("Input");
+        _profileGame.Width = 220;
+        _profileGame.FlowDirection = FlowDirection.LeftToRight;
+        _profileGame.Margin = new Thickness(0, 10, 8, 0);
+        var saveProfile = new Button { Style = St("Btn"), Content = L.T("ذخیره برای این بازی", "Save for this game"), Margin = new Thickness(0, 10, 0, 0) };
+        saveProfile.Click += (_, _) => SaveProfile();
+        var profileRow = new WrapPanel();
+        profileRow.Children.Add(_profileGame);
+        profileRow.Children.Add(saveProfile);
+        profiles.Children.Add(profileRow);
+        _profileNote.Style = St("Label");
+        _profileNote.TextWrapping = TextWrapping.Wrap;
+        _profileNote.Margin = new Thickness(0, 8, 0, 0);
+        profiles.Children.Add(_profileNote);
+        profiles.Children.Add(_profileList);
+        root.Children.Add(profileCard);
+
+        // ---- history -----------------------------------------------------------------------------------
+        var (historyCard, history) = Ui2.Card(L.T("تاریخچه‌ی بازی‌ها", "Game history"),
+            L.T("آخرین بازی‌هایی که شب‌پا گزارششون رو ساخته؛ برای مقایسه‌ی فریم، پینگ و دما.", "The latest games Shabpa made a report for, to compare frame rate, ping and temperature."));
+        history.Children.Add(_historyList);
+        root.Children.Add(historyCard);
+
         root.Children.Add(new TextBlock
         {
             Style = St("Label"), Margin = new Thickness(4, 12, 4, 0), TextWrapping = TextWrapping.Wrap,
@@ -367,6 +398,61 @@ public sealed class OverlayPage : PageBase
         _ => false,
     };
 
+    private void SaveProfile()
+    {
+        var name = _profileGame.Text.Trim();
+        if (name.Length == 0)
+        {
+            _profileNote.Text = L.T("اسم برنامه‌ی بازی رو بنویس (مثلاً cs2). وقتی بازی بالا باشه خودش پر می‌شه.", "Type the game's process name (for example cs2). It fills in by itself while a game runs.");
+            return;
+        }
+        var o = Hub.Settings.Overlay;
+        o.Profiles.RemoveAll(p => string.Equals(p.Game, name, StringComparison.OrdinalIgnoreCase));
+        o.Profiles.Add(o.Snapshot(name));
+        Hub.OverlayChanged();
+        _profileNote.Text = L.T($"برای «{name}» ذخیره شد.", $"Saved for “{name}”.");
+        ShowProfiles();
+    }
+
+    private void ShowProfiles()
+    {
+        _profileList.Children.Clear();
+        foreach (var profile in Hub.Settings.Overlay.Profiles.ToList())
+        {
+            var game = profile.Game;
+            var delete = IconButton("", L.T("حذف", "Delete"), () =>
+            {
+                Hub.Settings.Overlay.Profiles.RemoveAll(p => p.Game == game);
+                Hub.OverlayChanged();
+                ShowProfiles();
+            });
+            _profileList.Children.Add(Row("", "Accent", game,
+                L.T($"{profile.Items.Count} مورد · طرح {profile.Layout}", $"{profile.Items.Count} items · {profile.Layout} layout"), delete));
+        }
+    }
+
+    private void ShowHistory()
+    {
+        _historyList.Children.Clear();
+        var entries = Hub.State.GameHistory.AsEnumerable().Reverse().Take(12).ToList();
+        if (entries.Count == 0)
+        {
+            _historyList.Children.Add(Ui2.Label(L.T("هنوز بازی‌ای ثبت نشده. بعد از هر بازی بیشتر از چند دقیقه اینجا اضافه می‌شه.",
+                "No games yet. Every game longer than a few minutes is added here.")));
+            return;
+        }
+        var bestFps = entries.Max(e => e.AvgFps);
+        foreach (var e in entries)
+        {
+            var parts = new List<string> { Fa.Duration(TimeSpan.FromMinutes(e.Minutes)) };
+            if (e.AvgFps > 0) parts.Add($"FPS {Fa.N(e.AvgFps, 0)} / 1% {Fa.N(e.Low1Fps, 0)}");
+            if (e.AvgPing > 0) parts.Add($"{L.T("پینگ", "ping")} {Fa.N(e.AvgPing, 0)}");
+            if (e.MaxGpuTemp > 0) parts.Add($"GPU {Fa.N(e.MaxGpuTemp, 0)}°");
+            var bar = new ProgressBar { Minimum = 0, Maximum = Math.Max(1, bestFps), Value = e.AvgFps, Height = 6, Width = 90, Margin = new Thickness(0, 0, 0, 0) };
+            _historyList.Children.Add(Row("", "Green", $"{e.Game} · {Fa.RelativeDay(e.Start, DateTime.Now)} {Fa.Clock(e.Start)}", string.Join(" · ", parts), bar));
+        }
+    }
+
     private void OnItem(object sender, RoutedEventArgs e) => Change(o =>
     {
         // Keep the catalogue order so the overlay reads the same way every time.
@@ -426,6 +512,9 @@ public sealed class OverlayPage : PageBase
         UpdateMoveButton();
         UpdateVisibility();
         UpdatePreview();
+        if (_profileGame.Text.Length == 0 && Hub.Snapshot.GameProcess.Length > 0) _profileGame.Text = Hub.Snapshot.GameProcess;
+        ShowProfiles();
+        ShowHistory();
     }
 
     private void UpdateBoardNote()

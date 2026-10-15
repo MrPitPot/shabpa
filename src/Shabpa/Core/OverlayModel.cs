@@ -32,7 +32,34 @@ public sealed class OverlaySettings
     public string ToggleKey { get; set; } = "Ctrl+Alt+O";
     /// <summary>Shortcut that lets the overlay be dragged to a new place.</summary>
     public string MoveKey { get; set; } = "Ctrl+Alt+P";
+    /// <summary>Per-game choices; when one of these games runs, its layout and items replace the general ones.</summary>
+    public List<OverlayProfile> Profiles { get; set; } = [];
     public List<string> Items { get; set; } = ["fps", "low1", "gpu", "gputemp", "cpu", "ram", "ping"];
+
+    public OverlayProfile? ProfileFor(string game) =>
+        game.Length == 0 ? null : Profiles.FirstOrDefault(p => string.Equals(p.Game, game, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>The settings to draw with while <paramref name="game"/> runs: a copy with that game's profile laid over them,
+    /// or these settings themselves when the game has none.</summary>
+    public OverlaySettings WithProfile(string game)
+    {
+        if (ProfileFor(game) is not { } p) return this;
+        var copy = (OverlaySettings)MemberwiseClone();
+        copy.Layout = p.Layout;
+        copy.Look = p.Look;
+        copy.Scale = p.Scale;
+        copy.Anchor = p.Anchor;
+        copy.X = p.X;
+        copy.Y = p.Y;
+        copy.ShowLabels = p.ShowLabels;
+        if (p.Items.Count > 0) copy.Items = [.. p.Items];
+        return copy;
+    }
+
+    public OverlayProfile Snapshot(string game) => new()
+    {
+        Game = game, Layout = Layout, Look = Look, Scale = Scale, Anchor = Anchor, X = X, Y = Y, ShowLabels = ShowLabels, Items = [.. Items],
+    };
 }
 
 /// <param name="Advanced">Needs a sensor Windows does not expose by itself (fan speeds, memory temperature).</param>

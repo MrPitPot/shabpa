@@ -138,6 +138,8 @@ public sealed class DownloadPlan
     public int GiveUpMinutes { get; set; } = 45;
     /// <summary>Only open the launcher at the set time; do not watch the download or switch anything off.</summary>
     public bool OpenOnly { get; set; }
+    /// <summary>Wake the PC from sleep a minute before the start time (needs wake timers, which most PCs allow).</summary>
+    public bool WakeUp { get; set; } = true;
 
     public bool Repeats => RepeatDays.Count > 0;
 }

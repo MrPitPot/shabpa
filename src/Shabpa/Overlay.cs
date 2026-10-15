@@ -351,6 +351,7 @@ public sealed class OverlayWindow : Window
     private bool _registered;
     private bool _demand;
     private string _hotkeys = "";
+    private string _game = "";
 
     public OverlayWindow(Hub hub)
     {
@@ -465,7 +466,8 @@ public sealed class OverlayWindow : Window
     private void Render(TelemetrySample sample)
     {
         if (!IsVisible) return;
-        var o = _hub.Settings.Overlay;
+        _game = sample.InGame ? sample.Game : "";
+        var o = _hub.Settings.Overlay.WithProfile(_game);
         var view = _hub.Demo ? OverlayMetrics.Demo(DateTime.Now) : sample;
         var metrics = OverlayMetrics.Build(view, o.Items);
         if (metrics.Count == 0) metrics = OverlayMetrics.Build(view, ["fps", "gpu", "cpu"]);
@@ -480,7 +482,7 @@ public sealed class OverlayWindow : Window
     private void Place()
     {
         if (!IsVisible || _handle == IntPtr.Zero) return;
-        var o = _hub.Settings.Overlay;
+        var o = _hub.Settings.Overlay.WithProfile(_game);
         var dpi = VisualTreeHelper.GetDpi(this);
         var width = ActualWidth * dpi.DpiScaleX;
         var height = ActualHeight * dpi.DpiScaleY;
@@ -530,9 +532,17 @@ public sealed class OverlayWindow : Window
     {
         var dpi = VisualTreeHelper.GetDpi(this);
         var o = _hub.Settings.Overlay;
-        o.Anchor = "free";
-        o.X = Left * dpi.DpiScaleX;
-        o.Y = Top * dpi.DpiScaleY;
+        var (x, y) = (Left * dpi.DpiScaleX, Top * dpi.DpiScaleY);
+        if (o.ProfileFor(_game) is { } profile)
+        {
+            profile.Anchor = "free";
+            (profile.X, profile.Y) = (x, y);
+        }
+        else
+        {
+            o.Anchor = "free";
+            (o.X, o.Y) = (x, y);
+        }
         _hub.Store.Save();
         _hub.OverlayChanged();
     }

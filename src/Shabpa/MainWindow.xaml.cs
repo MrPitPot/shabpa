@@ -13,7 +13,7 @@ public partial class MainWindow : Window
 
     /// <summary>Every screen worth a screenshot, including the tabs inside «کنترل سیستم».</summary>
     public IEnumerable<string> CaptureKeys =>
-        ["home", .. SystemPage.TabKeys.Select(t => $"system:{t}"), .. NetworkPage.TabKeys.Select(t => $"ping:{t}"), "gaming", "weather", "dns", "download", "update", "settings"];
+        ["home", .. SystemPage.TabKeys.Select(t => $"system:{t}"), .. NetworkPage.TabKeys.Select(t => $"ping:{t}"), "gaming", "weather", "dns", "download", "comfort", "update", "settings"];
 
     public FrameworkElement CaptureRoot => Root;
 
@@ -30,6 +30,7 @@ public partial class MainWindow : Window
             ["weather"] = (NavWeather, new WeatherPage()),
             ["dns"] = (NavDns, new DnsPage()),
             ["download"] = (NavDownload, new DownloadsPage()),
+            ["comfort"] = (NavComfort, new ComfortPage()),
             ["update"] = (NavUpdate, new UpdatePage()),
             ["settings"] = (NavSettings, new SettingsPage()),
         };

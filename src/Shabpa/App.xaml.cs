@@ -104,6 +104,14 @@ public partial class App : Application
             return;
         }
 
+        // Test aid: dims the screen, measures how much darker a few screen pixels got (only numbers are written, no picture),
+        // then presses the toggle shortcut for real and measures again.
+        if (Value(e.Args, "--dim-test") is { } dimReport)
+        {
+            RunDimTest(dimReport);
+            return;
+        }
+
         // Used by the installer: switch start-with-Windows on or off for this exe, then exit.
         if (Value(e.Args, "--autostart") is { } autostart)
         {
@@ -243,6 +251,69 @@ public partial class App : Application
         }
         Quit();
         return true;
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
+
+    private void RunDimTest(string report)
+    {
+        var log = new System.Text.StringBuilder();
+        var store = new Store { ReadOnly = true };
+        var hub = new Hub(store, true, false);
+        var comfort = hub.Settings.Comfort;
+        comfort.DimOn = false;
+        comfort.DimLevel = 0.7;
+        comfort.DimWarm = false;
+        comfort.DimKey = "Ctrl+Alt+F11";
+        var dim = new DimController(hub);
+
+        static double Brightness()
+        {
+            var bounds = System.Windows.Forms.Screen.PrimaryScreen!.Bounds;
+            using var bmp = new System.Drawing.Bitmap(1, 1);
+            using var g = System.Drawing.Graphics.FromImage(bmp);
+            double sum = 0;
+            var points = new[] { (0.2, 0.3), (0.5, 0.5), (0.8, 0.7), (0.3, 0.8), (0.7, 0.2) };
+            foreach (var (fx, fy) in points)
+            {
+                g.CopyFromScreen(bounds.X + (int)(bounds.Width * fx), bounds.Y + (int)(bounds.Height * fy), 0, 0, new System.Drawing.Size(1, 1));
+                var c = bmp.GetPixel(0, 0);
+                sum += 0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B;
+            }
+            return sum / points.Length;
+        }
+
+        void Press()
+        {
+            keybd_event(0x11, 0, 0, UIntPtr.Zero);   // Ctrl
+            keybd_event(0x12, 0, 0, UIntPtr.Zero);   // Alt
+            keybd_event(0x7A, 0, 0, UIntPtr.Zero);   // F11
+            keybd_event(0x7A, 0, 2, UIntPtr.Zero);
+            keybd_event(0x12, 0, 2, UIntPtr.Zero);
+            keybd_event(0x11, 0, 2, UIntPtr.Zero);
+        }
+
+        var steps = new Queue<Action>();
+        double before = 0, dimmed = 0;
+        steps.Enqueue(() => { before = Brightness(); dim.Apply(); log.AppendLine($"hotkey failed: [{string.Join(",", dim.FailedHotkeys)}]"); });
+        steps.Enqueue(() => { Press(); });          // toggles on (it was off)
+        steps.Enqueue(() => { dimmed = Brightness(); log.AppendLine($"active after hotkey={dim.Active} before={before:0.0} dimmed={dimmed:0.0}"); Press(); }); // toggles off
+        steps.Enqueue(() => { var back = Brightness(); log.AppendLine($"active after second hotkey={dim.Active} back={back:0.0}"); });
+        var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
+        timer.Tick += (_, _) =>
+        {
+            if (steps.Count > 0)
+            {
+                steps.Dequeue()();
+                return;
+            }
+            timer.Stop();
+            dim.Dispose();
+            File.WriteAllText(report, log.ToString());
+            Shutdown();
+        };
+        timer.Start();
     }
 
     protected override void OnSessionEnding(SessionEndingCancelEventArgs e)

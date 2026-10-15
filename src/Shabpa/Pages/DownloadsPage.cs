@@ -22,6 +22,7 @@ public sealed class DownloadsPage : PageBase
     private string? _launcher;
     private PowerAction _action = PowerAction.Shutdown;
     private bool _openOnly;
+    private readonly CheckBox _wakeUp = new() { Style = St("Check"), IsChecked = true, Margin = new Thickness(0, 12, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
     private readonly WrapPanel _repeat = new() { Margin = new Thickness(0, 6, 0, 0) };
     private Func<List<DayOfWeek>> _repeatDays = () => [];
     private readonly TextBox _threshold = new() { Style = St("Input"), Width = 70, FlowDirection = FlowDirection.LeftToRight, Text = "1", Padding = new Thickness(10, 6, 10, 6) };
@@ -84,6 +85,10 @@ public sealed class DownloadsPage : PageBase
         form.Children.Add(Ui2.Label(L.T("اگه این‌قدر دقیقه بعد از باز شدن لانچر دانلودی شروع نشد، منصرف شو و خاموش نکن",
             "If no download starts this many minutes after opening the launcher, give up and do not switch off")));
         form.Children.Add(new StackPanel { Children = { _giveUp }, HorizontalAlignment = HorizontalAlignment.Left });
+        _wakeUp.Content = L.T("اگه کامپیوتر خواب بود، یه دقیقه قبل بیدارش کن", "If the PC is asleep, wake it a minute before");
+        _wakeUp.ToolTip = L.T("از تایمر بیدارباش ویندوز استفاده می‌کنه. اگه کار نکرد، توی گزینه‌های برق ویندوز «Allow wake timers» رو روشن کن.",
+            "Uses a Windows wake timer. If it does not work, enable “Allow wake timers” in Windows power options.");
+        form.Children.Add(_wakeUp);
         var add = new Button { Style = St("BtnPrimary"), Content = L.T("ثبت زمان‌بندی", "Add plan"), HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(18, 9, 18, 9), Margin = new Thickness(0, 14, 0, 0) };
         add.Click += (_, _) => AddPlan();
         form.Children.Add(add);
@@ -191,7 +196,7 @@ public sealed class DownloadsPage : PageBase
         var plan = new DownloadPlan
         {
             LauncherKey = launcher.Key, LauncherName = launcher.Name, ExePath = launcher.ExePath, StartAt = at, Action = _action,
-            QuietMinutes = quiet, RepeatDays = repeat, ThresholdMbps = threshold, GiveUpMinutes = giveUp, OpenOnly = _openOnly,
+            QuietMinutes = quiet, RepeatDays = repeat, ThresholdMbps = threshold, GiveUpMinutes = giveUp, OpenOnly = _openOnly, WakeUp = _wakeUp.IsChecked == true,
         };
         _note.Text = Hub.AddDownloadPlan(plan)
             ? L.T("ثبت شد.", "Added.")
