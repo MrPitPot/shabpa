@@ -91,6 +91,7 @@ public partial class SettingsPage : PageBase
         ConfirmCheck.IsChecked = Hub.Settings.ConfirmActions;
         ReportCheck.IsChecked = Hub.Settings.GameReports;
         AnimCheck.IsChecked = Hub.Settings.Animations;
+        LowMemoryCheck.IsChecked = Hub.Settings.LowMemory;
         AutostartHint.Text = Hub.Elevated
             ? L.T("برنامه الان با دسترسی ادمین بازه؛ اگه این رو روشن کنی، دفعه‌های بعد هم با همین دسترسی بالا میاد.", "The app is running as administrator now; turn this on and it will start that way next time too.")
             : "";
@@ -105,6 +106,12 @@ public partial class SettingsPage : PageBase
             ? L.T("توان پردازنده واقعی خونده می‌شه. گرافیک و بقیه‌ی قطعات تخمینی‌ان؛ اگه عدد دقیق کارت گرافیکت رو می‌دونی اینجا وارد کن.",
                 "CPU power is read from the real sensor. GPU and the rest are estimates; enter your graphics card's real figures here if you know them.")
             : L.T("همه‌ی عددها تخمینی‌ان؛ هر چی به سیستم خودت نزدیک‌تر باشن، هزینه دقیق‌تر درمیاد.", "All figures are estimates; the closer they are to your PC, the more accurate the cost.");
+    }
+
+    private void OnLowMemory(object sender, RoutedEventArgs e)
+    {
+        Hub.Settings.LowMemory = LowMemoryCheck.IsChecked == true;
+        Apply(); // the drawing mode is chosen once, when the app starts
     }
 
     private void OnBehaviour(object sender, RoutedEventArgs e)

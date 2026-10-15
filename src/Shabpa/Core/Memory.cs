@@ -53,6 +53,24 @@ public static class MemoryCleaner
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool EmptyWorkingSet(IntPtr process);
 
+    /// <summary>Shabpa's own memory: frees unused managed memory and hands idle pages back to Windows. Used while the
+    /// window is hidden, so the app sitting next to the clock costs as little as possible. Pages come back on their own
+    /// when something needs them.</summary>
+    public static void ReleaseOwn()
+    {
+        try
+        {
+            GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+            GC.WaitForPendingFinalizers();
+            using var self = Process.GetCurrentProcess();
+            EmptyWorkingSet(self.Handle);
+        }
+        catch
+        {
+            // best effort
+        }
+    }
+
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetSystemFileCacheSize(IntPtr minimum, IntPtr maximum, int flags);

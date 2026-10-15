@@ -71,6 +71,8 @@ public sealed class Settings
     public bool GameReports { get; set; } = true;
     /// <summary>Page and selection animations (also off when Windows has animation effects off).</summary>
     public bool Animations { get; set; } = true;
+    /// <summary>Draw the window in software: less RAM while it is open, a little more CPU. Applied at start.</summary>
+    public bool LowMemory { get; set; }
     /// <summary>Eye comfort (dimming), break reminders and sleep mode.</summary>
     public ComfortSettings Comfort { get; set; } = new();
     /// <summary>Support tickets: device id, server address, admin key (owner only).</summary>

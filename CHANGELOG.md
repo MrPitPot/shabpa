@@ -17,6 +17,11 @@ The 2.x and 3.0 line moved quickly while the app was taking shape; from here on 
 
 - Telegram control goes through the project's bot, @ShabPa_Bot: press "Connect to the bot", send the one-time
   code to the bot, done. Personal bot tokens are no longer accepted.
+- Much less RAM: while the window is hidden next to the clock Shabpa gives its idle memory back to Windows
+  (about 135 MB → 25–35 MB in Task Manager), pages are only built when first opened, and a hidden window is no
+  longer redrawn every second.
+- New setting "Use less RAM": draws the window without the graphics card (about 120 → 75 MB while it is open,
+  a little more CPU).
 
 ## 3.0.1
 

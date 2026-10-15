@@ -213,6 +213,10 @@ public partial class App : Application
 
         // Language and theme are fixed for the lifetime of the process (command line wins, for screenshots).
         var settings = store.State.Settings;
+        if (args.Contains("--software-render")) settings.LowMemory = true; // test aid (screenshot runs never save)
+        // "Use less RAM": no graphics-card device at all (that is where the memory goes); the small overlay and dim
+        // windows are cheap to draw either way.
+        if (settings.LowMemory) System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
         L.En = (Value(e.Args, "--lang") ?? settings.Language) == "en";
         Resources.MergedDictionaries.Add(Ui.Resources(Palette.Find(Value(e.Args, "--theme") ?? settings.Theme)));
         Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/Shabpa;component/Theme.xaml", UriKind.Relative) });
@@ -229,6 +233,31 @@ public partial class App : Application
             // --interactive: just show the window (real sensors, nothing saved) so it can be driven by hand or by a test.
             if (Value(e.Args, "--motion-test") is { } motionReport) _ = MotionProbe(shots, motionReport);
             else if (!args.Contains("--interactive")) _ = CaptureAll(shots, Value(e.Args, "--only"));
+            if (Value(e.Args, "--mem-report") is { } memReport)
+            {
+                // Test aid: where the memory goes, 20 s after start (managed heap vs the rest, and what is loaded).
+                var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
+                timer.Tick += (_, _) =>
+                {
+                    timer.Stop();
+                    var info = GC.GetGCMemoryInfo();
+                    using var self = System.Diagnostics.Process.GetCurrentProcess();
+                    var asm = AppDomain.CurrentDomain.GetAssemblies().Select(a => a.GetName().Name ?? "").OrderBy(n => n).ToList();
+                    File.WriteAllText(memReport,
+                        $"heap {info.HeapSizeBytes >> 20} MB, committed {info.TotalCommittedBytes >> 20} MB, fragmented {info.FragmentedBytes >> 20} MB\n" +
+                        $"private bytes {self.PrivateMemorySize64 >> 20} MB, working set {self.WorkingSet64 >> 20} MB, threads {self.Threads.Count}\n" +
+                        $"modules {self.Modules.Count}, assemblies {asm.Count}:\n{string.Join("\n", asm)}\n\nnative modules:\n" +
+                        string.Join("\n", self.Modules.Cast<System.Diagnostics.ProcessModule>().OrderByDescending(m => m.ModuleMemorySize).Take(25).Select(m => $"{m.ModuleMemorySize >> 10,7} KB {m.ModuleName}")));
+                };
+                timer.Start();
+            }
+            if (Value(e.Args, "--hide-at") is { } hideAt && int.TryParse(hideAt, out var hideSeconds))
+            {
+                // Test aid: hides the window after a while, as closing it to the tray does (memory measurements).
+                var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(hideSeconds) };
+                timer.Tick += (_, _) => { timer.Stop(); _window.Hide(); };
+                timer.Start();
+            }
             return;
         }
 

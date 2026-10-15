@@ -26,7 +26,9 @@
                     <CheckBox x:Name="ReportCheck" Style="{StaticResource Check}" Content="{s:Tr 'بعد از هر بازی گزارش بده', 'Report after every game'}" Margin="0,0,8,6" Click="OnBehaviour"
                               ToolTip="{s:Tr 'فریم بر ثانیه، پینگ، دمای کارت و حجم اینترنت بازی؛ با تلگرام هم می‌فرسته.', 'Frame rate, ping, GPU temperature and the data the game used; also sent to Telegram.'}"/>
                     <CheckBox x:Name="AnimCheck" Style="{StaticResource Check}" Content="{s:Tr 'انیمیشن‌ها', 'Animations'}" Margin="0,0,8,6" Click="OnBehaviour"
-                              ToolTip="{s:Tr 'فریم بر ثانیه، پینگ، دمای کارت و حجم اینترنت بازی؛ با تلگرام هم می‌فرسته.', 'Frame rate, ping, GPU temperature and the data the game used; also sent to Telegram.'}"/>
+                              ToolTip="{s:Tr 'حرکت نرم صفحه‌ها و دکمه‌ها. اگه ویندوز انیمیشن‌ها رو خاموش کرده باشه، این‌جا هم خاموش می‌مونن.', 'Smooth motion for pages and buttons. If Windows has animations turned off, they stay off here too.'}"/>
+                    <CheckBox x:Name="LowMemoryCheck" Style="{StaticResource Check}" Content="{s:Tr 'رم کمتر', 'Use less RAM'}" Margin="0,0,8,6" Click="OnLowMemory"
+                              ToolTip="{s:Tr 'پنجره به‌جای کارت گرافیک با پردازنده کشیده می‌شه: وقتی بازه حدود ۴۵ مگ رم کمتر می‌خوره، ولی پردازنده کمی بیشتر کار می‌کنه. برنامه دوباره باز می‌شه.', 'The window is drawn by the processor instead of the graphics card: about 45 MB less RAM while it is open, a little more CPU. The app restarts.'}"/>
                     <CheckBox x:Name="MinimizedCheck" Style="{StaticResource Check}" Content="{s:Tr 'همیشه بی‌صدا کنار ساعت باز بشه', 'Always start quietly in the tray'}" Margin="0,0,8,6" Click="OnBehaviour"/>
                 </WrapPanel>
                 <TextBlock x:Name="AutostartHint" Style="{StaticResource Label}" FontSize="11.5" Margin="0,2,0,0" TextWrapping="Wrap"/>

@@ -8,8 +8,15 @@ namespace Shabpa;
 
 public partial class MainWindow : Window
 {
-    private readonly Dictionary<string, (RadioButton nav, PageBase page)> _pages;
+    // Pages are built the first time they are opened: most sessions only ever look at a few of them.
+    private readonly Dictionary<string, (RadioButton nav, Func<PageBase> make)> _pages;
+    private readonly Dictionary<string, PageBase> _built = [];
     private PageBase? _current;
+
+    /// <summary>While the window is hidden or minimized, memory it no longer needs goes back to Windows: first after a
+    /// few seconds, then now and then while it stays hidden.</summary>
+    private readonly System.Windows.Threading.DispatcherTimer _release = new() { Interval = ReleaseFirst };
+    private static readonly TimeSpan ReleaseFirst = TimeSpan.FromSeconds(8), ReleaseAgain = TimeSpan.FromMinutes(10);
 
     /// <summary>Every screen worth a screenshot, including the tabs inside «کنترل سیستم».</summary>
     public IEnumerable<string> CaptureKeys =>
@@ -29,29 +36,35 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         FlowDirection = Ui.Flow;
-        _pages = new Dictionary<string, (RadioButton, PageBase)>
+        _pages = new Dictionary<string, (RadioButton, Func<PageBase>)>
         {
-            ["home"] = (NavHome, new HomePage()),
-            ["system"] = (NavSystem, new SystemPage()),
-            ["ping"] = (NavPing, new NetworkPage()),
-            ["gaming"] = (NavGaming, new OverlayPage()),
-            ["weather"] = (NavWeather, new WeatherPage()),
-            ["dns"] = (NavDns, new DnsPage()),
-            ["download"] = (NavDownload, new DownloadsPage()),
-            ["comfort"] = (NavComfort, new ComfortPage()),
-            ["support"] = (NavSupport, new SupportPage()),
-            ["update"] = (NavUpdate, new UpdatePage()),
-            ["settings"] = (NavSettings, new SettingsPage()),
+            ["home"] = (NavHome, () => new HomePage()),
+            ["system"] = (NavSystem, () => new SystemPage()),
+            ["ping"] = (NavPing, () => new NetworkPage()),
+            ["gaming"] = (NavGaming, () => new OverlayPage()),
+            ["weather"] = (NavWeather, () => new WeatherPage()),
+            ["dns"] = (NavDns, () => new DnsPage()),
+            ["download"] = (NavDownload, () => new DownloadsPage()),
+            ["comfort"] = (NavComfort, () => new ComfortPage()),
+            ["support"] = (NavSupport, () => new SupportPage()),
+            ["update"] = (NavUpdate, () => new UpdatePage()),
+            ["settings"] = (NavSettings, () => new SettingsPage()),
         };
-        foreach (var (_, page) in _pages.Values)
-            page.HeaderChanged += () => { if (ReferenceEquals(page, _current)) UpdateHeader(); };
 
         var hub = Hub.I;
         DryRunPill.Visibility = hub.DryRun ? Visibility.Visible : Visibility.Collapsed;
-        hub.Changed += () => { _current?.Refresh(); UpdateSide(); };
-        hub.Tick += s => { _current?.OnTick(s); UpdateSide(); };
-        hub.Second += () => { if (IsVisible) _current?.OnSecond(); };
-        IsVisibleChanged += (_, _) => { if (IsVisible) _current?.Refresh(); };
+        // Nobody sees a hidden window, so it is not redrawn every second; showing it again refreshes everything.
+        hub.Changed += () => { if (!Shown) return; _current?.Refresh(); UpdateSide(); };
+        hub.Tick += s => { if (!Shown) return; _current?.OnTick(s); UpdateSide(); };
+        hub.Second += () => { if (Shown) _current?.OnSecond(); };
+        IsVisibleChanged += (_, _) => OnShownChanged();
+        StateChanged += (_, _) => OnShownChanged();
+        _release.Tick += (_, _) =>
+        {
+            _release.Interval = ReleaseAgain;
+            MemoryCleaner.ReleaseOwn();
+        };
+        _release.Start(); // the window starts out hidden (and stays so when Shabpa starts in the tray)
 
         var version = Updater.Current;
         var shown = version.Build == 0 ? $"{version.Major}.{version.Minor}" : version.ToString(3);
@@ -86,28 +99,54 @@ public partial class MainWindow : Window
         }
     }
 
+    private bool Shown => IsVisible && WindowState != WindowState.Minimized;
+
+    private void OnShownChanged()
+    {
+        if (Shown)
+        {
+            _release.Stop();
+            _release.Interval = ReleaseFirst;
+            _current?.Refresh();
+            if (_current is not null) _current.OnTick(Hub.I.Snapshot);
+            UpdateSide();
+        }
+        else if (!_release.IsEnabled) _release.Start();
+    }
+
+    private PageBase Page(string key)
+    {
+        if (_built.TryGetValue(key, out var page)) return page;
+        page = _pages[key].make();
+        page.HeaderChanged += () => { if (ReferenceEquals(page, _current)) UpdateHeader(); };
+        _built[key] = page;
+        return page;
+    }
+
     /// <summary>"home", "ping", … or "system:rules" for a tab inside «کنترل سیستم».</summary>
     public void Navigate(string key)
     {
         var parts = key.Split(':');
         if (!_pages.TryGetValue(parts[0], out var entry)) return;
-        if (parts.Length > 1 && entry.page is SystemPage system) system.Select(parts[1]);
-        if (parts.Length > 1 && entry.page is TabsPage tabs) tabs.Select(parts[1]);
+        var page = Page(parts[0]);
+        if (parts.Length > 1 && page is SystemPage system) system.Select(parts[1]);
+        if (parts.Length > 1 && page is TabsPage tabs) tabs.Select(parts[1]);
         if (entry.nav.IsChecked != true)
         {
             entry.nav.IsChecked = true; // re-enters through OnNav
             return;
         }
-        Show(entry.page);
+        Show(parts[0], page);
     }
 
     private void OnNav(object sender, RoutedEventArgs e)
     {
         if (_pages is null) return;
-        Show(_pages.Values.First(p => ReferenceEquals(p.nav, sender)).page);
+        var key = _pages.First(p => ReferenceEquals(p.Value.nav, sender)).Key;
+        Show(key, Page(key));
     }
 
-    private void Show(PageBase page)
+    private void Show(string key, PageBase page)
     {
         _current = page;
         UpdateHeader();
@@ -116,12 +155,11 @@ public partial class MainWindow : Window
         page.Refresh();
         page.OnTick(Hub.I.Snapshot);
         page.OnSecond();
-        var key = _pages.FirstOrDefault(p => ReferenceEquals(p.Value.page, page)).Key ?? "";
         Motion.Header(PageTitle, PageSub);
         Motion.Enter(key, page);
     }
 
-    public void OpenFirstPingEditor() => ((NetworkPage)_pages["ping"].page).PageOf<PingPage>()?.OpenFirst();
+    public void OpenFirstPingEditor() => ((NetworkPage)Page("ping")).PageOf<PingPage>()?.OpenFirst();
 
     private void UpdateHeader()
     {
