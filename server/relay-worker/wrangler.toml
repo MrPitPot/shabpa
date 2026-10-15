@@ -4,7 +4,7 @@ compatibility_date = "2025-06-01"
 
 [vars]
 # The official bot's username, without @. It is public; the token is not (see README).
-BOT_USERNAME = "PASTE_BOT_USERNAME_HERE"
+BOT_USERNAME = "ShabPa_Bot"
 
 # Create once with: wrangler d1 create shabpa-relay   then paste its id here.
 [[d1_databases]]
