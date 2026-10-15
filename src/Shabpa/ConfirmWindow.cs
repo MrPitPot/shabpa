@@ -77,6 +77,16 @@ public sealed class ConfirmWindow : Window
     }
 
     /// <summary>Shows the dialog and returns true only when the user chose the confirm button.</summary>
+    /// <summary>Always asks, even when the "ask before every action" setting is off. For things that cannot be taken
+    /// back, such as deleting data.</summary>
+    public static bool AskAlways(string title, string message, string? yes = null, string? no = null, bool danger = false, string? detail = null)
+    {
+        var hub = Hub.I;
+        if (hub is { Demo: true }) return true;
+        var window = new ConfirmWindow(title, message, yes ?? L.T("تایید", "Confirm"), no ?? L.T("انصراف", "Cancel"), danger, detail);
+        return window.ShowDialog() == true;
+    }
+
     public static bool Ask(string title, string message, string? yes = null, string? no = null, bool danger = false, string? detail = null)
     {
         var hub = Hub.I;

@@ -73,6 +73,9 @@ public sealed class Settings
     public bool Animations { get; set; } = true;
     /// <summary>Draw the window in software: less RAM while it is open, a little more CPU. Applied at start.</summary>
     public bool LowMemory { get; set; }
+    public FocusSettings Focus { get; set; } = new();
+    /// <summary>Show a notice when a task's reminder time comes.</summary>
+    public bool TaskReminders { get; set; } = true;
     /// <summary>Where the window was last: "left,top,width,height,maximized" in device-independent pixels.</summary>
     public string WindowPlacement { get; set; } = "";
     /// <summary>Eye comfort (dimming), break reminders and sleep mode.</summary>
@@ -129,6 +132,10 @@ public sealed class AppState
     public List<DownloadPlan> DownloadPlans { get; set; } = [];
     /// <summary>The last games played, newest last (at most 60).</summary>
     public List<GameLogEntry> GameHistory { get; set; } = [];
+    /// <summary>The to-do list (phase A). Local only.</summary>
+    public List<TodoItem> Tasks { get; set; } = [];
+    /// <summary>Finished and stopped focus sessions, newest last (at most 2000).</summary>
+    public List<FocusSession> FocusLog { get; set; } = [];
     /// <summary>Tickets sent from this PC.</summary>
     public List<TicketRecord> Tickets { get; set; } = [];
 }

@@ -30,6 +30,9 @@ The 2.x and 3.0 line moved quickly while the app was taking shape; from here on 
 - The window opens where you left it, at the same size (or maximised).
 - Keyboard: Ctrl+1 … Ctrl+9 open the sections in order, Ctrl+, opens the settings.
 
+- **Tasks & focus** (new): a to-do list with deadlines, reminders, categories and today / upcoming / done views;
+  a focus and break timer; a weekly report that also summarises games, internet and power. Stored only on this PC.
+
 ## 3.0.1
 
 - Screen dimming no longer flashes back to full brightness once a second.

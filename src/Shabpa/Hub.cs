@@ -26,6 +26,11 @@ public sealed class Hub
     public RuleEngine Engine { get; } = new();
     public CommandQueue Queue { get; }
     public EnergyTracker Energy { get; }
+    /// <summary>The to-do list and the focus timer (phase A). Local only.</summary>
+    public TaskBook Tasks { get; }
+    public FocusTimer Focus { get; }
+    /// <summary>Tasks or the focus timer changed.</summary>
+    public event Action? TasksChanged;
     public BotLink Bot { get; }
     public IPowerExecutor Executor { get; }
     public TrafficMeter Traffic { get; }
@@ -75,6 +80,14 @@ public sealed class Hub
         Executor = dryRun ? new DryRunPowerExecutor() : new WindowsPowerExecutor();
         Queue = new CommandQueue(State.Queue);
         Energy = new EnergyTracker(State.Energy);
+        Tasks = new TaskBook(State.Tasks);
+        Focus = new FocusTimer(() => Settings.Focus, State.FocusLog);
+        Tasks.Changed += () =>
+        {
+            Store.Save();
+            TasksChanged?.Invoke();
+        };
+        Focus.PhaseChanged += (_, _) => TasksChanged?.Invoke();
         Sensors = new SensorHub(() => Settings);
         Traffic = new TrafficMeter(_resolver.Resolve);
         Ping = new PingMeter(() => Settings.PingHost);
@@ -171,6 +184,7 @@ public sealed class Hub
     private void OnSecond()
     {
         var now = DateTime.Now;
+        if (!Demo) RunTasks(now);
         var missed = new List<ScheduledCommand>();
         if (_pendingMissed is not null)
         {
@@ -537,6 +551,32 @@ public sealed class Hub
             Dim.Apply();
         }
         ComfortUpdated?.Invoke();
+    }
+
+    private DateTime _lastTaskCheck = DateTime.MinValue;
+
+    /// <summary>Reminders for tasks, and the end of focus and break phases.</summary>
+    private void RunTasks(DateTime now)
+    {
+        if (Focus.Phase != FocusPhase.Idle) TasksChanged?.Invoke(); // keeps the timer on screen ticking
+        if (Focus.Tick(now) is { } ended)
+        {
+            Store.Save();
+            Notify(
+                ended == FocusPhase.Focus ? L.T("تمرکزت تموم شد 🎉", "Focus session done 🎉") : L.T("استراحت تموم شد", "Break is over"),
+                ended == FocusPhase.Focus
+                    ? (Focus.Phase == FocusPhase.LongBreak ? L.T("آفرین! یه استراحت بلند بکن.", "Well done! Take a long break.") : L.T("آفرین! چند دقیقه استراحت کن.", "Well done! Take a short break."))
+                    : (Focus.Phase == FocusPhase.Focus ? L.T("وقت دور بعدی تمرکزه.", "Time for the next focus round.") : L.T("هر وقت آماده بودی دوباره شروع کن.", "Start again whenever you are ready.")));
+            try { System.Media.SystemSounds.Asterisk.Play(); } catch (Exception ex) { Log.Write($"focus sound: {ex.Message}"); }
+        }
+        if (now - _lastTaskCheck < TimeSpan.FromSeconds(10)) return;
+        _lastTaskCheck = now;
+        if (!Settings.TaskReminders) return;
+        foreach (var task in Tasks.TakeDueReminders(now))
+        {
+            var when = task.Due is { } due ? L.T($"موعد: {Fa.Clock(due)}", $"Due: {due:HH:mm}") : "";
+            Notify(L.T("یادآور کار", "Task reminder"), task.Title + (when.Length > 0 ? Environment.NewLine + when : ""));
+        }
     }
 
     private void RunComfort(DateTime now)
@@ -1079,6 +1119,22 @@ public sealed class Hub
             new LauncherInfo { Key = "epic", Name = "Epic Games", ExePath = @"C:\Program Files (x86)\Epic Games\Launcher\Portal\Binaries\Win64\EpicGamesLauncher.exe", Process = "epicgameslauncher" },
         ];
         Settings.LaunchersScanned = true;
+        State.Tasks.AddRange(
+        [
+            new TodoItem { Title = L.T("تحویل گزارش پروژه", "Hand in the project report"), Due = now.Date.AddHours(17), RemindBefore = 60, Category = L.T("کار", "Work"), Important = true },
+            new TodoItem { Title = L.T("خرید نان و شیر", "Buy bread and milk"), Due = now.Date.AddHours(19), RemindBefore = 0, Category = L.T("شخصی", "Personal") },
+            new TodoItem { Title = L.T("مرور فصل ۳", "Review chapter 3"), Due = now.Date.AddDays(1).AddHours(10), RemindBefore = 10, Category = L.T("مطالعه", "Study") },
+            new TodoItem { Title = L.T("پاسخ به ایمیل‌ها", "Answer emails"), Due = now.Date.AddDays(-1).AddHours(16), Category = L.T("کار", "Work") },
+            new TodoItem { Title = L.T("ایده‌هایی برای تعطیلات", "Holiday ideas") },
+            new TodoItem { Title = L.T("نوبت دندان‌پزشکی گرفتم", "Booked the dentist"), Done = true, DoneAt = now.AddHours(-2), Category = L.T("شخصی", "Personal") },
+            new TodoItem { Title = L.T("کتاب رو تموم کردم", "Finished the book"), Done = true, DoneAt = now.AddDays(-1), Category = L.T("مطالعه", "Study") },
+        ]);
+        State.FocusLog.AddRange(
+        [
+            new FocusSession { Start = now.Date.AddDays(-1).AddHours(10), Minutes = 25, Completed = true, Task = L.T("نوشتن گزارش", "Writing the report") },
+            new FocusSession { Start = now.Date.AddHours(9), Minutes = 25, Completed = true, Task = L.T("مرور درس", "Studying") },
+            new FocusSession { Start = now.Date.AddHours(10), Minutes = 18, Completed = false },
+        ]);
         Settings.WeatherCity = new WeatherCity { Name = "تهران", Region = "استان تهران", Country = "ایران", Latitude = 35.69, Longitude = 51.42 };
         State.DownloadPlans =
         [
