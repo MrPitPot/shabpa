@@ -77,7 +77,9 @@ public sealed class OverlayPage : PageBase
     private readonly WrapPanel _anchorChips = new();
     private readonly StackPanel _custom = new();
     private readonly TextBox _accentBox = Input(), _textBox = Input(), _backBox = Input();
-    private readonly TextBox _toggleKey = Input(), _moveKey = Input();
+    private readonly HotkeyBox _toggleKey = new(), _moveKey = new();
+    private readonly TextBlock _keyNote = new();
+    private readonly Border _adminBanner = new();
     private readonly Button _moveButton = new();
     private readonly TextBlock _note = new();
     private readonly TextBlock _boardNote = new();
@@ -203,6 +205,26 @@ public sealed class OverlayPage : PageBase
         var (itemCard, items) = Ui2.Card(L.T("چی نشون داده بشه؟", "What to show"),
             L.T("فقط چیزهایی که این سیستم می‌تونه بخونه نشون داده می‌شن. فریم بر ثانیه به دسترسی ادمین نیاز داره.",
                 "Only readings this PC can provide are shown. Frame rate needs administrator rights."));
+        var adminText = new TextBlock
+        {
+            Style = St("Body"), TextWrapping = TextWrapping.Wrap, Foreground = Res("Gold"),
+            Text = L.T("چند تا از گزینه‌ها (فریم بر ثانیه، دمای CPU، فن‌ها، حسگرهای مادربورد) فقط با دسترسی ادمین کار می‌کنن. اگه تیکشون رو زدی و چیزی نمی‌بینی، دلیلش همینه.",
+                "Several readings (frame rate, CPU temperature, fans, board sensors) only work with administrator rights. If you ticked them and see nothing, this is why."),
+        };
+        var adminButton = new Button { Style = St("Btn"), Content = L.T("اجرای دوباره با دسترسی ادمین", "Restart as administrator"), Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
+        adminButton.Click += (_, _) =>
+        {
+            if (Application.Current is App app && !app.Restart(elevated: true, page: "gaming"))
+                _note.Text = L.T("اجازه‌ی ادمین داده نشد.", "Administrator permission was not given.");
+        };
+        var adminPanel = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
+        adminPanel.Children.Add(adminText);
+        adminPanel.Children.Add(adminButton);
+        _adminBanner.Child = adminPanel;
+        _adminBanner.Padding = new Thickness(12, 10, 12, 12);
+        _adminBanner.CornerRadius = new CornerRadius(10);
+        _adminBanner.Background = Res("GoldSoft");
+        items.Children.Add(_adminBanner);
         foreach (var (key, fa, en) in Groups)
         {
             items.Children.Add(Ui2.Label(L.T(fa, en), 12, 4));
@@ -223,6 +245,12 @@ public sealed class OverlayPage : PageBase
                     box.ToolTip = L.T("این کارت گرافیک این مقدار رو گزارش نمی‌ده.", "This graphics card does not report this reading.");
                     box.Content = def.Label + L.T(" (پشتیبانی نمی‌شه)", " (not reported)");
                     box.Opacity = 0.55;
+                }
+                else if (!Hub.Elevated && OverlayMetrics.NeedsAdmin(def.Key))
+                {
+                    box.ToolTip = L.T("بدون دسترسی ادمین این مقدار خونده نمی‌شه و روی اورلی «ADMIN» می‌نویسه. شب‌پا رو با ادمین اجرا کن.",
+                        "This cannot be read without administrator rights; the overlay shows “ADMIN” instead. Run Shabpa as administrator.");
+                    box.Content = def.Label + L.T(" (نیاز به ادمین)", " (needs admin)");
                 }
                 box.Click += OnItem;
                 _items[def.Key] = box;
@@ -254,12 +282,11 @@ public sealed class OverlayPage : PageBase
 
         // ---- hotkeys ---------------------------------------------------------------------------
         var (keyCard, keys) = Ui2.Card(L.T("میان‌بر کیبورد", "Keyboard shortcuts"),
-            L.T("همیشه با کلید Alt: یک حرف یا عدد بنویس. اگه خالی باشه آن میان‌بر غیرفعاله.", "Always used with Alt: type one letter or digit. Leave it empty to turn that shortcut off."));
+            L.T("روی دکمه کلیک کن و ترکیب جدید رو بزن. حتماً Ctrl یا Alt توش باشه؛ Shift اختیاریه. Backspace میان‌بر رو خاموش می‌کنه و Esc لغو می‌کنه.",
+                "Click a button and press the new combination. It must include Ctrl or Alt; Shift is optional. Backspace turns it off, Esc cancels."));
         var keyRow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
-        void Key(string label, TextBox box)
+        void Key(string label, HotkeyBox box)
         {
-            box.Width = 70;
-            box.MaxLength = 1;
             var cell = new StackPanel { Margin = new Thickness(0, 0, 14, 0) };
             cell.Children.Add(new TextBlock { Text = label, Style = St("Label") });
             box.Margin = new Thickness(0, 4, 0, 0);
@@ -269,6 +296,10 @@ public sealed class OverlayPage : PageBase
         Key(L.T("نمایش / پنهان", "Show / hide"), _toggleKey);
         Key(L.T("جابجایی با ماوس", "Move with the mouse"), _moveKey);
         keys.Children.Add(keyRow);
+        _keyNote.Style = St("Label");
+        _keyNote.TextWrapping = TextWrapping.Wrap;
+        _keyNote.Margin = new Thickness(0, 8, 0, 0);
+        keys.Children.Add(_keyNote);
         root.Children.Add(keyCard);
 
         root.Children.Add(new TextBlock
@@ -292,8 +323,8 @@ public sealed class OverlayPage : PageBase
         _accentBox.TextChanged += (_, _) => ColourBox(_accentBox, (o, v) => o.CustomAccent = v);
         _textBox.TextChanged += (_, _) => ColourBox(_textBox, (o, v) => o.CustomText = v);
         _backBox.TextChanged += (_, _) => ColourBox(_backBox, (o, v) => o.CustomBack = v);
-        _toggleKey.TextChanged += (_, _) => Change(o => o.ToggleKey = _toggleKey.Text.Trim().ToUpperInvariant());
-        _moveKey.TextChanged += (_, _) => Change(o => o.MoveKey = _moveKey.Text.Trim().ToUpperInvariant());
+        _toggleKey.Changed += value => Change(o => o.ToggleKey = value);
+        _moveKey.Changed += value => Change(o => o.MoveKey = value);
 
         Hub.OverlayMoving += _ => Dispatcher.BeginInvoke(UpdateMoveButton);
         IsVisibleChanged += (_, _) => { if (IsVisible) Refresh(); };
@@ -376,16 +407,22 @@ public sealed class OverlayPage : PageBase
         _accentBox.Text = o.CustomAccent;
         _textBox.Text = o.CustomText;
         _backBox.Text = o.CustomBack;
-        _toggleKey.Text = o.ToggleKey;
-        _moveKey.Text = o.MoveKey;
+        _toggleKey.Set(o.ToggleKey);
+        _moveKey.Set(o.MoveKey);
         _loading = false;
 
         _board.IsChecked = Hub.Settings.Overlay.BoardSensors;
         UpdateBoardNote();
         _note.Text = Hub.Elevated
-            ? L.T($"میان‌بر Alt+{o.ToggleKey} نمایش و پنهان می‌کنه و Alt+{o.MoveKey} اجازه‌ی جابجایی می‌ده.", $"Alt+{o.ToggleKey} shows or hides it; Alt+{o.MoveKey} lets you drag it.")
-            : L.T("برای دیدن فریم بر ثانیه، شب‌پا رو با دسترسی ادمین اجرا کن. بقیه‌ی اطلاعات بدون ادمین هم کار می‌کنن.",
-                "Run Shabpa as administrator to see frame rates. Everything else works without it.");
+            ? L.T("شب‌پا با دسترسی ادمین اجرا شده؛ فریم بر ثانیه و حسگرهای مادربورد کار می‌کنن.", "Shabpa is running as administrator; frame rate and board sensors can work.")
+            : L.T("شب‌پا بدون ادمین اجرا شده. فریم بر ثانیه، دمای CPU و فن‌ها که کنارشون «نیاز به ادمین» نوشته، تا با ادمین اجرا نکنی خالی می‌مونن. بقیه بدون ادمین هم کار می‌کنن.",
+                "Shabpa is not running as administrator. Frame rate, CPU temperature and fans marked “needs admin” stay empty until you run it as admin. Everything else works without it.");
+        _adminBanner.Visibility = Hub.Elevated ? Visibility.Collapsed : Visibility.Visible;
+        _keyNote.Text = Hub.Overlay is { FailedHotkeys.Count: > 0 } w
+            ? L.T($"این میان‌بر رو برنامه‌ی دیگه‌ای گرفته و کار نمی‌کنه: {string.Join("، ", w.FailedHotkeys)}. یه ترکیب دیگه انتخاب کن.",
+                $"Another program already uses: {string.Join(", ", w.FailedHotkeys)}. Pick a different combination.")
+            : "";
+        _keyNote.Foreground = Res("Gold");
         UpdateMoveButton();
         UpdateVisibility();
         UpdatePreview();

@@ -41,7 +41,25 @@ public static class Ui
 
         var background = new LinearGradientBrush(Color(palette, "Bg"), Color(palette, "Bg2"), new Point(0, 0), new Point(1, 1));
         background.Freeze();
-        resources["BgGradient"] = background;
+        // The base gradient plus a soft glow of the theme's halo colour bleeding in from two corners.
+        var halo = Color(palette, "Halo");
+        var strength = palette.Light ? (byte)0x30 : (byte)0x46;
+        RadialGradientBrush Glow(Point centre, double radiusX, double radiusY, byte alpha)
+        {
+            var brush = new RadialGradientBrush { Center = centre, GradientOrigin = centre, RadiusX = radiusX, RadiusY = radiusY };
+            brush.GradientStops.Add(new GradientStop(System.Windows.Media.Color.FromArgb(alpha, halo.R, halo.G, halo.B), 0));
+            brush.GradientStops.Add(new GradientStop(System.Windows.Media.Color.FromArgb(0, halo.R, halo.G, halo.B), 1));
+            return brush;
+        }
+        var scene = new DrawingGroup();
+        var whole = new RectangleGeometry(new Rect(0, 0, 1, 1));
+        scene.Children.Add(new GeometryDrawing(background, null, whole));
+        scene.Children.Add(new GeometryDrawing(Glow(new Point(0.1, 0.0), 0.75, 0.6, strength), null, whole));
+        scene.Children.Add(new GeometryDrawing(Glow(new Point(0.95, 1.0), 0.6, 0.5, (byte)(strength * 2 / 3)), null, whole));
+        scene.Freeze();
+        var withHalo = new DrawingBrush(scene) { Stretch = Stretch.Fill };
+        withHalo.Freeze();
+        resources["BgGradient"] = withHalo;
         var side = new LinearGradientBrush(Color(palette, "Side"), Color(palette, "Side2"), new Point(0, 0), new Point(0.3, 1));
         side.Freeze();
         resources["SideGradient"] = side;

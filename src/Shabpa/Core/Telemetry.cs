@@ -336,14 +336,20 @@ public sealed class Telemetry : IDisposable
 
         try
         {
-            Native.GetWindowThreadProcessId(Native.GetForegroundWindow(), out var pid);
-            if (pid == 0) return (0, 0, 0, "");
-            var stats = _fps.Stats((int)pid);
-            if (stats.Frames < 5) return (0, 0, 0, "");
+            Native.GetWindowThreadProcessId(Native.GetForegroundWindow(), out var foreground);
+            var pid = (int)foreground;
+            var stats = pid == 0 ? FrameStats.None : _fps.Stats(pid);
+            if (stats.Frames < 5)
+            {
+                // The window in front is not what is drawing (a launcher in front of the game, a second monitor, the
+                // desktop itself): take the busiest program that is not part of Windows' own shell.
+                if (_fps.Busiest(p => !IsShell(p)) is not { } busy) return (0, 0, 0, "");
+                (pid, stats) = busy;
+            }
             string name;
             try
             {
-                using var process = Process.GetProcessById((int)pid);
+                using var process = Process.GetProcessById(pid);
                 name = process.ProcessName;
             }
             catch
@@ -355,6 +361,25 @@ public sealed class Telemetry : IDisposable
         catch
         {
             return (0, 0, 0, "");
+        }
+    }
+
+    private static readonly HashSet<string> ShellNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "dwm", "explorer", "csrss", "winlogon", "ShellExperienceHost", "SearchHost", "StartMenuExperienceHost", "TextInputHost",
+        "ApplicationFrameHost", "LockApp", "SystemSettings", "Shabpa", "WidgetService", "Widgets",
+    };
+
+    private static bool IsShell(int pid)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(pid);
+            return ShellNames.Contains(process.ProcessName);
+        }
+        catch
+        {
+            return true;
         }
     }
 

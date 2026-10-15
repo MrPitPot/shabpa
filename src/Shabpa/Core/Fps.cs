@@ -132,7 +132,7 @@ public sealed class FpsMeter : IDisposable
     }
 
     /// <summary>The process presenting the most frames right now, ignoring the desktop compositor.</summary>
-    public (int pid, FrameStats stats)? Busiest()
+    public (int pid, FrameStats stats)? Busiest(Func<int, bool>? allow = null)
     {
         List<int> pids;
         lock (_gate)
@@ -144,6 +144,7 @@ public sealed class FpsMeter : IDisposable
         (int, FrameStats)? best = null;
         foreach (var pid in pids)
         {
+            if (allow is not null && !allow(pid)) continue;
             var stats = Stats(pid);
             if (stats.Frames < 5) continue;
             if (best is null || stats.Fps > best.Value.Item2.Fps) best = (pid, stats);

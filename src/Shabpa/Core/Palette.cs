@@ -15,7 +15,7 @@ public sealed record Palette(string Key, string Fa, string En, bool Light, IRead
         "Bg", "Bg2", "Side", "Side2", "Panel", "Panel2", "Panel3", "Line", "Text", "Muted", "Faint",
         "Accent", "Accent1", "Accent2", "AccentSoft", "OnAccent",
         "Gold", "GoldSoft", "Green", "GreenSoft", "Red", "RedSoft", "RedLine",
-        "Hero", "Hero2", "Thumb", "Glow",
+        "Hero", "Hero2", "Thumb", "Glow", "Halo",
     ];
 
     private static Palette Make(string key, string fa, string en, bool light, string spec)
@@ -28,6 +28,8 @@ public sealed record Palette(string Key, string Fa, string En, bool Light, IRead
         // Background and sidebar fade from the first colour to the second; single-colour themes repeat it.
         if (!colors.ContainsKey("Bg2")) colors["Bg2"] = colors["Bg"];
         if (!colors.ContainsKey("Side2")) colors["Side2"] = colors["Side"];
+        // The soft glow that bleeds from the corner of the window; it follows the accent unless a theme says otherwise.
+        if (!colors.ContainsKey("Halo")) colors["Halo"] = colors["Accent1"];
         return new Palette(key, fa, en, light, colors);
     }
 
@@ -69,11 +71,11 @@ public sealed record Palette(string Key, string Fa, string En, bool Light, IRead
             Hero=3A1F73 Thumb=46347A Glow=FFFFFF
             """),
         Make("emerald", "سبز", "Emerald", false, """
-            Bg=04130D Bg2=08261B Side=071B13 Side2=0B3324 Panel=0B251B Panel2=103226 Panel3=173F31 Line=21573F
-            Text=EDFFF7 Muted=A3D9C2 Faint=74B396
-            Accent=3EE6A0 Accent1=2EDC9A Accent2=14B8D2 AccentSoft=0E4A37 OnAccent=02170F
-            Gold=FFC764 GoldSoft=3A2F17 Green=7DF0C2 GreenSoft=124A38 Red=FF7A8D RedSoft=45182A RedLine=73283A
-            Hero=0D5240 Hero2=0F4C62 Thumb=2F6B54 Glow=FFFFFF
+            Bg=030907 Bg2=061811 Side=040C09 Side2=08170F Panel=0A1511 Panel2=101F19 Panel3=162B23 Line=1F3A2F
+            Text=E8F5EE Muted=9DBFAF Faint=709982
+            Accent=34D399 Accent1=10B981 Accent2=0E9AA7 AccentSoft=0B3B2E OnAccent=02120C
+            Gold=FFC764 GoldSoft=3A2F17 Green=6EE7B7 GreenSoft=0E3A2D Red=FF7A8D RedSoft=45182A RedLine=73283A
+            Hero=0A3A2D Hero2=0A2F33 Thumb=2A5545 Glow=FFFFFF Halo=10B981
             """),
         Make("bluviolet", "بنفش‌آبی", "Blue violet", false, """
             Bg=0C0D2B Bg2=151447 Side=10123A Side2=1A1760 Panel=1A1D52 Panel2=23276A Panel3=2E3485 Line=3F46A3
@@ -109,6 +111,62 @@ public sealed record Palette(string Key, string Fa, string En, bool Light, IRead
             Accent=7DF5C6 Accent1=34E0A1 Accent2=8B5CF6 AccentSoft=15405A OnAccent=03140E
             Gold=FFC764 GoldSoft=3A2F17 Green=7DF5C6 GreenSoft=124A3C Red=FF7A8D RedSoft=45182A RedLine=73283A
             Hero=2A3C8A Hero2=1B5A4E Thumb=3F4F80 Glow=FFFFFF
+            """),
+        Make("vampire", "خون‌آشام", "Vampire", false, """
+            Bg=14141C Bg2=21202E Side=191A23 Side2=262436 Panel=1E1F2B Panel2=282A3A Panel3=343746 Line=44475A
+            Text=F8F8F2 Muted=C3C7DA Faint=9094AE
+            Accent=BD93F9 Accent1=BD93F9 Accent2=FF79C6 AccentSoft=3B2D5C OnAccent=1B1230
+            Gold=FFC764 GoldSoft=3A2F17 Green=50FA7B GreenSoft=123A22 Red=FF7A8D RedSoft=45182A RedLine=73283A
+            Hero=44307A Hero2=7A2A5C Thumb=565B78 Glow=FFFFFF Halo=BD93F9
+            """),
+        Make("fjord", "فیورد", "Fjord", false, """
+            Bg=232831 Bg2=2E3440 Side=262B35 Side2=313846 Panel=2E3440 Panel2=3B4252 Panel3=3F485A Line=4C566A
+            Text=ECEFF4 Muted=C2CBDB Faint=9AA6BC
+            Accent=88C0D0 Accent1=88C0D0 Accent2=81A1C1 AccentSoft=2E4A5C OnAccent=14202A
+            Gold=FFC764 GoldSoft=3A2F17 Green=A3E6B0 GreenSoft=21402B Red=FFA3B0 RedSoft=4A2530 RedLine=7A3A48
+            Hero=2F4D63 Hero2=2F3E63 Thumb=5E6A82 Glow=FFFFFF Halo=88C0D0
+            """),
+        Make("neon", "نئون", "Neon city", false, """
+            Bg=0F1019 Bg2=1A1B2E Side=13141F Side2=1E2038 Panel=181926 Panel2=20223A Panel3=2A2D4A Line=3A3F66
+            Text=E6EAFF Muted=B0B8E6 Faint=8088BE
+            Accent=7AA2F7 Accent1=7AA2F7 Accent2=BB9AF7 AccentSoft=26325C OnAccent=0E1530
+            Gold=FFC764 GoldSoft=3A2F17 Green=9ECE6A GreenSoft=22381A Red=FF7A93 RedSoft=45182A RedLine=73283A
+            Hero=2D3B7A Hero2=4A2F7A Thumb=4A5080 Glow=FFFFFF Halo=7AA2F7
+            """),
+        Make("retro", "رترو", "Retro", false, """
+            Bg=1C1C1A Bg2=282621 Side=212120 Side2=2D2A24 Panel=282826 Panel2=33322E Panel3=403E38 Line=504E46
+            Text=FBF1C7 Muted=D5C4A1 Faint=A89984
+            Accent=FABD2F Accent1=FABD2F Accent2=FE8019 AccentSoft=4A3A12 OnAccent=231A04
+            Gold=FFD27A GoldSoft=45331A Green=B8BB26 GreenSoft=2E3010 Red=FB8F7E RedSoft=4A2018 RedLine=7A3A2A
+            Hero=4F3F16 Hero2=5A3412 Thumb=665C54 Glow=FFFFFF Halo=FE8019
+            """),
+        Make("teal", "فیروزه‌ای", "Deep teal", false, """
+            Bg=00161C Bg2=02242C Side=011B22 Side2=033038 Panel=062A32 Panel2=0A363F Panel3=10434D Line=1B5A66
+            Text=E9F7F5 Muted=A9D0CE Faint=7BAAA9
+            Accent=3CC4C0 Accent1=2AA198 Accent2=268BD2 AccentSoft=0B4A55 OnAccent=001418
+            Gold=FFC764 GoldSoft=3A2F17 Green=7DF0C2 GreenSoft=124A38 Red=FF7A8D RedSoft=45182A RedLine=73283A
+            Hero=084650 Hero2=0F3F6A Thumb=2E6F78 Glow=FFFFFF Halo=2AA198
+            """),
+        Make("duskrose", "رز غروب", "Dusk rose", false, """
+            Bg=14111E Bg2=221A2E Side=191524 Side2=281E36 Panel=211B2E Panel2=2A2338 Panel3=372E49 Line=4A3F60
+            Text=F4ECFA Muted=CDBFE0 Faint=9E90B8
+            Accent=EBBCBA Accent1=EBBCBA Accent2=C4A7E7 AccentSoft=4A2E44 OnAccent=24121E
+            Gold=FFC764 GoldSoft=3A2F17 Green=5FEDAA GreenSoft=15412F Red=FF8A9A RedSoft=4D1D27 RedLine=7F3340
+            Hero=5A2F52 Hero2=3E3470 Thumb=5A4E78 Glow=FFFFFF Halo=EBBCBA
+            """),
+        Make("code", "نیمه‌شب کد", "Midnight code", false, """
+            Bg=0D1117 Bg2=161B22 Side=0A0E13 Side2=11161D Panel=161B22 Panel2=1F2630 Panel3=2A323D Line=30363D
+            Text=E6EDF3 Muted=B1BAC4 Faint=8B949E
+            Accent=58A6FF Accent1=388BFD Accent2=1F6FEB AccentSoft=15305A OnAccent=0A1420
+            Gold=FFC764 GoldSoft=3A2F17 Green=56D364 GreenSoft=12361B Red=FF7B72 RedSoft=45201C RedLine=73352E
+            Hero=15305A Hero2=1B2F4F Thumb=484F58 Glow=FFFFFF Halo=388BFD
+            """),
+        Make("latte", "لاته", "Latte", true, """
+            Bg=EFF1F5 Bg2=E6E9EF Side=FFFFFF Side2=F4F5F9 Panel=FFFFFF Panel2=EEF0F6 Panel3=DDE1EC Line=CCD0DA
+            Text=1E2030 Muted=4C4F69 Faint=6C6F85
+            Accent=7C30E0 Accent1=8839EF Accent2=1E66F5 AccentSoft=E6DCFB OnAccent=FFFFFF
+            Gold=865600 GoldSoft=FFEFC7 Green=0A7349 GreenSoft=D8F4E7 Red=BE2340 RedSoft=FFDFE5 RedLine=F0A8B4
+            Hero=E4DAFB Hero2=DCE6FD Thumb=B8BDD0 Glow=000000 Halo=8839EF
             """),
     ];
 

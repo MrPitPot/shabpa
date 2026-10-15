@@ -27,10 +27,11 @@ public sealed class OverlaySettings
     public bool BoardSensors { get; set; } = true;
     public bool Shadow { get; set; } = true;
     public bool Rounded { get; set; } = true;
-    /// <summary>Alt + this letter shows or hides the overlay.</summary>
-    public string ToggleKey { get; set; } = "O";
-    /// <summary>Alt + this letter lets the overlay be dragged to a new place.</summary>
-    public string MoveKey { get; set; } = "P";
+    /// <summary>Shortcut that shows or hides the overlay, like "Ctrl+Alt+O" (must contain Ctrl or Alt; empty = off).
+    /// A single letter from older versions means Alt plus that letter.</summary>
+    public string ToggleKey { get; set; } = "Ctrl+Alt+O";
+    /// <summary>Shortcut that lets the overlay be dragged to a new place.</summary>
+    public string MoveKey { get; set; } = "Ctrl+Alt+P";
     public List<string> Items { get; set; } = ["fps", "low1", "gpu", "gputemp", "cpu", "ram", "ping"];
 }
 
@@ -114,7 +115,8 @@ public static class OverlayMetrics
 
     private static string N(double value, int decimals = 0) => value.ToString("F" + decimals, CultureInfo.InvariantCulture);
 
-    /// <summary>Turns a sample into the lines the user chose, skipping readings this PC cannot provide.</summary>
+    /// <summary>Turns a sample into the lines the user chose. Every ticked item stays on the list for as long as it is
+    /// ticked; a reading that is missing or zero for a moment shows as "—" instead of making the line jump away.</summary>
     public static List<MetricView> Build(TelemetrySample s, IEnumerable<string> keys)
     {
         var result = new List<MetricView>();
@@ -124,11 +126,15 @@ public static class OverlayMetrics
             if (def is null) continue;
             var view = One(def, s);
             if (view is null) continue;
-            if (!view.HasValue && !def.AlwaysShown) continue;
             result.Add(view);
         }
         return result;
     }
+
+    /// <summary>True for readings that only exist when Shabpa runs as administrator (frame rate trace, motherboard chip).</summary>
+    public static bool NeedsAdmin(string key) =>
+        key is "fps" or "low1" or "frame" or "fpsgraph" or "cputemp" or "cpufan" or "cpufanrpm"
+        || Find(key)?.Group == "board";
 
     /// <summary>The short English caption drawn on the overlay itself, like other overlay tools do.</summary>
     public static string Abbrev(string key) => key switch

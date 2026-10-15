@@ -341,7 +341,7 @@ public sealed class OverlayWindow : Window
     private static extern bool UnregisterHotKey(IntPtr hwnd, int id);
 
     private const int HotToggle = 0xB011, HotMove = 0xB012;
-    private const uint ModAlt = 0x1, ModNoRepeat = 0x4000;
+    private const uint ModNoRepeat = 0x4000;
 
     private readonly Hub _hub;
     private readonly ContentControl _host = new();
@@ -416,13 +416,20 @@ public sealed class OverlayWindow : Window
             UnregisterHotKey(_handle, HotMove);
         }
         _hotkeys = wanted;
-        static uint Code(string key) => key.Length == 1 && char.IsLetterOrDigit(key[0]) ? (uint)char.ToUpperInvariant(key[0]) : 0u;
-        var toggle = Code(o.ToggleKey);
-        var move = Code(o.MoveKey);
         _registered = true;
-        if (toggle != 0) RegisterHotKey(_handle, HotToggle, ModAlt | ModNoRepeat, toggle);
-        if (move != 0) RegisterHotKey(_handle, HotMove, ModAlt | ModNoRepeat, move);
+        var failed = new List<string>();
+        void Register(int id, string text)
+        {
+            if (Hotkey.Parse(text) is not { } key) return;
+            if (!RegisterHotKey(_handle, id, key.Modifiers | ModNoRepeat, key.VirtualKey)) failed.Add(key.ToString());
+        }
+        Register(HotToggle, o.ToggleKey);
+        Register(HotMove, o.MoveKey);
+        FailedHotkeys = [.. failed];
     }
+
+    /// <summary>Shortcuts another program already owns, so Windows refused them.</summary>
+    public IReadOnlyList<string> FailedHotkeys { get; private set; } = [];
 
     /// <summary>Show or hide according to the mode and what is running; also (re)applies settings.</summary>
     public void Evaluate()
@@ -462,6 +469,9 @@ public sealed class OverlayWindow : Window
         var view = _hub.Demo ? OverlayMetrics.Demo(DateTime.Now) : sample;
         var metrics = OverlayMetrics.Build(view, o.Items);
         if (metrics.Count == 0) metrics = OverlayMetrics.Build(view, ["fps", "gpu", "cpu"]);
+        // A reading that is empty only because Shabpa is not running as administrator says so, instead of a bare dash.
+        if (!Hub.Elevated && !_hub.Demo)
+            metrics = [.. metrics.Select(m => !m.HasValue && OverlayMetrics.NeedsAdmin(m.Key) ? m with { Value = "ADMIN", Unit = "" } : m)];
         _host.Content = OverlayRenderer.Build(o, metrics, _hub.Telemetry.History());
         Place();
     }

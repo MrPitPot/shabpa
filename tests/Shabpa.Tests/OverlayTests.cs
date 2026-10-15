@@ -5,11 +5,12 @@ namespace Shabpa.Tests;
 public class OverlayModelTests
 {
     [Fact]
-    public void Readings_this_pc_cannot_provide_are_left_out()
+    public void Ticked_readings_stay_on_the_list_even_when_empty()
     {
         var sample = new TelemetrySample { Gpu = new GpuReading { LoadPercent = 50 }, Fps = 144 };
         var metrics = OverlayMetrics.Build(sample, ["fps", "gpu", "hotspot", "gpupower", "ping"]);
-        Assert.Equal(["fps", "gpu", "ping"], metrics.Select(m => m.Key)); // hotspot/power missing, ping always listed
+        Assert.Equal(["fps", "gpu", "hotspot", "gpupower", "ping"], metrics.Select(m => m.Key)); // nothing jumps off the list
+        Assert.Equal("—", metrics.Single(m => m.Key == "hotspot").Value);
         Assert.Equal("—", metrics.Single(m => m.Key == "ping").Value);
     }
 

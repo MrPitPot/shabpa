@@ -1,7 +1,8 @@
 namespace Shabpa.Core;
 
 /// <summary>The line at the top of the home page. One is picked at random each time the app starts (and again when
-/// the part of the day changes), so it is not the same plain "good morning" every day.</summary>
+/// the part of the day changes), so it is not the same plain "good morning" every day. The tone is friendly and a
+/// little cheeky on purpose.</summary>
 public static class Greetings
 {
     public enum Part { Dawn, Morning, Noon, Afternoon, Evening, Night, Late }
@@ -36,46 +37,47 @@ public static class Greetings
     {
         [Part.Dawn] =
         [
-            "سحرخیز شدی! صبحت بخیر ☀️", "صبح زود بخیر، قهرمان! 🌅", "هنوز خورشید خواب‌آلوده‌ست، تو بیداری! 🐓",
-            "سلام سحرخیز! چایی دم کردی؟ ☕", "صبحِ زود و آرومت بخیر 🌄", "جوجه‌ها هم هنوز بیدار نشدن، تو بیداری! 🐣",
-            "سپیده زده، روزت قشنگ شروع شد ✨", "صبح بخیر؛ دنیا مال سحرخیزهاست 🌍",
+            "به‌به! سحرخیز شدی، آفتاب هنوز تو رخت‌خوابه ☀️", "این وقت صبح؟ تو یا قهرمانی یا هنوز نخوابیدی 😄", "صبح زود بخیر! خروس‌ها هم هنوز خوابن 🐓",
+            "سحرخیزی؟ پس چایی‌ت رو دم کن که دنیا مال توئه ☕", "هنوز هوا گرگ‌ومیشه، ولی تو آماده‌ای! 🌄", "صبح بخیر، جوجه‌ها هم هنوز چشماشونو باز نکردن 🐣",
+            "سپیده زد! روزت رو با یه لبخند شروع کن ✨", "چه صبحی! فقط من و تو و خورشیدِ خواب‌آلود 🌅",
         ],
         [Part.Morning] =
         [
-            "صبحت بخیر! ☀️", "صبح عالیِ پرتقالی! 🍊", "صبح بخیر؛ امروز قراره روز خوبی باشه 🌼", "سلام! یه صبح خوشمزه‌ی دیگه 🥐",
-            "صبح بخیر، یه لیوان چایی و شروع کنیم ☕", "صبحت به‌رنگ نارنجی خورشید 🌞", "روز بخیر! آماده‌ی ماجراجویی‌ای؟ 🚀",
-            "صبح قشنگت بخیر، انرژی‌ت رو شارژ کن 🔋", "سلام سلام! صبح شد و دنیا منتظرته 🌈", "صبح بخیر؛ لبخندت رو از یادت نبر 😊",
-            "یه صبح تازه، یه شروع تازه 🌱", "صبح بخیر، امروز مال توئه 💪", "نسیم صبح بخیر! 🍃", "صبح شیرین و پر از انرژی 🍯",
+            "صبحت بخیر! ☀️", "صبح بخیر! چایی‌ت رو خوردی یا هنوز مغزت بوت نشده؟ ☕", "سلام صبحی! امروز قراره روز خوبی باشه 🌼",
+            "صبح عالیِ پرتقالی! یه لیوان چایی و راه بیفتیم 🍊", "صبح شد، دنیا منتظره تو رو ببینه 🌈", "بیدار شو قهرمان، امروز نوبت توئه 💪",
+            "سلام! یه صبح خوشمزه‌ی دیگه، مثل نون تازه 🥐", "صبح بخیر؛ لبخندت رو یادت نره، مفته 😊", "یه صبح تازه، یه شروع تازه 🌱",
+            "نسیم صبح بخیر! 🍃", "صبح بخیر! باتری‌ت رو شارژ کن، کلی کار داریم 🔋", "ببین کی اومده! صبحت بخیر 😎",
+            "صبح بخیر، امروز هم ما می‌ترکونیم 🚀", "عسل صبح بخیر 🍯",
         ],
         [Part.Noon] =
         [
-            "ظهرت بخیر! ناهار یادت نره 🍽️", "ظهر بخیر؛ وقت یه استراحت کوچیکه 😌", "نصف روز گذشت، دمت گرم! 🌤️",
-            "ظهر بخیر، یه چیزی بخور، باتری‌ت کمه 🍛", "ظهر شد! خورشید همین بالاست ☀️", "وقت ناهاره، آهنگ مورد علاقه‌ت رو بذار 🎧",
-            "ظهر بخیر، کمی آب بنوش 💧", "نیمه‌ی روز بخیر! 🌞",
+            "ظهرت بخیر! ناهار یادت نره، شکمت داره سیگنال می‌ده 🍽️", "ظهر شد! یه نفس بگیر و یه چیزی بخور 😌", "نصف روز رفت، دمت گرم که هنوز سر پایی 🌤️",
+            "وقت ناهاره! آهنگ مورد علاقه‌ت رو بذار 🎧", "ظهر بخیر؛ یه لیوان آب بخور، گیاه نیستی که نشکنی 💧", "خورشید درست بالای سرته، کولر رو روشن کن ☀️",
+            "ظهر بخیر! غذا نخوری باتری‌ت زود خالی می‌شه 🍛", "نیمه‌ی روز بخیر، چشماتو از مانیتور بردار یه لحظه 👀",
         ],
         [Part.Afternoon] =
         [
-            "بعدازظهرت بخیر! 🌤️", "عصر نزدیکه، یه چایی دیگه؟ ☕", "بعدازظهر بخیر؛ یه کش‌وقوس به بدنت بده 🤸", "سلام! نصف بیشتر روز رو رد کردی 👏",
-            "بعدازظهر آروم و دل‌نشین 🍃", "ساعت چایی شده! 🫖", "یه استراحت کوتاه بد نیست، چشمات رو هم بده به خدا 👀",
-            "بعدازظهر بخیر، قلب‌آفتابی! 🌻",
+            "عصر نزدیکه، یه چایی دیگه؟ ☕", "وقت چای خوردنه! 🫖", "بعدازظهر بخیر! یه کش‌وقوس به کمرت بده 🤸", "سلام! نصف بیشتر روز رو رد کردی، آفرین 👏",
+            "بعدازظهرِ آروم و دل‌نشین 🍃", "یه استراحت کوتاه بد نیست، چشمات رو هم بده به خدا 👀", "بعدازظهر بخیر، آفتاب‌پرست! 🌻",
+            "این ساعت یه چایی و یه خرما می‌چسبه 🍵", "ساعت خواب‌آلودگیه؛ یه آب به صورتت بزن 💦",
         ],
         [Part.Evening] =
         [
-            "عصرت بخیر! 🌇", "عصر بخیر؛ خورشید داره خداحافظی می‌کنه 🌆", "عصر قشنگ و آروم 🌙", "عصر بخیر، بریم سراغ بازی‌ها؟ 🎮",
-            "عصر بخیر؛ وقت تماشای غروبه 🌅", "سلام! امیدوارم روز خوبی داشتی 🧡", "عصر بخیر، یه چایی داغ می‌چسبه ☕",
-            "غروب بخیر، دنیا طلایی شده ✨",
+            "عصرت بخیر! 🌇", "عصر بخیر؛ خورشید داره خداحافظی می‌کنه 🌆", "غروب بخیر، دنیا طلایی شده ✨", "عصر بخیر، بریم سراغ بازی؟ 🎮",
+            "وقت تماشای غروبه، یه نگاه به پنجره بنداز 🌅", "سلام! امیدوارم روز خوبی داشته باشی 🧡", "عصر بخیر، یه چایی داغ می‌چسبه ☕",
+            "کارای امروز تموم شد؟ حالا وقت خودته 🎧", "عصر بخیر! شام چی داریم؟ 🍲",
         ],
         [Part.Night] =
         [
-            "شبت بخیر! 🌙", "شب بخیر؛ ستاره‌ها بیدارن ⭐", "شب‌بخیر، شبِ آروم و قشنگی داشته باشی 🌃", "سلام شب‌زنده‌دار! 🦉",
-            "شب بخیر؛ یه فیلم خوب بد نیست 🍿", "شب شد؛ وقت استراحت مغز و چشم 😴", "شب بخیر، ماه امشب خیلی خوشگله 🌕",
-            "شب به‌خیر، یه چای دارچینی بخور 🍵", "شب بخیر! به فکر اخراج خستگی باش 🛋️",
+            "شبت بخیر! 🌙", "شب بخیر؛ ستاره‌ها بیدارن، تو هم هستی 🌟", "سلام شب‌زنده‌دار! 🦉", "شب بخیر؛ یه فیلم خوب بد نیست 🍿",
+            "شب شد؛ وقت استراحت مغز و چشمه 😴", "ماه امشب خیلی خوشگله، یه نگاه بهش بنداز 🌕", "یه چای دارچینی بخور و آروم بگیر 🍵",
+            "شب بخیر! خستگی رو بنداز دور 🛋️", "شب شد و شب‌پا بیداره، تو هم راحت باش 🌃",
         ],
         [Part.Late] =
         [
-            "هنوز بیداری؟! 🦉 آفرین به این شب‌زنده‌داری", "نصف‌شبه؛ بدنت می‌گه بخواب 😴", "ساعت خواب گذشته، فردا رو هم دوست داشته باش 🌙",
-            "نیمه‌شب بخیر! یه لیوان آب بخور و بخواب 💧", "دیروقته؛ شب‌زنده‌داری مبارک، ولی چشمات رو هم دریاب 👀", "سلام جغد شبانه! 🦉✨",
-            "این وقت شب فقط شب‌پا و تو بیدارید 🌌", "خسته‌ای؟ شب‌پا می‌تونه کامپیوتر رو برات خاموش کنه 😉",
+            "هنوز بیداری؟! 🦉 به این شب‌زنده‌داری آفرین", "نصف‌شبه؛ بدنت داره التماس می‌کنه که بخوابی 😴", "ساعت خواب گذشته، فردا رو هم دوست داشته باش 🌙",
+            "یه لیوان آب بخور و برو بخواب، فردا هم روزه 💧", "دیروقته! چشمات رو هم دریاب 👀", "سلام جغد شبانه! 🦉✨",
+            "این وقت شب فقط من و تو بیداریم 🌌", "خسته‌ای؟ شب‌پا می‌تونه کامپیوتر رو برات خاموش کنه، شب بخیر 😉",
         ],
     };
 
@@ -83,40 +85,40 @@ public static class Greetings
     {
         [Part.Dawn] =
         [
-            "Up with the sun! Good morning ☀️", "Early bird! 🐓", "The sun is still yawning and you are up 🌅", "Fresh tea and a quiet dawn ☕",
-            "Good morning, early riser 🌄", "Even the chickens are asleep 🐣", "The sky is turning gold ✨", "The world belongs to early risers 🌍",
+            "Up with the sun! Good morning ☀️", "Early bird! The sun is still in bed 🐓", "Even the chickens are asleep, and you're up 🌅", "Fresh tea and a quiet dawn ☕",
+            "Good morning, early riser 🌄", "Even the chicks haven't opened their eyes yet 🐣", "The sky is turning gold ✨", "Just you, me and a sleepy sun 🌍",
         ],
         [Part.Morning] =
         [
-            "Good morning! ☀️", "Have an orange-bright morning! 🍊", "Good morning, today will be a good one 🌼", "Hello! Another tasty morning 🥐",
-            "Tea first, then the world ☕", "Morning sunshine to you 🌞", "Ready for an adventure? 🚀", "Charge your batteries, it is morning 🔋",
-            "Rise and shine! 🌈", "Don't forget to smile 😊", "A fresh morning, a fresh start 🌱", "Today is yours 💪", "Good morning breeze 🍃", "Sweet and energetic morning 🍯",
+            "Good morning! ☀️", "Have an orange-bright morning! 🍊", "Good morning, today will be a good one 🌼", "Another tasty morning, like fresh bread 🥐",
+            "Tea first, then the world ☕", "Rise and shine, champ 🌈", "Ready for an adventure? 🚀", "Charge your batteries, we have plans 🔋",
+            "Don't forget to smile, it's free 😊", "A fresh morning, a fresh start 🌱", "Today is yours 💪", "Look who's up! 😎", "Sweet and energetic morning 🍯", "Good morning, we are going to crush it today 🚀",
         ],
         [Part.Noon] =
         [
-            "Good noon! Don't skip lunch 🍽️", "Midday break time 😌", "Half the day is done, well played! 🌤️", "Eat something, your battery is low 🍛",
-            "The sun is right above you ☀️", "Lunch time, put on your favourite song 🎧", "Drink some water 💧", "Happy midday! 🌞",
+            "Good noon! Lunch won't eat itself 🍽️", "Midday break time 😌", "Half the day is done, well played! 🌤️", "Eat something, your battery is low 🍛",
+            "The sun is right above you ☀️", "Lunch time, put on your favourite song 🎧", "Drink some water, you're not a plant 💧", "Look away from the screen for a sec 👀",
         ],
         [Part.Afternoon] =
         [
-            "Good afternoon! 🌤️", "Evening is near, another tea? ☕", "Stretch a little 🤸", "Most of the day is behind you 👏",
-            "A calm, cosy afternoon 🍃", "Teatime! 🫖", "Rest your eyes for a minute 👀", "Sunny afternoon to you 🌻",
+            "Evening is near, another tea? ☕", "Tea time! 🫖", "Stretch a little 🤸", "Most of the day is behind you, nice 👏",
+            "A calm, cosy afternoon 🍃", "Rest your eyes for a minute 👀", "Sunny afternoon to you 🌻", "Splash some water on your face, sleepyhead 💦", "Tea and a date is the right snack for this hour 🍵",
         ],
         [Part.Evening] =
         [
-            "Good evening! 🌇", "The sun is saying goodbye 🌆", "A calm evening 🌙", "Shall we play something? 🎮",
-            "Sunset time 🌅", "Hope the day was kind to you 🧡", "A hot tea would be lovely ☕", "Golden hour ✨",
+            "Good evening! 🌇", "The sun is saying goodbye 🌆", "Golden hour ✨", "Shall we play something? 🎮",
+            "Sunset time, look out the window 🌅", "Hope the day was kind to you 🧡", "A hot tea would be lovely ☕", "Work's done, now it's your time 🎧", "What is for dinner? 🍲",
         ],
         [Part.Night] =
         [
-            "Good night! 🌙", "The stars are awake ⭐", "Have a calm, lovely night 🌃", "Hello night owl! 🦉",
-            "A good movie would fit 🍿", "Time to rest your eyes 😴", "The moon is beautiful tonight 🌕", "Cinnamon tea is calling 🍵", "Let tiredness go 🛋️",
+            "Good night! 🌙", "The stars are awake, and so are you 🌟", "Hello night owl! 🦉", "A good movie would fit 🍿",
+            "Time to rest your eyes 😴", "The moon is beautiful tonight 🌕", "Cinnamon tea is calling 🍵", "Let tiredness go 🛋️", "Shabpa is awake, take it easy 🌃",
         ],
         [Part.Late] =
         [
-            "Still awake?! 🦉", "It's the middle of the night; your body says sleep 😴", "Past bedtime — tomorrow will love you too 🌙",
-            "A glass of water and then bed 💧", "Late night salute — but look after your eyes 👀", "Hello night owl! 🦉✨",
-            "Only Shabpa and you are awake 🌌", "Tired? Shabpa can switch the PC off for you 😉",
+            "Still awake?! 🦉", "It's the middle of the night; your body is begging for sleep 😴", "Past bedtime, tomorrow will love you too 🌙",
+            "A glass of water and then bed 💧", "Late night salute, but look after your eyes 👀", "Hello night owl! 🦉✨",
+            "Only you and I are awake 🌌", "Tired? Shabpa can switch the PC off for you 😉",
         ],
     };
 }
