@@ -569,21 +569,24 @@ public sealed class Hub
                         continue;
                     }
                 }
-                if (!DryRun && plan.LauncherKey == "steam" && !plan.OpenOnly)
+                if (!DryRun && plan.LauncherKey is "steam" or "epic" && !plan.OpenOnly)
                 {
-                    // A paused Steam queue ignores being opened; press its resume button like a person would.
+                    // A paused queue ignores the launcher being opened; press its resume button like a person would.
                     var steamFolder = System.IO.Path.GetDirectoryName(plan.ExePath) ?? "";
                     var name = plan.LauncherName;
+                    var isSteam = plan.LauncherKey == "steam";
                     Task.Run(() =>
                     {
-                        var outcome = SteamResume.Run(() => SteamResume.LogShowsDownload(steamFolder, DateTime.Now));
+                        var outcome = isSteam
+                            ? SteamResume.Run(() => SteamResume.LogShowsDownload(steamFolder, DateTime.Now))
+                            : EpicResume.Run();
                         var text = outcome switch
                         {
-                            SteamResume.Outcome.Resumed => L.T("دانلود توی Steam ادامه داده شد.", "The download in Steam was resumed."),
-                            SteamResume.Outcome.AlreadyRunning => L.T("دانلود توی Steam از قبل در جریان بود.", "A download in Steam was already running."),
-                            SteamResume.Outcome.NothingQueued => L.T("توی صف Steam چیزی برای دانلود پیدا نشد.", "Nothing was waiting in Steam's queue."),
+                            SteamResume.Outcome.Resumed => L.T("دانلود ادامه داده شد.", "The download was resumed."),
+                            SteamResume.Outcome.AlreadyRunning => L.T("دانلود از قبل در جریان بود.", "A download was already running."),
+                            SteamResume.Outcome.NothingQueued => L.T("چیزی برای ادامه دادن توی صف پیدا نشد.", "Nothing was waiting in the queue to resume."),
                             SteamResume.Outcome.ScreenLocked => L.T("صفحه قفل بود و دکمه‌ی ادامه زده نشد.", "The screen was locked, so the resume button was not pressed."),
-                            _ => L.T("پنجره‌ی Steam پیدا نشد.", "Steam's window was not found."),
+                            _ => L.T("پنجره‌ی لانچر پیدا نشد.", "The launcher's window was not found."),
                         };
                         Application.Current?.Dispatcher.BeginInvoke(() => Notify(L.T("دانلود زمان‌بندی‌شده", "Scheduled download"), $"{name}: {text}"));
                     });

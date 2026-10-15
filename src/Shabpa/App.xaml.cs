@@ -63,6 +63,13 @@ public partial class App : Application
             return;
         }
 
+        if (Value(e.Args, "--epic-resume-test") is { } epicReport)
+        {
+            File.WriteAllText(epicReport, Core.EpicResume.Run().ToString());
+            Shutdown();
+            return;
+        }
+
         // Used by the installer: switch start-with-Windows on or off for this exe, then exit.
         if (Value(e.Args, "--autostart") is { } autostart)
         {
