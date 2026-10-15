@@ -184,7 +184,11 @@ public sealed class Hub
     private void OnSecond()
     {
         var now = DateTime.Now;
-        if (!Demo) RunTasks(now);
+        if (!Demo)
+        {
+            RunTasks(now);
+            RunBackups(now);
+        }
         var missed = new List<ScheduledCommand>();
         if (_pendingMissed is not null)
         {
@@ -551,6 +555,85 @@ public sealed class Hub
             Dim.Apply();
         }
         ComfortUpdated?.Invoke();
+    }
+
+    // ---- backups (phase B) -------------------------------------------------------------------------
+
+    private CancellationTokenSource? _backupCts;
+    private readonly DateTime _startedAt = DateTime.Now;
+    private DateTime _lastBackupCheck = DateTime.MinValue;
+    public Guid? BackupRunningId { get; private set; }
+    public int BackupDone { get; private set; }
+    public int BackupTotal { get; private set; }
+    public event Action? BackupsChanged;
+    public void RaiseBackupsChanged() => BackupsChanged?.Invoke();
+
+    public void CancelBackup() => _backupCts?.Cancel();
+
+    /// <summary>Runs one job in the background and records the result. False if a backup is already running.</summary>
+    public bool StartBackup(BackupJob job)
+    {
+        if (BackupRunningId is not null) return false;
+        BackupRunningId = job.Id;
+        BackupDone = BackupTotal = 0;
+        _backupCts = new CancellationTokenSource();
+        var token = _backupCts.Token;
+        BackupsChanged?.Invoke();
+        _ = Task.Run(() =>
+        {
+            BackupResult result;
+            try
+            {
+                var plan = Backups.Plan(job, token);
+                result = Backups.Run(job, plan, token, (done, total) =>
+                {
+                    BackupDone = done;
+                    BackupTotal = total;
+                    Application.Current?.Dispatcher.BeginInvoke(() => BackupsChanged?.Invoke());
+                });
+            }
+            catch (OperationCanceledException)
+            {
+                result = new BackupResult(false, 0, 0, [], 0, [], L.T("متوقف شد.", "Stopped."));
+            }
+            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+            {
+                Log.Write($"backup: {ex.GetType().Name}: {ex.Message}");
+                result = new BackupResult(false, 0, 0, [], 0, [], L.T("مقصد در دسترس نیست.", "The destination is not available."));
+            }
+            Application.Current?.Dispatcher.BeginInvoke(() => FinishBackup(job, result));
+        });
+        return true;
+    }
+
+    private void FinishBackup(BackupJob job, BackupResult result)
+    {
+        BackupRunningId = null;
+        _backupCts?.Dispose();
+        _backupCts = null;
+        job.LastRun = DateTime.Now;
+        var note = result.Note.Length > 0 ? result.Note
+            : result.Ok ? ""
+            : L.T($"{Fa.Digits(result.Failed.Count.ToString())} فایل کپی نشد، {Fa.Digits(result.Corrupt.Count.ToString())} فایل تأیید نشد.",
+                $"{result.Failed.Count} file(s) not copied, {result.Corrupt.Count} not verified.");
+        job.History.Add(new BackupRunLog { Time = DateTime.Now, Ok = result.Ok, Files = result.Copied, Bytes = result.Bytes, Note = note });
+        if (job.History.Count > 10) job.History.RemoveRange(0, job.History.Count - 10);
+        Store.Save();
+        BackupsChanged?.Invoke();
+        Notify(L.T("پشتیبان‌گیری", "Backup"),
+            result.Ok
+                ? L.T($"«{job.Name}»: {Fa.Digits(result.Copied.ToString())} فایل ({Fa.Bytes(result.Bytes)}) کپی و تأیید شد.", $"“{job.Name}”: {result.Copied} file(s) ({Fa.Bytes(result.Bytes)}) copied and verified.")
+                : L.T($"«{job.Name}» کامل نشد. {note}", $"“{job.Name}” did not finish. {note}"));
+    }
+
+    private void RunBackups(DateTime now)
+    {
+        if (now - _lastBackupCheck < TimeSpan.FromSeconds(30)) return;
+        _lastBackupCheck = now;
+        // not right after start (the PC is busy booting), not while a game runs, one at a time
+        if (BackupRunningId is not null || now - _startedAt < TimeSpan.FromMinutes(2) || Snapshot.GameRunning) return;
+        var job = State.Backups.FirstOrDefault(j => j.IsDue(now) && Backups.Problem(j) is null);
+        if (job is not null) StartBackup(job);
     }
 
     private DateTime _lastTaskCheck = DateTime.MinValue;

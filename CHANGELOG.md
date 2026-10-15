@@ -33,6 +33,10 @@ The 2.x and 3.0 line moved quickly while the app was taking shape; from here on 
 - **Tasks & focus** (new): a to-do list with deadlines, reminders, categories and today / upcoming / done views;
   a focus and break timer; a weekly report that also summarises games, internet and power. Stored only on this PC.
 
+- **Files & backup** (new): see where disk space went, find duplicate files, and back folders up on a schedule
+  with a preview, verification and a restore that never overwrites. Deleting only ever sends files to the Recycle Bin
+  after a preview and your confirmation.
+
 ## 3.0.1
 
 - Screen dimming no longer flashes back to full brightness once a second.

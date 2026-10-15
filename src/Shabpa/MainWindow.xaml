@@ -42,6 +42,7 @@
                     <TextBlock x:Name="VersionText" FontSize="10.5" Foreground="{StaticResource Faint}" HorizontalAlignment="Center" Margin="0,12,0,0"/>
                 </StackPanel>
 
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Margin="0,0,-6,0" Padding="0,0,6,0">
                 <StackPanel x:Name="NavPanel">
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE80F;" Content="{s:Tr 'خانه', 'Home'}" x:Name="NavHome" Checked="OnNav"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE7E8;" Content="{s:Tr 'کنترل سیستم', 'System control'}" x:Name="NavSystem" Checked="OnNav"/>
@@ -52,10 +53,12 @@
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE896;" Content="{s:Tr 'دانلود زمان‌بندی‌شده', 'Scheduled download'}" x:Name="NavDownload" Checked="OnNav"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE708;" Content="{s:Tr 'آسایش و استراحت', 'Comfort &amp; rest'}" x:Name="NavComfort" Checked="OnNav"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE73A;" Content="{s:Tr 'کارها و تمرکز', 'Tasks &amp; focus'}" x:Name="NavTasks" Checked="OnNav"/>
+                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE8B7;" Content="{s:Tr 'فایل و پشتیبان', 'Files &amp; backup'}" x:Name="NavFiles" Checked="OnNav"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE897;" Content="{s:Tr 'پشتیبانی', 'Support'}" x:Name="NavSupport" Checked="OnNav"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE895;" Content="{s:Tr 'به‌روزرسانی', 'Updates'}" x:Name="NavUpdate" Checked="OnNav"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE713;" Content="{s:Tr 'تنظیمات', 'Settings'}" x:Name="NavSettings" Checked="OnNav"/>
                 </StackPanel>
+            </ScrollViewer>
             </DockPanel>
         </Border>
 

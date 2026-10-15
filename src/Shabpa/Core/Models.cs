@@ -136,6 +136,8 @@ public sealed class AppState
     public List<TodoItem> Tasks { get; set; } = [];
     /// <summary>Finished and stopped focus sessions, newest last (at most 2000).</summary>
     public List<FocusSession> FocusLog { get; set; } = [];
+    /// <summary>Folder backup jobs (phase B).</summary>
+    public List<BackupJob> Backups { get; set; } = [];
     /// <summary>Tickets sent from this PC.</summary>
     public List<TicketRecord> Tickets { get; set; } = [];
 }
