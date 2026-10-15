@@ -81,3 +81,51 @@ public class EpicResumeTests
         Assert.Null(EpicResume.FindPlayButton(1936, 1048, (_, _) => Color.FromArgb(24, 24, 28)));
     }
 }
+
+public class RiotResumeTests
+{
+    private static Func<int, int, Color> Page(bool badge, bool button)
+    {
+        var dark = Color.FromArgb(12, 12, 14);
+        return (x, y) =>
+        {
+            var dx = x - 49;
+            var dy = y - 418;
+            if (badge && dx * dx + dy * dy <= 7 * 7) return Color.FromArgb(245, 175, 30);
+            if (button && x is >= 176 and <= 444 && y is >= 264 and <= 328) return Color.FromArgb(213, 174, 99);
+            return dark;
+        };
+    }
+
+    [Fact]
+    public void Finds_a_gold_badge_in_the_sidebar()
+    {
+        var badges = RiotResume.FindBadges(1536, 864, Page(true, false));
+        var one = Assert.Single(badges);
+        Assert.InRange(one.x, 45, 53);
+        Assert.InRange(one.y, 414, 422);
+    }
+
+    [Fact]
+    public void Gold_glyph_of_the_selected_icon_is_not_a_badge()
+    {
+        Func<int, int, Color> glyph = (x, y) => x is >= 28 and <= 42 && y is >= 420 and <= 440 ? Color.FromArgb(245, 175, 30) : Color.FromArgb(12, 12, 14);
+        Assert.Empty(RiotResume.FindBadges(1536, 864, glyph));
+    }
+
+    [Fact]
+    public void Finds_the_update_button()
+    {
+        var button = RiotResume.FindUpdateButton(1536, 864, Page(false, true));
+        Assert.NotNull(button);
+        Assert.InRange(button!.Value.x, 300, 320);
+        Assert.InRange(button.Value.y, 288, 304);
+    }
+
+    [Fact]
+    public void A_page_without_gold_has_neither()
+    {
+        Assert.Empty(RiotResume.FindBadges(1536, 864, Page(false, false)));
+        Assert.Null(RiotResume.FindUpdateButton(1536, 864, Page(false, false)));
+    }
+}

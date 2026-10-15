@@ -70,6 +70,13 @@ public partial class App : Application
             return;
         }
 
+        if (Value(e.Args, "--riot-resume-test") is { } riotReport)
+        {
+            File.WriteAllText(riotReport, Core.RiotResume.Run().ToString());
+            Shutdown();
+            return;
+        }
+
         // Used by the installer: switch start-with-Windows on or off for this exe, then exit.
         if (Value(e.Args, "--autostart") is { } autostart)
         {

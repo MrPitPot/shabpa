@@ -569,17 +569,20 @@ public sealed class Hub
                         continue;
                     }
                 }
-                if (!DryRun && plan.LauncherKey is "steam" or "epic" && !plan.OpenOnly)
+                if (!DryRun && plan.LauncherKey is "steam" or "epic" or "riot" && !plan.OpenOnly)
                 {
                     // A paused queue ignores the launcher being opened; press its resume button like a person would.
                     var steamFolder = System.IO.Path.GetDirectoryName(plan.ExePath) ?? "";
                     var name = plan.LauncherName;
-                    var isSteam = plan.LauncherKey == "steam";
+                    var key = plan.LauncherKey;
                     Task.Run(() =>
                     {
-                        var outcome = isSteam
-                            ? SteamResume.Run(() => SteamResume.LogShowsDownload(steamFolder, DateTime.Now))
-                            : EpicResume.Run();
+                        var outcome = key switch
+                        {
+                            "steam" => SteamResume.Run(() => SteamResume.LogShowsDownload(steamFolder, DateTime.Now)),
+                            "epic" => EpicResume.Run(),
+                            _ => RiotResume.Run(),
+                        };
                         var text = outcome switch
                         {
                             SteamResume.Outcome.Resumed => L.T("دانلود ادامه داده شد.", "The download was resumed."),
