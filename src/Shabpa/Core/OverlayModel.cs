@@ -35,6 +35,21 @@ public sealed class OverlaySettings
     /// <summary>Per-game choices; when one of these games runs, its layout and items replace the general ones.</summary>
     public List<OverlayProfile> Profiles { get; set; } = [];
     public List<string> Items { get; set; } = ["fps", "low1", "gpu", "gputemp", "cpu", "ram", "ping"];
+    /// <summary>Where each group of readings (GPU, CPU, RAM, network, time...) sits. A group that is not listed stays with
+    /// the main block, except the clock group which defaults to a small block in the top-right corner.</summary>
+    public List<GroupPlace> Places { get; set; } = [];
+
+    public GroupPlace PlaceOf(string group) =>
+        Places.FirstOrDefault(p => p.Group == group)
+        ?? (group == "time" ? new GroupPlace { Group = "time", Anchor = "tr" } : new GroupPlace { Group = group, Anchor = "main" });
+
+    /// <summary>Settings for a block that sits apart from the main one: a single compact strip, so a corner stays small.</summary>
+    public OverlaySettings ForBlock()
+    {
+        var copy = (OverlaySettings)MemberwiseClone();
+        copy.Layout = "bar";
+        return copy;
+    }
 
     public OverlayProfile? ProfileFor(string game) =>
         game.Length == 0 ? null : Profiles.FirstOrDefault(p => string.Equals(p.Game, game, StringComparison.OrdinalIgnoreCase));
@@ -83,8 +98,8 @@ public static class OverlayMetrics
         new("frame", "زمان فریم", "Frame time", "general", "ms"),
         new("low1", "Low ۱٪", "1% low", "general", "", true),
         new("fpsgraph", "نمودار FPS", "FPS graph", "general", ""),
-        new("clock", "ساعت", "Clock", "general", ""),
-        new("gametime", "مدت بازی", "Game time", "general", ""),
+        new("clock", "ساعت", "Clock", "time", ""),
+        new("gametime", "مدت بازی", "Game time", "time", ""),
         // graphics card
         new("gputemp", "دمای GPU", "GPU temp", "gpu", "°C"),
         new("hotspot", "هات‌اسپات GPU", "GPU hotspot", "gpu", "°C"),

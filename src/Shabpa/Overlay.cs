@@ -352,6 +352,7 @@ public sealed class OverlayWindow : Window
     private bool _demand;
     private string _hotkeys = "";
     private string _game = "";
+    private readonly Dictionary<string, OverlayBlockWindow> _blocks = [];
 
     public OverlayWindow(Hub hub)
     {
@@ -447,6 +448,8 @@ public sealed class OverlayWindow : Window
         else if (!want && IsVisible)
         {
             Hide();
+            foreach (var block in _blocks.Values) block.Close();
+            _blocks.Clear();
             AcquireDemand(false);
         }
         else if (want)
@@ -474,46 +477,85 @@ public sealed class OverlayWindow : Window
         // A reading that is empty only because Shabpa is not running as administrator says so, instead of a bare dash.
         if (!Hub.Elevated && !_hub.Demo)
             metrics = [.. metrics.Select(m => !m.HasValue && OverlayMetrics.NeedsAdmin(m.Key) ? m with { Value = "ADMIN", Unit = "" } : m)];
-        _host.Content = OverlayRenderer.Build(o, metrics, _hub.Telemetry.History());
+        var history = _hub.Telemetry.History();
+        string GroupOf(MetricView m) => OverlayMetrics.Find(m.Key)?.Group ?? "general";
+        var together = metrics.Where(m => o.PlaceOf(GroupOf(m)).Anchor == "main").ToList();
+        _host.Content = together.Count > 0 ? OverlayRenderer.Build(o, together, history) : null;
+
+        // Groups placed on their own each get a small window of their own.
+        var apart = metrics.Except(together).GroupBy(GroupOf).ToList();
+        foreach (var stale in _blocks.Keys.Where(g => apart.All(a => a.Key != g)).ToList())
+        {
+            _blocks[stale].Close();
+            _blocks.Remove(stale);
+        }
+        var side = o.ForBlock();
+        foreach (var group in apart)
+        {
+            if (!_blocks.TryGetValue(group.Key, out var block))
+            {
+                _blocks[group.Key] = block = new OverlayBlockWindow(group.Key, Place, SaveBlockPosition);
+                block.Show();
+                block.SetMoveMode(_moving);
+            }
+            block.Update(side, [.. group], history);
+        }
         Place();
     }
 
-    /// <summary>Puts the window at its anchor on the monitor the game is on.</summary>
+    /// <summary>Puts the main block and every separate block at its anchor on the monitor the game is on. Blocks that
+    /// share a corner are stacked one under the other instead of covering each other.</summary>
     private void Place()
     {
         if (!IsVisible || _handle == IntPtr.Zero) return;
         var o = _hub.Settings.Overlay.WithProfile(_game);
         var dpi = VisualTreeHelper.GetDpi(this);
-        var width = ActualWidth * dpi.DpiScaleX;
-        var height = ActualHeight * dpi.DpiScaleY;
-        if (width <= 0 || height <= 0) return;
+        var area = WF.Screen.FromHandle(Native.GetForegroundWindow()).Bounds;
+        var gap = 8 * dpi.DpiScaleY;
+        var next = new Dictionary<string, double>();
 
-        double x, y;
-        if (o.Anchor == "free")
+        void Put(Window window, string anchor, double x, double y, double offsetX, double offsetY)
         {
-            (x, y) = (o.X, o.Y);
+            var width = window.ActualWidth * dpi.DpiScaleX;
+            var height = window.ActualHeight * dpi.DpiScaleY;
+            if (width <= 0 || height <= 0) return;
+            double left, top;
+            if (anchor == "free")
+            {
+                (left, top) = (x, y);
+            }
+            else
+            {
+                var edge = next.TryGetValue(anchor, out var used) ? used : offsetY;
+                left = anchor switch
+                {
+                    "tr" or "br" => area.Right - width - offsetX,
+                    "tc" or "bc" => area.Left + (area.Width - width) / 2,
+                    _ => area.Left + offsetX,
+                };
+                top = anchor is "bl" or "br" or "bc" ? area.Bottom - height - edge : area.Top + edge;
+                next[anchor] = edge + height + gap;
+            }
+            window.Left = left / dpi.DpiScaleX;
+            window.Top = top / dpi.DpiScaleY;
         }
-        else
+
+        Put(this, o.Anchor, o.X, o.Y, o.X * dpi.DpiScaleX, o.Y * dpi.DpiScaleY);
+        foreach (var (group, block) in _blocks)
         {
-            var area = WF.Screen.FromHandle(Native.GetForegroundWindow()).Bounds;
-            var margin = 20 * dpi.DpiScaleX;
-            var offsetX = o.X * dpi.DpiScaleX;
-            var offsetY = o.Y * dpi.DpiScaleY;
-            x = o.Anchor switch
-            {
-                "tr" or "br" => area.Right - width - offsetX,
-                "tc" or "bc" => area.Left + (area.Width - width) / 2,
-                _ => area.Left + offsetX,
-            };
-            y = o.Anchor switch
-            {
-                "bl" or "br" or "bc" => area.Bottom - height - offsetY,
-                _ => area.Top + offsetY,
-            };
-            _ = margin;
+            var place = o.PlaceOf(group);
+            Put(block, place.Anchor, place.X, place.Y, 20 * dpi.DpiScaleX, 20 * dpi.DpiScaleY);
         }
-        Left = x / dpi.DpiScaleX;
-        Top = y / dpi.DpiScaleY;
+    }
+
+    private void SaveBlockPosition(string group, double x, double y)
+    {
+        var o = _hub.Settings.Overlay;
+        var place = o.Places.FirstOrDefault(p => p.Group == group);
+        if (place is null) o.Places.Add(place = new GroupPlace { Group = group });
+        (place.Anchor, place.X, place.Y) = ("free", x, y);
+        _hub.Store.Save();
+        _hub.OverlayChanged();
     }
 
     public void SetMoveMode(bool on)
@@ -524,6 +566,7 @@ public sealed class OverlayWindow : Window
         style = on ? style & ~WsExTransparent : style | WsExTransparent;
         SetWindowLongPtr(_handle, GwlExStyle, (IntPtr)style);
         Cursor = on ? Cursors.SizeAll : Cursors.Arrow;
+        foreach (var block in _blocks.Values) block.SetMoveMode(on);
         _hub.OverlayMoveChanged(on);
         Evaluate();
     }
@@ -556,7 +599,73 @@ public sealed class OverlayWindow : Window
             UnregisterHotKey(_handle, HotToggle);
             UnregisterHotKey(_handle, HotMove);
         }
+        foreach (var block in _blocks.Values) block.Close();
         AcquireDemand(false);
         base.OnClosed(e);
+    }
+}
+
+/// <summary>One group of readings (GPU, CPU, RAM, network, time...) that sits apart from the main overlay block.
+/// Like the main block it never takes focus or input, except while the user is moving the overlay.</summary>
+public sealed class OverlayBlockWindow : Window
+{
+    private const int GwlExStyle = -20;
+    private const int WsExTransparent = 0x20, WsExToolWindow = 0x80, WsExNoActivate = 0x08000000, WsExLayered = 0x80000;
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
+    private static extern IntPtr GetWindowLongPtr(IntPtr hwnd, int index);
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")]
+    private static extern IntPtr SetWindowLongPtr(IntPtr hwnd, int index, IntPtr value);
+
+    private readonly string _group;
+    private readonly ContentControl _host = new();
+    private IntPtr _handle;
+    private bool _moving;
+
+    public OverlayBlockWindow(string group, Action placed, Action<string, double, double> moved)
+    {
+        _group = group;
+        AllowsTransparency = true;
+        WindowStyle = WindowStyle.None;
+        ResizeMode = ResizeMode.NoResize;
+        Background = Brushes.Transparent;
+        ShowInTaskbar = false;
+        ShowActivated = false;
+        Topmost = true;
+        Focusable = false;
+        SizeToContent = SizeToContent.WidthAndHeight;
+        Content = _host;
+        SnapsToDevicePixels = true;
+        Title = "Shabpa overlay block";
+        SizeChanged += (_, _) => placed();
+        MouseLeftButtonDown += (_, _) => { if (_moving) DragMove(); };
+        MouseLeftButtonUp += (_, _) =>
+        {
+            if (!_moving) return;
+            var dpi = VisualTreeHelper.GetDpi(this);
+            moved(_group, Left * dpi.DpiScaleX, Top * dpi.DpiScaleY);
+        };
+    }
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        _handle = new WindowInteropHelper(this).Handle;
+        var style = GetWindowLongPtr(_handle, GwlExStyle).ToInt64();
+        style |= WsExToolWindow | WsExNoActivate | WsExLayered | (_moving ? 0 : WsExTransparent);
+        SetWindowLongPtr(_handle, GwlExStyle, (IntPtr)style);
+    }
+
+    public void Update(OverlaySettings settings, IReadOnlyList<MetricView> metrics, IReadOnlyList<TelemetrySample> history) =>
+        _host.Content = OverlayRenderer.Build(settings, metrics, history);
+
+    public void SetMoveMode(bool on)
+    {
+        _moving = on;
+        if (_handle == IntPtr.Zero) return;
+        var style = GetWindowLongPtr(_handle, GwlExStyle).ToInt64();
+        style = on ? style & ~WsExTransparent : style | WsExTransparent;
+        SetWindowLongPtr(_handle, GwlExStyle, (IntPtr)style);
+        Cursor = on ? Cursors.SizeAll : Cursors.Arrow;
     }
 }

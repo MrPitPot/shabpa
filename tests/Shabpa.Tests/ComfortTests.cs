@@ -120,3 +120,25 @@ public class ComfortTests
     [Fact]
     public void Every_break_message_exists_in_both_languages() => Assert.Equal(BreakPlanner.Fa.Length, BreakPlanner.En.Length);
 }
+
+public class OverlayPlaceTests
+{
+    [Fact]
+    public void Groups_stay_with_the_main_block_except_the_clock_which_defaults_to_a_corner()
+    {
+        var o = new OverlaySettings();
+        Assert.Equal("main", o.PlaceOf("gpu").Anchor);
+        Assert.Equal("tr", o.PlaceOf("time").Anchor);
+        Assert.Equal("time", OverlayMetrics.Find("clock")!.Group);
+    }
+
+    [Fact]
+    public void A_chosen_place_wins_and_blocks_are_a_compact_strip()
+    {
+        var o = new OverlaySettings { Layout = "card" };
+        o.Places.Add(new GroupPlace { Group = "cpu", Anchor = "bl" });
+        Assert.Equal("bl", o.PlaceOf("cpu").Anchor);
+        Assert.Equal("bar", o.ForBlock().Layout);
+        Assert.Equal("card", o.Layout);
+    }
+}

@@ -112,6 +112,35 @@ public partial class App : Application
             return;
         }
 
+        // Test aid: draws the overlay with groups placed apart and writes where each overlay window ended up.
+        if (Value(e.Args, "--blocks-test") is { } blocksReport)
+        {
+            Resources.MergedDictionaries.Add(Ui.Resources(Palette.Find(null)));
+            Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/Shabpa;component/Theme.xaml", UriKind.Relative) });
+            var bs = new Store { ReadOnly = true };
+            var bh = new Hub(bs, true, true);
+            var oo = bh.Settings.Overlay;
+            oo.Mode = OverlayMode.Always;
+            oo.Items = ["fps", "gpu", "gputemp", "cpu", "ram", "ping", "clock"];
+            oo.Places.Add(new GroupPlace { Group = "gpu", Anchor = "tr" });
+            oo.Places.Add(new GroupPlace { Group = "cpu", Anchor = "tr" });
+            oo.Places.Add(new GroupPlace { Group = "ram", Anchor = "bl" });
+            var win = new OverlayWindow(bh);
+            new System.Windows.Interop.WindowInteropHelper(win).EnsureHandle();
+            win.Evaluate();
+            var t = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1500) };
+            t.Tick += (_, _) =>
+            {
+                t.Stop();
+                var lines = Windows.OfType<Window>().Where(w => w.IsVisible)
+                    .Select(w => $"{w.Title}: x={w.Left:0} y={w.Top:0} w={w.ActualWidth:0} h={w.ActualHeight:0}");
+                File.WriteAllText(blocksReport, string.Join(Environment.NewLine, lines));
+                Shutdown();
+            };
+            t.Start();
+            return;
+        }
+
         // Used by the installer: switch start-with-Windows on or off for this exe, then exit.
         if (Value(e.Args, "--autostart") is { } autostart)
         {

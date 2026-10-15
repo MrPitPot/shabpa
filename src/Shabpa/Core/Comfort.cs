@@ -55,6 +55,16 @@ public sealed class GameLogEntry
     };
 }
 
+/// <summary>Where one group of overlay readings is drawn: with the main block, in a screen corner, or at a free spot.</summary>
+public sealed class GroupPlace
+{
+    public string Group { get; set; } = "";
+    /// <summary>"main" (together with the rest), tl, tc, tr, bl, bc, br, or "free" (X and Y are screen pixels).</summary>
+    public string Anchor { get; set; } = "main";
+    public double X { get; set; }
+    public double Y { get; set; }
+}
+
 /// <summary>Overlay choices remembered for one game; applied whenever that game is the one running.</summary>
 public sealed class OverlayProfile
 {
