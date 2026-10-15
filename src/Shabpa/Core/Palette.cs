@@ -77,6 +77,22 @@ public sealed record Palette(string Key, string Fa, string En, bool Light, IRead
             Gold=FFC764 GoldSoft=3A2F17 Green=6EE7B7 GreenSoft=0E3A2D Red=FF7A8D RedSoft=45182A RedLine=73283A
             Hero=0A3A2D Hero2=0A2F33 Thumb=2A5545 Glow=FFFFFF Halo=10B981
             """),
+        // forest: mossy, earthy greens on a near-black base; calm and low in saturation
+        Make("forest", "سبز جنگلی", "Forest green", false, """
+            Bg=060B07 Bg2=0C1A0F Side=070D08 Side2=0D1B10 Panel=0E1810 Panel2=15231A Panel3=1C2F22 Line=29402F
+            Text=EAF3E6 Muted=A5BFA2 Faint=7A957A
+            Accent=7CC47C Accent1=5FAF63 Accent2=3F8F52 AccentSoft=173A22 OnAccent=06120A
+            Gold=E6C068 GoldSoft=3A3217 Green=8FDB8F GreenSoft=143A1E Red=FF8A8A RedSoft=45201F RedLine=75342F
+            Hero=17402A Hero2=1E3A1A Thumb=355E40 Glow=FFFFFF Halo=3F8F52
+            """),
+        // neon green: pure black with a vivid lime accent; the glow is strong on purpose
+        Make("neongreen", "سبز نئونی", "Neon green", false, """
+            Bg=000000 Bg2=021208 Side=010302 Side2=03140A Panel=060D08 Panel2=0B1A0F Panel3=11261A Line=17381F
+            Text=ECFFF1 Muted=A3D4B0 Faint=6FA37F
+            Accent=39FF88 Accent1=22F27A Accent2=00D96A AccentSoft=053A1B OnAccent=00150A
+            Gold=FFE44D GoldSoft=3A3510 Green=5BFF9C GreenSoft=06381C Red=FF7F95 RedSoft=45151F RedLine=7A2433
+            Hero=04401F Hero2=02291A Thumb=1F6E3C Glow=FFFFFF Halo=00FF6A
+            """),
         Make("bluviolet", "بنفش‌آبی", "Blue violet", false, """
             Bg=0C0D2B Bg2=151447 Side=10123A Side2=1A1760 Panel=1A1D52 Panel2=23276A Panel3=2E3485 Line=3F46A3
             Text=F2F3FF Muted=C0C6FF Faint=9AA3F0

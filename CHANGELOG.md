@@ -60,6 +60,8 @@ The 2.x and 3.0 line moved quickly while the app was taking shape; from here on 
   confirmation and the Recycle Bin (Windows now asks if a file is too big for the bin), keep notices and task
   reminders away from the bot, and refuse odd backup destinations and service names.
 
+- Two new themes: **Forest green** (calm, mossy) and **Neon green** (black with a vivid glow).
+
 ## 3.0.1
 
 - Screen dimming no longer flashes back to full brightness once a second.

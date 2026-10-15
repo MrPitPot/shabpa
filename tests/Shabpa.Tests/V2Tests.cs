@@ -219,7 +219,7 @@ public class PaletteTests
     [Fact]
     public void There_are_dark_and_light_themes_including_the_requested_ones()
     {
-        Assert.Equal(["night", "black", "white", "pink", "purple", "emerald", "bluviolet", "pinkviolet", "sunset", "ocean", "aurora", "vampire", "fjord", "neon", "retro", "teal", "duskrose", "code", "latte"], Palette.All.Select(p => p.Key));
+        Assert.Equal(["night", "black", "white", "pink", "purple", "emerald", "forest", "neongreen", "bluviolet", "pinkviolet", "sunset", "ocean", "aurora", "vampire", "fjord", "neon", "retro", "teal", "duskrose", "code", "latte"], Palette.All.Select(p => p.Key));
         Assert.Contains(Palette.All, p => p.Light);
         Assert.Equal("night", Palette.Find("no-such-theme").Key);
     }
