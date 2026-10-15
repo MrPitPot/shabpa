@@ -47,7 +47,7 @@ public partial class HomePage : PageBase
     public override void Refresh()
     {
         var now = DateTime.Now;
-        Greeting.Text = Greetings.Pick(now);
+        ColorEmoji.Fill(Greeting, Greetings.Pick(now));
         DateText.Text = L.T($"{Fa.DayName(now.DayOfWeek)} {Fa.Date(now)} · ساعت {Fa.Clock(now)}", $"{Fa.DayName(now.DayOfWeek)}, {Fa.Date(now)} · {Fa.Clock(now)}");
 
         NextPanel.Children.Clear();

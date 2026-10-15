@@ -114,6 +114,9 @@ public partial class App : Application
             return;
         }
 
+        if (Value(e.Args, "--weather-code") is { } wc && int.TryParse(wc, out var code)) Pages.WeatherPage.DemoCode = code;
+        Pages.WeatherPage.DemoNight = args.Contains("--weather-night");
+
         var shots = Value(e.Args, "--screenshots");
         // --live keeps real sensors and the real graphics card in a screenshot run (nothing is saved or executed).
         var demo = args.Contains("--demo") || (shots is not null && !args.Contains("--live"));

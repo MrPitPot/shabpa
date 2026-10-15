@@ -12,7 +12,7 @@
     <RootNamespace>Shabpa.Setup</RootNamespace>
     <ApplicationIcon>shabpa.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>2.5.0</Version>
+    <Version>2.5.1</Version>
     <Product>Shabpa Setup</Product>
     <AssemblyTitle>Shabpa Setup</AssemblyTitle>
     <Company>Mr.PitPot</Company>

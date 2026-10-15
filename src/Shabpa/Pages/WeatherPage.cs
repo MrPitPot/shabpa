@@ -225,7 +225,9 @@ public sealed class WeatherPage : PageBase
         temp.FlowDirection = FlowDirection.LeftToRight;
         temp.TextAlignment = L.En ? TextAlignment.Left : TextAlignment.Right;
         _heroText.Children.Add(temp);
-        _heroText.Children.Add(T($"{WeatherCodes.Emoji(now.Code, now.IsDay)}  {WeatherCodes.Text(now.Code)}", 20));
+        var condition = T("", 22);
+        ColorEmoji.Fill(condition, $"{WeatherCodes.Emoji(now.Code, now.IsDay)}  {WeatherCodes.Text(now.Code)}");
+        _heroText.Children.Add(condition);
         var today = r.Days.FirstOrDefault();
         var extra = L.T($"احساس واقعی {Temp(now.Feels)}", $"Feels like {Temp(now.Feels)}");
         if (today is not null) extra += L.T($"   ·   بیشینه {Temp(today.Max)}   کمینه {Temp(today.Min)}", $"   ·   High {Temp(today.Max)}   Low {Temp(today.Min)}");
@@ -239,7 +241,9 @@ public sealed class WeatherPage : PageBase
         {
             var box = new Border { Style = St("Card"), Margin = new Thickness(4), Padding = new Thickness(14, 10, 14, 10) };
             var stack = new StackPanel();
-            stack.Children.Add(new TextBlock { Text = $"{icon} {label}", Style = St("Label") });
+            var caption = new TextBlock { Style = St("Label") };
+            ColorEmoji.Fill(caption, $"{icon} {label}");
+            stack.Children.Add(caption);
             // Values mix digits with Latin units (km/h, hPa): lay them out left-to-right so the order stays readable.
             stack.Children.Add(new TextBlock
             {
@@ -271,12 +275,14 @@ public sealed class WeatherPage : PageBase
             };
             var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
             stack.Children.Add(new TextBlock { Text = Fa.Clock(h.Time), Style = St("Label"), HorizontalAlignment = HorizontalAlignment.Center });
-            stack.Children.Add(new TextBlock { Text = WeatherCodes.Emoji(h.Code, h.IsDay), FontSize = 22, Margin = new Thickness(0, 6, 0, 6), HorizontalAlignment = HorizontalAlignment.Center });
+            var hourIcon = ColorEmoji.Icon(WeatherCodes.Emoji(h.Code, h.IsDay), 22);
+            ((FrameworkElement)hourIcon).Margin = new Thickness(0, 6, 0, 6);
+            ((FrameworkElement)hourIcon).HorizontalAlignment = HorizontalAlignment.Center;
+            stack.Children.Add(hourIcon);
             stack.Children.Add(new TextBlock { Text = Temp(h.Temp), FontWeight = FontWeights.SemiBold, Foreground = Res("Text"), HorizontalAlignment = HorizontalAlignment.Center });
-            stack.Children.Add(new TextBlock
-            {
-                Text = h.RainChance > 0 ? $"💧{Num(h.RainChance)}٪" : " ", FontSize = 11, Foreground = Res("Muted"), Margin = new Thickness(0, 4, 0, 0), HorizontalAlignment = HorizontalAlignment.Center,
-            });
+            var chance = new TextBlock { FontSize = 11, Foreground = Res("Muted"), Margin = new Thickness(0, 4, 0, 0), HorizontalAlignment = HorizontalAlignment.Center };
+            ColorEmoji.Fill(chance, h.RainChance > 0 ? $"💧{Num(h.RainChance)}٪" : " ");
+            stack.Children.Add(chance);
             item.Child = stack;
             _hours.Children.Add(item);
         }
@@ -302,12 +308,13 @@ public sealed class WeatherPage : PageBase
             nameBox.Children.Add(new TextBlock { Text = title, Style = St("Body"), FontWeight = FontWeights.SemiBold });
             nameBox.Children.Add(new TextBlock { Text = Fa.Date(d.Date), Style = St("Label"), FontSize = 11 });
             Put(nameBox, 0);
-            Put(new TextBlock { Text = WeatherCodes.Emoji(d.Code), FontSize = 22, VerticalAlignment = VerticalAlignment.Center }, 1);
+            var dayIcon = (FrameworkElement)ColorEmoji.Icon(WeatherCodes.Emoji(d.Code), 22);
+            dayIcon.VerticalAlignment = VerticalAlignment.Center;
+            Put(dayIcon, 1);
             Put(new TextBlock { Text = WeatherCodes.Text(d.Code), Style = St("Label"), VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap }, 2);
-            Put(new TextBlock
-            {
-                Text = d.RainChance > 0 ? $"💧 {Num(d.RainChance)}٪" : "", Style = St("Label"), VerticalAlignment = VerticalAlignment.Center,
-            }, 3);
+            var rainBox = new TextBlock { Style = St("Label"), VerticalAlignment = VerticalAlignment.Center };
+            ColorEmoji.Fill(rainBox, d.RainChance > 0 ? $"💧 {Num(d.RainChance)}٪" : "");
+            Put(rainBox, 3);
             Put(new TextBlock { Text = Temp(d.Min), Style = St("Label"), VerticalAlignment = VerticalAlignment.Center, FlowDirection = FlowDirection.LeftToRight, HorizontalAlignment = HorizontalAlignment.Center }, 4);
 
             // a bar from the day's low to its high, placed inside the week's overall range
@@ -350,6 +357,10 @@ public sealed class WeatherPage : PageBase
         new() { Name = text, Region = "تهران", Country = "ایران", Latitude = 35.69, Longitude = 51.42 },
     ];
 
+    /// <summary>Test aid (--weather-code N [--weather-night]): which sky the demo report shows.</summary>
+    public static int? DemoCode { get; set; }
+    public static bool DemoNight { get; set; }
+
     private static WeatherReport DemoReport(WeatherCity city)
     {
         var now = DateTime.Now;
@@ -357,6 +368,6 @@ public sealed class WeatherPage : PageBase
         int[] codes = [0, 2, 3, 61, 63, 71, 95, 45];
         var days = Enumerable.Range(0, 8).Select(i => new WeatherDay(now.Date.AddDays(i), 18 + (i * 3) % 9, 6 + (i * 2) % 7, codes[i % codes.Length], i % 3 == 0 ? 5 : 55, i % 3 == 0 ? 0 : 3.4, 18, 6,
             now.Date.AddDays(i).AddHours(6.5), now.Date.AddDays(i).AddHours(17.8))).ToList();
-        return new WeatherReport(city, now, new WeatherNow(21, 19.5, 42, 14, 290, 1015, 35, 0, true, 2, 6), hours, days, WeatherClient.SourceName);
+        return new WeatherReport(city, now, new WeatherNow(21, 19.5, 42, 14, 290, 1015, 35, 0, !DemoNight, DemoCode ?? 2, 6), hours, days, WeatherClient.SourceName);
     }
 }
