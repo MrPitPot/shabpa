@@ -316,8 +316,6 @@ public class EnglishTests
         engine.Activate(new Rule { Kind = RuleKind.Idle, HoldMinutes = 10 });
         Assert.Equal("You are using the PC.", engine.Evaluate(new SensorSnapshot { IdleSeconds = 1 }, DateTime.Now).Text);
 
-        Assert.Equal(BotCommand.Shutdown, TelegramBot.Parse("Shut down"));
-        Assert.Equal(BotCommand.Status, TelegramBot.Parse("status"));
         Assert.Equal("Restarted", new PowerEvent(DateTime.Now, PowerEventKind.Restart).Title);
     });
 }

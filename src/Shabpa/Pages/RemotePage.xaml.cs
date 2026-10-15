@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using Shabpa.Core;
@@ -7,30 +8,35 @@ namespace Shabpa.Pages;
 public partial class RemotePage : PageBase
 {
     public override string PageTitle => L.T("کنترل از راه دور", "Remote control");
-    public override string PageSubtitle => L.T("با ربات تلگرام خودت، از هر جا سیستم رو بخوابون، خاموش کن یا وضعیتش رو ببین.", "With your own Telegram bot, sleep, shut down or check on the PC from anywhere.");
+    public override string PageSubtitle => L.T("با ربات شب‌پا توی تلگرام، از هر جا سیستم رو بخوابون، خاموش کن یا وضعیتش رو ببین.", "With the Shabpa bot in Telegram, sleep, shut down or check on the PC from anywhere.");
+
+    private readonly System.Windows.Threading.DispatcherTimer _ticker = new() { Interval = TimeSpan.FromSeconds(1) };
 
     public RemotePage()
     {
         InitializeComponent();
         ProxyBox.Text = Hub.Settings.ProxyUrl;
         Hub.Bot.Changed += () => Dispatcher.BeginInvoke(Refresh);
+        // keeps the "code is valid for m:ss" line current
+        _ticker.Tick += (_, _) => { if (IsVisible) UpdateCodeHint(); };
+        _ticker.Start();
     }
 
-    private void OnSaveToken(object sender, RoutedEventArgs e)
+    private void OnOpenBot(object sender, RoutedEventArgs e)
     {
-        var token = TokenBox.Text.Trim();
-        if (!TelegramBot.LooksLikeToken(token))
-        {
-            TokenHint.Text = L.T("این شبیه توکن ربات نیست. توکن چیزی شبیه 123456789:AAH... هست.", "That does not look like a bot token. A token looks like 123456789:AAH...");
-            TokenHint.Foreground = Res("Red");
-            return;
-        }
-        Hub.Settings.TelegramTokenProtected = TelegramBot.Protect(token);
-        Hub.Settings.TelegramChatId = 0;
-        Hub.Settings.TelegramUser = "";
-        Hub.Store.Save();
-        TokenBox.Text = "";
-        Hub.Bot.Restart();
+        try { Process.Start(new ProcessStartInfo($"https://t.me/{BotLink.BotUsername}") { UseShellExecute = true }); }
+        catch { /* no browser or Telegram handler */ }
+    }
+
+    private void OnCopy(object sender, RoutedEventArgs e)
+    {
+        if (Hub.Bot.Code.Length == 0) return;
+        try { Clipboard.SetText(Hub.Bot.Code); } catch { /* clipboard busy */ }
+    }
+
+    private void OnNewCode(object sender, RoutedEventArgs e)
+    {
+        Hub.Bot.NewCode();
         Refresh();
     }
 
@@ -42,63 +48,80 @@ public partial class RemotePage : PageBase
         Refresh();
     }
 
-    private void RemoveToken()
+    private void UpdateCodeHint()
     {
-        Hub.Settings.TelegramTokenProtected = "";
-        Hub.Settings.TelegramChatId = 0;
-        Hub.Settings.TelegramUser = "";
-        Hub.Store.Save();
-        Hub.Bot.Restart();
-        Refresh();
+        var bot = Hub.Bot;
+        if (bot.Code.Length == 0)
+        {
+            CodeHint.Text = bot.State == BotState.Connecting || bot.State == BotState.WaitingForPair
+                ? L.T("در حال گرفتن کد…", "Getting a code…")
+                : "";
+            return;
+        }
+        var left = bot.CodeExpires - DateTimeOffset.UtcNow;
+        if (left <= TimeSpan.Zero)
+        {
+            CodeHint.Text = L.T("این کد منقضی شده؛ یه کد جدید می‌گیرم…", "This code has expired; getting a new one…");
+            return;
+        }
+        var time = $"{(int)left.TotalMinutes}:{left.Seconds:00}";
+        CodeHint.Text = L.T($"این کد فقط یک بار و تا {Fa.Digits(time)} دقیقه‌ی دیگه کار می‌کنه. هر کس این کد رو داشته باشه می‌تونه این سیستم رو کنترل کنه، پس فقط خودت بفرستش.",
+            $"The code works once, for the next {time}. Whoever has it can control this PC, so send it yourself only.");
     }
 
     public override void Refresh()
     {
         var bot = Hub.Bot;
-        var hasToken = Hub.Settings.TelegramTokenProtected.Length > 0;
-        var name = bot.BotName.Length > 0 ? $"‎@{bot.BotName}" : L.T("ربات", "the bot");
-
-        TokenHint.Foreground = Res("Muted");
-        TokenHint.Text = hasToken
-            ? L.T("توکن ذخیره شده (رمزنگاری‌شده، فقط روی همین حساب ویندوز). برای عوض کردنش، توکن جدید رو وارد کن.", "A token is saved (encrypted, for this Windows account only). Enter a new one to replace it.")
-            : L.T("توکن فقط روی همین سیستم و به‌صورت رمزنگاری‌شده نگه داشته می‌شه.", "The token is kept on this PC only, encrypted.");
-        CodeText.Text = bot.State == BotState.WaitingForPair ? bot.PairCode : "— — —";
+        CodeText.Text = bot.Code.Length > 0 ? bot.Code : "— — — —";
+        CopyButton.IsEnabled = bot.Code.Length > 0;
+        NewCodeButton.IsEnabled = bot.State is BotState.WaitingForPair or BotState.Connected;
+        UpdateCodeHint();
 
         StatusPanel.Children.Clear();
-        var remove = new Button { Style = St("BtnDanger"), Content = L.T("حذف ربات", "Remove bot") };
-        remove.Click += (_, _) => RemoveToken();
+        var remove = new Button { Style = St("BtnDanger"), Content = L.T("قطع اتصال", "Disconnect") };
+        remove.Click += async (_, _) =>
+        {
+            remove.IsEnabled = false;
+            await Hub.Bot.RemoveAsync();
+        };
 
         switch (bot.State)
         {
             case BotState.Connected:
+            {
                 var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-                var unpair = new Button { Style = St("Btn"), Content = L.T("قطع اتصال حساب", "Unlink account"), Margin = new Thickness(0, 0, 8, 0) };
-                unpair.Click += (_, _) => Hub.Bot.Unpair();
-                actions.Children.Add(unpair);
+                var another = new Button { Style = St("Btn"), Content = L.T("وصل کردن یه حساب دیگه", "Link another account"), Margin = new Thickness(0, 0, 8, 0) };
+                another.Click += (_, _) => { Hub.Bot.NewCode(); SetupPanel.Visibility = Visibility.Visible; };
+                actions.Children.Add(another);
                 actions.Children.Add(remove);
-                var user = Hub.Settings.TelegramUser;
-                StatusPanel.Children.Add(Row("", "Green", L.T("ربات تلگرام وصله", "The Telegram bot is connected"),
-                    user.Length > 0
-                        ? L.T($"{name} آماده‌ست و به حساب «{user}» وصله.", $"{name} is ready and linked to “{user}”.")
-                        : L.T($"{name} آماده‌ست.", $"{name} is ready."), actions));
+                StatusPanel.Children.Add(Row("", "Green", L.T("به ربات وصله", "Linked to the bot"),
+                    bot.Chats == 1
+                        ? L.T("یه حساب تلگرام این سیستم رو کنترل می‌کنه.", "One Telegram account controls this PC.")
+                        : L.T($"{Fa.Digits(bot.Chats.ToString())} حساب تلگرام این سیستم رو کنترل می‌کنن.", $"{bot.Chats} Telegram accounts control this PC."), actions));
                 break;
+            }
             case BotState.WaitingForPair:
-                StatusPanel.Children.Add(Row("", "Gold", L.T("ربات آماده‌ست؛ فقط حسابت رو وصل کن", "The bot is ready; just link your account"),
-                    L.T($"توی تلگرام {name} رو باز کن و کد ۶ رقمی قدم ۳ رو براش بفرست.", $"Open {name} in Telegram and send it the 6-digit code from step 3."), remove));
+                StatusPanel.Children.Add(Row("", "Gold", L.T("فقط کد رو برای ربات بفرست", "Just send the code to the bot"),
+                    L.T("‎@ShabPa_Bot رو باز کن و کد پایین رو براش بفرست. همین.", "Open @ShabPa_Bot and send it the code below. That is all."), remove));
                 break;
             case BotState.Connecting:
-                StatusPanel.Children.Add(Row("", "Accent", L.T("در حال اتصال به تلگرام…", "Connecting to Telegram…"), L.T("چند لحظه صبر کن.", "One moment."), remove));
+                StatusPanel.Children.Add(Row("", "Accent", L.T("در حال اتصال…", "Connecting…"), L.T("چند لحظه صبر کن.", "One moment."), remove));
                 break;
             case BotState.Error:
                 StatusPanel.Children.Add(Row("", "Red", L.T("اتصال برقرار نشد", "Could not connect"), bot.Detail, remove));
                 break;
             default:
-                StatusPanel.Children.Add(Row("", "Accent", L.T("هنوز رباتی وصل نیست", "No bot connected yet"),
-                    L.T("با سه قدم پایین، ربات تلگرام خودت رو وصل کن. رایگانه و سرور لازم نداره.", "Connect your own Telegram bot with the three steps below. It is free and needs no server.")));
+            {
+                var connect = new Button { Style = St("BtnPrimary"), Content = L.T("وصل شدن به ربات", "Connect to the bot") };
+                connect.Click += (_, _) => Hub.Bot.Enable();
+                StatusPanel.Children.Add(Row("", "Accent", L.T("هنوز به ربات وصل نیست", "Not linked to the bot yet"),
+                    L.T("یه کد می‌گیری و برای ‎@ShabPa_Bot می‌فرستی. ربات ساختن و توکن لازم نیست.", "You get a code and send it to @ShabPa_Bot. No bot to create, no token."), connect));
                 break;
+            }
         }
 
-        // Once paired there is nothing left to set up.
-        SetupPanel.Visibility = bot.State == BotState.Connected ? Visibility.Collapsed : Visibility.Visible;
+        // Before linking there is nothing to show yet; once linked, the code card only comes back for another account.
+        SetupPanel.Visibility = bot.State == BotState.WaitingForPair || (bot.State == BotState.Connected && bot.Code.Length > 0)
+            ? Visibility.Visible : Visibility.Collapsed;
     }
 }

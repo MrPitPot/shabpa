@@ -53,7 +53,7 @@ public class SupportTests
         settings.Endpoint = "https://x.example.workers.dev/";
         Assert.True(client.Available);
         Assert.Equal("https://x.example.workers.dev", client.Endpoint);
-        settings.AdminKeyProtected = TelegramBot.Protect("secret");
+        settings.AdminKeyProtected = Secret.Protect("secret");
         Assert.True(client.IsAdmin);
         Assert.Equal("secret", client.AdminKey);
     }

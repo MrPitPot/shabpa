@@ -507,104 +507,6 @@ public class SystemToolsTests
         Assert.Equal(["obs64", "bdcam", "action"], SensorHub.RecorderNames(" OBS64.exe ,bdcam؛ ; Action\n"));
 }
 
-public class TelegramBotTests
-{
-    private readonly Settings _settings = new();
-    private readonly List<PowerAction> _requested = [];
-    private int _saves;
-
-    private TelegramBot Bot() => new(() => _settings, () => _saves++, new BotHost
-    {
-        Status = () => "STATUS",
-        Request = a => { _requested.Add(a); return 15; },
-        Cancel = () => "CANCELLED",
-    });
-
-    [Theory]
-    [InlineData("/shutdown", BotCommand.Shutdown)]
-    [InlineData("/restart@MyShabpaBot", BotCommand.Restart)]
-    [InlineData("خاموش", BotCommand.Shutdown)]
-    [InlineData(" خواب ", BotCommand.Sleep)]
-    [InlineData("قفل صفحه", BotCommand.Lock)]
-    [InlineData("وضعیت", BotCommand.Status)]
-    [InlineData("لغو", BotCommand.Cancel)]
-    [InlineData("سلام", BotCommand.Unknown)]
-    [InlineData("/format_c", BotCommand.Unknown)]
-    public void Commands_are_recognised(string text, BotCommand expected) => Assert.Equal(expected, TelegramBot.Parse(text));
-
-    [Fact]
-    public void A_stranger_cannot_run_anything()
-    {
-        var bot = Bot();
-        bot.Handle(111, "خاموش", "x", false);
-        bot.Handle(111, "/shutdown", "x", false);
-        Assert.Empty(_requested);
-        Assert.Equal(0, _settings.TelegramChatId);
-    }
-
-    [Fact]
-    public void Pairing_needs_the_code_and_then_locks_to_that_chat()
-    {
-        var bot = Bot();
-        var code = bot.PairCode;
-        Assert.Contains("وصل شد", bot.Handle(111, code, "Amir", false));
-        Assert.Equal(111, _settings.TelegramChatId);
-        Assert.Equal(BotState.Connected, bot.State);
-        Assert.NotEqual(code, bot.PairCode);
-        Assert.Equal(1, _saves);
-
-        // Someone else, even with the old code, gets nowhere.
-        bot.Handle(222, code, "Eve", false);
-        bot.Handle(222, "خاموش", "Eve", false);
-        Assert.Equal(111, _settings.TelegramChatId);
-        Assert.Empty(_requested);
-
-        bot.Handle(111, "خاموش", "Amir", false);
-        Assert.Equal([PowerAction.Shutdown], _requested);
-    }
-
-    [Fact]
-    public void Wrong_guesses_burn_the_pairing_code()
-    {
-        var bot = Bot();
-        var code = bot.PairCode;
-        for (var i = 0; i < 5; i++) bot.Handle(999, "000000", "x", false);
-        Assert.NotEqual(code, bot.PairCode);
-        bot.Handle(999, code, "x", false);
-        Assert.Equal(0, _settings.TelegramChatId);
-    }
-
-    [Fact]
-    public void Old_messages_are_not_executed_when_the_pc_comes_back()
-    {
-        _settings.TelegramChatId = 111;
-        var bot = Bot();
-        Assert.Contains("قدیمیه", bot.Handle(111, "خاموش", "Amir", stale: true));
-        Assert.Empty(_requested);
-        Assert.Equal("STATUS", bot.Handle(111, "وضعیت", "Amir", stale: true));
-    }
-
-    [Fact]
-    public void Stale_pairing_attempt_is_ignored()
-    {
-        var bot = Bot();
-        Assert.Null(bot.Handle(111, bot.PairCode, "Amir", stale: true));
-        Assert.Equal(0, _settings.TelegramChatId);
-    }
-
-    [Fact]
-    public void Token_shape_is_checked_and_token_is_encrypted_at_rest()
-    {
-        const string token = "123456789:FAKE-TOKEN-for-tests-only-0000000000";
-        Assert.True(TelegramBot.LooksLikeToken(token));
-        Assert.False(TelegramBot.LooksLikeToken("hello"));
-        var stored = TelegramBot.Protect(token);
-        Assert.DoesNotContain("FAKE-TOKEN", stored);
-        Assert.Equal(token, TelegramBot.Unprotect(stored));
-        Assert.Equal("", TelegramBot.Unprotect("not-base64!"));
-    }
-}
-
 public class StoreTests
 {
     [Fact]
@@ -660,24 +562,5 @@ public class StoreTests
         var folder = Path.Combine(Path.GetTempPath(), "shabpa-test-" + Guid.NewGuid().ToString("N"));
         new Store(folder) { ReadOnly = true }.Save();
         Assert.False(Directory.Exists(folder));
-    }
-}
-
-public class TelegramBusyTests
-{
-    [Fact]
-    public void A_second_power_command_during_a_countdown_is_refused_clearly()
-    {
-        var settings = new Settings { TelegramChatId = 111 };
-        var bot = new TelegramBot(() => settings, () => { }, new BotHost { Status = () => "", Request = _ => -1, Cancel = () => "" });
-        Assert.Contains("شمارش معکوس دیگه", bot.Handle(111, "خاموش", "Amir", false));
-    }
-
-    [Fact]
-    public void Lock_reports_done_immediately()
-    {
-        var settings = new Settings { TelegramChatId = 111 };
-        var bot = new TelegramBot(() => settings, () => { }, new BotHost { Status = () => "", Request = _ => 0, Cancel = () => "" });
-        Assert.Contains("انجام شد", bot.Handle(111, "قفل صفحه", "Amir", false));
     }
 }

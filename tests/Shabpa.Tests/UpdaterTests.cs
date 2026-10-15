@@ -82,12 +82,4 @@ public class UpdaterTests
         Assert.Throws<InvalidDataException>(() => Updater.Verify(file, ""));
         Assert.False(File.Exists(file));
     }
-
-    [Fact]
-    public void The_bot_understands_update()
-    {
-        Assert.Equal(BotCommand.Update, TelegramBot.Parse("به‌روزرسانی"));
-        Assert.Equal(BotCommand.Update, TelegramBot.Parse("/update"));
-        Assert.Equal(BotCommand.Update, TelegramBot.Parse("Update"));
-    }
 }

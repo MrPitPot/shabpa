@@ -130,7 +130,7 @@ public sealed class SupportClient
 
     public bool Available => IsValidEndpoint(Endpoint);
 
-    public string AdminKey => TelegramBot.Unprotect(_settings().AdminKeyProtected);
+    public string AdminKey => Secret.Unprotect(_settings().AdminKeyProtected);
     public bool IsAdmin => AdminKey.Length > 0;
 
     private HttpClient Http()

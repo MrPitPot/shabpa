@@ -330,7 +330,7 @@ public sealed class SupportPage : PageBase
         s.Endpoint = endpoint;
         if (_adminKey.Password.Length > 0)
         {
-            s.AdminKeyProtected = TelegramBot.Protect(_adminKey.Password);
+            s.AdminKeyProtected = Secret.Protect(_adminKey.Password);
             _adminKey.Clear();
         }
         Hub.Store.Save();

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Threading;
@@ -25,7 +26,7 @@ public sealed class Hub
     public RuleEngine Engine { get; } = new();
     public CommandQueue Queue { get; }
     public EnergyTracker Energy { get; }
-    public TelegramBot Bot { get; }
+    public BotLink Bot { get; }
     public IPowerExecutor Executor { get; }
     public TrafficMeter Traffic { get; }
     public PingMeter Ping { get; }
@@ -82,12 +83,9 @@ public sealed class Hub
         Updater = new Updater(() => Settings);
         if (Settings.Support.DeviceId.Length != 32) Settings.Support.DeviceId = Guid.NewGuid().ToString("N");
         Support = new SupportClient(() => Settings.Support, () => Settings.ProxyUrl);
-        Bot = new TelegramBot(() => Settings, Store.Save, new BotHost
+        Bot = new BotLink(() => Settings, Store.Save, new BotHost
         {
-            Status = () => OnUi(StatusText),
-            Request = action => OnUi(() => RequestFromBot(action)),
-            Cancel = () => OnUi(CancelEverything),
-            Update = () => OnUi(UpdateFromBot),
+            Execute = (type, args) => OnUi(() => ExecuteRemote(type, args)),
         });
     }
 
@@ -229,7 +227,7 @@ public sealed class Hub
             State.ActiveRule = null;
             Store.Save();
             Changed?.Invoke();
-            Bot.Notify(L.T($"شرط برقرار شد: {status.Text}\n{Fa.ActionSentence(rule.Action)}.", $"Condition met: {status.Text}\nNow {Fa.ActionSentence(rule.Action)}."));
+            Bot.Notify("warning", L.T($"شرط برقرار شد: {status.Text}\n{Fa.ActionSentence(rule.Action)}.", $"Condition met: {status.Text}\nNow {Fa.ActionSentence(rule.Action)}."));
             RequestAction(rule.Action, L.T("خاموشی شرطی", "Conditional rule"), Settings.CountdownSeconds, "rule");
         }
         Tick?.Invoke(s);
@@ -443,7 +441,7 @@ public sealed class Hub
         ComfortUpdated?.Invoke();
         var text = DescribeReport(report);
         Notify(L.T("گزارش بازی", "Game report"), text);
-        Bot.Notify(text);
+        Bot.Notify("game", text);
     }
 
     private DateTime _lastBudgetCheck = DateTime.MinValue;
@@ -467,7 +465,7 @@ public sealed class Hub
             : L.T($"{Fa.N(check.Fraction * 100, 0)}٪ از سقف اینترنت ماهانه‌ات مصرف شده ({Fa.N(check.UsedGb, 1)} از {Fa.N(Settings.MonthlyLimitGb, 0)} گیگ).",
                 $"{Fa.N(check.Fraction * 100, 0)}% of your monthly allowance is used ({Fa.N(check.UsedGb, 1)} of {Fa.N(Settings.MonthlyLimitGb, 0)} GB).");
         Notify(L.T("حجم اینترنت", "Data allowance"), text);
-        Bot.Notify("📶 " + text);
+        Bot.Notify("budget", "📶 " + text);
     }
 
     // ---- updates ----------------------------------------------------------------------------
@@ -492,28 +490,7 @@ public sealed class Hub
         Settings.AnnouncedVersion = version;
         Store.Save();
         Notify(L.T("نسخه‌ی جدید شب‌پا", "New Shabpa version"), L.T($"نسخه‌ی {Fa.Digits(version)} اومده. از «به‌روزرسانی» نصبش کن.", $"Version {version} is out. Install it from Updates."));
-        Bot.Notify(L.T($"🆕 نسخه‌ی {Fa.Digits(version)} شب‌پا اومده. برای نصب «به‌روزرسانی» رو بفرست.", $"🆕 Shabpa {version} is out. Send “Update” to install it."));
-    }
-
-    private string UpdateFromBot()
-    {
-        if (Updater.Feed.Length == 0) return L.T("منبع به‌روزرسانی تنظیم نشده.", "No update source is set.");
-        if (!Elevated)
-            return L.T("نصب از راه دور فقط وقتی ممکنه که شب‌پا با دسترسی ادمین اجرا شده باشه (وگرنه ویندوز روی خود سیستم تأیید می‌خواد). از توی برنامه، بخش «به‌روزرسانی»، نصبش کن.",
-                "Remote install only works while Shabpa runs as administrator (otherwise Windows asks for approval on the PC). Install it from the Updates page in the app.");
-        _ = Task.Run(async () =>
-        {
-            var info = await Updater.CheckAsync();
-            if (info is null)
-            {
-                Bot.Notify(Updater.State == UpdateState.Error ? Updater.Error : L.T("✅ آخرین نسخه نصبه.", "✅ You already have the latest version."));
-                return;
-            }
-            Bot.Notify(L.T($"⬇️ نسخه‌ی {Fa.Digits(info.Version.ToString(3))} پیدا شد؛ دانلود و نصب…", $"⬇️ Found {info.Version.ToString(3)}; downloading and installing…"));
-            var error = await Updater.DownloadAndInstallAsync(elevated: true);
-            Bot.Notify(error ?? L.T("🔄 نصب شروع شد. شب‌پا چند ثانیه بسته می‌شه و با نسخه‌ی جدید برمی‌گرده.", "🔄 Installing. Shabpa closes for a few seconds and comes back on the new version."));
-        });
-        return L.T("🔎 در حال بررسی به‌روزرسانی…", "🔎 Checking for updates…");
+        Bot.Notify("update", L.T($"🆕 نسخه‌ی {Fa.Digits(version)} شب‌پا اومده.", $"🆕 Shabpa {version} is out."));
     }
 
     // ---- comfort: dimming, break reminders, sleep mode, waking for downloads ----------------------
@@ -825,15 +802,114 @@ public sealed class Hub
         return true;
     }
 
-    private int RequestFromBot(PowerAction action)
+    // ---- commands from @ShabPa_Bot (the fixed list in the bot's docs/PROTOCOL.md; nothing else can run) ----------
+
+    private static bool TryAction(string? name, out PowerAction action)
     {
-        if (action == PowerAction.Lock)
+        action = name switch
         {
-            Run(action);
-            return 0;
+            "shutdown" => PowerAction.Shutdown,
+            "sleep" => PowerAction.Sleep,
+            "hibernate" => PowerAction.Hibernate,
+            "restart" => PowerAction.Restart,
+            "lock" => PowerAction.Lock,
+            _ => (PowerAction)(-1),
+        };
+        return Enum.IsDefined(action);
+    }
+
+    private static int IntArg(JsonElement args, string name, int fallback) =>
+        args.ValueKind == JsonValueKind.Object && args.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var n) ? n : fallback;
+
+    private static bool BoolArg(JsonElement args, string name) =>
+        args.ValueKind == JsonValueKind.Object && args.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.True;
+
+    private static string? StringArg(JsonElement args, string name) =>
+        args.ValueKind == JsonValueKind.Object && args.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+
+    internal RemoteReply ExecuteRemote(string type, JsonElement args)
+    {
+        switch (type)
+        {
+            case "status":
+            {
+                var text = StatusText();
+                return RemoteReply.Done(text, text);
+            }
+            case "power":
+            {
+                if (!TryAction(StringArg(args, "action"), out var action))
+                    return RemoteReply.Fail("این دستور رو نمی‌شناسم.", "Unknown command.");
+                var delay = Math.Clamp(IntArg(args, "delaySeconds", 0), 0, 7 * 24 * 3600);
+                if (delay > 60)
+                {
+                    // Later: it goes into the normal queue, which shows its own countdown on screen when the time comes.
+                    var at = DateTime.Now.AddSeconds(delay);
+                    AddCommand(action, at);
+                    return RemoteReply.Done($"ساعت {Fa.Clock(at)} {Fa.ActionSentence(action)}.", $"At {at:HH:mm} {Fa.ActionSentence(action)}.");
+                }
+                if (action == PowerAction.Lock)
+                {
+                    Run(action);
+                    return RemoteReply.Done("صفحه قفل شد.", "The screen is locked.");
+                }
+                const int seconds = 15;
+                return RequestAction(action, L.T("ربات تلگرام", "Telegram bot"), seconds)
+                    ? RemoteReply.Done($"{Fa.Digits(seconds.ToString())} ثانیه‌ی دیگه {Fa.ActionSentence(action)}؛ روی صفحه شمارش معکوس داره.", $"In {seconds} seconds {Fa.ActionSentence(action)}; a countdown is on screen.")
+                    : RemoteReply.Fail("الان یه شمارش معکوس دیگه روی صفحه‌ست. اول لغوش کن.", "Another countdown is already on screen. Cancel it first.");
+            }
+            case "cancel":
+            {
+                var sleep = SleepActive;
+                CancelSleepMode();
+                var text = CancelEverything();
+                if (sleep) text += "\n" + L.T("حالت شب‌خواب هم لغو شد.", "Sleep mode was cancelled too.");
+                return RemoteReply.Done(text, text);
+            }
+            case "ram-clean":
+                CleanMemory(cache: false);
+                return RemoteReply.Done("رم داره خالی می‌شه.", "Freeing up RAM.");
+            case "dim":
+            {
+                var c = Settings.Comfort;
+                c.DimOn = BoolArg(args, "on");
+                var level = IntArg(args, "level", 0);
+                if (level > 0) c.DimLevel = Math.Clamp(level / 100.0, 0.05, 0.92);
+                Store.Save();
+                Dim?.Apply();
+                ComfortChanged();
+                return c.DimOn
+                    ? RemoteReply.Done($"صفحه کم‌نور شد ({Fa.Digits(Math.Round(c.DimLevel * 100).ToString())}٪).", $"The screen is dimmed ({Math.Round(c.DimLevel * 100)}%).")
+                    : RemoteReply.Done("نور صفحه برگشت.", "The screen is back to normal.");
+            }
+            case "volume":
+            {
+                var level = BoolArg(args, "mute") ? 0 : Math.Clamp(IntArg(args, "level", -1), -1, 100);
+                if (level < 0) return RemoteReply.Fail("مقدار صدا مشخص نیست.", "No volume level was given.");
+                return MasterVolume.Set(level / 100.0)
+                    ? RemoteReply.Done($"صدا روی {Fa.Digits(level.ToString())}٪ رفت.", $"Volume set to {level}%.")
+                    : RemoteReply.Fail("دستگاه صدا پیدا نشد.", "No audio device was found.");
+            }
+            case "sleep-mode":
+            {
+                var c = Settings.Comfort;
+                var minutes = IntArg(args, "minutes", 0);
+                if (minutes > 0) c.SleepMinutes = Math.Clamp(minutes, 1, 600);
+                if (TryAction(StringArg(args, "action"), out var action)) c.SleepAction = action;
+                Store.Save();
+                if (SleepActive) return RemoteReply.Fail("حالت شب‌خواب از قبل روشنه.", "Sleep mode is already on.");
+                StartSleepMode();
+                return RemoteReply.Done($"حالت شب‌خواب شروع شد؛ {Fa.Digits(c.SleepMinutes.ToString())} دقیقه‌ی دیگه {Fa.ActionSentence(c.SleepAction)}.",
+                    $"Sleep mode started; in {c.SleepMinutes} minutes {Fa.ActionSentence(c.SleepAction)}.");
+            }
+            case "sleep-cancel":
+                if (!SleepActive) return RemoteReply.Done("حالت شب‌خواب روشن نبود.", "Sleep mode was not on.");
+                CancelSleepMode();
+                return RemoteReply.Done("حالت شب‌خواب لغو شد.", "Sleep mode is cancelled.");
+            default:
+                // "after-download" and anything newer than this version
+                return RemoteReply.Fail("این نسخه‌ی شب‌پا هنوز این دستور رو نداره.", "This version of Shabpa does not support that yet.");
         }
-        const int seconds = 15;
-        return RequestAction(action, L.T("ربات تلگرام", "Telegram bot"), seconds) ? seconds : -1;
     }
 
     private void Run(PowerAction action)

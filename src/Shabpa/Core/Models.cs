@@ -88,9 +88,13 @@ public sealed class Settings
     /// <summary>The city shown on the weather page.</summary>
     public WeatherCity? WeatherCity { get; set; }
     public string RecorderProcesses { get; set; } = "obs64, obs32, obs, Streamlabs OBS, bdcam, CamtasiaStudio, CamRecorder, XSplit.Core, Action, ShareX, ffmpeg";
-    public string TelegramTokenProtected { get; set; } = "";
-    public long TelegramChatId { get; set; }
-    public string TelegramUser { get; set; } = "";
+    /// <summary>The person chose to link this PC to @ShabPa_Bot; nothing is sent to the server before that.</summary>
+    public bool BotEnabled { get; set; }
+    public string BotDeviceId { get; set; } = "";
+    /// <summary>DPAPI-protected device secret; the server only keeps its hash.</summary>
+    public string BotSecretProtected { get; set; } = "";
+    /// <summary>Overrides the project's server address (empty = built-in).</summary>
+    public string BotEndpoint { get; set; } = "";
     public string ProxyUrl { get; set; } = "";
     public string PingHost { get; set; } = "8.8.8.8";
     /// <summary>While a game runs, cap the upload of everything else.</summary>

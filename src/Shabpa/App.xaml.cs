@@ -112,6 +112,13 @@ public partial class App : Application
             return;
         }
 
+        // Test aid: links a throwaway device to the real bot server, waits for its code, then removes it again.
+        if (Value(e.Args, "--bot-test") is { } botReport)
+        {
+            _ = RunBotTest(botReport);
+            return;
+        }
+
         // Test aid: draws the overlay with groups placed apart and writes where each overlay window ended up.
         if (Value(e.Args, "--blocks-test") is { } blocksReport)
         {
@@ -345,6 +352,27 @@ public partial class App : Application
             Shutdown();
         };
         timer.Start();
+    }
+
+    private async Task RunBotTest(string report)
+    {
+        var log = new System.Text.StringBuilder();
+        var settings = new Settings();
+        using var link = new BotLink(() => settings, () => { }, new BotHost { Execute = (_, _) => RemoteReply.Fail("", "") });
+        link.Changed += () => { lock (log) log.AppendLine($"{DateTime.Now:HH:mm:ss.fff} state={link.State} code={(link.Code.Length > 0 ? "yes" : "none")} chats={link.Chats} {link.Detail}"); };
+        link.Enable();
+        for (var i = 0; i < 100 && link.State is BotState.Connecting; i++) await Task.Delay(100);
+        lock (log)
+            log.AppendLine($"code shape ok: {System.Text.RegularExpressions.Regex.IsMatch(link.Code, "^[A-Z2-9]{4}-[A-Z2-9]{4}$")}, " +
+                           $"device id set: {settings.BotDeviceId.Length > 0}, secret stored encrypted: {settings.BotSecretProtected.Length > 0}");
+        var first = link.Code;
+        link.NewCode();
+        for (var i = 0; i < 100 && (link.Code.Length == 0 || link.Code == first); i++) await Task.Delay(100);
+        lock (log) log.AppendLine($"new code issued: {link.Code.Length > 0 && link.Code != first}");
+        await link.RemoveAsync();
+        lock (log) log.AppendLine($"removed: state={link.State} device id cleared: {settings.BotDeviceId.Length == 0}");
+        File.WriteAllText(report, log.ToString());
+        Shutdown();
     }
 
     protected override void OnSessionEnding(SessionEndingCancelEventArgs e)

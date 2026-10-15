@@ -254,7 +254,7 @@ public static class Diagnostics
         });
 
         Line("autostart registered",() => Autostart.IsEnabled().ToString());
-        Line("token encryption", () => TelegramBot.Unprotect(TelegramBot.Protect("123456789:test")) == "123456789:test" ? "ok" : "FAILED");
+        Line("secret encryption", () => Secret.Unprotect(Secret.Protect("123456789:test")) == "123456789:test" ? "ok" : "FAILED");
         return report.ToString();
     }
 }
