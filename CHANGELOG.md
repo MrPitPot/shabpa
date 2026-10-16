@@ -4,6 +4,25 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [Unreleased]
+
+### Added
+- **Overlay editor** - one screen to arrange the overlay: drag each group (graphics card, processor, clock...) between six zones or up and down, and click it to choose its readings.
+- **Live noise suppression** - cleans the microphone in real time and can send the clean sound to a virtual audio cable for other programs.
+- **Manual launchers** - add a launcher's program file yourself when it is not found.
+- **Teach by hand** - show a launcher once where to click to start its download; the scheduled download repeats it (Esc stops it).
+- **Interface sounds** (experimental) - a soft tick on hover, a click and a notice chime; off in games and in "Use less RAM" mode.
+
+### Changed
+- The side menu is grouped by purpose (System & power, Gaming & network, Maintenance, Everyday, App).
+- Launcher search also reads the installed-programs list, start-menu shortcuts, running programs and every drive.
+- "Use less RAM" now also turns off animations and sounds and hands memory back after each page change.
+- Cards light up softly on hover, chosen options pop, and the side menu slides in.
+- Launchers are opened with normal rights even when Shabpa runs as administrator.
+
+### Fixed
+- A scheduled download no longer clicks while the screen is locked.
+
 ## [3.1.0] - 2026-10-16
 
 ### Added

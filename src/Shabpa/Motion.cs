@@ -141,4 +141,63 @@ public static class Motion
                 new DoubleAnimation(move.X, 0, TimeSpan.FromMilliseconds(420)) { BeginTime = begin, EasingFunction = new QuarticEase { EasingMode = EasingMode.EaseOut } });
         }
     }
+
+    // ---- small touches ---------------------------------------------------------------------------
+
+    private static bool _installed;
+
+    /// <summary>Cards get a soft accent edge while the mouse is over them.</summary>
+    public static void Install()
+    {
+        if (_installed) return;
+        _installed = true;
+        EventManager.RegisterClassHandler(typeof(Border), UIElement.MouseEnterEvent, new System.Windows.Input.MouseEventHandler((s, _) => Edge(s, true)));
+        EventManager.RegisterClassHandler(typeof(Border), UIElement.MouseLeaveEvent, new System.Windows.Input.MouseEventHandler((s, _) => Edge(s, false)));
+    }
+
+    private static void Edge(object sender, bool on)
+    {
+        if (!Enabled || sender is not Border border || border.Tag is not null || !ReferenceEquals(border.Style, Application.Current.Resources["Card"])) return;
+        if (border.BorderBrush is not SolidColorBrush current) return;
+        var accent = Application.Current.Resources["Accent"] is SolidColorBrush a ? a.Color : current.Color;
+        var line = Application.Current.Resources["Line"] is SolidColorBrush l ? l.Color : current.Color;
+        var target = on ? Color.FromArgb(150, accent.R, accent.G, accent.B) : line;
+        var brush = new SolidColorBrush(current.Color);
+        border.BorderBrush = brush;
+        var animation = new ColorAnimation(target, TimeSpan.FromMilliseconds(on ? 160 : 260));
+        if (!on) animation.Completed += (_, _) => { if (!border.IsMouseOver) border.ClearValue(Border.BorderBrushProperty); };
+        brush.BeginAnimation(SolidColorBrush.ColorProperty, animation);
+    }
+
+    /// <summary>A short pop for something that was just chosen.</summary>
+    public static void Pop(FrameworkElement element)
+    {
+        if (!Enabled) return;
+        var scale = new ScaleTransform(0.9, 0.9);
+        element.RenderTransformOrigin = new Point(0.5, 0.5);
+        element.RenderTransform = scale;
+        var ease = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.6 };
+        var grow = new DoubleAnimation(0.9, 1, TimeSpan.FromMilliseconds(260)) { EasingFunction = ease };
+        grow.Completed += (_, _) => element.RenderTransform = null;
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, grow);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, grow);
+    }
+
+    /// <summary>The side menu's entries slide in one after another when the window opens.</summary>
+    public static void Stagger(IEnumerable<UIElement> items)
+    {
+        if (!Enabled) return;
+        var index = 0;
+        foreach (var item in items)
+        {
+            var move = new TranslateTransform((L.En ? -1 : 1) * 22, 0);
+            item.RenderTransform = move;
+            item.Opacity = 0;
+            var begin = TimeSpan.FromMilliseconds(60 + index++ * 38);
+            var fade = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(260)) { BeginTime = begin };
+            fade.Completed += (_, _) => { item.BeginAnimation(UIElement.OpacityProperty, null); item.Opacity = 1; item.RenderTransform = null; };
+            item.BeginAnimation(UIElement.OpacityProperty, fade);
+            move.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(move.X, 0, TimeSpan.FromMilliseconds(420)) { BeginTime = begin, EasingFunction = new QuarticEase { EasingMode = EasingMode.EaseOut } });
+        }
+    }
 }

@@ -40,8 +40,8 @@ public sealed class DownloadsPage : PageBase
         var root = new StackPanel();
 
         var (scanCard, scan) = Ui2.Card(L.T("لانچرهای نصب‌شده", "Installed launchers"),
-            L.T("با زدن دکمه، شب‌پا فقط چند مسیر شناخته‌شده و رجیستری رو برای پیدا کردن لانچرها (Steam، Epic، Riot و…) می‌گرده. چیزی از داخل لانچرها خونده یا جایی فرستاده نمی‌شه.",
-                "When you press the button, Shabpa only checks a few well-known folders and registry values for launchers (Steam, Epic, Riot…). Nothing is read from inside them or sent anywhere."));
+            L.T("با زدن دکمه، شب‌پا لیست برنامه‌های نصب‌شده، میانبرهای منوی استارت، رجیستری و پوشه‌های رایج روی همه‌ی درایوها رو برای پیدا کردن لانچرها (Steam، Epic، Riot و…) می‌گرده. چیزی از داخل لانچرها خونده یا جایی فرستاده نمی‌شه.",
+                "When you press the button, Shabpa checks the installed-programs list, start-menu shortcuts, the registry and the usual folders on every drive for launchers (Steam, Epic, Riot…). Nothing is read from inside them or sent anywhere."));
         var find = new Button { Style = St("BtnPrimary"), Content = L.T("پیدا کردن لانچرها", "Find launchers"), HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(18, 9, 18, 9), Margin = new Thickness(0, 12, 0, 0) };
         find.Click += (_, _) => Scan();
         scan.Children.Add(find);

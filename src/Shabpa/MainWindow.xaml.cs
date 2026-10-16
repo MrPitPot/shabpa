@@ -82,6 +82,7 @@ public partial class MainWindow : Window
 
         Navigate("home");
         UpdateSide();
+        Loaded += (_, _) => Motion.Stagger(NavPanel.Children.Cast<UIElement>());
     }
 
     // ---- window placement: it opens where it was left -----------------------------------------

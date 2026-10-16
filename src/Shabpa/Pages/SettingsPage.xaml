@@ -105,7 +105,7 @@
                 <Button DockPanel.Dock="Right" Style="{StaticResource Btn}" Content="{s:Tr 'پوشه‌ی داده‌ها', 'Data folder'}" VerticalAlignment="Center" Click="OnOpenFolder"/>
                 <StackPanel>
                     <TextBlock Text="{s:Tr 'شب‌پا', 'Shabpa'}" Style="{StaticResource H2}"/>
-                    <TextBlock Text="{s:Tr 'ساخته‌ی Mr.PitPot. داده‌هات روی همین سیستم می‌مونن. فقط چیزهایی که خودت روشن می‌کنی به اینترنت وصل می‌شن: بررسی به‌روزرسانی (GitHub)، آب‌وهوا، ربات تلگرام و ارسال تیکت پشتیبانی.', 'Made by Mr.PitPot. Your data stays on this PC. Only what you switch on uses the internet: the update check (GitHub), weather, the Telegram bot and support tickets.'}" Style="{StaticResource Body}" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                    <TextBlock Text="{s:Tr 'ساخته‌ی Mr.PitPot. داده‌هات روی همین سیستم می‌مونن. فقط چیزهایی که خودت روشن می‌کنی به اینترنت وصل می‌شن: بررسی به‌روزرسانی (GitHub)، آب‌وهوا، ربات تلگرام و ارسال تیکت پشتیبانی. صدای میکروفون (نویزگیر) فقط لحظه‌ای توی حافظه پردازش می‌شه و ذخیره نمی‌شه؛ «یادگیری دستی» هم فقط جای کلیک‌های ماوس روی پنجره‌ی لانچر رو نگه می‌داره، نه کلید یا متن.', 'Made by Mr.PitPot. Your data stays on this PC. Only what you switch on uses the internet: the update check (GitHub), weather, the Telegram bot and support tickets. Microphone sound (noise suppression) is only processed for a moment in memory and never stored; “Teach by hand” keeps only where you clicked in a launcher window, never keys or text.'}" Style="{StaticResource Body}" Margin="0,4,0,0" TextWrapping="Wrap"/>
                 </StackPanel>
             </DockPanel>
         </Border>

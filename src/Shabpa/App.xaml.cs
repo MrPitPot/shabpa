@@ -402,6 +402,7 @@ public partial class App : Application
 
         _window = new MainWindow();
         UiSound.Install();
+        Motion.Install();
         // test aid: --size 960x620 shows the window at its smallest, to check nothing is cut off
         if (Value(e.Args, "--size") is { } size && size.Split('x') is [var w, var h] && double.TryParse(w, out var width) && double.TryParse(h, out var height))
         {

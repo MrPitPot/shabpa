@@ -116,7 +116,7 @@ public class PageBase : UserControl
                 IsChecked = EqualityComparer<T>.Default.Equals(value, selected),
                 Margin = new Thickness(0, 0, 8, 6),
             };
-            chip.Checked += (_, _) => onPick(value);
+            chip.Checked += (_, _) => { onPick(value); if (chip.IsLoaded) Motion.Pop(chip); };
             panel.Children.Add(chip);
         }
     }

@@ -1,3 +1,4 @@
+using System.IO;
 using Shabpa.Core;
 using Xunit;
 
@@ -151,5 +152,35 @@ public sealed class MacroAndLauncherTests
     public void An_empty_lesson_does_nothing()
     {
         Assert.Equal(MacroOutcome.Empty, MacroPlayer.Run(new LauncherMacro()));
+    }
+}
+
+public sealed class InputSafetyTests
+{
+    private static string Source(string relative)
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Shabpa.slnx"))) dir = dir.Parent;
+        return File.ReadAllText(Path.Combine(dir!.FullName, "src", "Shabpa", relative));
+    }
+
+    [Fact]
+    public void Taught_clicks_never_see_keys_screens_files_or_the_network()
+    {
+        var text = Source(Path.Combine("Core", "Macro.cs"));
+        foreach (var banned in new[] { "WH_KEYBOARD", "SetWindowsHookEx(2", "CopyFromScreen", "Bitmap", "HttpClient", "Socket", "File.", "keybd_event", "SendKeys", "GetKeyboardState" })
+            Assert.DoesNotContain(banned, text);
+        // the only key it ever looks at is Esc, to stop
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(text, @"GetAsyncKeyState\(0x1B\)"));
+        Assert.Contains("WhMouseLl = 14", text);
+    }
+
+    [Fact]
+    public void Launchers_added_by_hand_are_opened_with_normal_rights()
+    {
+        var text = Source(Path.Combine("Core", "Launchers.cs"));
+        Assert.Contains("explorer.exe", text);
+        var hub = Source("Hub.cs");
+        Assert.DoesNotContain("Process.Start(new System.Diagnostics.ProcessStartInfo(plan.ExePath)", hub);
     }
 }
