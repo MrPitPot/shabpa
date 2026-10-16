@@ -20,7 +20,7 @@ public partial class MainWindow : Window
 
     /// <summary>Every screen worth a screenshot, including the tabs inside «کنترل سیستم».</summary>
     public IEnumerable<string> CaptureKeys =>
-        ["home", .. SystemPage.TabKeys.Select(t => $"system:{t}"), .. NetworkPage.TabKeys.Select(t => $"ping:{t}"), "gaming", "weather", "dns", "download", "comfort", "tasks", .. TasksPage.TabKeys.Select(t => $"tasks:{t}"), "files", .. FilesPage.TabKeys.Select(t => $"files:{t}"), "health", .. HealthPage.TabKeys.Select(t => $"health:{t}"), "profiles", .. ProfilesPage.TabKeys.Select(t => $"profiles:{t}"), "mic", "support", "update", "settings"];
+        ["home", .. SystemPage.TabKeys.Select(t => $"system:{t}"), .. NetworkPage.TabKeys.Select(t => $"ping:{t}"), "gaming", "weather", "dns", "download", "comfort", "tasks", .. TasksPage.TabKeys.Select(t => $"tasks:{t}"), "files", .. FilesPage.TabKeys.Select(t => $"files:{t}"), "health", .. HealthPage.TabKeys.Select(t => $"health:{t}"), "profiles", .. ProfilesPage.TabKeys.Select(t => $"profiles:{t}"), "rgb", "mic", "support", "update", "settings"];
 
     public FrameworkElement CaptureRoot => Root;
 
@@ -42,6 +42,7 @@ public partial class MainWindow : Window
             ["system"] = (NavSystem, () => new SystemPage()),
             ["comfort"] = (NavComfort, () => new ComfortPage()),
             ["profiles"] = (NavProfiles, () => new ProfilesPage()),
+            ["rgb"] = (NavRgb, () => new RgbPage()),
             ["gaming"] = (NavGaming, () => new OverlayPage()),
             ["ping"] = (NavPing, () => new NetworkPage()),
             ["dns"] = (NavDns, () => new DnsPage()),

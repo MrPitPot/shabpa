@@ -84,6 +84,8 @@ public sealed class Settings
     public bool LowMemory { get; set; }
     /// <summary>The live noise suppressor for the microphone.</summary>
     public VoiceSettings Voice { get; set; } = new();
+    /// <summary>RGB lighting through OpenRGB.</summary>
+    public RgbSettings Rgb { get; set; } = new();
     /// <summary>The starter profiles were added once; deleting them keeps them gone.</summary>
     public bool ProfilesSeeded { get; set; }
     public FocusSettings Focus { get; set; } = new();

@@ -104,6 +104,18 @@ public sealed class Hub
 
     private static T OnUi<T>(Func<T> f) => Application.Current.Dispatcher.Invoke(f);
 
+    /// <summary>RGB lighting (idle until the person switches it on and OpenRGB is running).</summary>
+    public RgbEngine Rgb { get; private set; } = null!;
+
+    /// <summary>Starts or stops the lighting engine to match the setting.</summary>
+    public void ApplyRgb()
+    {
+        if (DryRun || Demo) return;
+        Rgb ??= new RgbEngine(() => Settings.Rgb, () => (Sensors.Latest.CpuLoad / 100.0, Sensors.Latest.GameRunning));
+        if (Settings.Rgb.Enabled) Rgb.Start();
+        else Rgb.Stop();
+    }
+
     /// <summary>The live noise suppressor (off until the person starts it).</summary>
     public VoiceFilter Voice { get; } = new();
 
@@ -125,6 +137,8 @@ public sealed class Hub
     public void Start()
     {
         StartVoiceIfWanted();
+        Rgb = new RgbEngine(() => Settings.Rgb, () => (Sensors.Latest.CpuLoad / 100.0, Sensors.Latest.GameRunning));
+        ApplyRgb();
         if (State.ActiveRule is { } rule) Engine.Activate(rule);
 
         // Whatever came due while Shabpa was not running (PC off or asleep) is gone, not "late": a PC that
@@ -181,6 +195,7 @@ public sealed class Hub
     public void Shutdown()
     {
         Voice.Stop();
+        Rgb?.Stop();
         _clock.Stop();
         if (_sleepStart is not null && _sleepVolume is { } startVolume)
         {
