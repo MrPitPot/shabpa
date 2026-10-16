@@ -75,17 +75,17 @@ public sealed class Settings
     public bool UiSounds { get; set; } = true;
     /// <summary>Windows 11 backdrop behind the window: "off", "mica" (soft, follows the wallpaper) or "acrylic" (frosted glass).</summary>
     public string Glass { get; set; } = "off";
-    /// <summary>How much tint stays over the glass, 0 (clearest) to 1.</summary>
-    public double GlassLevel { get; set; } = 0.35;
+    /// <summary>How dark the glass is, 0 (clearest) to 1.</summary>
+    public double GlassLevel { get; set; }
     /// <summary>The stars the person gave the app (0 = none). Kept on this PC only.</summary>
     public int Rating { get; set; }
     public DateTime? RatedAt { get; set; }
     /// <summary>Draw the window in software: less RAM while it is open, a little more CPU. Applied at start.</summary>
     public bool LowMemory { get; set; }
+    /// <summary>Draw the window with the processor instead of the graphics card (lighter on the GPU, a little more CPU). Applied at start.</summary>
+    public bool SoftwareRender { get; set; }
     /// <summary>The live noise suppressor for the microphone.</summary>
     public VoiceSettings Voice { get; set; } = new();
-    /// <summary>RGB lighting through OpenRGB.</summary>
-    public RgbSettings Rgb { get; set; } = new();
     /// <summary>The starter profiles were added once; deleting them keeps them gone.</summary>
     public bool ProfilesSeeded { get; set; }
     public FocusSettings Focus { get; set; } = new();

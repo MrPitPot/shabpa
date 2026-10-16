@@ -27,22 +27,28 @@ public partial class SettingsPage : PageBase
         GlassLevelSlider.Value = Math.Round(s.GlassLevel * 100);
         GlassLevelText.Text = $"{GlassLevelSlider.Value:0}%";
         GlassLevelRow.Visibility = Ui.IsGlass ? Visibility.Visible : Visibility.Collapsed;
-        var glassTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
-        glassTimer.Tick += (_, _) => { glassTimer.Stop(); Apply(); }; // the look is built at start, so the app reopens once the slider rests
+        var glassSave = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(600) };
+        glassSave.Tick += (_, _) => { glassSave.Stop(); Hub.Store.Save(); };
         GlassLevelSlider.ValueChanged += (_, _) =>
         {
             GlassLevelText.Text = $"{GlassLevelSlider.Value:0}%";
             if (Math.Abs(s.GlassLevel - GlassLevelSlider.Value / 100) < 0.001) return;
             s.GlassLevel = GlassLevelSlider.Value / 100;
-            glassTimer.Stop();
-            glassTimer.Start();
+            Ui.SetGlassLevel(s.GlassLevel); // changes the window right now, no restart
+            glassSave.Stop();
+            glassSave.Start();
         };
         Chips(GlassChips, [("off", L.T("خاموش", "Off")), ("mica", L.T("میکا (نرم)", "Mica (soft)")), ("acrylic", L.T("آکریلیک (شیشه‌ای)", "Acrylic (frosted)"))], Ui.CleanGlass(s.Glass), glass =>
         {
             if (glass == Ui.CleanGlass(s.Glass)) return;
+            var wasGlass = s.Glass != "off";
             s.Glass = glass;
+            // between the two glass materials nothing restarts; to or from "off" the look is rebuilt, which needs one restart
+            if (wasGlass && glass != "off" && Ui.SetBackdrop(glass)) { Hub.Store.Save(); return; }
             Apply();
         });
+        SoftwareCheck.IsChecked = !s.SoftwareRender && !s.LowMemory; // ticked = the graphics card draws the window
+        SoftwareCheck.IsEnabled = !s.LowMemory;
 
         Chips(CountdownChips,
             [(10, Fa.Duration(TimeSpan.FromSeconds(10))), (30, Fa.Duration(TimeSpan.FromSeconds(30))), (60, Fa.Duration(TimeSpan.FromMinutes(1))), (120, Fa.Duration(TimeSpan.FromMinutes(2)))],
@@ -197,6 +203,12 @@ public partial class SettingsPage : PageBase
             if (n.Text.Length > 0) box.Children.Add(new TextBlock { Text = n.Text, Style = St("Label"), TextWrapping = TextWrapping.Wrap });
             NoticeList.Children.Add(box);
         }
+    }
+
+    private void OnSoftware(object sender, RoutedEventArgs e)
+    {
+        Hub.Settings.SoftwareRender = SoftwareCheck.IsChecked != true;
+        Apply(); // the drawing mode is chosen once, when the app starts
     }
 
     private void OnLowMemory(object sender, RoutedEventArgs e)

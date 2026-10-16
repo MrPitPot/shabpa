@@ -296,3 +296,24 @@ public sealed class RatingTests
         foreach (var banned in new[] { "HttpClient", "WebClient", "Socket" }) Assert.DoesNotContain(banned, text);
     }
 }
+
+public sealed class GlassTests
+{
+    [Fact]
+    public void The_glass_slider_changes_the_brushes_live_and_theme_colour_never_paints_the_window()
+    {
+        var dictionary = Ui.Resources(Palette.Find("midnight"), "mica", 0);
+        var panel = (System.Windows.Media.SolidColorBrush)dictionary["Panel"];
+        var background = (System.Windows.Media.SolidColorBrush)dictionary["BgGradient"];
+        Assert.False(panel.IsFrozen);
+        Assert.Equal(0, background.Color.A); // clearest: nothing over the backdrop
+        var before = panel.Color.A;
+        Ui.SetGlassLevel(1);
+        Assert.True(panel.Color.A > before);
+        Assert.True(background.Color.A > 100);
+        // neutral: only black or white, never a theme colour
+        Assert.All(new[] { panel.Color, background.Color, ((System.Windows.Media.SolidColorBrush)dictionary["SideGradient"]).Color, ((System.Windows.Media.SolidColorBrush)dictionary["HeroGradient"]).Color },
+            c => Assert.True(c.R == c.G && c.G == c.B));
+        Ui.Resources(Palette.Find(null), "off", 0); // leave the shared state as other tests expect
+    }
+}

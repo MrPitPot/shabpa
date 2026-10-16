@@ -8,9 +8,9 @@ a patch release only fixes bugs, a minor release adds a tested batch of features
 
 ### Added
 - **Rate Shabpa** - one to five stars in Settings with a playful confirmation; kept on this PC only, with buttons for a real GitHub star and for written feedback.
-- **Glass look (Windows 11)** - Mica or Acrylic backdrop; the whole window turns neutral and see-through with only a faint theme halo, and a slider sets how clear it is.
+- **Glass look (Windows 11)** - Mica or Acrylic backdrop; the whole window turns neutral and see-through with no theme colour on it, a slider sets how dark the glass is (it applies instantly), and Mica and Acrylic can be switched without restarting.
+- **Graphics card option** - draw the window with the processor instead of the GPU (separate from "Use less RAM").
 - Taught launcher clicks travel with the settings backup.
-- **RGB lighting** - one page for the lit parts of the PC through OpenRGB (this PC only): ready-made and custom colour sets, effects (rainbow, wave, fire, aurora, load...), speed and brightness, and a choice per device.
 
 ## [3.3.4] - 2026-10-16
 
