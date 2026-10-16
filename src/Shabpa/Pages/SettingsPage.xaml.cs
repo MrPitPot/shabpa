@@ -24,6 +24,12 @@ public partial class SettingsPage : PageBase
             Apply();
         });
         BuildThemes();
+        Chips(GlassChips, [("off", L.T("خاموش", "Off")), ("mica", L.T("میکا (نرم)", "Mica (soft)")), ("acrylic", L.T("آکریلیک (شیشه‌ای)", "Acrylic (frosted)"))], Ui.CleanGlass(s.Glass), glass =>
+        {
+            if (glass == Ui.CleanGlass(s.Glass)) return;
+            s.Glass = glass;
+            Apply();
+        });
 
         Chips(CountdownChips,
             [(10, Fa.Duration(TimeSpan.FromSeconds(10))), (30, Fa.Duration(TimeSpan.FromSeconds(30))), (60, Fa.Duration(TimeSpan.FromMinutes(1))), (120, Fa.Duration(TimeSpan.FromMinutes(2)))],
@@ -37,6 +43,8 @@ public partial class SettingsPage : PageBase
         BaseBox.Text = s.BaseWatts.ToString("0");
         CpuMaxBox.Text = s.CpuMaxWatts.ToString("0");
         RecorderBox.Text = s.RecorderProcesses;
+        var root = (StackPanel)Content;
+        root.Children.Insert(root.Children.Count - 1, new RatingCard());
     }
 
     /// <summary>One selectable swatch per theme, drawn in that theme's own colours.</summary>

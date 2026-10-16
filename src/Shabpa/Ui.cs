@@ -19,6 +19,19 @@ public static class Ui
 {
     public static Palette Theme { get; private set; } = Palette.Find(null);
 
+    /// <summary>"off", "mica" or "acrylic" for this run (fixed at start, like the theme).</summary>
+    public static string Glass { get; private set; } = "off";
+
+    public static bool IsGlass => Glass is "mica" or "acrylic";
+
+    /// <summary>The panels let the window's backdrop show through: how opaque each layer stays.</summary>
+    private static readonly Dictionary<string, byte> GlassAlpha = new()
+    {
+        ["Panel"] = 0xA6, ["Panel2"] = 0xBC, ["Panel3"] = 0xCC,
+    };
+
+    public static string CleanGlass(string? value) => value is "mica" or "acrylic" ? value : "off";
+
     public static FlowDirection Flow => L.En ? FlowDirection.LeftToRight : FlowDirection.RightToLeft;
 
     private static Color Color(Palette palette, string key)
@@ -28,18 +41,23 @@ public static class Ui
     }
 
     /// <summary>Builds the brush resources the styles in Theme.xaml refer to.</summary>
-    public static ResourceDictionary Resources(Palette palette)
+    public static ResourceDictionary Resources(Palette palette, string glass = "off")
     {
         Theme = palette;
+        Glass = CleanGlass(glass);
         var resources = new ResourceDictionary();
         foreach (var key in Palette.Keys)
         {
-            var brush = new SolidColorBrush(Color(palette, key));
+            var color = Color(palette, key);
+            if (IsGlass && GlassAlpha.TryGetValue(key, out var alpha)) color = System.Windows.Media.Color.FromArgb(alpha, color.R, color.G, color.B);
+            var brush = new SolidColorBrush(color);
             brush.Freeze();
             resources[key] = brush;
         }
 
-        var background = new LinearGradientBrush(Color(palette, "Bg"), Color(palette, "Bg2"), new Point(0, 0), new Point(1, 1));
+        // glass: only a light tint of the theme, so the backdrop (Mica or Acrylic) carries the look
+        System.Windows.Media.Color Tint(string key, byte alpha) { var c = Color(palette, key); return IsGlass ? System.Windows.Media.Color.FromArgb(alpha, c.R, c.G, c.B) : c; }
+        var background = new LinearGradientBrush(Tint("Bg", 0x70), Tint("Bg2", 0x70), new Point(0, 0), new Point(1, 1));
         background.Freeze();
         // The base gradient plus a soft glow of the theme's halo colour bleeding in from two corners.
         var halo = Color(palette, "Halo");
@@ -60,7 +78,7 @@ public static class Ui
         var withHalo = new DrawingBrush(scene) { Stretch = Stretch.Fill };
         withHalo.Freeze();
         resources["BgGradient"] = withHalo;
-        var side = new LinearGradientBrush(Color(palette, "Side"), Color(palette, "Side2"), new Point(0, 0), new Point(0.3, 1));
+        var side = new LinearGradientBrush(Tint("Side", 0x90), Tint("Side2", 0x90), new Point(0, 0), new Point(0.3, 1));
         side.Freeze();
         resources["SideGradient"] = side;
 
@@ -83,6 +101,16 @@ public static class Ui
         var hwnd = new WindowInteropHelper(window).Handle;
         var dark = Theme.Light ? 0 : 1;
         Native.DwmSetWindowAttribute(hwnd, 20, ref dark, sizeof(int));
+        if (IsGlass && window is MainWindow)
+        {
+            // Windows 11 backdrop: the whole window becomes the material, the panels above it stay translucent
+            if (HwndSource.FromHwnd(hwnd) is { CompositionTarget: { } target }) target.BackgroundColor = System.Windows.Media.Colors.Transparent;
+            var margins = new Native.Margins { Left = -1, Right = -1, Top = -1, Bottom = -1 };
+            Native.DwmExtendFrameIntoClientArea(hwnd, ref margins);
+            var backdrop = Glass == "acrylic" ? 3 : 2; // DWMSBT_TRANSIENTWINDOW / DWMSBT_MAINWINDOW
+            Native.DwmSetWindowAttribute(hwnd, 38, ref backdrop, sizeof(int));
+            return;
+        }
         var (r, g, b) = Theme.Rgb("Bg");
         var caption = r | (g << 8) | (b << 16); // COLORREF is 0x00BBGGRR
         Native.DwmSetWindowAttribute(hwnd, 35, ref caption, sizeof(int));

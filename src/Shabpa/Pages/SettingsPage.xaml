@@ -11,6 +11,9 @@
                 <WrapPanel x:Name="LanguageChips"/>
                 <TextBlock Text="{s:Tr 'تم رنگی', 'Colour theme'}" Style="{StaticResource Label}" Margin="0,10,0,8"/>
                 <WrapPanel x:Name="ThemePanel"/>
+                <TextBlock Text="{s:Tr 'شیشه‌ای (ویندوز ۱۱)', 'Glass (Windows 11)'}" Style="{StaticResource Label}" Margin="0,10,0,8"
+                           ToolTip="{s:Tr 'پس‌زمینه‌ی پنجره نیمه‌شفاف می‌شه و رنگ میز کار یا عکس پس‌زمینه کم‌رنگ از زیرش پیداست. در حالت «رم کمتر» خاموشه.', 'The window background turns translucent and your wallpaper shows faintly through. Off in “Use less RAM” mode.'}"/>
+                <WrapPanel x:Name="GlassChips"/>
                 <TextBlock Text="{s:Tr 'با عوض کردن زبان یا تم، برنامه یک لحظه بسته و دوباره باز می‌شه.', 'Changing the language or theme briefly closes and reopens the app.'}" Style="{StaticResource Label}" FontSize="11.5" Margin="0,2,0,0"/>
             </StackPanel>
         </Border>

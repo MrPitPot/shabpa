@@ -209,3 +209,90 @@ public sealed class UiSoundTests
         Assert.InRange(peak, 100, short.MaxValue * 0.06);
     }
 }
+
+public sealed class TaughtClicksSurviveTests
+{
+    private static LauncherMacro Macro() => new()
+    {
+        LauncherKey = "steam", WindowProcess = "steam", WindowClass = "SDL_app", Width = 1000, Height = 700,
+        Steps = [new MacroStep { Dx = 900, Dy = 60, Fx = 0.9, Fy = 0.08, WaitMs = 1200 }],
+    };
+
+    [Fact]
+    public void Taught_clicks_are_still_there_after_the_app_restarts_and_after_an_old_file_is_read()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "shabpa-test-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store = new Store(folder);
+            store.State.Macros.Add(Macro());
+            store.Save();
+            var again = new Store(folder);
+            again.Load();
+            Assert.Single(again.State.Macros);
+            Assert.Equal(900, again.State.Macros[0].Steps[0].Dx);
+
+            // a state file written by an older version (no "Macros" at all) must load without touching other data
+            File.WriteAllText(Path.Combine(folder, "state.json"), "{\"Settings\":{\"Theme\":\"forest\"}}");
+            var old = new Store(folder);
+            old.Load();
+            Assert.Equal("forest", old.State.Settings.Theme);
+            Assert.Empty(old.State.Macros);
+        }
+        finally
+        {
+            try { Directory.Delete(folder, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void Taught_clicks_travel_in_a_settings_backup_and_are_range_checked()
+    {
+        var state = new AppState { Macros = [Macro()] };
+        var json = SettingsBackup.Export(state, includeProfiles: true, includeTasks: false, DateTime.Now);
+        var pack = SettingsBackup.Read(json)!;
+        pack.Macros![0].Steps[0].Dx = 99999999;
+        pack.Macros[0].Steps[0].Button = "evil";
+        var target = new AppState();
+        SettingsBackup.Apply(pack, target);
+        Assert.Single(target.Macros);
+        Assert.Equal(20000, target.Macros[0].Steps[0].Dx);
+        Assert.Equal("left", target.Macros[0].Steps[0].Button);
+    }
+
+    [Fact]
+    public void An_update_never_removes_the_data_folder()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Shabpa.slnx"))) dir = dir.Parent;
+        var installer = File.ReadAllText(Path.Combine(dir!.FullName, "src", "Setup", "Installer.cs"));
+        // the only place the data folder is deleted is the uninstall with the person's explicit "remove my data"
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(installer, @"Directory\.Delete\(data"));
+        Assert.Contains("if (removeData)", installer);
+    }
+}
+
+public sealed class RatingTests
+{
+    [Fact]
+    public void Every_star_count_has_a_friendly_line_and_a_reply()
+    {
+        for (var stars = 1; stars <= 5; stars++)
+        {
+            Assert.True(Pages.RatingCard.Joke(stars).Length > 20);
+            Assert.True(Pages.RatingCard.Reply(stars).Length > 10);
+        }
+        // nothing insulting, in either language
+        foreach (var banned in new[] { "احمق", "بی‌خود", "stupid", "idiot", "garbage", "trash", "terrible" })
+            for (var stars = 1; stars <= 5; stars++) Assert.DoesNotContain(banned, Pages.RatingCard.Joke(stars) + Pages.RatingCard.Reply(stars), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void A_rating_never_leaves_the_pc()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Shabpa.slnx"))) dir = dir.Parent;
+        var text = File.ReadAllText(Path.Combine(dir!.FullName, "src", "Shabpa", "Pages", "RatingCard.cs"));
+        foreach (var banned in new[] { "HttpClient", "WebClient", "Socket" }) Assert.DoesNotContain(banned, text);
+    }
+}

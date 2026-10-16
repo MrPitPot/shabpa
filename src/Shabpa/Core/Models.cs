@@ -73,6 +73,11 @@ public sealed class Settings
     public bool Animations { get; set; } = true;
     /// <summary>Tiny interface sounds on hover, click and notices (experimental).</summary>
     public bool UiSounds { get; set; } = true;
+    /// <summary>Windows 11 backdrop behind the window: "off", "mica" (soft, follows the wallpaper) or "acrylic" (frosted glass).</summary>
+    public string Glass { get; set; } = "off";
+    /// <summary>The stars the person gave the app (0 = none). Kept on this PC only.</summary>
+    public int Rating { get; set; }
+    public DateTime? RatedAt { get; set; }
     /// <summary>Draw the window in software: less RAM while it is open, a little more CPU. Applied at start.</summary>
     public bool LowMemory { get; set; }
     /// <summary>The live noise suppressor for the microphone.</summary>
