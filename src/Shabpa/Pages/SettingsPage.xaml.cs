@@ -24,6 +24,19 @@ public partial class SettingsPage : PageBase
             Apply();
         });
         BuildThemes();
+        GlassLevelSlider.Value = Math.Round(s.GlassLevel * 100);
+        GlassLevelText.Text = $"{GlassLevelSlider.Value:0}%";
+        GlassLevelRow.Visibility = Ui.IsGlass ? Visibility.Visible : Visibility.Collapsed;
+        var glassTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(900) };
+        glassTimer.Tick += (_, _) => { glassTimer.Stop(); Apply(); }; // the look is built at start, so the app reopens once the slider rests
+        GlassLevelSlider.ValueChanged += (_, _) =>
+        {
+            GlassLevelText.Text = $"{GlassLevelSlider.Value:0}%";
+            if (Math.Abs(s.GlassLevel - GlassLevelSlider.Value / 100) < 0.001) return;
+            s.GlassLevel = GlassLevelSlider.Value / 100;
+            glassTimer.Stop();
+            glassTimer.Start();
+        };
         Chips(GlassChips, [("off", L.T("خاموش", "Off")), ("mica", L.T("میکا (نرم)", "Mica (soft)")), ("acrylic", L.T("آکریلیک (شیشه‌ای)", "Acrylic (frosted)"))], Ui.CleanGlass(s.Glass), glass =>
         {
             if (glass == Ui.CleanGlass(s.Glass)) return;

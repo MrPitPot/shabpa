@@ -14,6 +14,12 @@
                 <TextBlock Text="{s:Tr 'شیشه‌ای (ویندوز ۱۱)', 'Glass (Windows 11)'}" Style="{StaticResource Label}" Margin="0,10,0,8"
                            ToolTip="{s:Tr 'پس‌زمینه‌ی پنجره نیمه‌شفاف می‌شه و رنگ میز کار یا عکس پس‌زمینه کم‌رنگ از زیرش پیداست. در حالت «رم کمتر» خاموشه.', 'The window background turns translucent and your wallpaper shows faintly through. Off in “Use less RAM” mode.'}"/>
                 <WrapPanel x:Name="GlassChips"/>
+                <Grid x:Name="GlassLevelRow" Margin="0,6,0,0">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="150"/><ColumnDefinition/><ColumnDefinition Width="60"/></Grid.ColumnDefinitions>
+                    <TextBlock Text="{s:Tr 'غلظت شیشه', 'Glass tint'}" Style="{StaticResource Body}" VerticalAlignment="Center"/>
+                    <Slider x:Name="GlassLevelSlider" Grid.Column="1" Minimum="0" Maximum="100" SmallChange="5" LargeChange="10" TickFrequency="5" IsSnapToTickEnabled="True" Style="{StaticResource Slide}" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="GlassLevelText" Grid.Column="2" Style="{StaticResource Body}" HorizontalAlignment="Right" VerticalAlignment="Center" FlowDirection="LeftToRight"/>
+                </Grid>
                 <TextBlock Text="{s:Tr 'با عوض کردن زبان یا تم، برنامه یک لحظه بسته و دوباره باز می‌شه.', 'Changing the language or theme briefly closes and reopens the app.'}" Style="{StaticResource Label}" FontSize="11.5" Margin="0,2,0,0"/>
             </StackPanel>
         </Border>

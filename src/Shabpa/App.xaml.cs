@@ -393,7 +393,7 @@ public partial class App : Application
         // windows are cheap to draw either way.
         if (settings.LowMemory) System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
         L.En = (Value(e.Args, "--lang") ?? settings.Language) == "en";
-        Resources.MergedDictionaries.Add(Ui.Resources(Palette.Find(Value(e.Args, "--theme") ?? settings.Theme), settings.LowMemory ? "off" : Value(e.Args, "--glass") ?? settings.Glass));
+        Resources.MergedDictionaries.Add(Ui.Resources(Palette.Find(Value(e.Args, "--theme") ?? settings.Theme), settings.LowMemory ? "off" : Value(e.Args, "--glass") ?? settings.Glass, settings.GlassLevel));
         Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/Shabpa;component/Theme.xaml", UriKind.Relative) });
 
         var hub = new Hub(store, dryRun, demo);

@@ -24,11 +24,27 @@ public static class Ui
 
     public static bool IsGlass => Glass is "mica" or "acrylic";
 
-    /// <summary>The panels let the window's backdrop show through: how opaque each layer stays.</summary>
-    private static readonly Dictionary<string, byte> GlassAlpha = new()
+    /// <summary>0 to 1: how much of the theme's tint stays over the backdrop (0 = as clear as it gets).</summary>
+    public static double GlassLevel { get; private set; } = 0.35;
+
+    /// <summary>Glass: the theme's background and panel colours are replaced by neutral, see-through layers (white veils on
+    /// a dark theme, milky ones on a light theme) so the Windows backdrop is what the window looks like; the theme only
+    /// leaves a faint halo and its accent colour.</summary>
+    private static System.Windows.Media.Color GlassLayer(Palette palette, string key, System.Windows.Media.Color original)
     {
-        ["Panel"] = 0xA6, ["Panel2"] = 0xBC, ["Panel3"] = 0xCC,
-    };
+        var light = palette.Light;
+        var k = 0.4 + 1.2 * GlassLevel; // the person's clarity slider
+        byte a(byte dark, byte bright) => (byte)Math.Clamp((light ? bright : dark) * k, 0, 255);
+        System.Windows.Media.Color veil(byte alpha) => light ? System.Windows.Media.Color.FromArgb(alpha, 255, 255, 255) : System.Windows.Media.Color.FromArgb(alpha, 255, 255, 255);
+        return key switch
+        {
+            "Panel" => veil(a(0x16, 0x99)),
+            "Panel2" => veil(a(0x22, 0xB4)),
+            "Panel3" => veil(a(0x30, 0xCC)),
+            "Line" => System.Windows.Media.Color.FromArgb(a(0x38, 0x30), light ? (byte)0 : (byte)255, light ? (byte)0 : (byte)255, light ? (byte)0 : (byte)255),
+            _ => original,
+        };
+    }
 
     public static string CleanGlass(string? value) => value is "mica" or "acrylic" ? value : "off";
 
@@ -41,27 +57,34 @@ public static class Ui
     }
 
     /// <summary>Builds the brush resources the styles in Theme.xaml refer to.</summary>
-    public static ResourceDictionary Resources(Palette palette, string glass = "off")
+    public static ResourceDictionary Resources(Palette palette, string glass = "off", double glassLevel = 0.35)
     {
         Theme = palette;
+        GlassLevel = Math.Clamp(glassLevel, 0, 1);
         Glass = CleanGlass(glass);
         var resources = new ResourceDictionary();
         foreach (var key in Palette.Keys)
         {
             var color = Color(palette, key);
-            if (IsGlass && GlassAlpha.TryGetValue(key, out var alpha)) color = System.Windows.Media.Color.FromArgb(alpha, color.R, color.G, color.B);
+            if (IsGlass) color = GlassLayer(palette, key, color);
             var brush = new SolidColorBrush(color);
             brush.Freeze();
             resources[key] = brush;
         }
 
         // glass: only a light tint of the theme, so the backdrop (Mica or Acrylic) carries the look
-        System.Windows.Media.Color Tint(string key, byte alpha) { var c = Color(palette, key); return IsGlass ? System.Windows.Media.Color.FromArgb(alpha, c.R, c.G, c.B) : c; }
-        var background = new LinearGradientBrush(Tint("Bg", 0x70), Tint("Bg2", 0x70), new Point(0, 0), new Point(1, 1));
+        // neutral: black on a dark theme, white on a light one, very faint, so the backdrop shows
+        System.Windows.Media.Color Tint(string key, byte alpha)
+        {
+            if (!IsGlass) return Color(palette, key);
+            var level = palette.Light ? (byte)255 : (byte)0;
+            return System.Windows.Media.Color.FromArgb(alpha, level, level, level);
+        }
+        var background = new LinearGradientBrush(Tint("Bg", (byte)(6 + GlassLevel * 120)), Tint("Bg2", (byte)(6 + GlassLevel * 120)), new Point(0, 0), new Point(1, 1));
         background.Freeze();
         // The base gradient plus a soft glow of the theme's halo colour bleeding in from two corners.
         var halo = Color(palette, "Halo");
-        var strength = palette.Light ? (byte)0x30 : (byte)0x46;
+        var strength = IsGlass ? (byte)0x1E : palette.Light ? (byte)0x30 : (byte)0x46; // glass: only a faint halo of the theme
         RadialGradientBrush Glow(Point centre, double radiusX, double radiusY, byte alpha)
         {
             var brush = new RadialGradientBrush { Center = centre, GradientOrigin = centre, RadiusX = radiusX, RadiusY = radiusY };
@@ -78,7 +101,7 @@ public static class Ui
         var withHalo = new DrawingBrush(scene) { Stretch = Stretch.Fill };
         withHalo.Freeze();
         resources["BgGradient"] = withHalo;
-        var side = new LinearGradientBrush(Tint("Side", 0x90), Tint("Side2", 0x90), new Point(0, 0), new Point(0.3, 1));
+        var side = new LinearGradientBrush(Tint("Side", (byte)(10 + GlassLevel * 90)), Tint("Side2", (byte)(10 + GlassLevel * 90)), new Point(0, 0), new Point(0.3, 1));
         side.Freeze();
         resources["SideGradient"] = side;
 
@@ -87,9 +110,10 @@ public static class Ui
         resources["AccentGradient"] = accent;
 
         var hero = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(1, 1) };
-        hero.GradientStops.Add(new GradientStop(Color(palette, "Hero"), 0));
-        hero.GradientStops.Add(new GradientStop(Color(palette, "Hero2"), 0.45));
-        hero.GradientStops.Add(new GradientStop(Color(palette, "Panel"), 1));
+        System.Windows.Media.Color Soft(System.Windows.Media.Color c) => IsGlass ? System.Windows.Media.Color.FromArgb((byte)(0x28 + GlassLevel * 0x50), c.R, c.G, c.B) : c;
+        hero.GradientStops.Add(new GradientStop(Soft(Color(palette, "Hero")), 0));
+        hero.GradientStops.Add(new GradientStop(Soft(Color(palette, "Hero2")), 0.45));
+        hero.GradientStops.Add(new GradientStop(IsGlass ? System.Windows.Media.Color.FromArgb(0x10, 255, 255, 255) : Color(palette, "Panel"), 1));
         hero.Freeze();
         resources["HeroGradient"] = hero;
         return resources;
