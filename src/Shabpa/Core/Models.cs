@@ -111,6 +111,8 @@ public sealed class Settings
     public List<DnsEntry> CustomDns { get; set; } = [];
     /// <summary>The city shown on the weather page.</summary>
     public WeatherCity? WeatherCity { get; set; }
+    /// <summary>Programs the person says are games (names, separated by commas), for games Shabpa does not recognise by itself.</summary>
+    public string GameList { get; set; } = "";
     public string RecorderProcesses { get; set; } = "obs64, obs32, obs, Streamlabs OBS, bdcam, CamtasiaStudio, CamRecorder, XSplit.Core, Action, ShareX, ffmpeg";
     /// <summary>The person chose to link this PC to @ShabPa_Bot; nothing is sent to the server before that.</summary>
     public bool BotEnabled { get; set; }

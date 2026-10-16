@@ -158,12 +158,34 @@ public sealed class DownloadsPage : PageBase
                 : L.T($"شروع: {When(a)} ({Fa.Duration(a - now)} دیگه)", $"Starts {When(a)} (in {Fa.Duration(a - now)})");
     }
 
+    private bool _scanning;
+
     private void Scan()
     {
-        Hub.Settings.Launchers = Hub.Demo ? DemoLaunchers() : LauncherDetector.Merge(LauncherDetector.Detect(), Hub.Settings.Launchers, System.IO.File.Exists);
-        Hub.Settings.LaunchersScanned = true;
-        Hub.Store.Save();
-        Refresh();
+        if (_scanning) return;
+        if (Hub.Demo)
+        {
+            Hub.Settings.Launchers = DemoLaunchers();
+            Hub.Settings.LaunchersScanned = true;
+            Refresh();
+            return;
+        }
+        // reading the installed-programs list and every shortcut can take seconds: the window keeps answering meanwhile
+        _scanning = true;
+        _note.Text = L.T("دارم می‌گردم…", "Searching…");
+        var before = Hub.Settings.Launchers.ToList();
+        _ = Task.Run(LauncherDetector.Detect).ContinueWith(t => Dispatcher.BeginInvoke(() =>
+        {
+            _scanning = false;
+            _note.Text = "";
+            if (t.IsCompletedSuccessfully)
+            {
+                Hub.Settings.Launchers = LauncherDetector.Merge(t.Result, before, System.IO.File.Exists);
+                Hub.Settings.LaunchersScanned = true;
+                Hub.Store.Save();
+            }
+            Refresh();
+        }));
     }
 
     private static List<LauncherInfo> DemoLaunchers() =>

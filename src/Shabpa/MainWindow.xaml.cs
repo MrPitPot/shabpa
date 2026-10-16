@@ -24,6 +24,9 @@ public partial class MainWindow : Window
 
     public FrameworkElement CaptureRoot => Root;
 
+    /// <summary>The name of the page that is open, for the stall log.</summary>
+    public string CurrentPage => _current?.GetType().Name ?? "";
+
     private FrameworkElement? FirstBlock =>
         Host.Content is ContentControl { Content: Panel panel } ? panel.Children.OfType<FrameworkElement>().FirstOrDefault() : Host.Content as FrameworkElement;
 
@@ -61,12 +64,12 @@ public partial class MainWindow : Window
         // Nobody sees a hidden window, so it is not redrawn every second; showing it again refreshes everything.
         hub.Changed += () => { if (!Shown) return; _current?.Refresh(); UpdateSide(); };
         hub.Tick += s => { if (!Shown) return; _current?.OnTick(s); UpdateSide(); };
-        hub.Second += () => { if (Shown) _current?.OnSecond(); };
+        hub.Second += () => { if (Shown) { _current?.OnSecond(); UpdateSide(); } };
         IsVisibleChanged += (_, _) => OnShownChanged();
         StateChanged += (_, _) => OnShownChanged();
         _release.Tick += (_, _) =>
         {
-            MemoryCleaner.ReleaseOwn();
+            _ = Task.Run(MemoryCleaner.ReleaseOwn); // off the window's thread, so a page change never stutters
             if (Shown) _release.Stop(); // "Use less RAM": one release after each page change while the window is open
             else _release.Interval = ReleaseAgain;
         };
@@ -290,6 +293,14 @@ public partial class MainWindow : Window
         var s = Hub.I.Snapshot;
         SideWatts.Text = s.TotalWatts > 0 ? $"{s.TotalWatts:0} W" : "— W";
         SideNext.Text = Hub.I.NextText();
+        // the game that is running, and for how long
+        if (s.GameName.Length > 0 && s.GameSince is { } since)
+        {
+            SideGame.Visibility = Visibility.Visible;
+            SideGameName.Text = s.GameName;
+            SideGameTime.Text = "▶ " + GameRules.Elapsed(DateTime.Now - since);
+        }
+        else SideGame.Visibility = Visibility.Collapsed;
     }
 
     protected override void OnClosing(CancelEventArgs e)

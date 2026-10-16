@@ -317,3 +317,107 @@ public sealed class GlassTests
         Ui.Resources(Palette.Find(null), "off", 0); // leave the shared state as other tests expect
     }
 }
+
+public sealed class GameRuleTests
+{
+    private static bool Decide(int state = 0, double gpu = 0, bool covers = false, bool graphics = false, string? path = null, string process = "somegame", params string[] user) =>
+        GameRules.Decide(state, gpu, covers, graphics, path, process, user);
+
+    [Fact]
+    public void The_old_signals_still_work()
+    {
+        Assert.True(Decide(state: 3));
+        Assert.True(Decide(state: 2, gpu: 60));
+        Assert.False(Decide(state: 2, gpu: 5)); // a full-screen video, not a game
+        Assert.False(Decide());
+    }
+
+    [Fact]
+    public void Borderless_and_windowed_games_are_found_by_their_folder_or_their_graphics()
+    {
+        Assert.True(Decide(path: @"D:\SteamLibrary\steamapps\common\Some Game\game.exe", graphics: true, gpu: 20));
+        Assert.True(Decide(path: @"E:\Games\Foo\foo.exe", graphics: true, gpu: 8));
+        Assert.True(Decide(covers: true, graphics: true, gpu: 40)); // borderless, unknown folder
+        Assert.False(Decide(covers: true, graphics: false, gpu: 90)); // fills the screen but loads no game graphics
+        Assert.False(Decide(path: @"D:\steamapps\common\x\x.exe", graphics: true, gpu: 0)); // folder alone, card idle
+    }
+
+    [Fact]
+    public void Browsers_players_launchers_and_Shabpa_are_never_games()
+    {
+        foreach (var program in new[] { "chrome", "vlc", "explorer", "shabpa", "steam", "discord", "RiotClientServices" })
+            Assert.False(Decide(state: 3, gpu: 90, covers: true, graphics: true, process: program), program);
+    }
+
+    [Fact]
+    public void A_program_the_person_lists_is_a_game_whatever_it_looks_like()
+    {
+        Assert.True(Decide(process: "weirdgame", user: ["WeirdGame.exe"]));
+        Assert.True(Decide(process: "cs2", user: ["cs2"]));
+        Assert.False(Decide(process: "shabpa", user: ["shabpa"]));
+    }
+
+    [Fact]
+    public void The_timer_reads_naturally()
+    {
+        Assert.Equal("05:09", GameRules.Elapsed(TimeSpan.FromSeconds(309)));
+        Assert.Equal("1:02:03", GameRules.Elapsed(TimeSpan.FromSeconds(3723)));
+        Assert.Equal("00:00", GameRules.Elapsed(TimeSpan.FromSeconds(-5)));
+    }
+}
+
+public sealed class StoreSafetyTests
+{
+    [Fact]
+    public void A_daily_backup_is_kept_and_used_when_the_main_file_is_broken()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "shabpa-test-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store = new Store(folder);
+            store.State.Macros.Add(new LauncherMacro { LauncherKey = "steam", Steps = [new MacroStep()] });
+            store.Save();
+            new Store(folder).Load(); // a normal start makes today's copy
+            Assert.Single(Directory.GetFiles(Path.Combine(folder, "backups"), "state-*.json"));
+
+            File.WriteAllText(Path.Combine(folder, "state.json"), "{ not json");
+            var broken = new Store(folder);
+            broken.Load();
+            Assert.Single(broken.State.Macros); // came back from the copy
+            Assert.True(File.Exists(Path.Combine(folder, "state.json.broken")));
+        }
+        finally
+        {
+            try { Directory.Delete(folder, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void A_file_held_open_by_another_program_does_not_make_saving_throw_or_wait()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "shabpa-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            var store = new Store(folder);
+            store.Save();
+            using var hold = new FileStream(Path.Combine(folder, "state.json"), FileMode.Open, FileAccess.Read, FileShare.None);
+            store.State.Settings.Tariff = 777;
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            store.Save(); // must return at once and try again in the background
+            Assert.True(watch.ElapsedMilliseconds < 400, $"waited {watch.ElapsedMilliseconds} ms");
+            hold.Dispose();
+            var saved = false;
+            for (var i = 0; i < 40 && !saved; i++)
+            {
+                Thread.Sleep(100);
+                saved = File.ReadAllText(Path.Combine(folder, "state.json")).Contains("777");
+            }
+            Assert.True(saved, "the retry in the background never wrote the file");
+        }
+        finally
+        {
+            try { Directory.Delete(folder, true); } catch { }
+        }
+    }
+}
