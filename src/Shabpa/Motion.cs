@@ -13,7 +13,7 @@ namespace Shabpa;
 public static class Motion
 {
     /// <summary>The user's choice in Settings, and Windows' own "animation effects" switch.</summary>
-    public static bool Enabled => Hub.I?.Settings.Animations != false && SystemParameters.ClientAreaAnimation;
+    public static bool Enabled => Hub.I?.Settings is not ({ Animations: false } or { LowMemory: true }) && SystemParameters.ClientAreaAnimation;
 
     public enum Style { Rise, Side, Ripple, Focus, Drift, Rows, Lift, Breathe, Pop, Tilt, Alternate }
 

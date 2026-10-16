@@ -92,6 +92,7 @@ public partial class SettingsPage : PageBase
         ReportCheck.IsChecked = Hub.Settings.GameReports;
         RefreshNotices();
         AnimCheck.IsChecked = Hub.Settings.Animations;
+        SoundCheck.IsChecked = Hub.Settings.UiSounds;
         LowMemoryCheck.IsChecked = Hub.Settings.LowMemory;
         AutostartHint.Text = Hub.Elevated
             ? L.T("برنامه الان با دسترسی ادمین بازه؛ اگه این رو روشن کنی، دفعه‌های بعد هم با همین دسترسی بالا میاد.", "The app is running as administrator now; turn this on and it will start that way next time too.")
@@ -189,6 +190,7 @@ public partial class SettingsPage : PageBase
         Hub.Settings.ConfirmActions = ConfirmCheck.IsChecked == true;
         Hub.Settings.GameReports = ReportCheck.IsChecked == true;
         Hub.Settings.Animations = AnimCheck.IsChecked == true;
+        Hub.Settings.UiSounds = SoundCheck.IsChecked == true;
         Hub.Store.Save();
         if (Hub.Demo) return;
         try

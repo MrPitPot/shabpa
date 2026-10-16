@@ -45,18 +45,23 @@
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Margin="0,0,-6,0" Padding="0,0,6,0">
                 <StackPanel x:Name="NavPanel">
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE80F;" Content="{s:Tr 'خانه', 'Home'}" x:Name="NavHome" Checked="OnNav"/>
+                    <TextBlock Text="{s:Tr 'سیستم و برق', 'System &amp; power'}" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource Faint}" Margin="12,14,0,4" Opacity="0.85"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE7E8;" Content="{s:Tr 'کنترل سیستم', 'System control'}" x:Name="NavSystem" Checked="OnNav"/>
-                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE701;" Content="{s:Tr 'پایداری پینگ', 'Ping stability'}" x:Name="NavPing" Checked="OnNav"/>
+                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE708;" Content="{s:Tr 'آسایش و استراحت', 'Comfort &amp; rest'}" x:Name="NavComfort" Checked="OnNav"/>
+                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE768;" Content="{s:Tr 'پروفایل‌ها', 'Profiles'}" x:Name="NavProfiles" Checked="OnNav"/>
+                    <TextBlock Text="{s:Tr 'بازی و شبکه', 'Gaming &amp; network'}" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource Faint}" Margin="12,14,0,4" Opacity="0.85"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE7FC;" Content="{s:Tr 'اورلی بازی', 'Game overlay'}" x:Name="NavGaming" Checked="OnNav"/>
-                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE706;" Content="{s:Tr 'آب و هوا', 'Weather'}" x:Name="NavWeather" Checked="OnNav"/>
+                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE701;" Content="{s:Tr 'پایداری پینگ', 'Ping stability'}" x:Name="NavPing" Checked="OnNav"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE774;" Content="{s:Tr 'دی‌ان‌اس', 'DNS'}" x:Name="NavDns" Checked="OnNav"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE896;" Content="{s:Tr 'دانلود زمان‌بندی‌شده', 'Scheduled download'}" x:Name="NavDownload" Checked="OnNav"/>
-                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE708;" Content="{s:Tr 'آسایش و استراحت', 'Comfort &amp; rest'}" x:Name="NavComfort" Checked="OnNav"/>
-                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE73A;" Content="{s:Tr 'کارها و تمرکز', 'Tasks &amp; focus'}" x:Name="NavTasks" Checked="OnNav"/>
+                    <TextBlock Text="{s:Tr 'نگهداری', 'Maintenance'}" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource Faint}" Margin="12,14,0,4" Opacity="0.85"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE8B7;" Content="{s:Tr 'فایل و پشتیبان', 'Files &amp; backup'}" x:Name="NavFiles" Checked="OnNav"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE95E;" Content="{s:Tr 'سلامت و امنیت', 'Health &amp; security'}" x:Name="NavHealth" Checked="OnNav"/>
-                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE768;" Content="{s:Tr 'پروفایل‌ها', 'Profiles'}" x:Name="NavProfiles" Checked="OnNav"/>
+                    <TextBlock Text="{s:Tr 'روزمره', 'Everyday'}" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource Faint}" Margin="12,14,0,4" Opacity="0.85"/>
+                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE73A;" Content="{s:Tr 'کارها و تمرکز', 'Tasks &amp; focus'}" x:Name="NavTasks" Checked="OnNav"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE720;" Content="{s:Tr 'میکروفون', 'Microphone'}" x:Name="NavMic" Checked="OnNav"/>
+                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE706;" Content="{s:Tr 'آب و هوا', 'Weather'}" x:Name="NavWeather" Checked="OnNav"/>
+                    <TextBlock Text="{s:Tr 'برنامه', 'App'}" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource Faint}" Margin="12,14,0,4" Opacity="0.85"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE897;" Content="{s:Tr 'پشتیبانی', 'Support'}" x:Name="NavSupport" Checked="OnNav"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE895;" Content="{s:Tr 'به‌روزرسانی', 'Updates'}" x:Name="NavUpdate" Checked="OnNav"/>
                     <RadioButton Style="{StaticResource Nav}" Tag="&#xE713;" Content="{s:Tr 'تنظیمات', 'Settings'}" x:Name="NavSettings" Checked="OnNav"/>

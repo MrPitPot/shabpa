@@ -53,6 +53,13 @@ public partial class App : Application
             return;
         }
 
+        // Test aid: teaches two clicks on a throw-away form, then repeats them on a fresh one, against the real mouse.
+        if (Value(e.Args, "--macro-test") is { } macroReport)
+        {
+            _ = MacroSelfTest(macroReport);
+            return;
+        }
+
         // Test aid: press Steam's resume button once (as the scheduled download does) and write what happened.
         if (Value(e.Args, "--steam-resume-test") is { } steamReport)
         {
@@ -366,6 +373,7 @@ public partial class App : Application
         hub.Start();
 
         _window = new MainWindow();
+        UiSound.Install();
         // test aid: --size 960x620 shows the window at its smallest, to check nothing is cut off
         if (Value(e.Args, "--size") is { } size && size.Split('x') is [var w, var h] && double.TryParse(w, out var width) && double.TryParse(h, out var height))
         {
@@ -573,6 +581,81 @@ public partial class App : Application
     // ---- self-screenshots: lets the UI be reviewed without touching the real desktop ---------
 
     /// <summary>Test aid: opens every tab and samples how far its first block has faded in, 30 ms, 200 ms and 1.5 s later.</summary>
+    private async Task MacroSelfTest(string report)
+    {
+        var log = new System.Text.StringBuilder();
+        var clicks = Path.Combine(Path.GetTempPath(), "shabpa-macro-test.txt");
+        System.Diagnostics.Process? form = null;
+        // A form whose whole surface is one button; each click appends a line to a file.
+        var script = "Add-Type -AssemblyName System.Windows.Forms;" +
+            "$f=New-Object Windows.Forms.Form;$f.Text='ShabpaMacroTest';$f.StartPosition='Manual';$f.Location=New-Object Drawing.Point(300,200);$f.Size=New-Object Drawing.Size(520,360);$f.TopMost=$true;" +
+            "$b=New-Object Windows.Forms.Button;$b.Dock='Fill';$b.Text='click';$b.Add_Click({Add-Content -Path '" + clicks + "' -Value 'x'});$f.Controls.Add($b);" +
+            "$f.ShowDialog()|Out-Null";
+        async Task<IntPtr> Open()
+        {
+            File.Delete(clicks);
+            form = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("powershell.exe", $"-NoProfile -WindowStyle Hidden -Command \"{script}\"") { UseShellExecute = false, CreateNoWindow = true });
+            for (var i = 0; i < 80; i++)
+            {
+                await Task.Delay(250);
+                foreach (var proc in System.Diagnostics.Process.GetProcessesByName("powershell"))
+                    if (proc.MainWindowTitle == "ShabpaMacroTest") return proc.MainWindowHandle;
+            }
+            return IntPtr.Zero;
+        }
+        int Lines() => File.Exists(clicks) ? File.ReadAllLines(clicks).Length : 0;
+        try
+        {
+            var window = await Open();
+            log.AppendLine($"form found: {window != IntPtr.Zero}");
+            Core.MacroNative.GetWindowRect(window, out var r);
+            var cx = (r.Left + r.Right) / 2;
+            var cy = (r.Top + r.Bottom) / 2;
+            Core.MacroNative.Foreground(window);
+            await Task.Delay(600);
+
+            var recorder = new Core.MacroRecorder("test");
+            log.AppendLine($"hook installed: {recorder.Start()}");
+            foreach (var (dx, dy) in new[] { (0, 0), (-60, 40) })
+            {
+                Core.MacroNative.SetCursorPos(cx + dx, cy + dy);
+                await Task.Delay(500);
+                Core.MacroNative.mouse_event(Core.MacroNative.MouseLeftDown, 0, 0, 0, UIntPtr.Zero);
+                await Task.Delay(60);
+                Core.MacroNative.mouse_event(Core.MacroNative.MouseLeftUp, 0, 0, 0, UIntPtr.Zero);
+                await Task.Delay(900);
+            }
+            var macro = recorder.Stop();
+            log.AppendLine($"recorded steps: {macro?.Steps.Count} process: {macro?.WindowProcess} class: {macro?.WindowClass} size: {macro?.Width}x{macro?.Height}");
+            if (macro is not null) foreach (var st in macro.Steps) log.AppendLine($"  step {st.Button} dx={st.Dx} dy={st.Dy} wait={st.WaitMs}");
+            await Task.Delay(1500);
+            log.AppendLine($"form got {Lines()} clicks while teaching (expected 2); window rect {r.Left},{r.Top}-{r.Right},{r.Bottom}");
+            try { form?.Kill(entireProcessTree: true); } catch { }
+            await Task.Delay(800);
+
+            if (macro is not null)
+            {
+                window = await Open();
+                // moved a little, as a real launcher window would be
+                Core.MacroNative.SetWindowPos(window, IntPtr.Zero, 380, 260, 0, 0, 0x1 | 0x4);
+                await Task.Delay(500);
+                var outcome = await Task.Run(() => Core.MacroPlayer.Run(macro, null, 15));
+                log.AppendLine($"replay outcome: {outcome}; form got {Lines()} clicks (expected 2)");
+                log.AppendLine("result: " + (Lines() >= macro.Steps.Count && macro.Steps.Count >= 2 && outcome == Core.MacroOutcome.Done ? "PASS (stray clicks by a person using the mouse are counted too)" : "FAIL"));
+            }
+        }
+        catch (Exception ex)
+        {
+            log.AppendLine("error: " + ex);
+        }
+        finally
+        {
+            try { form?.Kill(entireProcessTree: true); } catch { }
+            File.WriteAllText(report, log.ToString());
+            Shutdown();
+        }
+    }
+
     private async Task MotionProbe(string folder, string report)
     {
         var log = new System.Text.StringBuilder();

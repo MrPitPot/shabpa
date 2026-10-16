@@ -71,6 +71,8 @@ public sealed class Settings
     public bool GameReports { get; set; } = true;
     /// <summary>Page and selection animations (also off when Windows has animation effects off).</summary>
     public bool Animations { get; set; } = true;
+    /// <summary>Tiny interface sounds on hover, click and notices (experimental).</summary>
+    public bool UiSounds { get; set; } = true;
     /// <summary>Draw the window in software: less RAM while it is open, a little more CPU. Applied at start.</summary>
     public bool LowMemory { get; set; }
     /// <summary>The starter profiles were added once; deleting them keeps them gone.</summary>
@@ -134,6 +136,8 @@ public sealed class AppState
     public List<AppLimit> NetLimits { get; set; } = [];
     public NetUsage? NetUsage { get; set; }
     public List<DownloadPlan> DownloadPlans { get; set; } = [];
+    /// <summary>Clicks the person taught for a launcher (one per launcher).</summary>
+    public List<LauncherMacro> Macros { get; set; } = [];
     /// <summary>The last games played, newest last (at most 60).</summary>
     public List<GameLogEntry> GameHistory { get; set; } = [];
     /// <summary>The to-do list (phase A). Local only.</summary>

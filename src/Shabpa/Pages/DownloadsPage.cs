@@ -17,6 +17,9 @@ public sealed class DownloadsPage : PageBase
     private readonly TextBox _quiet = new() { Style = St("Input"), Width = 70, FlowDirection = FlowDirection.LeftToRight, Text = "10", Padding = new Thickness(10, 6, 10, 6) };
     private readonly TextBlock _note = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
     private readonly StackPanel _plans = new();
+    private readonly StackPanel _manual = new();
+    private readonly StackPanel _teach = new();
+    private readonly TextBlock _teachNote = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
     private readonly Border _planCard = new() { Style = St("Card"), Margin = new Thickness(0, 12, 0, 0) };
     private Border _form = null!;
     private string? _launcher;
@@ -43,7 +46,16 @@ public sealed class DownloadsPage : PageBase
         find.Click += (_, _) => Scan();
         scan.Children.Add(find);
         scan.Children.Add(_launchers);
+        scan.Children.Add(_manual);
         root.Children.Add(scanCard);
+
+        // ---- teach by hand -------------------------------------------------------------------------
+        var (teachCard, teach) = Ui2.Card(L.T("یادگیری دستی", "Teach by hand"),
+            L.T("اگه لانچر خودش دانلود رو شروع نمی‌کنه، یک بار نشونش بده چه کلیک‌هایی بزنه (مثلاً برو به Downloads و دکمه‌ی ادامه). شب‌پا فقط جای کلیک‌ها و فاصله‌ی زمانی‌شون رو توی پنجره‌ی همون لانچر یاد می‌گیره و موقع زمان‌بندی تکرارشون می‌کنه.",
+                "If a launcher does not start its download by itself, show it once which clicks to make (for example open Downloads and press resume). Shabpa only learns where and when you click inside that launcher's window and repeats it when a plan starts."));
+        teach.Children.Add(_teach);
+        teach.Children.Add(_teachNote);
+        root.Children.Add(teachCard);
 
         // ---- new plan ------------------------------------------------------------------------------
         var (formCard, form) = Ui2.Card(L.T("زمان‌بندی جدید", "New plan"),
@@ -148,7 +160,7 @@ public sealed class DownloadsPage : PageBase
 
     private void Scan()
     {
-        Hub.Settings.Launchers = Hub.Demo ? DemoLaunchers() : LauncherDetector.Detect();
+        Hub.Settings.Launchers = Hub.Demo ? DemoLaunchers() : LauncherDetector.Merge(LauncherDetector.Detect(), Hub.Settings.Launchers, System.IO.File.Exists);
         Hub.Settings.LaunchersScanned = true;
         Hub.Store.Save();
         Refresh();
@@ -195,7 +207,7 @@ public sealed class DownloadsPage : PageBase
 
         var plan = new DownloadPlan
         {
-            LauncherKey = launcher.Key, LauncherName = launcher.Name, ExePath = launcher.ExePath, StartAt = at, Action = _action,
+            LauncherKey = launcher.Key, LauncherName = launcher.Name, ExePath = launcher.ExePath, Manual = launcher.Manual, StartAt = at, Action = _action,
             QuietMinutes = quiet, RepeatDays = repeat, ThresholdMbps = threshold, GiveUpMinutes = giveUp, OpenOnly = _openOnly, WakeUp = _wakeUp.IsChecked == true,
         };
         _note.Text = Hub.AddDownloadPlan(plan)
@@ -213,8 +225,14 @@ public sealed class DownloadsPage : PageBase
             _launchers.Children.Add(Ui2.Label(L.T("لانچری پیدا نشد.", "No launcher found.")));
         else
             foreach (var l in Known)
-                _launchers.Children.Add(Row("\uE7FC", "Green", l.Name, l.ExePath));
+            {
+                var key = l.Key;
+                UIElement? remove = l.Manual ? IconButton("\uE74D", L.T("حذف از فهرست", "Remove from the list"), () => RemoveManual(key)) : null;
+                _launchers.Children.Add(Row("\uE7FC", "Green", l.Name + (l.Manual ? L.T(" (دستی)", " (added by hand)") : ""), l.ExePath, remove));
+            }
 
+        ShowManual();
+        ShowTeach();
         if (_launcher is null || Known.All(l => l.Key != _launcher)) _launcher = Known.FirstOrDefault()?.Key;
         Chips(_pick, Known.Select(l => (l.Key, l.Name)), _launcher ?? "", v => _launcher = v);
         _form.Visibility = Known.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -240,5 +258,137 @@ public sealed class DownloadsPage : PageBase
                 : L.T($"شروع: {When(plan.StartAt)} · بعدش: {then}{weekly}", $"Starts {When(plan.StartAt)} · then: {then}{weekly}");
             _plans.Children.Add(Row("\uE896", plan.State == PlanState.Running ? "Green" : "Gold", plan.LauncherName, sub, delete));
         }
+    }
+
+    // ---- launchers added by hand ----------------------------------------------------------------
+
+    private void ShowManual()
+    {
+        _manual.Children.Clear();
+        var missing = LauncherDetector.KnownNames.Where(k => Known.All(l => l.Key != k.key)).ToList();
+        _manual.Children.Add(Ui2.Label(Hub.Settings.LaunchersScanned && missing.Count > 0
+            ? L.T("پیدا نشدن: ", "Not found: ") + string.Join("، ", missing.Select(m => m.name))
+            : L.T("لانچرت توی فهرست نیست؟ فایل اجراییش (.exe) رو خودت نشون بده.", "Your launcher is not listed? Point at its program file (.exe) yourself."), 14, 6));
+        var pick = new Button { Style = St("Btn"), Content = L.T("افزودن دستی لانچر…", "Add a launcher by hand…"), HorizontalAlignment = HorizontalAlignment.Left };
+        pick.Click += (_, _) => AddManual();
+        _manual.Children.Add(pick);
+    }
+
+    private void AddManual()
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = L.T("فایل اجرایی لانچر رو انتخاب کن", "Pick the launcher's program file"),
+            Filter = L.T("برنامه (*.exe)|*.exe", "Program (*.exe)|*.exe"), CheckFileExists = true,
+        };
+        if (dialog.ShowDialog() != true) return;
+        if (LauncherDetector.Reject(dialog.FileName) is { } why)
+        {
+            _note.Text = why;
+            return;
+        }
+        var info = LauncherDetector.FromFile(dialog.FileName);
+        if (!Ask(L.T("این لانچر اضافه بشه؟", "Add this launcher?"), $"{info.Name}\n{info.ExePath}", L.T("اضافه کن", "Add"))) return;
+        Hub.Settings.Launchers.RemoveAll(l => l.Key == info.Key || string.Equals(l.ExePath, info.ExePath, StringComparison.OrdinalIgnoreCase));
+        Hub.Settings.Launchers.Add(info);
+        Hub.Settings.LaunchersScanned = true;
+        Hub.Store.Save();
+        _note.Text = L.T($"«{info.Name}» اضافه شد.", $"“{info.Name}” was added.");
+        Refresh();
+    }
+
+    private void RemoveManual(string key)
+    {
+        Hub.Settings.Launchers.RemoveAll(l => l.Key == key && l.Manual);
+        Hub.Store.Save();
+        Refresh();
+    }
+
+    // ---- teaching clicks ------------------------------------------------------------------------
+
+    private void ShowTeach()
+    {
+        _teach.Children.Clear();
+        if (Known.Count == 0)
+        {
+            _teach.Children.Add(Ui2.Label(L.T("اول لانچرها رو پیدا کن.", "Find the launchers first."), 12, 0));
+            return;
+        }
+        foreach (var l in Known)
+        {
+            var launcher = l;
+            var macro = Hub.MacroFor(l.Key);
+            var learn = new Button { Style = St("Btn"), Content = macro is null ? L.T("یاد بده", "Teach") : L.T("دوباره یاد بده", "Teach again"), Margin = new Thickness(8, 0, 0, 0) };
+            learn.Click += (_, _) => StartLesson(launcher);
+            var panel = new StackPanel { Orientation = Orientation.Horizontal };
+            if (macro is not null)
+            {
+                var test = new Button { Style = St("Btn"), Content = L.T("امتحان کن", "Try it"), Margin = new Thickness(8, 0, 0, 0) };
+                test.Click += (_, _) => TryLesson(launcher);
+                panel.Children.Add(test);
+            }
+            panel.Children.Add(learn);
+            if (macro is not null)
+                panel.Children.Add(IconButton("\uE74D", L.T("فراموش کن", "Forget"), () => { Hub.RemoveMacro(launcher.Key); Refresh(); }));
+            var sub = macro is null
+                ? L.T("چیزی یاد داده نشده", "Nothing taught yet")
+                : L.T($"{Fa.Digits(macro.Steps.Count.ToString())} کلیک · {Fa.RelativeDay(macro.Recorded, DateTime.Now)} {Fa.Clock(macro.Recorded)}", $"{macro.Steps.Count} clicks · {Fa.RelativeDay(macro.Recorded, DateTime.Now)} {Fa.Clock(macro.Recorded)}");
+            _teach.Children.Add(Row("\uE7C9", macro is null ? "Gold" : "Green", l.Name, sub, panel));
+        }
+    }
+
+    private void StartLesson(LauncherInfo launcher)
+    {
+        if (Hub.MacroBusy) return;
+        var admin = Hub.Elevated
+            ? ""
+            : L.T("\n\nاگه این لانچر با دسترسی ادمین اجرا می‌شه، شب‌پا هم باید با ادمین اجرا بشه وگرنه کلیک‌هاش اثر نمی‌کنه.",
+                "\n\nIf this launcher runs as administrator, Shabpa must run as administrator too or its clicks have no effect.");
+        var message = L.T($"شب‌پا «{launcher.Name}» رو باز می‌کنه و پنجره‌ی شب‌پا کوچک می‌شه. بعدش همون کارهایی رو توی لانچر بکن که برای شروع دانلود می‌کنی و آخرش «پایان و ذخیره» رو بزن.\n\nموقع یادگیری فقط جای کلیک‌های ماوس توی پنجره‌ی همون لانچر و فاصله‌ی زمانی‌شون ذخیره می‌شه؛ هیچ کلید کیبورد، متن، رمز یا عکسی از صفحه ذخیره نمی‌شه و چیزی هم از کامپیوتر بیرون نمی‌ره.{admin}",
+            $"Shabpa opens “{launcher.Name}” and its own window gets out of the way. Then do in the launcher what you do to start the download, and press “Finish and save”.\n\nOnly the places and timing of mouse clicks inside that launcher's window are kept; no key, text, password or screen picture is stored and nothing leaves this PC.{admin}");
+        if (!ConfirmWindow.AskAlways(L.T("شروع یادگیری؟", "Start teaching?"), message, L.T("شروع کن", "Start"))) return;
+        try
+        {
+            LauncherDetector.Open(launcher.ExePath);
+        }
+        catch (Exception ex)
+        {
+            _teachNote.Text = ex.Message;
+            return;
+        }
+        if (!Hub.StartMacroLesson(launcher, count =>
+        {
+            Application.Current.MainWindow?.Show();
+            if (Application.Current.MainWindow is { } w) { w.WindowState = WindowState.Normal; w.Activate(); }
+            _teachNote.Text = count > 0
+                ? L.T($"{Fa.Digits(count.ToString())} کلیک یاد گرفته شد. «امتحان کن» رو بزن تا ببینی درست کار می‌کنه.", $"{count} clicks learned. Press “Try it” to see that it works.")
+                : L.T("چیزی ذخیره نشد.", "Nothing was saved.");
+            Refresh();
+        }))
+        {
+            _teachNote.Text = L.T("نتونستم ضبط رو شروع کنم.", "Could not start recording.");
+            return;
+        }
+        if (Application.Current.MainWindow is { } main) main.WindowState = WindowState.Minimized;
+    }
+
+    private void TryLesson(LauncherInfo launcher)
+    {
+        if (Hub.MacroBusy || Hub.MacroFor(launcher.Key) is not { } macro) return;
+        if (!ConfirmWindow.AskAlways(L.T("امتحان کلیک‌ها؟", "Try the clicks?"),
+                L.T($"«{launcher.Name}» باز می‌شه و شب‌پا کلیک‌های یادگرفته‌شده رو ماوس‌وار انجام می‌ده. ماوس رو دست نزن؛ با Esc می‌تونی هر لحظه متوقفش کنی.",
+                    $"“{launcher.Name}” opens and Shabpa repeats the clicks with the mouse. Leave the mouse alone; Esc stops it at any moment."), L.T("امتحان کن", "Try")))
+            return;
+        try
+        {
+            LauncherDetector.Open(launcher.ExePath);
+        }
+        catch (Exception ex)
+        {
+            _teachNote.Text = ex.Message;
+            return;
+        }
+        if (Application.Current.MainWindow is { } main) main.WindowState = WindowState.Minimized;
+        Hub.PlayMacro(macro, launcher.Name, auto: false, outcome => _teachNote.Text = MacroPlayer.Describe(outcome));
     }
 }

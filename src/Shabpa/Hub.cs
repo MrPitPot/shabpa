@@ -1002,6 +1002,91 @@ public sealed class Hub
         Changed?.Invoke();
     }
 
+    // ---- taught clicks ------------------------------------------------------------------------------
+
+    private MacroBanner? _macroBanner;
+    private MacroRecorder? _recorder;
+    private CancellationTokenSource? _macroRun;
+
+    public bool MacroBusy => _recorder is not null || _macroRun is not null;
+
+    public LauncherMacro? MacroFor(string key) => State.Macros.FirstOrDefault(m => m.LauncherKey == key);
+
+    public void RemoveMacro(string key)
+    {
+        State.Macros.RemoveAll(m => m.LauncherKey == key);
+        Store.Save();
+        Changed?.Invoke();
+    }
+
+    /// <summary>Starts a lesson: from now on every click in the launcher's window is remembered until the person finishes.
+    /// <paramref name="done"/> gets the number of steps (0 when cancelled or nothing was clicked).</summary>
+    public bool StartMacroLesson(LauncherInfo launcher, Action<int> done)
+    {
+        if (MacroBusy) return false;
+        var recorder = new MacroRecorder(launcher.Key);
+        if (!recorder.Start()) return false;
+        _recorder = recorder;
+        var banner = new MacroBanner(recording: true);
+        _macroBanner = banner;
+        void Update(int n) => banner.SetText(n == 0
+            ? L.T($"یادگیری «{launcher.Name}»: توی پنجره‌ی لانچر همون کارهایی رو بکن که برای شروع دانلود می‌کنی.",
+                $"Teaching “{launcher.Name}”: do what you do in the launcher to start the download.")
+            : L.T($"یادگیری «{launcher.Name}»: {Fa.Digits(n.ToString())} کلیک ضبط شد.", $"Teaching “{launcher.Name}”: {n} clicks recorded."));
+        Update(0);
+        recorder.Changed += n => banner.Dispatcher.BeginInvoke(() => Update(n));
+        void End(bool save)
+        {
+            var macro = recorder.Stop();
+            _recorder = null;
+            _macroBanner = null;
+            banner.Close();
+            var count = 0;
+            if (save && macro is not null)
+            {
+                State.Macros.RemoveAll(m => m.LauncherKey == launcher.Key);
+                State.Macros.Add(macro);
+                Store.Save();
+                count = macro.Steps.Count;
+            }
+            Changed?.Invoke();
+            done(count);
+        }
+        banner.Finished += () => End(true);
+        banner.Cancelled += () => End(false);
+        banner.Show();
+        return true;
+    }
+
+    /// <summary>Repeats a taught lesson on another thread, with the quiet bar on top and Esc to stop.
+    /// <paramref name="auto"/>: started by a plan (the launcher was just opened, so its window may take a while).</summary>
+    public void PlayMacro(LauncherMacro macro, string name, bool auto, Action<MacroOutcome>? done = null)
+    {
+        if (_macroRun is not null) return;
+        var cts = new CancellationTokenSource();
+        _macroRun = cts;
+        var banner = new MacroBanner(recording: false);
+        _macroBanner = banner;
+        banner.SetText(L.T($"شب‌پا داره کلیک‌های یادگرفته‌شده‌ی «{name}» رو انجام می‌ده. ماوس رو دست نزن؛ برای توقف Esc بزن.",
+            $"Shabpa is repeating the clicks taught for “{name}”. Leave the mouse alone; press Esc to stop."));
+        banner.Show();
+        Task.Run(() => MacroPlayer.Run(macro, (i, n) => banner.Dispatcher.BeginInvoke(() => banner.SetText(
+            L.T($"«{name}»: کلیک {Fa.Digits(i.ToString())} از {Fa.Digits(n.ToString())}. ماوس رو دست نزن؛ برای توقف Esc بزن.",
+                $"“{name}”: click {i} of {n}. Leave the mouse alone; press Esc to stop."))), auto ? 90 : 20, cts.Token))
+            .ContinueWith(t =>
+            {
+                var outcome = t.IsCompletedSuccessfully ? t.Result : MacroOutcome.Interrupted;
+                Application.Current?.Dispatcher.BeginInvoke(() =>
+                {
+                    banner.Close();
+                    _macroBanner = null;
+                    _macroRun = null;
+                    Notify(L.T("دانلود زمان‌بندی‌شده", "Scheduled download"), $"{name}: {MacroPlayer.Describe(outcome)}");
+                    done?.Invoke(outcome);
+                });
+            });
+    }
+
     /// <summary>Removes a plan; if it is running, the "finished" watch stops with it.</summary>
     public void RemoveDownloadPlan(Guid id)
     {
@@ -1031,20 +1116,21 @@ public sealed class Hub
                 }
                 if (State.ActiveRule is not null || CountdownActive) continue; // try again next second
 
-                // The path comes from a file the user's other programs can write; Shabpa may be running elevated, so
-                // only a launcher that is really installed (found again right now) is ever started.
-                if (!DryRun && !LauncherDetector.Detect().Any(l => string.Equals(l.ExePath, plan.ExePath, StringComparison.OrdinalIgnoreCase)))
+                // The path comes from a file other programs can write, so it is checked again here, and the launcher is
+                // opened with normal rights (see LauncherDetector.Open) even when Shabpa runs as administrator.
+                if (!DryRun && (!System.IO.File.Exists(plan.ExePath) || LauncherDetector.Reject(plan.ExePath) is not null))
                 {
                     EndPlan(plan, now);
                     Notify(L.T("لانچر باز نشد", "Could not open the launcher"),
-                        L.T($"«{plan.LauncherName}» دیگه جای شناخته‌شده‌ش نیست؛ دوباره لانچرها رو پیدا کن.", $"“{plan.LauncherName}” is no longer where it was found; search for launchers again."));
+                        L.T($"«{plan.LauncherName}» دیگه جای شناخته‌شده‌ش نیست؛ دوباره لانچرها رو پیدا کن یا دستی اضافه‌ش کن.",
+                            $"“{plan.LauncherName}” is no longer where it was found; search for launchers again or add it by hand."));
                     continue;
                 }
                 if (!DryRun)
                 {
                     try
                     {
-                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(plan.ExePath) { UseShellExecute = true });
+                        LauncherDetector.Open(plan.ExePath);
                     }
                     catch (Exception ex)
                     {
@@ -1053,7 +1139,13 @@ public sealed class Hub
                         continue;
                     }
                 }
-                if (!DryRun && plan.LauncherKey is "steam" or "epic" or "riot" && !plan.OpenOnly)
+                var taught = plan.UseMacro && !plan.OpenOnly ? State.Macros.FirstOrDefault(m => m.LauncherKey == plan.LauncherKey && m.Steps.Count > 0) : null;
+                if (!DryRun && taught is not null)
+                {
+                    // The person showed what to click: that wins over the built-in help.
+                    PlayMacro(taught, plan.LauncherName, auto: true);
+                }
+                else if (!DryRun && plan.LauncherKey is "steam" or "epic" or "riot" && !plan.OpenOnly)
                 {
                     // A paused queue ignores the launcher being opened; press its resume button like a person would.
                     var steamFolder = System.IO.Path.GetDirectoryName(plan.ExePath) ?? "";
@@ -1061,6 +1153,12 @@ public sealed class Hub
                     var key = plan.LauncherKey;
                     Task.Run(() =>
                     {
+                        if (MacroNative.ScreenLocked())
+                        {
+                            Application.Current?.Dispatcher.BeginInvoke(() => Notify(L.T("دانلود زمان‌بندی‌شده", "Scheduled download"),
+                                $"{name}: " + L.T("صفحه قفل بود و دکمه‌ی ادامه زده نشد.", "The screen was locked, so the resume button was not pressed.")));
+                            return;
+                        }
                         var outcome = key switch
                         {
                             "steam" => SteamResume.Run(() => SteamResume.LogShowsDownload(steamFolder, DateTime.Now)),
@@ -1071,12 +1169,21 @@ public sealed class Hub
                         {
                             SteamResume.Outcome.Resumed => L.T("دانلود ادامه داده شد.", "The download was resumed."),
                             SteamResume.Outcome.AlreadyRunning => L.T("دانلود از قبل در جریان بود.", "A download was already running."),
-                            SteamResume.Outcome.NothingQueued => L.T("چیزی برای ادامه دادن توی صف پیدا نشد.", "Nothing was waiting in the queue to resume."),
+                            SteamResume.Outcome.NothingQueued => L.T("چیزی برای ادامه دادن توی صف پیدا نشد. اگه دانلود شروع نشد، از «دانلود زمان‌بندی‌شده ← یادگیری دستی» بهم یاد بده کجا کلیک کنم.",
+                                "Nothing was waiting in the queue to resume. If the download did not start, teach me where to click in “Scheduled download → Teach by hand”."),
                             SteamResume.Outcome.ScreenLocked => L.T("صفحه قفل بود و دکمه‌ی ادامه زده نشد.", "The screen was locked, so the resume button was not pressed."),
                             _ => L.T("پنجره‌ی لانچر پیدا نشد.", "The launcher's window was not found."),
                         };
                         Application.Current?.Dispatcher.BeginInvoke(() => Notify(L.T("دانلود زمان‌بندی‌شده", "Scheduled download"), $"{name}: {text}"));
                     });
+                }
+                else if (!DryRun && !plan.OpenOnly)
+                {
+                    // No built-in help for this launcher and nothing taught: the plan only opens it.
+                    var name = plan.LauncherName;
+                    Notify(L.T("دانلود زمان‌بندی‌شده", "Scheduled download"),
+                        L.T($"«{name}» باز شد. اگه دانلودش خودکار شروع نمی‌شه، از «دانلود زمان‌بندی‌شده ← یادگیری دستی» یادش بده کجا کلیک کنه.",
+                            $"“{name}” was opened. If its download does not start by itself, teach it where to click in “Scheduled download → Teach by hand”."));
                 }
                 if (plan.OpenOnly)
                 {

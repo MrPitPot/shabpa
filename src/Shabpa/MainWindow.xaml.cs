@@ -40,17 +40,17 @@ public partial class MainWindow : Window
         {
             ["home"] = (NavHome, () => new HomePage()),
             ["system"] = (NavSystem, () => new SystemPage()),
-            ["ping"] = (NavPing, () => new NetworkPage()),
+            ["comfort"] = (NavComfort, () => new ComfortPage()),
+            ["profiles"] = (NavProfiles, () => new ProfilesPage()),
             ["gaming"] = (NavGaming, () => new OverlayPage()),
-            ["weather"] = (NavWeather, () => new WeatherPage()),
+            ["ping"] = (NavPing, () => new NetworkPage()),
             ["dns"] = (NavDns, () => new DnsPage()),
             ["download"] = (NavDownload, () => new DownloadsPage()),
-            ["comfort"] = (NavComfort, () => new ComfortPage()),
-            ["tasks"] = (NavTasks, () => new TasksPage()),
             ["files"] = (NavFiles, () => new FilesPage()),
             ["health"] = (NavHealth, () => new HealthPage()),
-            ["profiles"] = (NavProfiles, () => new ProfilesPage()),
+            ["tasks"] = (NavTasks, () => new TasksPage()),
             ["mic"] = (NavMic, () => new MicrophonePage()),
+            ["weather"] = (NavWeather, () => new WeatherPage()),
             ["support"] = (NavSupport, () => new SupportPage()),
             ["update"] = (NavUpdate, () => new UpdatePage()),
             ["settings"] = (NavSettings, () => new SettingsPage()),
@@ -66,8 +66,9 @@ public partial class MainWindow : Window
         StateChanged += (_, _) => OnShownChanged();
         _release.Tick += (_, _) =>
         {
-            _release.Interval = ReleaseAgain;
             MemoryCleaner.ReleaseOwn();
+            if (Shown) _release.Stop(); // "Use less RAM": one release after each page change while the window is open
+            else _release.Interval = ReleaseAgain;
         };
         _release.Start(); // the window starts out hidden (and stays so when Shabpa starts in the tray)
 
@@ -143,6 +144,7 @@ public partial class MainWindow : Window
         ToastText.Text = text;
         ToastText.Visibility = text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         Toast.Visibility = Visibility.Visible;
+        UiSound.Play(UiSound.Kind.Notice);
         _toastTimer.Stop();
         _toastTimer.Interval = TimeSpan.FromSeconds(Math.Clamp(3 + text.Length / 25.0, 4, 9)); // longer texts stay longer
         _toastTimer.Start();
@@ -256,6 +258,12 @@ public partial class MainWindow : Window
         page.OnSecond();
         Motion.Header(PageTitle, PageSub);
         Motion.Enter(key, page);
+        if (Hub.I.Settings.LowMemory)
+        {
+            _release.Stop();
+            _release.Interval = TimeSpan.FromSeconds(3);
+            _release.Start();
+        }
     }
 
     public void OpenFirstPingEditor() => ((NetworkPage)Page("ping")).PageOf<PingPage>()?.OpenFirst();
