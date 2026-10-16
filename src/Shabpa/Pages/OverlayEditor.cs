@@ -233,21 +233,27 @@ internal sealed class OverlayEditor : StackPanel
                 }
     }
 
-    /// <summary>The checkboxes of the selected group, under the screen.</summary>
+    private bool _readingsBuilt;
+
+    /// <summary>Every group with all its readings as tick boxes, under the screen: anything can be switched on or off.
+    /// The page owns the checkboxes and keeps them in step with the settings; they are placed here once.</summary>
     private void ShowReadings()
     {
-        var group = _groups.First(g => g.key == _selected);
+        if (_readingsBuilt) return;
+        _readingsBuilt = true;
         var panel = new StackPanel();
         panel.Children.Add(new TextBlock
         {
-            Text = L.T($"چی از «{group.fa}» نشون داده بشه؟", $"What to show from “{group.en}”?"),
-            Style = (Style)Application.Current.Resources["Label"], Margin = new Thickness(0, 0, 0, 6),
+            Text = L.T("چی نشون داده بشه؟", "What to show"), Style = (Style)Application.Current.Resources["H2"], Margin = new Thickness(0, 6, 0, 0),
         });
-        // the page owns the checkboxes (it keeps their state in step with the settings); they are moved here
-        var wrap = _readings(_selected);
-        if (wrap.Parent is Border old) old.Child = null;
-        else if (wrap.Parent is Panel oldPanel) oldPanel.Children.Remove(wrap);
-        panel.Children.Add(wrap);
+        foreach (var (key, fa, en) in _groups)
+        {
+            panel.Children.Add(new TextBlock { Text = L.T(fa, en), Style = (Style)Application.Current.Resources["Label"], Margin = new Thickness(0, 12, 0, 4) });
+            var wrap = _readings(key);
+            if (wrap.Parent is Border old) old.Child = null;
+            else if (wrap.Parent is Panel oldPanel) oldPanel.Children.Remove(wrap);
+            panel.Children.Add(wrap);
+        }
         _readingsHost.Child = panel;
     }
 }

@@ -209,8 +209,8 @@ public sealed class OverlayPage : PageBase
         }
 
         var (itemCard, items) = Ui2.Card(L.T("چیدمان اورلی", "Overlay layout"),
-            L.T("هر بخش (کارت گرافیک، پردازنده، رم، شبکه، ساعت…) یه کاشیه. با کشیدن و رها کردن جاش رو بین ناحیه‌ها عوض کن یا بالا و پایینش کن؛ روی کاشی بزن تا انتخاب کنی چی ازش نشون داده بشه. فقط چیزهایی که این سیستم می‌تونه بخونه نشون داده می‌شن.",
-                "Every group (graphics card, processor, RAM, network, clock…) is a tile. Drag it to another zone or up and down; click a tile to choose what it shows. Only readings this PC can provide are shown."));
+            L.T("هر بخش (کارت گرافیک، پردازنده، رم، شبکه، ساعت…) یه کاشیه. با کشیدن و رها کردن جاش رو بین ناحیه‌ها عوض کن یا بالا و پایینش کن؛ پایین‌تر هر چیزی رو که می‌خوای با تیک روشن یا خاموش کن. فقط چیزهایی که این سیستم می‌تونه بخونه نشون داده می‌شن.",
+                "Every group (graphics card, processor, RAM, network, clock…) is a tile. Drag it to another zone or up and down; below, tick or untick anything you want shown. Only readings this PC can provide are shown."));
         var adminText = new TextBlock
         {
             Style = St("Body"), TextWrapping = TextWrapping.Wrap, Foreground = Res("Gold"),

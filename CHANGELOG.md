@@ -4,6 +4,11 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [3.3.3] - 2026-10-16
+
+### Fixed
+- Overlay editor: every group's readings are listed with tick boxes again, so any of them can be switched on or off without opening anything first.
+
 ## [3.3.2] - 2026-10-16
 
 ### Fixed
