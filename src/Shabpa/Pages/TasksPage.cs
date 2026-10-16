@@ -396,7 +396,7 @@ public sealed class FocusPage : PageBase
 {
     private readonly TextBlock _phase = new() { Style = St("H2"), HorizontalAlignment = HorizontalAlignment.Center };
     private readonly TextBlock _clock = new() { FontSize = 64, FontWeight = FontWeights.Bold, FontFamily = (FontFamily)Application.Current.Resources["Num"], HorizontalAlignment = HorizontalAlignment.Center, FlowDirection = FlowDirection.LeftToRight, Margin = new Thickness(0, 6, 0, 6) };
-    private readonly ProgressBar _progress = new() { Height = 8, Minimum = 0, Maximum = 1, Margin = new Thickness(40, 4, 40, 12) };
+    private readonly ProgressBar _progress = new() { Style = St("Bar"), Height = 8, Minimum = 0, Maximum = 1, Margin = new Thickness(40, 4, 40, 12) };
     private readonly TextBlock _round = new() { Style = St("Label"), HorizontalAlignment = HorizontalAlignment.Center };
     private readonly TextBox _task = new() { Style = St("Input"), MaxLength = TaskBook.MaxTitle, Margin = new Thickness(0, 14, 0, 0) };
     private readonly Button _start = new() { Style = St("BtnPrimary"), Padding = new Thickness(22, 10, 22, 10) };

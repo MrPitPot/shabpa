@@ -485,7 +485,7 @@ public sealed class OverlayPage : PageBase
             if (e.AvgFps > 0) parts.Add($"FPS {Fa.N(e.AvgFps, 0)} / 1% {Fa.N(e.Low1Fps, 0)}");
             if (e.AvgPing > 0) parts.Add($"{L.T("پینگ", "ping")} {Fa.N(e.AvgPing, 0)}");
             if (e.MaxGpuTemp > 0) parts.Add($"GPU {Fa.N(e.MaxGpuTemp, 0)}°");
-            var bar = new ProgressBar { Minimum = 0, Maximum = Math.Max(1, bestFps), Value = e.AvgFps, Height = 6, Width = 90, Margin = new Thickness(0, 0, 0, 0) };
+            var bar = new ProgressBar { Style = St("Bar"), Minimum = 0, Maximum = Math.Max(1, bestFps), Value = e.AvgFps, Height = 6, Width = 90, Margin = new Thickness(0, 0, 0, 0) };
             _historyList.Children.Add(Row("", "Green", $"{e.Game} · {Fa.RelativeDay(e.Start, DateTime.Now)} {Fa.Clock(e.Start)}", string.Join(" · ", parts), bar));
         }
     }

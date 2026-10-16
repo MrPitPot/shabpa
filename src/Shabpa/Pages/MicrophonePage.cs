@@ -14,7 +14,7 @@ public sealed class MicrophonePage : PageBase
     private readonly TextBlock _deviceState = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) };
     private Slider _level = null!;
     private readonly Button _mute = new() { Style = St("Btn"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0) };
-    private readonly ProgressBar _meter = new() { Minimum = 0, Maximum = 1, Height = 10, Margin = new Thickness(0, 12, 0, 0) };
+    private readonly ProgressBar _meter = new() { Style = St("Bar"), Minimum = 0, Maximum = 1, Height = 10, Margin = new Thickness(0, 12, 0, 0) };
     private readonly TextBlock _meterText = new() { Style = St("Label"), Margin = new Thickness(0, 6, 0, 0), FlowDirection = FlowDirection.LeftToRight, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly TextBlock _result = new() { Style = St("Body"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
     private readonly Button _noise = new() { Style = St("BtnPrimary"), Margin = new Thickness(0, 0, 8, 6) };

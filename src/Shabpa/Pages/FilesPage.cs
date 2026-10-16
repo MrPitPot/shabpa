@@ -174,7 +174,7 @@ public sealed class SpacePage : PageBase
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var left = new StackPanel();
             left.Children.Add(new TextBlock { Text = Path.GetFileName(folder.Path), Style = St("Body"), FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = folder.Path });
-            left.Children.Add(new ProgressBar { Minimum = 0, Maximum = 1, Value = (double)folder.Bytes / max, Height = 6, Margin = new Thickness(0, 4, 0, 0) });
+            left.Children.Add(new ProgressBar { Style = St("Bar"), Minimum = 0, Maximum = 1, Value = (double)folder.Bytes / max, Height = 6, Margin = new Thickness(0, 4, 0, 0) });
             grid.Children.Add(left);
             var size = new TextBlock { Text = Fa.Bytes(folder.Bytes), Style = St("Label"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
             Grid.SetColumn(size, 1);
@@ -640,7 +640,7 @@ public sealed class BackupPage : PageBase
 
         if (running)
         {
-            s.Children.Add(new ProgressBar { Minimum = 0, Maximum = Math.Max(1, Hub.BackupTotal), Value = Hub.BackupDone, Height = 8, Margin = new Thickness(0, 10, 0, 0) });
+            s.Children.Add(new ProgressBar { Style = St("Bar"), Minimum = 0, Maximum = Math.Max(1, Hub.BackupTotal), Value = Hub.BackupDone, Height = 8, Margin = new Thickness(0, 10, 0, 0) });
             var stop = new Button { Style = St("Btn"), Content = L.T("توقف", "Stop"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 8, 0, 0) };
             stop.Click += (_, _) => Hub.CancelBackup();
             s.Children.Add(stop);
