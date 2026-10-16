@@ -16,6 +16,8 @@ public sealed class SettingsPack
     public List<WorkProfile>? Profiles { get; set; }
     public List<AutomationTrigger>? Triggers { get; set; }
     public List<TodoItem>? Tasks { get; set; }
+    /// <summary>Clicks taught for launchers (travel with the profiles).</summary>
+    public List<LauncherMacro>? Macros { get; set; }
 }
 
 public sealed record ImportSummary(int Settings, int Profiles, int Triggers, int Tasks);
@@ -51,6 +53,7 @@ public static class SettingsBackup
         StripSecrets(pack.Settings);
         if (includeProfiles)
         {
+            pack.Macros = [.. state.Macros];
             pack.Profiles = [.. state.Profiles];
             pack.Triggers = [.. state.Triggers.Select(t => new AutomationTrigger
             {
@@ -123,6 +126,24 @@ public static class SettingsBackup
                 triggers++;
             }
             state.Settings.ProfilesSeeded = true;
+        }
+
+        if (pack.Macros is not null)
+        {
+            // taught clicks are only positions and waits; they are brought back into sane ranges and capped
+            foreach (var m in pack.Macros.Where(m => m.LauncherKey.Length is > 0 and <= 80 && m.WindowProcess.Length <= 120 && m.Steps.Count > 0).Take(20))
+            {
+                m.Width = Math.Clamp(m.Width, 100, 20000);
+                m.Height = Math.Clamp(m.Height, 100, 20000);
+                m.Dpi = Math.Clamp(m.Dpi, 96, 600);
+                m.Steps = [.. m.Steps.Take(MacroMath.MaxSteps).Select(st => new MacroStep
+                {
+                    Dx = Math.Clamp(st.Dx, -100, 20000), Dy = Math.Clamp(st.Dy, -100, 20000), Fx = Math.Clamp(st.Fx, 0, 1), Fy = Math.Clamp(st.Fy, 0, 1),
+                    WaitMs = Math.Clamp(st.WaitMs, 0, 600000), Button = st.Button is "right" or "wheel" ? st.Button : "left", Wheel = Math.Clamp(st.Wheel, -50, 50),
+                })];
+                state.Macros.RemoveAll(x => x.LauncherKey == m.LauncherKey);
+                state.Macros.Add(m);
+            }
         }
 
         var tasks = 0;

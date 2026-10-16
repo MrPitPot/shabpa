@@ -37,33 +37,116 @@ public sealed class Store
         {
             if (File.Exists(_file))
                 State = JsonSerializer.Deserialize<AppState>(File.ReadAllText(_file), Json) ?? new AppState();
+            Log.Write($"state loaded: {State.Macros.Count} taught launchers, {State.Tickets.Count} tickets, {State.Tasks.Count} tasks, {State.GameHistory.Count} games");
+            Backup();
         }
         catch (Exception ex)
         {
             // A corrupt file must never stop the app from starting; keep it aside for inspection.
             Log.Write($"state load failed: {ex.Message}");
             try { File.Copy(_file, _file + ".broken", true); } catch { /* best effort */ }
-            State = new AppState();
+            State = TryBackup() ?? new AppState();
         }
     }
+
+    /// <summary>One copy of the good file per day (the last seven are kept), so a bad write or a wrong turn can be undone.</summary>
+    private void Backup()
+    {
+        if (ReadOnly || !File.Exists(_file)) return;
+        try
+        {
+            var folder = Path.Combine(Folder, "backups");
+            Directory.CreateDirectory(folder);
+            var today = Path.Combine(folder, $"state-{DateTime.Now:yyyyMMdd}.json");
+            if (!File.Exists(today)) File.Copy(_file, today);
+            foreach (var old in Directory.GetFiles(folder, "state-*.json").OrderByDescending(f => f).Skip(7)) File.Delete(old);
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"state backup failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>The newest daily copy that still reads, used when the main file cannot be read.</summary>
+    private AppState? TryBackup()
+    {
+        try
+        {
+            var folder = Path.Combine(Folder, "backups");
+            if (!Directory.Exists(folder)) return null;
+            foreach (var file in Directory.GetFiles(folder, "state-*.json").OrderByDescending(f => f))
+            {
+                try
+                {
+                    if (JsonSerializer.Deserialize<AppState>(File.ReadAllText(file), Json) is { } state)
+                    {
+                        Log.Write($"state restored from {Path.GetFileName(file)}");
+                        return state;
+                    }
+                }
+                catch { /* try the next one */ }
+            }
+        }
+        catch { /* nothing to restore from */ }
+        return null;
+    }
+
+    private bool TryWrite()
+    {
+        try
+        {
+            Directory.CreateDirectory(Folder);
+            var tmp = _file + ".tmp";
+            File.WriteAllText(tmp, JsonSerializer.Serialize(State, Json));
+            File.Move(tmp, _file, true);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"state save failed: {ex.Message}");
+            return true; // not something waiting would fix
+        }
+    }
+
+    private int _retrying;
 
     public void Save()
     {
         if (ReadOnly) return;
         lock (_gate)
         {
+            if (TryWrite()) return;
+        }
+        // Something else (an antivirus scan, a backup program, a second Shabpa) holds the file for a moment. The window must
+        // not wait for it, so the writing is tried again in the background, a few times, then straight over the file.
+        if (Interlocked.Exchange(ref _retrying, 1) == 1) return;
+        _ = Task.Run(() =>
+        {
             try
             {
-                Directory.CreateDirectory(Folder);
-                var tmp = _file + ".tmp";
-                File.WriteAllText(tmp, JsonSerializer.Serialize(State, Json));
-                File.Move(tmp, _file, true);
+                for (var attempt = 1; attempt <= 6; attempt++)
+                {
+                    Thread.Sleep(150 * attempt);
+                    lock (_gate)
+                    {
+                        if (TryWrite()) return;
+                    }
+                }
+                lock (_gate)
+                {
+                    try { File.WriteAllText(_file, JsonSerializer.Serialize(State, Json)); }
+                    catch (Exception ex) { Log.Write($"state save failed: {ex.Message}"); }
+                }
             }
-            catch (Exception ex)
+            finally
             {
-                Log.Write($"state save failed: {ex.Message}");
+                Interlocked.Exchange(ref _retrying, 0);
             }
-        }
+        });
     }
 }
 

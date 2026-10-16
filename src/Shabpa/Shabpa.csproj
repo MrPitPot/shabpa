@@ -11,12 +11,19 @@
     <RootNamespace>Shabpa</RootNamespace>
     <ApplicationIcon>Assets\shabpa.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>3.3.4</Version>
+    <Version>3.4.0</Version>
     <Product>Shabpa</Product>
     <Company>Mr.PitPot</Company>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <InvariantGlobalization>false</InvariantGlobalization>
+    <!-- a quiet desktop tool: no background GC thread, trim memory sooner, no profile-guided JIT work -->
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredPGO>false</TieredPGO>
   </PropertyGroup>
+
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="5" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.6" />

@@ -36,6 +36,10 @@
                                 <TextBlock x:Name="SideWatts" FontFamily="{StaticResource Num}" Text="— W" FontSize="16" FontWeight="Bold" Foreground="{StaticResource Text}"
                                            FlowDirection="LeftToRight" HorizontalAlignment="Right"/>
                             </DockPanel>
+                            <StackPanel x:Name="SideGame" Visibility="Collapsed" Margin="0,8,0,0">
+                                <TextBlock x:Name="SideGameName" Style="{StaticResource Body}" FontWeight="SemiBold" FontSize="12.5" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock x:Name="SideGameTime" Style="{StaticResource Label}" FontFamily="{StaticResource Num}" FontSize="12" FlowDirection="LeftToRight" HorizontalAlignment="Left" Foreground="{StaticResource Green}"/>
+                            </StackPanel>
                             <TextBlock x:Name="SideNext" Style="{StaticResource Label}" FontSize="11.5" Margin="0,6,0,0" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>

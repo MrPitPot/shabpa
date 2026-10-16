@@ -16,6 +16,10 @@ public sealed record SensorSnapshot
     public bool GameRunning { get; init; }
     /// <summary>Lower-case process name of the full-screen game, or "" when none is running.</summary>
     public string GameProcess { get; init; } = "";
+    /// <summary>A readable name of the game that is running (also while another window is in front), or "".</summary>
+    public string GameName { get; init; } = "";
+    /// <summary>When that game's program started, so a timer can show how long it has been running.</summary>
+    public DateTime? GameSince { get; init; }
     public bool Recording { get; init; }
     public double CpuWatts { get; init; }
     public double GpuWatts { get; init; }
@@ -81,7 +85,8 @@ public sealed class SensorHub : IDisposable
         var cpu = ReadCpu();
         var (gpuAny, gpuMain) = ReadGpu();
         var processes = ReadProcesses();
-        var game = IsGame(gpuAny);
+        var state = Native.SHQueryUserNotificationState(out var notification) == 0 ? notification : 0;
+        var game = _watcher.Update(state, gpuAny, UserGames(settings));
         var recording = RecorderNames(settings.RecorderProcesses).Any(processes.Contains);
 
         var cpuWatts = ReadCpuWatts();
@@ -99,7 +104,9 @@ public sealed class SensorHub : IDisposable
             GpuLoad = gpuAny,
             IdleSeconds = Native.IdleTime().TotalSeconds,
             GameRunning = game,
-            GameProcess = game ? ForegroundProcess() : "",
+            GameProcess = game ? (_watcher.Current?.Process ?? ForegroundProcess()) : "",
+            GameName = _watcher.Current?.Name ?? "",
+            GameSince = _watcher.Current?.Start,
             Recording = recording,
             CpuWatts = cpuWatts.Value,
             GpuWatts = gpuWatts,
@@ -263,6 +270,12 @@ public sealed class SensorHub : IDisposable
         return names;
     }
 
+    private readonly GameWatcher _watcher = new();
+
+    /// <summary>Programs the person told Shabpa are games, and every game they made an overlay profile for.</summary>
+    private static IEnumerable<string> UserGames(Settings settings) =>
+        RecorderNames(settings.GameList).Concat(settings.Overlay.Profiles.Select(p => p.Game).Where(g => g.Length > 0));
+
     private static string ForegroundProcess()
     {
         try
@@ -278,13 +291,6 @@ public sealed class SensorHub : IDisposable
         }
     }
 
-    private static bool IsGame(double gpuLoad)
-    {
-        if (Native.SHQueryUserNotificationState(out var state) != 0) return false;
-        // 3 = exclusive Direct3D full screen. 2 = any full-screen app, which is also what a full-screen
-        // video looks like, so borderless games are told apart by the GPU actually working.
-        return state == 3 || (state == 2 && gpuLoad >= 35);
-    }
 
     public void Dispose()
     {

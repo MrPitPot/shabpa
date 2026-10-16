@@ -391,9 +391,9 @@ public partial class App : Application
         if (args.Contains("--software-render")) settings.LowMemory = true; // test aid (screenshot runs never save)
         // "Use less RAM": no graphics-card device at all (that is where the memory goes); the small overlay and dim
         // windows are cheap to draw either way.
-        if (settings.LowMemory) System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
+        if (settings.LowMemory || settings.SoftwareRender) System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
         L.En = (Value(e.Args, "--lang") ?? settings.Language) == "en";
-        Resources.MergedDictionaries.Add(Ui.Resources(Palette.Find(Value(e.Args, "--theme") ?? settings.Theme)));
+        Resources.MergedDictionaries.Add(Ui.Resources(Palette.Find(Value(e.Args, "--theme") ?? settings.Theme), settings.LowMemory ? "off" : Value(e.Args, "--glass") ?? settings.Glass, settings.GlassLevel));
         Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/Shabpa;component/Theme.xaml", UriKind.Relative) });
 
         var hub = new Hub(store, dryRun, demo);
@@ -402,6 +402,7 @@ public partial class App : Application
 
         _window = new MainWindow();
         UiSound.Install();
+        if (shots is null) UiWatchdog.Start(Dispatcher, () => _window?.CurrentPage ?? "");
         Motion.Install();
         // test aid: --size 960x620 shows the window at its smallest, to check nothing is cut off
         if (Value(e.Args, "--size") is { } size && size.Split('x') is [var w, var h] && double.TryParse(w, out var width) && double.TryParse(h, out var height))

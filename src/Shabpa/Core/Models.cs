@@ -73,8 +73,17 @@ public sealed class Settings
     public bool Animations { get; set; } = true;
     /// <summary>Tiny interface sounds on hover, click and notices (experimental).</summary>
     public bool UiSounds { get; set; } = true;
+    /// <summary>Windows 11 backdrop behind the window: "off", "mica" (soft, follows the wallpaper) or "acrylic" (frosted glass).</summary>
+    public string Glass { get; set; } = "off";
+    /// <summary>How dark the glass is, 0 (clearest) to 1.</summary>
+    public double GlassLevel { get; set; }
+    /// <summary>The stars the person gave the app (0 = none). Kept on this PC only.</summary>
+    public int Rating { get; set; }
+    public DateTime? RatedAt { get; set; }
     /// <summary>Draw the window in software: less RAM while it is open, a little more CPU. Applied at start.</summary>
     public bool LowMemory { get; set; }
+    /// <summary>Draw the window with the processor instead of the graphics card (lighter on the GPU, a little more CPU). Applied at start.</summary>
+    public bool SoftwareRender { get; set; }
     /// <summary>The live noise suppressor for the microphone.</summary>
     public VoiceSettings Voice { get; set; } = new();
     /// <summary>The starter profiles were added once; deleting them keeps them gone.</summary>
@@ -102,6 +111,8 @@ public sealed class Settings
     public List<DnsEntry> CustomDns { get; set; } = [];
     /// <summary>The city shown on the weather page.</summary>
     public WeatherCity? WeatherCity { get; set; }
+    /// <summary>Programs the person says are games (names, separated by commas), for games Shabpa does not recognise by itself.</summary>
+    public string GameList { get; set; } = "";
     public string RecorderProcesses { get; set; } = "obs64, obs32, obs, Streamlabs OBS, bdcam, CamtasiaStudio, CamRecorder, XSplit.Core, Action, ShareX, ffmpeg";
     /// <summary>The person chose to link this PC to @ShabPa_Bot; nothing is sent to the server before that.</summary>
     public bool BotEnabled { get; set; }

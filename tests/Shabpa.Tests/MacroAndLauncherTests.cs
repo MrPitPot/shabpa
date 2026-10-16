@@ -209,3 +209,245 @@ public sealed class UiSoundTests
         Assert.InRange(peak, 100, short.MaxValue * 0.06);
     }
 }
+
+public sealed class TaughtClicksSurviveTests
+{
+    private static LauncherMacro Macro() => new()
+    {
+        LauncherKey = "steam", WindowProcess = "steam", WindowClass = "SDL_app", Width = 1000, Height = 700,
+        Steps = [new MacroStep { Dx = 900, Dy = 60, Fx = 0.9, Fy = 0.08, WaitMs = 1200 }],
+    };
+
+    [Fact]
+    public void Taught_clicks_are_still_there_after_the_app_restarts_and_after_an_old_file_is_read()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "shabpa-test-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store = new Store(folder);
+            store.State.Macros.Add(Macro());
+            store.Save();
+            var again = new Store(folder);
+            again.Load();
+            Assert.Single(again.State.Macros);
+            Assert.Equal(900, again.State.Macros[0].Steps[0].Dx);
+
+            // a state file written by an older version (no "Macros" at all) must load without touching other data
+            File.WriteAllText(Path.Combine(folder, "state.json"), "{\"Settings\":{\"Theme\":\"forest\"}}");
+            var old = new Store(folder);
+            old.Load();
+            Assert.Equal("forest", old.State.Settings.Theme);
+            Assert.Empty(old.State.Macros);
+        }
+        finally
+        {
+            try { Directory.Delete(folder, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void Taught_clicks_travel_in_a_settings_backup_and_are_range_checked()
+    {
+        var state = new AppState { Macros = [Macro()] };
+        var json = SettingsBackup.Export(state, includeProfiles: true, includeTasks: false, DateTime.Now);
+        var pack = SettingsBackup.Read(json)!;
+        pack.Macros![0].Steps[0].Dx = 99999999;
+        pack.Macros[0].Steps[0].Button = "evil";
+        var target = new AppState();
+        SettingsBackup.Apply(pack, target);
+        Assert.Single(target.Macros);
+        Assert.Equal(20000, target.Macros[0].Steps[0].Dx);
+        Assert.Equal("left", target.Macros[0].Steps[0].Button);
+    }
+
+    [Fact]
+    public void An_update_never_removes_the_data_folder()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Shabpa.slnx"))) dir = dir.Parent;
+        var installer = File.ReadAllText(Path.Combine(dir!.FullName, "src", "Setup", "Installer.cs"));
+        // the only place the data folder is deleted is the uninstall with the person's explicit "remove my data"
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(installer, @"Directory\.Delete\(data"));
+        Assert.Contains("if (removeData)", installer);
+    }
+}
+
+public sealed class RatingTests
+{
+    [Fact]
+    public void Every_star_count_has_a_friendly_line_and_a_reply()
+    {
+        for (var stars = 1; stars <= 5; stars++)
+        {
+            Assert.True(Pages.RatingCard.Joke(stars).Length > 20);
+            Assert.True(Pages.RatingCard.Reply(stars).Length > 10);
+        }
+        // nothing insulting, in either language
+        foreach (var banned in new[] { "احمق", "بی‌خود", "stupid", "idiot", "garbage", "trash", "terrible" })
+            for (var stars = 1; stars <= 5; stars++) Assert.DoesNotContain(banned, Pages.RatingCard.Joke(stars) + Pages.RatingCard.Reply(stars), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void A_rating_never_leaves_the_pc()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Shabpa.slnx"))) dir = dir.Parent;
+        var text = File.ReadAllText(Path.Combine(dir!.FullName, "src", "Shabpa", "Pages", "RatingCard.cs"));
+        foreach (var banned in new[] { "HttpClient", "WebClient", "Socket" }) Assert.DoesNotContain(banned, text);
+    }
+}
+
+public sealed class GlassTests
+{
+    [Fact]
+    public void The_glass_slider_changes_the_brushes_live_and_theme_colour_never_paints_the_window()
+    {
+        var dictionary = Ui.Resources(Palette.Find("midnight"), "mica", 0);
+        var panel = (System.Windows.Media.SolidColorBrush)dictionary["Panel"];
+        var background = (System.Windows.Media.SolidColorBrush)dictionary["BgGradient"];
+        Assert.False(panel.IsFrozen);
+        Assert.Equal(0, background.Color.A); // clearest: nothing over the backdrop
+        var before = panel.Color.A;
+        Ui.SetGlassLevel(1);
+        Assert.True(panel.Color.A > before);
+        Assert.True(background.Color.A > 100);
+        // neutral: only black or white, never a theme colour
+        Assert.All(new[] { panel.Color, background.Color, ((System.Windows.Media.SolidColorBrush)dictionary["SideGradient"]).Color, ((System.Windows.Media.SolidColorBrush)dictionary["HeroGradient"]).Color },
+            c => Assert.True(c.R == c.G && c.G == c.B));
+        Ui.Resources(Palette.Find(null), "off", 0); // leave the shared state as other tests expect
+    }
+}
+
+public sealed class GameRuleTests
+{
+    private static bool Decide(int state = 0, double gpu = 0, bool covers = false, bool graphics = false, string? path = null, string process = "somegame", params string[] user) =>
+        GameRules.Decide(state, gpu, covers, graphics, path, process, user);
+
+    [Fact]
+    public void The_old_signals_still_work()
+    {
+        Assert.True(Decide(state: 3));
+        Assert.True(Decide(state: 2, gpu: 60));
+        Assert.False(Decide(state: 2, gpu: 5)); // a full-screen video, not a game
+        Assert.False(Decide());
+    }
+
+    [Fact]
+    public void Borderless_and_windowed_games_are_found_by_their_folder_or_their_graphics()
+    {
+        Assert.True(Decide(path: @"D:\SteamLibrary\steamapps\common\Some Game\game.exe", graphics: true, gpu: 20));
+        Assert.True(Decide(path: @"E:\Games\Foo\foo.exe", graphics: true, gpu: 8));
+        Assert.True(Decide(covers: true, graphics: true, gpu: 40)); // borderless, unknown folder
+        Assert.False(Decide(covers: true, graphics: false, gpu: 90)); // fills the screen but loads no game graphics
+        Assert.False(Decide(path: @"D:\steamapps\common\x\x.exe", graphics: true, gpu: 0)); // folder alone, card idle
+    }
+
+    [Fact]
+    public void Browsers_players_launchers_and_Shabpa_are_never_games()
+    {
+        foreach (var program in new[] { "chrome", "vlc", "explorer", "shabpa", "steam", "discord", "RiotClientServices" })
+            Assert.False(Decide(state: 3, gpu: 90, covers: true, graphics: true, process: program), program);
+    }
+
+    [Fact]
+    public void A_program_the_person_lists_is_a_game_whatever_it_looks_like()
+    {
+        Assert.True(Decide(process: "weirdgame", user: ["WeirdGame.exe"]));
+        Assert.True(Decide(process: "cs2", user: ["cs2"]));
+        Assert.False(Decide(process: "shabpa", user: ["shabpa"]));
+    }
+
+    [Fact]
+    public void The_timer_reads_naturally()
+    {
+        Assert.Equal("05:09", GameRules.Elapsed(TimeSpan.FromSeconds(309)));
+        Assert.Equal("1:02:03", GameRules.Elapsed(TimeSpan.FromSeconds(3723)));
+        Assert.Equal("00:00", GameRules.Elapsed(TimeSpan.FromSeconds(-5)));
+    }
+}
+
+public sealed class StoreSafetyTests
+{
+    [Fact]
+    public void A_daily_backup_is_kept_and_used_when_the_main_file_is_broken()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "shabpa-test-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store = new Store(folder);
+            store.State.Macros.Add(new LauncherMacro { LauncherKey = "steam", Steps = [new MacroStep()] });
+            store.Save();
+            new Store(folder).Load(); // a normal start makes today's copy
+            Assert.Single(Directory.GetFiles(Path.Combine(folder, "backups"), "state-*.json"));
+
+            File.WriteAllText(Path.Combine(folder, "state.json"), "{ not json");
+            var broken = new Store(folder);
+            broken.Load();
+            Assert.Single(broken.State.Macros); // came back from the copy
+            Assert.True(File.Exists(Path.Combine(folder, "state.json.broken")));
+        }
+        finally
+        {
+            try { Directory.Delete(folder, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public void A_file_held_open_by_another_program_does_not_make_saving_throw_or_wait()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "shabpa-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            var store = new Store(folder);
+            store.Save();
+            using var hold = new FileStream(Path.Combine(folder, "state.json"), FileMode.Open, FileAccess.Read, FileShare.None);
+            store.State.Settings.Tariff = 777;
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            store.Save(); // must return at once and try again in the background
+            Assert.True(watch.ElapsedMilliseconds < 400, $"waited {watch.ElapsedMilliseconds} ms");
+            hold.Dispose();
+            var saved = false;
+            for (var i = 0; i < 40 && !saved; i++)
+            {
+                Thread.Sleep(100);
+                saved = File.ReadAllText(Path.Combine(folder, "state.json")).Contains("777");
+            }
+            Assert.True(saved, "the retry in the background never wrote the file");
+        }
+        finally
+        {
+            try { Directory.Delete(folder, true); } catch { }
+        }
+    }
+}
+
+public sealed class WingetManifestTests
+{
+    [Fact]
+    public void The_winget_manifests_agree_with_each_other_and_point_at_a_published_release()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Shabpa.slnx"))) dir = dir.Parent;
+        var root = Path.Combine(dir!.FullName, "packaging", "winget", "manifests", "m", "MrPitPot", "Shabpa");
+        var versions = Directory.GetDirectories(root);
+        Assert.NotEmpty(versions);
+        foreach (var folder in versions)
+        {
+            var version = Path.GetFileName(folder);
+            var files = Directory.GetFiles(folder, "*.yaml");
+            Assert.Equal(3, files.Length);
+            foreach (var file in files)
+            {
+                var text = File.ReadAllText(file);
+                Assert.Contains($"PackageVersion: {version}", text);
+                Assert.Contains("PackageIdentifier: MrPitPot.Shabpa", text);
+            }
+            var installer = File.ReadAllText(files.Single(f => f.EndsWith(".installer.yaml")));
+            Assert.Contains($"releases/download/v{version}/ShabpaSetup.exe", installer);
+            var hash = System.Text.RegularExpressions.Regex.Match(installer, @"InstallerSha256: ([0-9A-Fa-f]{64})\b");
+            Assert.True(hash.Success, "InstallerSha256 must be 64 hex digits");
+            Assert.Contains($"## [{version}]", File.ReadAllText(Path.Combine(dir.FullName, "CHANGELOG.md")));
+        }
+    }
+}

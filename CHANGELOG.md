@@ -4,6 +4,16 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [Unreleased]
+
+### Added
+- **Better game detection** - borderless and windowed games are recognised (by their game folder or graphics libraries), and a "games Shabpa does not know" box lets you list a program by name.
+- **Game name and play time** in the side card while a game runs.
+- **Rate Shabpa** - one to five stars in Settings with a playful confirmation; kept on this PC only, with buttons for a real GitHub star and for written feedback.
+- **Glass look (Windows 11)** - Mica or Acrylic backdrop; the whole window turns neutral and see-through with no theme colour on it, a slider sets how dark the glass is (it applies instantly), and Mica and Acrylic can be switched without restarting.
+- **Graphics card option** - draw the window with the processor instead of the GPU (separate from "Use less RAM").
+- Taught launcher clicks travel with the settings backup.
+
 ## [3.3.4] - 2026-10-16
 
 ### Fixed
@@ -44,6 +54,7 @@ a patch release only fixes bugs, a minor release adds a tested batch of features
 - "Use less RAM" now also turns off animations and sounds and hands memory back after each page change.
 - Cards light up softly on hover, chosen options pop, and the side menu slides in.
 - Launchers are opened with normal rights even when Shabpa runs as administrator.
+- A little lighter: no background garbage-collection thread and memory is trimmed sooner.
 
 ### Fixed
 - A scheduled download no longer clicks while the screen is locked.

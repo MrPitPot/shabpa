@@ -133,6 +133,10 @@ public sealed class OverlayPage : PageBase
         _note.TextWrapping = TextWrapping.Wrap;
         _note.Margin = new Thickness(0, 8, 0, 0);
         preview.Children.Add(_note);
+        preview.Children.Add(Ui2.Label(L.T("بازی‌ای که شب‌پا نمی‌شناسه؟ اسم برنامه‌ش رو این‌جا بنویس (با کاما جدا کن، مثلاً cs2, valorant)", "A game Shabpa does not recognise? Type its program name here (comma separated, for example cs2, valorant)"), 12, 4));
+        var gameList = new TextBox { Style = St("Input"), FlowDirection = FlowDirection.LeftToRight, FontFamily = new FontFamily("Consolas"), Text = Hub.Settings.GameList, Margin = new Thickness(0, 0, 0, 0) };
+        gameList.TextChanged += (_, _) => { Hub.Settings.GameList = gameList.Text; _save.Stop(); _save.Start(); };
+        preview.Children.Add(gameList);
         root.Children.Add(previewCard);
 
         // ---- layout -----------------------------------------------------------------------------
