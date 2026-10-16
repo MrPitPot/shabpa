@@ -514,6 +514,7 @@ public sealed class OverlayWindow : Window
         var area = WF.Screen.FromHandle(Native.GetForegroundWindow()).Bounds;
         var gap = 8 * dpi.DpiScaleY;
         var next = new Dictionary<string, double>();
+        var placed = new List<System.Windows.Rect>();
 
         void Put(Window window, string anchor, double x, double y, double offsetX, double offsetY)
         {
@@ -534,9 +535,19 @@ public sealed class OverlayWindow : Window
                     "tc" or "bc" => area.Left + (area.Width - width) / 2,
                     _ => area.Left + offsetX,
                 };
-                top = anchor is "bl" or "br" or "bc" ? area.Bottom - height - edge : area.Top + edge;
-                next[anchor] = edge + height + gap;
+                var bottom = anchor is "bl" or "br" or "bc";
+                top = bottom ? area.Bottom - height - edge : area.Top + edge;
+                // never sit on top of a block that is already placed (for example the main block, which may have been
+                // dragged to a free spot): slide away from the corner until the space is clear
+                for (var guard = 0; guard < 12; guard++)
+                {
+                    var hit = placed.FirstOrDefault(r => left < r.Right && left + width > r.Left && top < r.Bottom && top + height > r.Top);
+                    if (hit.Width <= 0) break;
+                    top = bottom ? hit.Top - height - gap : hit.Bottom + gap;
+                }
+                next[anchor] = bottom ? area.Bottom - top + gap : top - area.Top + height + gap;
             }
+            placed.Add(new System.Windows.Rect(left, top, width, height));
             window.Left = left / dpi.DpiScaleX;
             window.Top = top / dpi.DpiScaleY;
         }
