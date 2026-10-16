@@ -2,7 +2,7 @@
 # Builds installer/ShabpaSetup.exe: publishes the app, packs it into one Brotli payload and embeds that in the setup.
 set -e
 cd "$(dirname "$0")"
-VERSION=3.0.1
+VERSION=3.1.0
 APP=obj/installer/app
 rm -rf obj/installer && mkdir -p obj/installer
 dotnet publish src/Shabpa/Shabpa.csproj -c Release -r win-x64 --self-contained false -p:DebugType=none -o "$APP" -nologo -v q

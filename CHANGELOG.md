@@ -1,78 +1,129 @@
 # Changelog
 
-## How versions are numbered
+All notable changes to Shabpa are listed here, newest first. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
+a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
-`MAJOR.MINOR.PATCH`, applied strictly from 3.0.1 on:
+## [3.1.0] - 2026-10-16
 
-- **PATCH** (3.0.1 → 3.0.2): fixes only, no new features.
-- **MINOR** (3.0 → 3.1): a planned batch of new features, released only after it has been tested for a while.
-  Work in progress collects under "Unreleased" below; one minor release, not one per feature.
-- **MAJOR** (3 → 4): only for a real break (settings or data that older versions cannot read, Windows support
-  dropped, and the like). Not expected any time soon.
-- Test builds can be shared as GitHub pre-releases (`3.1.0-beta.1`); the in-app updater only offers full releases.
+### Added
+- **Tasks & focus** - to-do list with deadlines, reminders and categories; focus and break timer; weekly report.
+- **Files & backup** - disk space analysis, duplicate finder, clean-up of temporary files and caches, scheduled folder backup with verification and a restore that never overwrites.
+- **Health & security** - disk, update and service checks, recent event-log errors in plain language, Windows security settings, startup-program watch, and a report with personal details removed.
+- **Program and driver updates** - outdated programs through winget, graphics driver versions with the maker's official page, driver updates found by Windows Update.
+- **Profiles & automation** - one-click profiles (study, work, rest, night), triggers by time or game start/end, run history, undo, import and export.
+- **Microphone** - level and mute, noise test with advice, noise suppressors found on the PC, programs that used the microphone.
+- **Game mode** - best power plan, RAM clean-up and quiet notices while a game runs; everything is restored afterwards.
+- **Settings backup** - save and restore settings, profiles and tasks (never keys or the bot link).
+- Two themes: **Forest green** and **Neon green**.
 
-The 2.x and 3.0 line moved quickly while the app was taking shape; from here on releases are fewer and larger.
+### Changed
+- **Telegram** - linking is now a one-time code sent to @ShabPa_Bot; personal bot tokens are no longer accepted. The bot can start a profile or a focus session and report how many tasks are left.
+- **Memory** - about 135 MB drops to 25-35 MB while the window is hidden; a "Use less RAM" option draws the window in software.
+- **Weather** - redrawn animated sky: layered clouds, sun rays, moon, stars, rain splashes, snow, fog and lightning.
+- Shabpa reopens in front after an update; notices appear inside the window; the window position is remembered; `Ctrl+1` to `Ctrl+9` switch sections.
+- The privacy note in Settings now lists exactly what uses the internet.
 
-## Unreleased (planned 3.1.0)
+### Fixed
+- Progress bars follow the selected theme.
 
-- Telegram control goes through the project's bot, @ShabPa_Bot: press "Connect to the bot", send the one-time
-  code to the bot, done. Personal bot tokens are no longer accepted.
-- Much less RAM: while the window is hidden next to the clock Shabpa gives its idle memory back to Windows
-  (about 135 MB → 25–35 MB in Task Manager), pages are only built when first opened, and a hidden window is no
-  longer redrawn every second.
-- New setting "Use less RAM": draws the window without the graphics card (about 120 → 75 MB while it is open,
-  a little more CPU).
-- Weather: a new animated sky. Soft layered clouds with depth, a sun with a glow and slowly turning rays, a
-  shaded moon, twinkling stars and shooting stars, rain in two layers with splashes, snow with depth, drifting fog
-  and real lightning bolts; rounded corners and a soft shade behind the text so it stays readable.
-- After an update Shabpa opens again by itself, comes to the front and says which version is installed.
-- Notices show inside the window while it is open (the tray balloon is only used when it is hidden).
-- The window opens where you left it, at the same size (or maximised).
-- Keyboard: Ctrl+1 … Ctrl+9 open the sections in order, Ctrl+, opens the settings.
+## [3.0.1] - 2026-10-15
 
-- **Tasks & focus** (new): a to-do list with deadlines, reminders, categories and today / upcoming / done views;
-  a focus and break timer; a weekly report that also summarises games, internet and power. Stored only on this PC.
+### Fixed
+- Screen dimming no longer flashes back to full brightness every second.
 
-- **Files & backup** (new): see where disk space went, find duplicate files, and back folders up on a schedule
-  with a preview, verification and a restore that never overwrites. Deleting only ever sends files to the Recycle Bin
-  after a preview and your confirmation.
+## [3.0.0] - 2026-10-15
 
-- **Health & security** (new): disk space, pending restarts, Windows Update age, key services and recent event-log
-  errors in plain language; a few Windows security settings (firewall, Defender, UAC, SmartScreen, Remote Desktop,
-  Secure Boot); a watch for new or changed startup programs with a one-click turn-off for your own entries; what
-  access each Shabpa feature needs; and a report with personal details removed that you review before sharing.
-  It reports status only: it is not an antivirus and never claims to have fixed anything.
+### Added
+- Motion design: a distinct entrance for every tab, animated selection controls and an Animations switch.
 
-- **Profiles & automation** (new): one click runs several existing actions (screen dimming, volume, focus timer,
-  break reminders, RAM, a message, sleep mode or a delayed power action) with an undo for the last run; triggers run a
-  profile at a time of day, when a game starts or ends, or when Shabpa starts; run history; export and import of
-  profiles. A profile that can switch the PC off is always started by hand and confirmed, and an imported file can only
-  contain this fixed list of actions.
+## [2.9.0] - 2026-10-15
 
-- **Settings backup** (new): save your settings (and, if you choose, profiles and tasks) to a file and restore them
-  after a reinstall or on another PC. The file never contains the bot link, device secret or support key.
-- Recent notices are kept (in memory only) in Settings; the bot can start a profile, start or stop a focus session and
-  tell you how many tasks you have today (titles only if you switch that on). Profiles that can switch the PC off are
-  never started remotely.
-- The privacy line in Settings now says exactly what uses the internet.
+### Added
+- Support page: tickets through a pre-filled GitHub issue or the project server, replies, and an owner view.
 
-- Safety review of the new features: guard tests keep them free of network code, make every delete go through a
-  confirmation and the Recycle Bin (Windows now asks if a file is too big for the bin), keep notices and task
-  reminders away from the bot, and refuse odd backup destinations and service names.
+## [2.8.0] - 2026-10-15
 
-- Two new themes: **Forest green** (calm, mossy) and **Neon green** (black with a vivid glow).
+### Added
+- Each overlay group (GPU, CPU, RAM, network, clock) can be placed on its own.
 
-- **Clean-up** (new, in Files & backup): temporary files, Windows Update downloads, shader caches, browser caches
-  (cache only), thumbnails and crash dumps, shown with sizes first. Nothing outside those folders is touched.
-- **Game mode** (new, in Comfort): when a game starts it switches to the best power plan, frees RAM and keeps Shabpa's
-  notices quiet; when the game ends everything goes back (also after a restart in the middle).
-- **Microphone** (new): level and mute, a noise test with plain advice, noise suppressors found on this PC (AMD,
-  NVIDIA), and which programs used the microphone.
+## [2.7.0] - 2026-10-15
 
-## 3.0.1
+### Added
+- Dim screen, optional break reminders, sleep mode, waking the PC for scheduled downloads, per-game overlay profiles and game history.
 
-- Screen dimming no longer flashes back to full brightness once a second.
+## [2.6.0] - 2026-10-15
 
-## 3.0.0 and earlier
+### Added
+- Custom hotkey combinations, eight new themes, and administrator hints where a reading needs them.
 
-See the [GitHub releases](https://github.com/MrPitPot/shabpa/releases).
+### Changed
+- A calmer green theme with a soft halo; overlay items stay listed until unticked; friendlier greetings.
+
+### Fixed
+- Frame rate falls back to the busiest program when the foreground window is not the game.
+
+## [2.5.1] - 2026-10-15
+
+### Fixed
+- Colour emoji rendering and weather animation timing.
+
+## [2.5.0] - 2026-10-15
+
+### Added
+- Weather with an animated sky, greetings and a tabular DNS list.
+
+## [2.4.0] - 2026-10-15
+
+### Added
+- DNS tab and download resume for Steam, Epic and Riot launchers.
+
+## [2.3.1] - 2026-10-15
+
+### Security
+- Mandatory update checksum, locked installer file, verified launcher paths and pairing lockout.
+
+## [2.3.0] - 2026-10-15
+
+### Added
+- Fully customisable launcher download plans: weekly repeat, thresholds, open-only and restart.
+
+## [2.2.1] - 2026-10-15
+
+### Added
+- Motherboard readings in the overlay.
+
+## [2.2.0] - 2026-10-14
+
+### Added
+- Scheduled launcher downloads, optional advanced sensors and a more accurate frame rate.
+
+## [2.1.2] - 2026-10-14
+
+### Changed
+- Short English overlay captions; unreliable temperature readings removed or marked unsupported.
+
+## [2.1.1] - 2026-10-14
+
+### Added
+- Overlay with every reading and live status cards on the home page.
+
+## [2.1.0] - 2026-10-14
+
+### Added
+- Gaming overlay, game reports and a monthly data allowance.
+
+## [2.0.2] - 2026-10-14
+
+### Fixed
+- Confirmations before every action, no repeated shutdown, and missed commands are dropped instead of run late.
+
+## [2.0.1] - 2026-10-14
+
+### Fixed
+- Small stability fixes.
+
+## [2.0.0] - 2026-10-14
+
+### Added
+- First public release: scheduled and conditional power commands, wake timers, power use, per-app speed limits, RAM clean-up, Telegram control and in-app updates.

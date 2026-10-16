@@ -1,105 +1,103 @@
 <div align="center">
 
-<img src="src/Shabpa/Assets/shabpa.ico" width="96" alt="Shabpa">
+<img src="src/Shabpa/Assets/shabpa.ico" width="88" alt="Shabpa logo">
 
-# شب‌پا · Shabpa
+# Shabpa
 
-**نگهبان شبانه‌ی ویندوز** — خاموشی زمان‌بندی‌شده، بیدارباش، مصرف برق، پایداری پینگ، محدودیت سرعت هر برنامه، اورلی بازی و خالی کردن رم، توی یه برنامه‌ی سبک فارسی/انگلیسی.
+**A night watch for your Windows PC** - scheduled power control, gaming overlay, network tools, daily tasks, backups and system health in one light app.
 
-[**⬇️ دانلود آخرین نسخه**](../../releases/latest) · [English](#english)
+[![Release](https://img.shields.io/github/v/release/MrPitPot/shabpa?color=7B6BF5&label=release)](https://github.com/MrPitPot/shabpa/releases/latest)
+[![CI](https://github.com/MrPitPot/shabpa/actions/workflows/ci.yml/badge.svg)](https://github.com/MrPitPot/shabpa/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4)
+![.NET](https://img.shields.io/badge/.NET-10-512BD4)
 
-<img src="screenshots/home.png" width="760" alt="Shabpa home screen">
+[**Download**](https://github.com/MrPitPot/shabpa/releases/latest) &nbsp;·&nbsp; [فارسی](README.fa.md) &nbsp;·&nbsp; [Changelog](CHANGELOG.md)
+
+<img src="docs/screenshots/home.png" width="780" alt="Shabpa home screen">
 
 </div>
 
-## امکانات
+Shabpa started as a shutdown timer and grew into an everyday Windows assistant. It runs in the tray, keeps
+your data on your PC, and speaks Persian and English with 21 colour themes.
 
-- **دستور برق:** خواب، هایبرنیت، خاموش، ری‌استارت؛ همین حالا، چند دقیقه‌ی دیگه یا هر شب سر یه ساعت، با شمارش معکوس و دکمه‌ی لغو.
-- **خاموشی شرطی:** وقتی دانلود تموم شد، کار سنگین تموم شد، سیستم بی‌استفاده موند یا یه برنامه بسته شد.
-- **بیدارباش:** سیستم سر ساعت از خواب و هایبرنیت بیدار می‌شه.
-- **خواب و بیداری:** تاریخچه‌ی روشن و خاموش شدن از لاگ ویندوز، خاموشی‌های ناگهانی، و اینکه چی نمی‌ذاره سیستم بخوابه.
-- **مصرف برق:** وات لحظه‌ای، ۳۰ روز گذشته و هزینه به تومان.
-- **پایداری پینگ:** پینگ زنده، مصرف شبکه‌ی هر برنامه، سقف دانلود و آپلود یا بستن کامل اینترنت هر برنامه، و محافظت خودکار موقع بازی (سقف آپلود و دانلود).
-- **تاریخچه‌ی مصرف اینترنت:** مصرف هر برنامه به تفکیک ساعت و روز، با بازه‌ی امروز، دیروز، ۷ و ۳۰ روز، این ماه و همه؛ و هشدار سقف حجم ماهانه.
-- **اورلی بازی:** فریم بر ثانیه، ۱٪ پایین، نمودار FPS، دما/کلاک/توان/ولتاژ/فن کارت گرافیک، بار و فرکانس پردازنده، رم و پینگ و سرعت شبکه روی بازی؛ ۶ طرح، رنگ و اندازه‌ی کاملاً دلخواه، میان‌بر کیبورد. چیزی داخل بازی تزریق نمی‌شه.
-- **وضعیت زنده‌ی سیستم** توی صفحه‌ی خانه: کارت گرافیک، پردازنده، حافظه و شبکه با نام قطعه و مقدار درگیری (AMD و NVIDIA).
-- **آب و هوا:** جستجوی شهر (فارسی یا انگلیسی) با پیشنهاد، هوای الان، ساعت‌های بعد و ۸ روز آینده، با پس‌زمینه‌ی متحرک (باران، برف، آفتاب، ابر، ستاره، مه، رعد و برق). منبع: Open-Meteo.
-- **دی‌ان‌اس:** لیست آماده‌ی دی‌ان‌اس‌ها (ایران و دور زدن تحریم، عمومی، امنیتی) با پینگ زنده، اعمال روی کارت شبکه با تایید از ویندوز، برگشت به حالت خودکار و افزودن دی‌ان‌اس دلخواه.
-- **دانلود زمان‌بندی‌شده:** لانچرهای نصب‌شده (Steam، Epic، Riot، EA، Ubisoft، GOG، Battle.net) رو با اجازه‌ی خودت پیدا می‌کنه، توی ساعت مشخص بازشون می‌کنه و وقتی دانلود تموم شد سیستم رو خاموش (یا خواب) می‌کنه.
-- **حسگرهای پیشرفته (اختیاری):** دمای واقعی CPU، دور و درصد فن CPU و داده‌های کارت‌های هر برند، با دسترسی ادمین و درایور PawnIO.
-- **گزارش بعد از بازی:** مدت، میانگین فریم، پینگ، دمای کارت و حجم اینترنت بازی.
-- **حافظه:** خالی کردن رم و کش رم، دستی یا خودکار.
-- **کنترل از تلگرام** با ربات شخصی خودت، و **به‌روزرسانی** از توی برنامه یا ربات.
-- **ایمنی:** هر زمان‌بندی، حذف، قفل و خالی کردن رم با زمان دقیق تایید می‌گیره؛ بعد از خاموش یا خواب شدن، دستورهای باقی‌مونده پاک می‌شن و هیچ دستوری وقتی سیستم خاموش یا خواب بود دیرهنگام اجرا نمی‌شه.
-- فارسی و انگلیسی، ۱۱ تم رنگی (آبی شب، مشکی، سفید، صورتی، بنفش، سبز، بنفش‌آبی، صورتی‌بنفش، غروب، اقیانوس، شفق).
+## Features
+
+| Area | What you get |
+|---|---|
+| **Power** | Sleep, hibernate, shut down and restart now, later or on a schedule, or when a download ends, the PC is idle or a program closes - always with a cancellable countdown. Wake timers. Sleep and wake history. |
+| **Tasks & focus** | To-do list with deadlines, reminders and categories; focus and break timer; weekly report. |
+| **Files & backup** | Disk space analysis, duplicate finder, temp and cache clean-up, scheduled folder backup with verification and a restore that never overwrites. Deleted files go to the Recycle Bin. |
+| **Health & security** | Disk, update and service checks, recent event-log errors in plain language, firewall/Defender/UAC status, startup-program watch, program and driver update checks, redacted report. |
+| **Profiles** | One-click profiles (study, work, rest, night) with time or game triggers, run history and undo. |
+| **Gaming** | In-game overlay (FPS, 1 % low, GPU, CPU, RAM, ping) in six layouts, per-game profiles, game reports, game mode. Nothing is injected into games. |
+| **Network** | Live ping, per-app traffic, per-app speed caps or blocking, automatic in-game protection, usage history and a monthly allowance, DNS switcher. |
+| **Comfort** | Screen dimmer below the monitor's minimum, break reminders, sleep mode, microphone level and noise test. |
+| **Weather** | City search, hourly and 8-day forecast, animated sky. |
+| **Remote** | Control from Telegram through `@ShabPa_Bot` with a one-time code. |
 
 <p>
-<img src="screenshots/ping-editor.png" width="49%" alt="Ping stability">
-<img src="screenshots/system-power.png" width="49%" alt="Power commands">
-<img src="screenshots/gaming-overlay.png" width="49%" alt="In-game overlay settings">
-<img src="screenshots/ping-usage.png" width="49%" alt="Usage history per app">
-<img src="screenshots/en-white-home.png" width="49%" alt="English, white theme">
-<img src="screenshots/bluviolet-home.png" width="49%" alt="Blue violet theme">
-<img src="screenshots/pinkviolet-home.png" width="49%" alt="Pink violet theme">
+<img src="docs/screenshots/tasks.png" width="49%" alt="Weekly report">
+<img src="docs/screenshots/profiles.png" width="49%" alt="Profiles">
+<img src="docs/screenshots/overlay.png" width="49%" alt="Game overlay settings">
+<img src="docs/screenshots/ping.png" width="49%" alt="Ping stability">
+<img src="docs/screenshots/theme-forest.png" width="49%" alt="Forest green theme">
+<img src="docs/screenshots/theme-neon.png" width="49%" alt="Neon green theme">
+<img src="docs/screenshots/weather.png" width="49%" alt="Weather">
+<img src="docs/screenshots/english-light.png" width="49%" alt="English interface, light theme">
 </p>
 
-## نصب
+## Install
 
-از صفحه‌ی [Releases](../../releases/latest) فایل `ShabpaSetup.exe` رو بگیر و اجرا کن (ویندوز ۱۰ یا ۱۱، ۶۴ بیتی). اگه سیستم ‎.NET 10 نداشته باشه، نصب‌کننده نسخه‌ی رسمیش رو از سایت مایکروسافت می‌گیره و نصب می‌کنه.
+Download `ShabpaSetup.exe` from the [latest release](https://github.com/MrPitPot/shabpa/releases/latest) and run it
+(Windows 10 or 11, 64-bit). If .NET 10 is missing, the installer fetches Microsoft's official runtime. The SHA-256 of
+every installer is published next to it.
 
-**درباره‌ی هشدار ویندوز و آنتی‌ویروس:** فایل‌ها امضای دیجیتال پولی ندارن، پس ویندوز ممکنه بگه «Windows protected your PC»؛ روی *More info* و بعد *Run anyway* بزن. بعضی آنتی‌ویروس‌ها درایور WinDivert (برای محدودیت سرعت) رو به‌عنوان «ابزار شبکه» علامت می‌زنن. کل سورس اینجاست و هر کس می‌تونه خودش بسازدش؛ کد SHA-256 هر فایل هم کنار هر نسخه منتشر می‌شه.
+The binaries are not code-signed, so SmartScreen may warn: choose **More info -> Run anyway**. Some antivirus
+products flag the bundled [WinDivert](https://github.com/basil00/WinDivert) driver (used for per-app speed limits)
+as a network tool. All source is here to read and build.
 
-**حریم خصوصی:** همه‌چی فقط روی همین سیستم ذخیره می‌شه (`%AppData%\Shabpa`). برنامه به جایی داده نمی‌فرسته؛ تنها ارتباط‌هاش بررسی نسخه‌ی جدید از GitHub، پینگ به مقصدی که خودت تعیین می‌کنی، و ربات تلگرام خودت (اگه فعالش کنی) هستن.
+## Privacy and safety
 
-## ساختن از روی سورس
+- Everything is stored locally in `%AppData%\Shabpa`. There is no account and no telemetry.
+- Only things you switch on use the internet: the update check (GitHub), weather (Open-Meteo), the Telegram link
+  and support tickets.
+- Telegram control is opt-in. The app asks for a one-time code; it never sees a Telegram token.
+- Every schedule, deletion, lock or clean-up shows its exact effect and asks first. Your files are removed only
+  through the Recycle Bin, after a preview, and only from the folder you scanned; clean-up touches temporary and cache
+  folders only.
+- Commands that arrive late (the PC was off or asleep) are dropped, never run by surprise.
 
-پیش‌نیاز: [.NET 10 SDK](https://dotnet.microsoft.com/download) و Git Bash.
+Details are in [SECURITY.md](SECURITY.md).
+
+## Build from source
+
+Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download) and Git Bash.
 
 ```bash
-dotnet test Shabpa.slnx          # تست‌ها
-bash build-installer.sh           # ساخت installer/ShabpaSetup.exe
+dotnet test Shabpa.slnx        # run the test suite
+bash build-installer.sh        # produce installer/ShabpaSetup.exe
 ```
 
-| پوشه | چی داره |
+| Path | Contents |
 |---|---|
-| `src/Shabpa` | خود برنامه (WPF، ‎.NET 10). منطق در `Core/`، صفحه‌ها در `Pages/` |
-| `src/Setup` | نصب‌کننده (‎.NET Framework 4.8 که با ویندوز میاد) |
-| `tools/Packer` | فشرده کردن فایل‌های برنامه برای نصب‌کننده |
-| `tests` | تست‌های خودکار |
+| `src/Shabpa` | The app (WPF, .NET 10). Logic in `Core/`, screens in `Pages/` |
+| `src/Setup` | The installer |
+| `tools/Packer` | Packs the app files for the installer |
+| `tests` | Automated tests |
+| `server` | Optional Cloudflare Worker for support tickets |
+| `docs` | Screenshots |
 
-حالت‌های کمکی برنامه: `--dry-run` (دستورهای برق فقط شبیه‌سازی می‌شن)، `--demo`، `--diagnose report.txt` (همه‌ی بخش‌ها رو روی همین سیستم امتحان می‌کنه)، `--screenshots <folder>`.
+Useful switches: `--dry-run` simulates power commands, `--demo` uses sample data, `--screenshots <folder>` captures every screen.
 
----
+## Contributing
 
-<a id="english"></a>
-
-## English
-
-**Shabpa** ("night watch") is a small Windows 10/11 utility, in Persian and English:
-
-- scheduled and conditional **sleep / hibernate / shutdown / restart** (when a download finishes, when the PC is idle, when a program closes), always with a cancellable countdown;
-- **wake timers** that bring the PC out of sleep or hibernation;
-- **sleep & wake history** from the Windows event log, and what is keeping the PC awake;
-- **power use** in watts, last 30 days and cost;
-- **ping stability:** live ping, per-app network usage, per-app **download/upload caps or a full block** (via [WinDivert](https://github.com/basil00/WinDivert)), and automatic in-game upload *and* download caps;
-- **usage history:** per-app internet use by hour and day over any period, plus a monthly allowance warning;
-- **in-game overlay:** FPS, 1 % low, GPU temperature/clock/power, CPU, RAM and ping, in six layouts with fully custom colours, size and position; nothing is injected into games;
-- **live system status** on the home page: graphics card, processor, memory and network with part names and load (AMD, NVIDIA);
-- **weather:** city search (Persian or English) with suggestions, now / next hours / 8 days, animated backdrop (rain, snow, sun, clouds, stars, fog, lightning). Source: Open-Meteo;
-- **DNS:** a ready list of DNS servers (Iran / sanction bypass, public, secure) with live ping, apply to your adapter (confirmed by Windows), back to automatic, and your own entries;
-- **scheduled download:** finds installed launchers (Steam, Epic, Riot, EA, Ubisoft, GOG, Battle.net) with your permission, opens one at a set time and shuts the PC down when its download is done;
-- **advanced sensors (optional):** real CPU temperature, CPU fan speed and any-brand graphics-card readings, with administrator rights and the PawnIO driver;
-- **game report** after each session, **RAM cleanup**, and an explicit confirmation (with the exact time) before anything is scheduled, deleted or run;
-- remote control and updates through **your own Telegram bot**; eleven colour themes.
-
-Graphics readings are verified on an AMD Radeon RX 6900 XT. NVIDIA readings use the driver's NVML library and have not been tested on real NVIDIA hardware yet. CPU fan speed and memory temperature need a hardware-sensor driver and are not available yet.
-
-Download `ShabpaSetup.exe` from [Releases](../../releases/latest). The binaries are not code-signed, so SmartScreen may warn; some antivirus products flag the WinDivert driver as a network tool. Everything stays on your PC.
-
-Build: `dotnet test Shabpa.slnx`, then `bash build-installer.sh`.
+Bug reports and ideas are welcome through [issues](https://github.com/MrPitPot/shabpa/issues); see
+[CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
 ## License
 
-MIT, see [LICENSE](LICENSE). Bundled third-party components (WinDivert, Vazirmatn font, TraceEvent) keep their own licenses, see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+MIT - see [LICENSE](LICENSE). Bundled third-party components keep their own licenses, listed in
+[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
-Made by Mr.PitPot.
+Made by [Mr.PitPot](https://github.com/MrPitPot).

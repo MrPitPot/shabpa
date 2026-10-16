@@ -6,3 +6,7 @@ dist/
 .vs/
 PROJECT_STATUS.md
 *.log
+.wrangler/
+node_modules/
+TestResults/
+*.trx
