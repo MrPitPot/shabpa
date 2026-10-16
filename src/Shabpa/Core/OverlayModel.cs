@@ -39,6 +39,20 @@ public sealed class OverlaySettings
     /// the main block, except the clock group which defaults to a small block in the top-right corner.</summary>
     public List<GroupPlace> Places { get; set; } = [];
 
+    /// <summary>The order of the groups when they share a block or a corner (graphics card above processor...). Groups
+    /// that are not listed keep their usual order after the listed ones.</summary>
+    public List<string> GroupOrder { get; set; } = [];
+
+    public static readonly string[] UsualGroups = ["general", "time", "gpu", "cpu", "ram", "board", "net"];
+
+    public int OrderOf(string group)
+    {
+        var i = GroupOrder.IndexOf(group);
+        if (i >= 0) return i;
+        var usual = Array.IndexOf(UsualGroups, group);
+        return 1000 + (usual < 0 ? UsualGroups.Length : usual);
+    }
+
     public GroupPlace PlaceOf(string group) =>
         Places.FirstOrDefault(p => p.Group == group)
         ?? (group == "time" ? new GroupPlace { Group = "time", Anchor = "tr" } : new GroupPlace { Group = group, Anchor = "main" });

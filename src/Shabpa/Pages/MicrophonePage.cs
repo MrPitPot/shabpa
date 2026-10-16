@@ -24,6 +24,16 @@ public sealed class MicrophonePage : PageBase
     private readonly TextBlock _access = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
     private bool _loading;
     private bool _testing;
+    private readonly WrapPanel _voiceIn = new();
+    private readonly WrapPanel _voiceOut = new();
+    private readonly WrapPanel _voiceStrength = new() { Margin = new Thickness(0, 6, 0, 0) };
+    private readonly Button _voiceToggle = new() { Style = St("BtnPrimary"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
+    private readonly ProgressBar _voiceIn1 = new() { Style = St("Bar"), Minimum = 0, Maximum = 1, Height = 8, Margin = new Thickness(0, 4, 0, 0) };
+    private readonly ProgressBar _voiceOut1 = new() { Style = St("Bar"), Minimum = 0, Maximum = 1, Height = 8, Margin = new Thickness(0, 4, 0, 0) };
+    private readonly TextBlock _voiceNote = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
+    private readonly CheckBox _voiceAuto = new() { Style = St("Check"), Margin = new Thickness(0, 10, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly System.Windows.Threading.DispatcherTimer _voiceTimer = new() { Interval = TimeSpan.FromMilliseconds(90) };
+    private List<AudioDevice> _inputs = [], _outputs = [];
 
     public override string PageTitle => L.T("میکروفون", "Microphone");
     public override string PageSubtitle => L.T("سطح و قطع/وصل، یه تست نویز با راهنمای ساده، نویزگیرهای موجود و برنامه‌هایی که از میکروفون استفاده کردن.",
@@ -32,6 +42,28 @@ public sealed class MicrophonePage : PageBase
     public MicrophonePage()
     {
         var root = new StackPanel();
+
+        // ---- live noise suppression ---------------------------------------------------------------
+        var (voiceCard, voice) = Ui2.Card(L.T("نویزگیر زنده‌ی شب‌پا", "Shabpa live noise suppression"),
+            L.T("صدای میکروفون رو همین الان تمیز می‌کنه: خش‌خش، وزوز و صدای فن کم می‌شه و صدای تو می‌مونه. همه‌چیز توی حافظه و روی همین کامپیوتر انجام می‌شه؛ صدا ذخیره یا فرستاده نمی‌شه.",
+                "Cleans the microphone live: hiss, hum and fan noise go down and your voice stays. It all happens in memory on this PC; audio is never saved or sent."));
+        voice.Children.Add(Ui2.Label(L.T("میکروفون", "Microphone"), 12, 4));
+        voice.Children.Add(_voiceIn);
+        voice.Children.Add(Ui2.Label(L.T("صدای تمیز کجا بره؟", "Where should the clean sound go?"), 8, 4));
+        voice.Children.Add(_voiceOut);
+        voice.Children.Add(Ui2.Label(L.T("شدت", "Strength"), 8, 0));
+        voice.Children.Add(_voiceStrength);
+        voice.Children.Add(_voiceToggle);
+        voice.Children.Add(Ui2.Label(L.T("قبل (میکروفون)", "Before (microphone)"), 12, 0));
+        voice.Children.Add(_voiceIn1);
+        voice.Children.Add(Ui2.Label(L.T("بعد (تمیز‌شده)", "After (cleaned)"), 8, 0));
+        voice.Children.Add(_voiceOut1);
+        voice.Children.Add(_voiceNote);
+        _voiceAuto.Content = L.T("با هر بار باز شدن شب‌پا خودکار روشن بشه", "Switch on by itself whenever Shabpa starts");
+        voice.Children.Add(_voiceAuto);
+        voice.Children.Add(Ui2.Label(L.T("برای اینکه برنامه‌های دیگه (دیسکورد، تیم‌اسپیک، بازی…) صدای تمیز رو بشنون، یه کابل صوتی مجازی (مثل VB-Cable که رایگانه) لازمه: «صدای تمیز کجا بره؟» رو روی CABLE Input بذار و توی اون برنامه میکروفون رو CABLE Output انتخاب کن. شب‌پا خودش هیچ درایوری نصب نمی‌کنه. اگه فقط می‌خوای صدای خودت رو بشنوی، یه هدفون انتخاب کن (با بلندگو صدا برمی‌گرده توی میکروفون و زوزه می‌کشه).",
+            "For other programs (Discord, TeamSpeak, games…) to hear the clean sound you need a virtual audio cable (VB-Cable is free): set “Where should the clean sound go?” to CABLE Input and pick CABLE Output as the microphone in that program. Shabpa installs no driver itself. To just hear yourself, choose headphones (speakers feed back into the microphone and howl)."), 12, 0));
+        root.Children.Insert(0, voiceCard);
 
         var (card, body) = Ui2.Card(L.T("میکروفون پیش‌فرض", "Default microphone"));
         body.Children.Add(_device);
@@ -72,7 +104,7 @@ public sealed class MicrophonePage : PageBase
         root.Children.Add(testCard);
 
         var (toolCard, tool) = Ui2.Card(L.T("نویزگیر", "Noise suppression"),
-            L.T("شب‌پا خودش صدای میکروفون رو پردازش نمی‌کنه؛ این‌ها ابزارهایی‌ان که روی همین سیستم وجود دارن.", "Shabpa does not process the microphone itself; these are the tools that exist on this PC."));
+            L.T("نویزگیرهای دیگه‌ای که روی همین سیستم وجود دارن (غیر از نویزگیر زنده‌ی شب‌پا).", "Other noise suppressors on this PC (besides Shabpa's own)."));
         tool.Children.Add(_tools);
         var open = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
         var sound = new Button { Style = St("Btn"), Content = L.T("تنظیمات صدای ویندوز", "Windows sound settings"), Margin = new Thickness(0, 0, 8, 6) };
@@ -96,6 +128,79 @@ public sealed class MicrophonePage : PageBase
         apps.Children.Add(privacy);
         root.Children.Add(appCard);
         Content = root;
+        SetupVoice();
+    }
+
+    // ---- live noise suppression ---------------------------------------------------------------
+
+    private static readonly (double value, string fa, string en)[] Strengths = [(0.35, "ملایم", "Gentle"), (0.65, "متعادل", "Balanced"), (0.95, "قوی", "Strong")];
+
+    private void SetupVoice()
+    {
+        var settings = Hub.Settings.Voice;
+        Chips(_voiceStrength, Strengths.Select(x => (x.value.ToString("0.00"), L.T(x.fa, x.en))), Closest().ToString("0.00"), key =>
+        {
+            settings.Strength = double.Parse(key, System.Globalization.CultureInfo.InvariantCulture);
+            Hub.Voice.Strength = settings.Strength;
+            SaveVoice();
+        });
+        _voiceAuto.Click += (_, _) => { settings.AutoStart = _voiceAuto.IsChecked == true; SaveVoice(); };
+        _voiceToggle.Click += (_, _) =>
+        {
+            if (Hub.Voice.Running) Hub.Voice.Stop();
+            else
+            {
+                var error = Hub.StartVoice();
+                _voiceNote.Text = error ?? "";
+            }
+            ShowVoice();
+        };
+        _voiceTimer.Tick += (_, _) =>
+        {
+            _voiceIn1.Value = Hub.Voice.InLevel;
+            _voiceOut1.Value = Hub.Voice.OutLevel;
+            if (Hub.Voice.Running) _voiceNote.Text = L.T($"روشنه · الان {Fa.Digits(Hub.Voice.ReductionDb.ToString("0"))} دسی‌بل از صدای زمینه کم شده.", $"On · currently {Hub.Voice.ReductionDb:0} dB quieter in the background.");
+        };
+        IsVisibleChanged += (_, _) =>
+        {
+            if (IsVisible) _voiceTimer.Start();
+            else _voiceTimer.Stop();
+        };
+    }
+
+    private static double Closest() => Strengths.OrderBy(x => Math.Abs(x.value - Hub.Settings.Voice.Strength)).First().value;
+
+    private void SaveVoice() => Hub.Store.Save();
+
+    private void ShowVoice()
+    {
+        _loading = true;
+        var settings = Hub.Settings.Voice;
+        var inputs = VoiceFilter.Inputs();
+        var outputs = VoiceFilter.Outputs();
+        var same = _voiceIn.Children.Count > 0 && inputs.Select(d => d.Name).SequenceEqual(_inputs.Select(d => d.Name)) && outputs.Select(d => d.Name).SequenceEqual(_outputs.Select(d => d.Name));
+        _inputs = inputs;
+        _outputs = outputs;
+        void Fill(WrapPanel panel, List<AudioDevice> devices, string chosen, Action<string> pick)
+        {
+            var items = new List<(string, string)> { ("", L.T("پیش‌فرض ویندوز", "Windows default")) };
+            items.AddRange(devices.Select(d => (d.Name, d.Name)));
+            Chips(panel, items, devices.Any(d => d.Name == chosen) ? chosen : "", pick);
+        }
+        Fill(_voiceIn, _inputs, settings.Input, name => { settings.Input = name; SaveVoice(); });
+        Fill(_voiceOut, _outputs, settings.Output, name => { settings.Output = name; SaveVoice(); });
+        _voiceAuto.IsChecked = settings.AutoStart;
+        _voiceToggle.Content = Hub.Voice.Running ? L.T("توقف نویزگیر", "Stop noise suppression") : L.T("شروع نویزگیر", "Start noise suppression");
+        _voiceToggle.Style = St(Hub.Voice.Running ? "Btn" : "BtnPrimary");
+        if (!Hub.Voice.Running && Hub.Voice.Error is { } error) _voiceNote.Text = error;
+        else if (!Hub.Voice.Running)
+        {
+            var cable = VoiceFilter.VirtualCable(_outputs);
+            _voiceNote.Text = cable is null
+                ? L.T("کابل صوتی مجازی پیدا نشد؛ فعلاً فقط می‌تونی صدای تمیزشده رو خودت بشنوی.", "No virtual audio cable found; for now you can only hear the cleaned sound yourself.")
+                : L.T($"«{cable.Name}» پیدا شد؛ برای فرستادن صدای تمیز به برنامه‌های دیگه، اون رو به‌عنوان مقصد انتخاب کن.", $"Found “{cable.Name}”; choose it as the destination to send the clean sound to other programs.");
+        }
+        _loading = false;
     }
 
     private static void Launch(string file, string arguments)
@@ -106,6 +211,7 @@ public sealed class MicrophonePage : PageBase
 
     public override void Refresh()
     {
+        ShowVoice();
         _loading = true;
         var name = Microphone.DeviceName();
         var state = Microphone.Read();

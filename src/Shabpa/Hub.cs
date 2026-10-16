@@ -104,8 +104,27 @@ public sealed class Hub
 
     private static T OnUi<T>(Func<T> f) => Application.Current.Dispatcher.Invoke(f);
 
+    /// <summary>The live noise suppressor (off until the person starts it).</summary>
+    public VoiceFilter Voice { get; } = new();
+
+    /// <summary>Starts the noise suppressor with the saved choices. Returns an error text, or null.</summary>
+    public string? StartVoice()
+    {
+        var v = Settings.Voice;
+        int? Find(List<AudioDevice> list, string name) => name.Length == 0 ? null : list.FirstOrDefault(d => d.Name == name)?.Index;
+        var inputs = VoiceFilter.Inputs();
+        var outputs = VoiceFilter.Outputs();
+        return Voice.Start(Find(inputs, v.Input), Find(outputs, v.Output), v.Strength);
+    }
+
+    public void StartVoiceIfWanted()
+    {
+        if (!DryRun && !Demo && Settings.Voice.AutoStart) StartVoice();
+    }
+
     public void Start()
     {
+        StartVoiceIfWanted();
         if (State.ActiveRule is { } rule) Engine.Activate(rule);
 
         // Whatever came due while Shabpa was not running (PC off or asleep) is gone, not "late": a PC that
@@ -161,6 +180,7 @@ public sealed class Hub
 
     public void Shutdown()
     {
+        Voice.Stop();
         _clock.Stop();
         if (_sleepStart is not null && _sleepVolume is { } startVolume)
         {

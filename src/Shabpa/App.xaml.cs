@@ -53,6 +53,34 @@ public partial class App : Application
             return;
         }
 
+        // Test aid: runs the live noise suppressor on the real microphone for a few seconds and writes what it measured.
+        if (Value(e.Args, "--voice-test") is { } voiceReport)
+        {
+            var log = new System.Text.StringBuilder();
+            var ins = Core.VoiceFilter.Inputs();
+            var outs = Core.VoiceFilter.Outputs();
+            log.AppendLine("inputs: " + string.Join(" | ", ins.Select(d => d.Name)));
+            log.AppendLine("outputs: " + string.Join(" | ", outs.Select(d => d.Name)));
+            log.AppendLine("virtual cable: " + (Core.VoiceFilter.VirtualCable(outs)?.Name ?? "none"));
+            using var filter = new Core.VoiceFilter();
+            var error = filter.Start(null, null, 0.8);
+            log.AppendLine($"start error: {error ?? "none"}; running: {filter.Running}");
+            double maxIn = 0, maxOut = 0, maxRed = 0;
+            for (var i = 0; i < 30; i++)
+            {
+                Thread.Sleep(100);
+                maxIn = Math.Max(maxIn, filter.InLevel);
+                maxOut = Math.Max(maxOut, filter.OutLevel);
+                maxRed = Math.Max(maxRed, filter.ReductionDb);
+            }
+            log.AppendLine($"levels seen (0-1): in max {maxIn:0.000}, out max {maxOut:0.000}, reduction max {maxRed:0.0} dB; still running: {filter.Running}");
+            filter.Stop();
+            log.AppendLine($"after stop running: {filter.Running}");
+            File.WriteAllText(voiceReport, log.ToString());
+            Shutdown();
+            return;
+        }
+
         // Test aid: teaches two clicks on a throw-away form, then repeats them on a fresh one, against the real mouse.
         if (Value(e.Args, "--macro-test") is { } macroReport)
         {

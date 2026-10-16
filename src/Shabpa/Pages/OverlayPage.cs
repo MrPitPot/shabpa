@@ -80,7 +80,8 @@ public sealed class OverlayPage : PageBase
     private readonly HotkeyBox _toggleKey = new(), _moveKey = new();
     private readonly TextBlock _keyNote = new();
     private readonly Border _adminBanner = new();
-    private readonly Dictionary<string, WrapPanel> _placeChips = [];
+    private readonly Dictionary<string, WrapPanel> _groupWraps = [];
+    private OverlayEditor _editor = null!;
     private readonly TextBox _profileGame = new();
     private readonly TextBlock _profileNote = new();
     private readonly StackPanel _profileList = new();
@@ -178,19 +179,6 @@ public sealed class OverlayPage : PageBase
         size.Children.Add(_moveButton);
         root.Children.Add(sizeCard);
 
-        // ---- where each group sits ---------------------------------------------------------------------
-        var (placeCard, places) = Ui2.Card(L.T("جای هر بخش", "Where each group sits"),
-            L.T("هر گروه (کارت گرافیک، پردازنده، رم، شبکه، ساعت…) رو می‌تونی جدا از بقیه توی یه گوشه بذاری یا با بقیه بمونه. چند بخش توی یه گوشه زیر هم می‌شینن. برای جای دلخواه، «جابجایی اورلی با ماوس» رو بزن و هر بخش رو خودت بکش.",
-                "Put each group (graphics card, processor, RAM, network, clock…) in its own corner or keep it with the rest. Groups sharing a corner stack under each other. For an exact spot, press “Move the overlay with the mouse” and drag each group."));
-        foreach (var (key, fa, en) in Groups)
-        {
-            places.Children.Add(Ui2.Label(L.T(fa, en), 12, 4));
-            var panel = new WrapPanel();
-            _placeChips[key] = panel;
-            places.Children.Add(panel);
-        }
-        root.Children.Add(placeCard);
-
         // ---- look options ------------------------------------------------------------------------
         var (optionCard, options) = Ui2.Card(L.T("جزئیات ظاهر", "Details"));
         var optionRow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
@@ -220,9 +208,9 @@ public sealed class OverlayPage : PageBase
             catch { /* no card information, nothing is marked */ }
         }
 
-        var (itemCard, items) = Ui2.Card(L.T("چی نشون داده بشه؟", "What to show"),
-            L.T("فقط چیزهایی که این سیستم می‌تونه بخونه نشون داده می‌شن. فریم بر ثانیه به دسترسی ادمین نیاز داره.",
-                "Only readings this PC can provide are shown. Frame rate needs administrator rights."));
+        var (itemCard, items) = Ui2.Card(L.T("چیدمان اورلی", "Overlay layout"),
+            L.T("هر بخش (کارت گرافیک، پردازنده، رم، شبکه، ساعت…) یه کاشیه. با کشیدن و رها کردن جاش رو بین ناحیه‌ها عوض کن یا بالا و پایینش کن؛ روی کاشی بزن تا انتخاب کنی چی ازش نشون داده بشه. فقط چیزهایی که این سیستم می‌تونه بخونه نشون داده می‌شن.",
+                "Every group (graphics card, processor, RAM, network, clock…) is a tile. Drag it to another zone or up and down; click a tile to choose what it shows. Only readings this PC can provide are shown."));
         var adminText = new TextBlock
         {
             Style = St("Body"), TextWrapping = TextWrapping.Wrap, Foreground = Res("Gold"),
@@ -245,8 +233,8 @@ public sealed class OverlayPage : PageBase
         items.Children.Add(_adminBanner);
         foreach (var (key, fa, en) in Groups)
         {
-            items.Children.Add(Ui2.Label(L.T(fa, en), 12, 4));
             var wrap = new WrapPanel();
+            _groupWraps[key] = wrap;
             foreach (var def in OverlayMetrics.All.Where(m => m.Group == key))
             {
                 var box = new CheckBox { Style = St("Check"), Content = def.Label, Margin = new Thickness(0, 0, 8, 8), Tag = def.Key };
@@ -274,8 +262,15 @@ public sealed class OverlayPage : PageBase
                 _items[def.Key] = box;
                 wrap.Children.Add(box);
             }
-            items.Children.Add(wrap);
         }
+        _editor = new OverlayEditor(() => Hub.Settings.Overlay, Groups, () =>
+        {
+            Hub.OverlayChanged();
+            UpdatePreview();
+            _save.Stop();
+            _save.Start();
+        }, key => _groupWraps[key]);
+        items.Children.Add(_editor);
         root.Children.Add(itemCard);
 
         // ---- optional advanced sensors ------------------------------------------------------------
@@ -380,6 +375,7 @@ public sealed class OverlayPage : PageBase
         if (_loading) return;
         edit(Hub.Settings.Overlay);
         Hub.Overlay?.Evaluate();
+        _editor?.Rebuild();
         UpdatePreview();
         UpdateVisibility();
         _save.Stop();
@@ -411,29 +407,6 @@ public sealed class OverlayPage : PageBase
         "gpufanrpm" => g.FanRpm is null,
         _ => false,
     };
-
-    private void ShowPlaces()
-    {
-        var o = Hub.Settings.Overlay;
-        var options = new List<(string, string)> { ("main", L.T("با بخش اصلی", "With the main block")) };
-        options.AddRange(Anchors.Select(a => (a.key, L.T(a.fa, a.en))));
-        foreach (var (group, panel) in _placeChips)
-        {
-            var current = o.PlaceOf(group).Anchor;
-            var shown = options.ToList();
-            if (current == "free") shown.Add(("free", L.T("جای دلخواه", "Custom spot")));
-            var g = group;
-            Chips(panel, shown, current, v =>
-            {
-                if (_loading || v == "free") return;
-                var place = o.Places.FirstOrDefault(p => p.Group == g);
-                if (place is null) o.Places.Add(place = new GroupPlace { Group = g });
-                place.Anchor = v;
-                Hub.OverlayChanged();
-                UpdatePreview();
-            });
-        }
-    }
 
     private void SaveProfile()
     {
@@ -494,6 +467,7 @@ public sealed class OverlayPage : PageBase
     {
         // Keep the catalogue order so the overlay reads the same way every time.
         o.Items = [.. OverlayMetrics.All.Where(m => _items[m.Key].IsChecked == true && !m.Advanced).Select(m => m.Key)];
+        _editor?.Rebuild();
     });
 
     private void OnMove(object sender, RoutedEventArgs e)
@@ -552,7 +526,7 @@ public sealed class OverlayPage : PageBase
         if (_profileGame.Text.Length == 0 && Hub.Snapshot.GameProcess.Length > 0) _profileGame.Text = Hub.Snapshot.GameProcess;
         ShowProfiles();
         ShowHistory();
-        ShowPlaces();
+        _editor.Rebuild();
     }
 
     private void UpdateBoardNote()
@@ -591,7 +565,7 @@ public sealed class OverlayPage : PageBase
         // The preview shows the main block; groups placed on their own are listed under it.
         var all = OverlayMetrics.Build(OverlayMetrics.Demo(now), o.Items);
         string GroupOf(MetricView m) => OverlayMetrics.Find(m.Key)?.Group ?? "general";
-        var metrics = all.Where(m => o.PlaceOf(GroupOf(m)).Anchor == "main").ToList();
+        var metrics = all.OrderBy(m => o.OrderOf(GroupOf(m))).Where(m => o.PlaceOf(GroupOf(m)).Anchor == "main").ToList();
         var element = OverlayRenderer.Build(o, metrics, _fakeHistory);
         var host = new Grid { Margin = new Thickness(12) };
         element.HorizontalAlignment = o.Anchor switch { "tr" or "br" => HorizontalAlignment.Right, "tc" or "bc" => HorizontalAlignment.Center, _ => HorizontalAlignment.Left };

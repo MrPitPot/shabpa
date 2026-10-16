@@ -479,6 +479,7 @@ public sealed class OverlayWindow : Window
             metrics = [.. metrics.Select(m => !m.HasValue && OverlayMetrics.NeedsAdmin(m.Key) ? m with { Value = "ADMIN", Unit = "" } : m)];
         var history = _hub.Telemetry.History();
         string GroupOf(MetricView m) => OverlayMetrics.Find(m.Key)?.Group ?? "general";
+        metrics = [.. metrics.OrderBy(m => o.OrderOf(GroupOf(m)))]; // stable: readings keep their order inside a group
         var together = metrics.Where(m => o.PlaceOf(GroupOf(m)).Anchor == "main").ToList();
         _host.Content = together.Count > 0 ? OverlayRenderer.Build(o, together, history) : null;
 
@@ -541,7 +542,7 @@ public sealed class OverlayWindow : Window
         }
 
         Put(this, o.Anchor, o.X, o.Y, o.X * dpi.DpiScaleX, o.Y * dpi.DpiScaleY);
-        foreach (var (group, block) in _blocks)
+        foreach (var (group, block) in _blocks.OrderBy(b => o.OrderOf(b.Key)))
         {
             var place = o.PlaceOf(group);
             Put(block, place.Anchor, place.X, place.Y, 20 * dpi.DpiScaleX, 20 * dpi.DpiScaleY);

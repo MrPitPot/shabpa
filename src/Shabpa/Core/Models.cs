@@ -75,6 +75,8 @@ public sealed class Settings
     public bool UiSounds { get; set; } = true;
     /// <summary>Draw the window in software: less RAM while it is open, a little more CPU. Applied at start.</summary>
     public bool LowMemory { get; set; }
+    /// <summary>The live noise suppressor for the microphone.</summary>
+    public VoiceSettings Voice { get; set; } = new();
     /// <summary>The starter profiles were added once; deleting them keeps them gone.</summary>
     public bool ProfilesSeeded { get; set; }
     public FocusSettings Focus { get; set; } = new();
