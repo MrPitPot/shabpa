@@ -421,3 +421,33 @@ public sealed class StoreSafetyTests
         }
     }
 }
+
+public sealed class WingetManifestTests
+{
+    [Fact]
+    public void The_winget_manifests_agree_with_each_other_and_point_at_a_published_release()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Shabpa.slnx"))) dir = dir.Parent;
+        var root = Path.Combine(dir!.FullName, "packaging", "winget", "manifests", "m", "MrPitPot", "Shabpa");
+        var versions = Directory.GetDirectories(root);
+        Assert.NotEmpty(versions);
+        foreach (var folder in versions)
+        {
+            var version = Path.GetFileName(folder);
+            var files = Directory.GetFiles(folder, "*.yaml");
+            Assert.Equal(3, files.Length);
+            foreach (var file in files)
+            {
+                var text = File.ReadAllText(file);
+                Assert.Contains($"PackageVersion: {version}", text);
+                Assert.Contains("PackageIdentifier: MrPitPot.Shabpa", text);
+            }
+            var installer = File.ReadAllText(files.Single(f => f.EndsWith(".installer.yaml")));
+            Assert.Contains($"releases/download/v{version}/ShabpaSetup.exe", installer);
+            var hash = System.Text.RegularExpressions.Regex.Match(installer, @"InstallerSha256: ([0-9A-Fa-f]{64})\b");
+            Assert.True(hash.Success, "InstallerSha256 must be 64 hex digits");
+            Assert.Contains($"## [{version}]", File.ReadAllText(Path.Combine(dir.FullName, "CHANGELOG.md")));
+        }
+    }
+}
