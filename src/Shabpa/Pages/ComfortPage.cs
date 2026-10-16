@@ -20,6 +20,7 @@ public sealed class ComfortPage : PageBase
     private readonly WrapPanel _sleepActions = new();
     private readonly Button _sleepStart = new();
     private readonly TextBlock _sleepStatus = new();
+    private readonly CheckBox _gameOn = new(), _gamePower = new(), _gameRam = new(), _gameQuiet = new();
 
     public override string PageTitle => L.T("آسایش و استراحت", "Comfort & rest");
     public override string PageSubtitle => L.T("کم‌نور کردن صفحه برای شب، یادآور استراحت و حالت شب‌خواب.", "Night dimmer, break reminders and sleep mode.");
@@ -148,6 +149,30 @@ public sealed class ComfortPage : PageBase
         sleep.Children.Add(_sleepStatus);
         root.Children.Add(sleepCard);
 
+        // ---- game mode ----------------------------------------------------------------------------
+        var (gameCard, game) = Ui2.Card(L.T("حالت بازی", "Game mode"),
+            L.T("وقتی بازی شروع می‌شه خودش حواسش به چند چیز هست و وقتی تموم شد همه‌چی رو برمی‌گردونه.",
+                "When a game starts it takes care of a few things, and puts everything back when the game is over."));
+        _gameOn.Style = St("Check");
+        _gameOn.Content = L.T("حالت بازی روشن باشه", "Game mode on");
+        _gameOn.Margin = new Thickness(0, 10, 0, 0);
+        game.Children.Add(_gameOn);
+        foreach (var (box, fa, en) in new[]
+        {
+            (_gamePower, "برق روی بهترین عملکرد (بعد از بازی برمی‌گرده)", "Best-performance power plan (put back afterwards)"),
+            (_gameRam, "رم خالی بشه", "Free up RAM"),
+            (_gameQuiet, "اعلان‌های شب‌پا وسط بازی نیان", "Keep Shabpa's notices quiet during the game"),
+        })
+        {
+            box.Style = St("Check");
+            box.Content = L.T(fa, en);
+            box.Margin = new Thickness(18, 6, 0, 0);
+            game.Children.Add(box);
+        }
+        game.Children.Add(Ui2.Label(L.T("اگه بازی رو همین شب‌پا تشخیص بده، شروعش خودکار شناخته می‌شه (همون تشخیصی که اورلی و گزارش بازی استفاده می‌کنن).",
+            "Starts when Shabpa detects a game (the same detection the overlay and game report use)."), 8, 0));
+        root.Children.Add(gameCard);
+
         Content = root;
 
         Chips(_sleepActions, new[]
@@ -169,6 +194,10 @@ public sealed class ComfortPage : PageBase
         _sleepMinutes.ValueChanged += (_, _) => Edit(s => s.SleepMinutes = (int)_sleepMinutes.Value);
         _sleepDim.Click += (_, _) => Edit(s => s.SleepDim = _sleepDim.IsChecked == true);
         _sleepVolume.Click += (_, _) => Edit(s => s.SleepVolume = _sleepVolume.IsChecked == true);
+        _gameOn.Click += (_, _) => Edit(s => s.GameModeOn = _gameOn.IsChecked == true);
+        _gamePower.Click += (_, _) => Edit(s => s.GameModePower = _gamePower.IsChecked == true);
+        _gameRam.Click += (_, _) => Edit(s => s.GameModeRam = _gameRam.IsChecked == true);
+        _gameQuiet.Click += (_, _) => Edit(s => s.GameModeQuiet = _gameQuiet.IsChecked == true);
         Hub.ComfortUpdated += () => Dispatcher.BeginInvoke(Refresh);
     }
 
@@ -224,6 +253,10 @@ public sealed class ComfortPage : PageBase
         _sleepMinutes.Value = c.SleepMinutes;
         _sleepDim.IsChecked = c.SleepDim;
         _sleepVolume.IsChecked = c.SleepVolume;
+        _gameOn.IsChecked = c.GameModeOn;
+        _gamePower.IsChecked = c.GameModePower;
+        _gameRam.IsChecked = c.GameModeRam;
+        _gameQuiet.IsChecked = c.GameModeQuiet;
         _loading = false;
         UpdateTexts();
     }

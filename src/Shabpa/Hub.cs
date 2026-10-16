@@ -145,6 +145,7 @@ public sealed class Hub
                 Store.Save();
             }
         }
+        if (!Demo && Settings.Comfort.PendingPowerPlan.Length > 0) RestorePowerPlan();
         _clock.Tick += (_, _) => OnSecond();
         _clock.Start();
         Bot.Restart();
@@ -746,12 +747,52 @@ public sealed class Hub
     private bool _gameWas;
     private DateTime _lastTriggerCheck = DateTime.MinValue;
 
+    /// <summary>Game mode is on and a game is running: Shabpa's own notices stay quiet.</summary>
+    public bool GameModeActive { get; private set; }
+
+    /// <summary>Called when the "a game is running" flag flips (and once at start to undo a leftover from a crash).</summary>
+    internal void GameModeStep(bool game)
+    {
+        var c = Settings.Comfort;
+        if (game && c.GameModeOn && !GameModeActive)
+        {
+            GameModeActive = true;
+            if (c.GameModePower && c.PendingPowerPlan.Length == 0)
+            {
+                var before = PowerPlan.SwitchToPerformance();
+                if (before is not null)
+                {
+                    c.PendingPowerPlan = before; // kept on disk so it is put back even if the PC restarts mid-game
+                    Store.Save();
+                }
+            }
+            if (c.GameModeRam) CleanMemory(cache: false);
+            Notices.Add((DateTime.Now, L.T("حالت بازی", "Game mode"), L.T("روشن شد.", "On.")));
+        }
+        else if (!game && GameModeActive || !c.GameModeOn && GameModeActive)
+        {
+            GameModeActive = false;
+            RestorePowerPlan();
+            Notices.Add((DateTime.Now, L.T("حالت بازی", "Game mode"), L.T("تموم شد؛ همه‌چی برگشت.", "Over; everything is back.")));
+        }
+    }
+
+    private void RestorePowerPlan()
+    {
+        var c = Settings.Comfort;
+        if (c.PendingPowerPlan.Length == 0) return;
+        PowerPlan.Set(c.PendingPowerPlan);
+        c.PendingPowerPlan = "";
+        Store.Save();
+    }
+
     private void RunTriggers(DateTime now)
     {
         // game start / end: edges of the "a game is running" flag
         var game = Snapshot.GameRunning;
         var edge = game != _gameWas;
         _gameWas = game;
+        if (edge || GameModeActive) GameModeStep(game);
         var timeCheck = now - _lastTriggerCheck >= TimeSpan.FromSeconds(20);
         if (!edge && !timeCheck) return;
         if (timeCheck) _lastTriggerCheck = now;
@@ -1392,6 +1433,8 @@ public sealed class Hub
         }
         Notices.Add((DateTime.Now, title, text));
         if (Notices.Count > 30) Notices.RemoveAt(0);
+        // game mode: nothing pops up over the game; it is all in the notice list afterwards
+        if (GameModeActive && Settings.Comfort.GameModeQuiet) return;
         Notified?.Invoke(title, text);
     }
 

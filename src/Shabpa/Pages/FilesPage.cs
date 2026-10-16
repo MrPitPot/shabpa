@@ -10,7 +10,7 @@ namespace Shabpa.Pages;
 /// Nothing is deleted without a preview and an explicit confirmation, and deleted files go to the Recycle Bin.</summary>
 public sealed class FilesPage : TabsPage
 {
-    public static readonly string[] TabKeys = ["space", "duplicates", "backup"];
+    public static readonly string[] TabKeys = ["space", "duplicates", "cleanup", "backup"];
 
     public override string PageTitle => L.T("فایل و پشتیبان", "Files & backup");
 
@@ -18,6 +18,7 @@ public sealed class FilesPage : TabsPage
     {
         Add("space", L.T("فضای دیسک", "Disk space"), new SpacePage());
         Add("duplicates", L.T("فایل‌های تکراری", "Duplicates"), new DuplicatesPage());
+        Add("cleanup", L.T("پاک‌سازی", "Clean-up"), new CleanupPage());
         Add("backup", L.T("پشتیبان‌گیری", "Backup"), new BackupPage());
     }
 }
@@ -749,6 +750,140 @@ public sealed class BackupPage : PageBase
             Dispatcher.BeginInvoke(() => Hub.Notify(L.T("بازیابی", "Restore"),
                 L.T($"{Fa.Digits(restored.ToString())} فایل بازیابی شد." + (failed.Count > 0 ? $" {Fa.Digits(failed.Count.ToString())} فایل نشد." : " ✅"),
                     $"{restored} file(s) restored." + (failed.Count > 0 ? $" {failed.Count} failed." : " ✅"))));
+        });
+    }
+}
+
+
+/// <summary>Temporary files and caches that programs rebuild by themselves, shown with their size before anything is
+/// removed.</summary>
+public sealed class CleanupPage : PageBase
+{
+    private readonly StackPanel _list = new();
+    private readonly TextBlock _status = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
+    private readonly Button _clean = new() { Style = St("BtnDanger"), Margin = new Thickness(0, 12, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, Visibility = Visibility.Collapsed };
+    private readonly Dictionary<string, CheckBox> _checks = [];
+    private List<CleanScan> _scans = [];
+    private bool _busy;
+
+    public override string PageTitle => L.T("فایل و پشتیبان", "Files & backup");
+    public override string PageSubtitle => L.T("فایل‌های موقت و کش‌هایی که برنامه‌ها خودشون دوباره می‌سازن. اسناد، رمزها و تاریخچه هیچ‌وقت دست نمی‌خورن.",
+        "Temporary files and caches that programs rebuild themselves. Documents, passwords and history are never touched.");
+
+    public CleanupPage()
+    {
+        var root = new StackPanel();
+        var (card, body) = Ui2.Card(L.T("چی جمع شده؟", "What has piled up?"));
+        var scan = new Button { Style = St("BtnPrimary"), Content = L.T("بررسی", "Scan"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0) };
+        scan.Click += (_, _) => Scan();
+        body.Children.Add(scan);
+        body.Children.Add(_status);
+        _list.Margin = new Thickness(0, 8, 0, 0);
+        body.Children.Add(_list);
+        _clean.Click += (_, _) => Clean();
+        body.Children.Add(_clean);
+        root.Children.Add(card);
+        Content = root;
+    }
+
+    private void Scan()
+    {
+        if (_busy) return;
+        _busy = true;
+        _status.Text = L.T("در حال بررسی…", "Scanning…");
+        var elevated = Hub.Elevated;
+        _ = Task.Run(() =>
+        {
+            var scans = new List<CleanScan>();
+            foreach (var c in Cleanup.Categories())
+            {
+                try { scans.Add(Cleanup.Scan(c, elevated)); }
+                catch (Exception ex) { Log.Write($"cleanup scan {c.Id}: {ex.GetType().Name}"); }
+            }
+            Dispatcher.BeginInvoke(() =>
+            {
+                _busy = false;
+                Show(scans);
+            });
+        });
+    }
+
+    private void Show(List<CleanScan> scans)
+    {
+        _scans = scans;
+        _list.Children.Clear();
+        _checks.Clear();
+        var total = scans.Where(s => !s.Blocked).Sum(s => s.Bytes);
+        _status.Text = L.T($"در مجموع {Fa.Bytes(total)} قابل پاک‌سازیه.", $"{Fa.Bytes(total)} can be cleaned in total.");
+        foreach (var s in scans)
+        {
+            var row = new Grid { Margin = new Thickness(0, 6, 0, 6) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition());
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var check = new CheckBox { Style = St("Check"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0), IsEnabled = !s.Blocked && s.Files > 0 };
+            check.Click += (_, _) => Update();
+            _checks[s.Category.Id] = check;
+            row.Children.Add(check);
+            var text = new StackPanel();
+            text.Children.Add(new TextBlock { Text = s.Category.Name, Style = St("Body"), FontWeight = FontWeights.SemiBold });
+            text.Children.Add(new TextBlock { Text = s.Category.Note + (s.Blocked ? L.T(" (نیاز به اجرای ادمین)", " (needs administrator)") : ""), Style = St("Label"), TextWrapping = TextWrapping.Wrap });
+            Grid.SetColumn(text, 1);
+            row.Children.Add(text);
+            var size = new TextBlock
+            {
+                Text = s.Files == 0 ? L.T("چیزی نیست", "nothing") : $"{Fa.Bytes(s.Bytes)} · {Fa.Digits(s.Files.ToString())}", Style = St("Label"), VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(10, 0, 0, 0), FlowDirection = FlowDirection.LeftToRight,
+            };
+            Grid.SetColumn(size, 2);
+            row.Children.Add(size);
+            _list.Children.Add(row);
+        }
+        Update();
+    }
+
+    private List<CleanScan> Chosen() => [.. _scans.Where(s => _checks.TryGetValue(s.Category.Id, out var c) && c.IsChecked == true)];
+
+    private void Update()
+    {
+        var chosen = Chosen();
+        _clean.Visibility = chosen.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _clean.Content = L.T($"پاک کردن {Fa.Bytes(chosen.Sum(s => s.Bytes))}", $"Clean {Fa.Bytes(chosen.Sum(s => s.Bytes))}");
+    }
+
+    private void Clean()
+    {
+        var chosen = Chosen();
+        if (chosen.Count == 0 || _busy) return;
+        var detail = string.Join("\n", chosen.Select(s => $"• {s.Category.Name}: {Fa.Bytes(s.Bytes)}"));
+        if (!ConfirmWindow.AskAlways(L.T("پاک‌سازی", "Clean up"),
+                L.T($"{Fa.Bytes(chosen.Sum(s => s.Bytes))} فایل موقت و کش برای همیشه پاک می‌شه. اسناد و تنظیمات شخصی‌ت جزوش نیست.", $"{Fa.Bytes(chosen.Sum(s => s.Bytes))} of temporary files and caches is deleted for good. Your documents and personal settings are not part of it."),
+                L.T("پاک کن", "Clean"), danger: true, detail: detail)) return;
+        _busy = true;
+        _status.Text = L.T("در حال پاک‌سازی…", "Cleaning…");
+        var categories = chosen.Select(s => s.Category).ToList();
+        _ = Task.Run(() =>
+        {
+            long freed = 0;
+            var skipped = 0;
+            foreach (var c in categories)
+            {
+                try
+                {
+                    var r = Cleanup.Clean(c);
+                    freed += r.FreedBytes;
+                    skipped += r.Skipped;
+                }
+                catch (Exception ex) { Log.Write($"cleanup {c.Id}: {ex.GetType().Name}"); }
+            }
+            Dispatcher.BeginInvoke(() =>
+            {
+                _busy = false;
+                Hub.Notify(L.T("پاک‌سازی", "Clean-up"),
+                    L.T($"{Fa.Bytes(freed)} آزاد شد." + (skipped > 0 ? $" {Fa.Digits(skipped.ToString())} فایل در حال استفاده بود و رد شد." : ""),
+                        $"{Fa.Bytes(freed)} freed." + (skipped > 0 ? $" {skipped} file(s) were in use and skipped." : "")));
+                Scan();
+            });
         });
     }
 }

@@ -112,6 +112,43 @@ public partial class App : Application
             return;
         }
 
+        // Test aid: reads the default microphone and listens for 2 seconds; only loudness numbers are written.
+        if (Value(e.Args, "--mic-test") is { } micReport)
+        {
+            var log = new System.Text.StringBuilder();
+            log.AppendLine($"device: {Core.Microphone.DeviceName()}");
+            log.AppendLine($"level/muted: {Core.Microphone.Read()}");
+            log.AppendLine($"desktop apps allowed: {Core.Microphone.DesktopAppsAllowed()}");
+            log.AppendLine($"recent apps: {string.Join(", ", Core.Microphone.RecentApps().Take(5).Select(a => a.Name))}");
+            var values = new List<double>();
+            var error = Core.Microphone.Listen(2000, (rms, peak) => values.Add(rms));
+            log.AppendLine($"listen error: {error ?? "none"}; blocks: {values.Count}; rms min {(values.Count > 0 ? values.Min() : 0):0.0} max {(values.Count > 0 ? values.Max() : 0):0.0} avg {(values.Count > 0 ? values.Average() : 0):0.0} dB");
+            log.AppendLine($"verdict for the average: {(values.Count > 0 ? Core.Microphone.Judge(values.Average()) : Core.MicVerdict.Silent)}");
+            File.WriteAllText(micReport, log.ToString());
+            Shutdown();
+            return;
+        }
+
+        // Test aid: switches game mode on and off against the real power plan and writes what it saw.
+        if (Value(e.Args, "--gamemode-test") is { } gameReport)
+        {
+            var log = new System.Text.StringBuilder();
+            var gHub = new Hub(new Store { ReadOnly = true }, true, false);
+            gHub.Settings.Comfort.GameModeOn = true;
+            gHub.Settings.Comfort.GameModeRam = false;
+            var before = Core.PowerPlan.Active();
+            log.AppendLine($"installed plans: {string.Join(", ", Core.PowerPlan.Installed())}");
+            log.AppendLine($"plan before: {before}");
+            gHub.GameModeStep(true);
+            log.AppendLine($"plan during game mode: {Core.PowerPlan.Active()} (active flag {gHub.GameModeActive}, remembered {gHub.Settings.Comfort.PendingPowerPlan})");
+            gHub.GameModeStep(false);
+            log.AppendLine($"plan after: {Core.PowerPlan.Active()} (active flag {gHub.GameModeActive}, remembered '{gHub.Settings.Comfort.PendingPowerPlan}')");
+            log.AppendLine($"restored exactly: {Core.PowerPlan.Active() == before}");
+            File.WriteAllText(gameReport, log.ToString());
+            Shutdown();
+            return;
+        }
+
         // Test aid: sends the app the kinds of commands the bot server can send and records the answers.
         if (Value(e.Args, "--remote-test") is { } remoteReport)
         {

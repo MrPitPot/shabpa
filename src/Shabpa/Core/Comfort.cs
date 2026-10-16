@@ -34,6 +34,15 @@ public sealed class ComfortSettings
     public bool SleepVolume { get; set; } = true;
     /// <summary>The volume sleep mode started from, kept until it has been put back (also after a shutdown).</summary>
     public double? PendingVolume { get; set; }
+
+    // ---- game mode --------------------------------------------------------------------------
+    /// <summary>When a game starts: switch to the best power plan, free RAM and keep Shabpa's own notices quiet.</summary>
+    public bool GameModeOn { get; set; }
+    public bool GameModePower { get; set; } = true;
+    public bool GameModeRam { get; set; } = true;
+    public bool GameModeQuiet { get; set; } = true;
+    /// <summary>The power plan that was active before game mode changed it; put back at the end (also after a restart).</summary>
+    public string PendingPowerPlan { get; set; } = "";
 }
 
 /// <summary>One finished game, kept so the history page can show how sessions compare.</summary>

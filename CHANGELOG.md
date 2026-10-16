@@ -62,6 +62,13 @@ The 2.x and 3.0 line moved quickly while the app was taking shape; from here on 
 
 - Two new themes: **Forest green** (calm, mossy) and **Neon green** (black with a vivid glow).
 
+- **Clean-up** (new, in Files & backup): temporary files, Windows Update downloads, shader caches, browser caches
+  (cache only), thumbnails and crash dumps, shown with sizes first. Nothing outside those folders is touched.
+- **Game mode** (new, in Comfort): when a game starts it switches to the best power plan, frees RAM and keeps Shabpa's
+  notices quiet; when the game ends everything goes back (also after a restart in the middle).
+- **Microphone** (new): level and mute, a noise test with plain advice, noise suppressors found on this PC (AMD,
+  NVIDIA), and which programs used the microphone.
+
 ## 3.0.1
 
 - Screen dimming no longer flashes back to full brightness once a second.
