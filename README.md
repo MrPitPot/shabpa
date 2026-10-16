@@ -53,7 +53,7 @@ Download `ShabpaSetup.exe` from the [latest release](https://github.com/MrPitPot
 (Windows 10 or 11, 64-bit). If .NET 10 is missing, the installer fetches Microsoft's official runtime. The SHA-256 of
 every installer is published next to it.
 
-The binaries are not code-signed, so SmartScreen may warn: choose **More info -> Run anyway**. Some antivirus
+Code signing: the project has applied for free code signing from the [SignPath Foundation](https://signpath.org) (provided by [SignPath.io](https://signpath.io)); see the [code signing policy](CODE_SIGNING_POLICY.md). Until it is granted the binaries are not signed, so SmartScreen may warn: choose **More info -> Run anyway**. Some antivirus
 products flag the bundled [WinDivert](https://github.com/basil00/WinDivert) driver (used for per-app speed limits)
 as a network tool. All source is here to read and build.
 
