@@ -101,7 +101,7 @@ public class PrivacyAndSafetyTests
         }
         // the backup engine deletes only a file it has just written and found to be wrong (restore), never user data
         var backup = Source("Core/Backup.cs");
-        Assert.Equal(1, Regex.Matches(backup, @"File\.Delete\(").Count);
+        Assert.Single(Regex.Matches(backup, @"File\.Delete\("));
         Assert.DoesNotContain("Directory.Delete(", backup);
     }
 

@@ -64,16 +64,16 @@ public sealed class AppUpdatesPage : PageBase
             try
             {
                 var found = await Winget.ListUpgradesAsync(token);
-                Dispatcher.BeginInvoke(() => Show(found));
+                _ = Dispatcher.BeginInvoke(() => Show(found));
             }
             catch (OperationCanceledException)
             {
-                Dispatcher.BeginInvoke(() => _status.Text = L.T("متوقف شد.", "Stopped."));
+                _ = Dispatcher.BeginInvoke(() => _status.Text = L.T("متوقف شد.", "Stopped."));
             }
             catch (Exception ex)
             {
                 Log.Write($"winget list: {ex.GetType().Name}");
-                Dispatcher.BeginInvoke(() =>
+                _ = Dispatcher.BeginInvoke(() =>
                 {
                     _status.Foreground = Res("Red");
                     _status.Text = L.T("بررسی انجام نشد (اینترنت یا winget).", "The check failed (internet or winget).");
@@ -81,7 +81,7 @@ public sealed class AppUpdatesPage : PageBase
             }
             finally
             {
-                Dispatcher.BeginInvoke(() => _busy = false);
+                _ = Dispatcher.BeginInvoke(() => _busy = false);
             }
         });
     }
@@ -143,7 +143,7 @@ public sealed class AppUpdatesPage : PageBase
             for (var i = 0; i < chosen.Count; i++)
             {
                 var app = chosen[i];
-                Dispatcher.BeginInvoke(() => _status.Text = L.T($"({Fa.Digits((i + 1).ToString())}/{Fa.Digits(chosen.Count.ToString())}) در حال به‌روزرسانی {app.Name}…", $"({i + 1}/{chosen.Count}) updating {app.Name}…"));
+                _ = Dispatcher.BeginInvoke(() => _status.Text = L.T($"({Fa.Digits((i + 1).ToString())}/{Fa.Digits(chosen.Count.ToString())}) در حال به‌روزرسانی {app.Name}…", $"({i + 1}/{chosen.Count}) updating {app.Name}…"));
                 string? error;
                 try { error = await Winget.UpgradeAsync(app.Id); }
                 catch (Exception ex)
@@ -154,7 +154,7 @@ public sealed class AppUpdatesPage : PageBase
                 if (error is null) ok++;
                 else failed.Add(app.Name);
             }
-            Dispatcher.BeginInvoke(() =>
+            _ = Dispatcher.BeginInvoke(() =>
             {
                 _busy = false;
                 _update.IsEnabled = true;
@@ -262,7 +262,7 @@ public sealed class DriversPage : PageBase
             try
             {
                 var offers = await Drivers.WindowsUpdateOffersAsync();
-                Dispatcher.BeginInvoke(() =>
+                _ = Dispatcher.BeginInvoke(() =>
                 {
                     _offerStatus.Text = offers.Count == 0
                         ? L.T("درایور جدیدی پیشنهاد نشده ✅", "No driver updates are offered ✅")
@@ -282,11 +282,11 @@ public sealed class DriversPage : PageBase
             catch (Exception ex)
             {
                 Log.Write($"driver search: {ex.GetType().Name}");
-                Dispatcher.BeginInvoke(() => _offerStatus.Text = L.T("جستجو انجام نشد.", "The search failed."));
+                _ = Dispatcher.BeginInvoke(() => _offerStatus.Text = L.T("جستجو انجام نشد.", "The search failed."));
             }
             finally
             {
-                Dispatcher.BeginInvoke(() => _busy = false);
+                _ = Dispatcher.BeginInvoke(() => _busy = false);
             }
         });
     }

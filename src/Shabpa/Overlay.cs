@@ -652,7 +652,7 @@ public sealed class OverlayBlockWindow : Window
         base.OnSourceInitialized(e);
         _handle = new WindowInteropHelper(this).Handle;
         var style = GetWindowLongPtr(_handle, GwlExStyle).ToInt64();
-        style |= WsExToolWindow | WsExNoActivate | WsExLayered | (_moving ? 0 : WsExTransparent);
+        style |= (long)(uint)(WsExToolWindow | WsExNoActivate | WsExLayered | (_moving ? 0 : WsExTransparent));
         SetWindowLongPtr(_handle, GwlExStyle, (IntPtr)style);
     }
 

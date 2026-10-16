@@ -87,7 +87,10 @@ public static class Runtime
         if (!WinTrust.Verify(file)) return false;
         try
         {
+            // reading the signer of an Authenticode-signed file has no X509CertificateLoader equivalent
+#pragma warning disable SYSLIB0057
             var certificate = new X509Certificate2(X509Certificate.CreateFromSignedFile(file));
+#pragma warning restore SYSLIB0057
             return certificate.Subject.Contains("O=Microsoft Corporation");
         }
         catch

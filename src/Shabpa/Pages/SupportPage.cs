@@ -37,15 +37,15 @@ public sealed class SupportPage : PageBase
         form.Children.Add(Ui2.Label(L.T("موضوع", "Topic")));
         form.Children.Add(_categoryChips);
         form.Children.Add(Ui2.Label(L.T("عنوان", "Title")));
-        Style(_title, 460, false);
+        StyleBox(_title, 460, false);
         _title.MaxLength = 120;
         form.Children.Add(_title);
         form.Children.Add(Ui2.Label(L.T("توضیح (چی شد؟ انتظارت چی بود؟)", "Details (what happened? what did you expect?)")));
-        Style(_body, 460, true);
+        StyleBox(_body, 460, true);
         _body.MaxLength = 4000;
         form.Children.Add(_body);
         form.Children.Add(Ui2.Label(L.T("راه تماس (اختیاری؛ فقط اگه می‌خوای بیرون از برنامه هم جواب بدم)", "Contact (optional; only if you want an answer outside the app)")));
-        Style(_contact, 320, false);
+        StyleBox(_contact, 320, false);
         _contact.MaxLength = 100;
         form.Children.Add(_contact);
 
@@ -97,7 +97,7 @@ public sealed class SupportPage : PageBase
         _adminKey.BorderBrush = Res("Line");
         _adminKey.FlowDirection = FlowDirection.LeftToRight;
         adminBody.Children.Add(_adminKey);
-        Style(_endpoint, 420, false);
+        StyleBox(_endpoint, 420, false);
         _endpoint.Margin = new Thickness(0, 8, 0, 0);
         adminBody.Children.Add(Ui2.Label(L.T("آدرس سرور (اختیاری؛ اگه توی برنامه ثابت نشده)", "Server address (optional; if not built in)"), 10, 2));
         adminBody.Children.Add(_endpoint);
@@ -124,7 +124,7 @@ public sealed class SupportPage : PageBase
         Chips(_categoryChips, SupportInfo.Categories.Select(c => (c, SupportInfo.CategoryName(c))), _category, v => _category = v);
     }
 
-    private static void Style(TextBox box, double width, bool multiline)
+    private static void StyleBox(TextBox box, double width, bool multiline)
     {
         box.Style = St("Input");
         box.Width = width;

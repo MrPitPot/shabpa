@@ -54,6 +54,8 @@ public class SceneMotionTests
     [InlineData(Sky.Cloudy, true)]
     public void Scene_changes_over_time(Sky sky, bool day)
     {
+        // with Windows animations switched off (build servers) the scene correctly stays still
+        if (!System.Windows.SystemParameters.ClientAreaAnimation) return;
         OnSta(() =>
         {
             _ = Application.Current ?? new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };

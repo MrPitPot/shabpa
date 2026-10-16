@@ -62,10 +62,8 @@ public sealed class Telemetry : IDisposable
     private DateTime _fpsRetry = DateTime.MinValue;
     private (long idle, long kernel, long user) _cpu;
     private bool _cpuPrimed;
-    private PerformanceCounter? _thermal;
     private PerformanceCounter? _cpuFreq, _cpuPerf;
     private bool _cpuFreqTried;
-    private bool _thermalTried;
     private DateTime _vramAt = DateTime.MinValue;
     private double? _vramUsed;
     private DateTime? _gameStarted;
@@ -394,6 +392,5 @@ public sealed class Telemetry : IDisposable
     {
         _stop.Set();
         _thread?.Join(1500);
-        _thermal?.Dispose();
     }
 }
