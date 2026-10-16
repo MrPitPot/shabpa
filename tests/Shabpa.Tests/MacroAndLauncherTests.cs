@@ -184,3 +184,19 @@ public sealed class InputSafetyTests
         Assert.DoesNotContain("Process.Start(new System.Diagnostics.ProcessStartInfo(plan.ExePath)", hub);
     }
 }
+
+public sealed class UiSoundTests
+{
+    [Fact]
+    public void Generated_sounds_are_valid_short_quiet_wave_files()
+    {
+        var wav = UiSound.Tone(2300, 26, 0.045, 2100);
+        Assert.Equal("RIFF", System.Text.Encoding.ASCII.GetString(wav, 0, 4));
+        Assert.Equal("WAVE", System.Text.Encoding.ASCII.GetString(wav, 8, 4));
+        Assert.Equal(wav.Length - 44, BitConverter.ToInt32(wav, 40));
+        Assert.True(wav.Length < 4000);
+        var peak = 0;
+        for (var i = 44; i < wav.Length; i += 2) peak = Math.Max(peak, Math.Abs(BitConverter.ToInt16(wav, i)));
+        Assert.InRange(peak, 100, short.MaxValue * 0.06);
+    }
+}
