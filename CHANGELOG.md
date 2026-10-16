@@ -4,15 +4,23 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
-## [Unreleased]
+## [3.4.0] - 2026-10-16
 
 ### Added
-- **Better game detection** - borderless and windowed games are recognised (by their game folder or graphics libraries), and a "games Shabpa does not know" box lets you list a program by name.
-- **Game name and play time** in the side card while a game runs.
 - **Rate Shabpa** - one to five stars in Settings with a playful confirmation; kept on this PC only, with buttons for a real GitHub star and for written feedback.
-- **Glass look (Windows 11)** - Mica or Acrylic backdrop; the whole window turns neutral and see-through with no theme colour on it, a slider sets how dark the glass is (it applies instantly), and Mica and Acrylic can be switched without restarting.
+- **Glass look (Windows 11)** - Mica or Acrylic backdrop; the whole window turns neutral and see-through with no theme colour on it. A slider sets how dark the glass is and applies instantly; Mica and Acrylic switch without restarting.
 - **Graphics card option** - draw the window with the processor instead of the GPU (separate from "Use less RAM").
+- **Better game detection** - borderless and windowed games are recognised (by their game folder or graphics libraries), and a box lets you list a program Shabpa does not know.
+- **Game name and play time** in the side card while a game runs.
 - Taught launcher clicks travel with the settings backup.
+- Winget manifest and code signing policy (SignPath Foundation application) in the repository.
+
+### Changed
+- A little lighter: no background garbage-collection thread and memory is trimmed sooner.
+
+### Fixed
+- Saving settings no longer fails when an antivirus or another program holds the file for a moment: it retries in the background. A daily copy of the data file is kept (the last seven) and used if the file cannot be read.
+- Searching for launchers no longer freezes the window; page changes in "Use less RAM" mode no longer stutter; freezes are written to the log with the page they happened on.
 
 ## [3.3.4] - 2026-10-16
 
