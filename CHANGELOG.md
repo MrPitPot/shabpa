@@ -4,6 +4,11 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [3.3.2] - 2026-10-16
+
+### Fixed
+- Overlay editor: a group can always be dragged back into the main frame (it used to stay a separate block lying over it once the main frame had been moved by hand). The main frame now has its own area in the editor.
+
 ## [3.3.1] - 2026-10-16
 
 ### Fixed

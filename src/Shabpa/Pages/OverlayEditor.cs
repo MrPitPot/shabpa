@@ -34,6 +34,32 @@ internal sealed class OverlayEditor : StackPanel
         _readings = readings;
         _selected = groups[0].key;
 
+        // the main block: groups here share one frame, wherever that frame sits on the screen
+        var mainPanel = new StackPanel { MinHeight = 56 };
+        var mainBorder = new Border
+        {
+            Child = mainPanel, Margin = new Thickness(0, 10, 0, 0), Padding = new Thickness(8), CornerRadius = new CornerRadius(10), AllowDrop = true, Background = Brushes.Transparent,
+            BorderThickness = new Thickness(1.5), BorderBrush = Brush("Line"), Tag = "main",
+        };
+        mainBorder.DragEnter += (_, e) => { Highlight(mainBorder, true); e.Effects = DragDropEffects.Move; e.Handled = true; };
+        mainBorder.DragOver += (_, e) => { e.Effects = DragDropEffects.Move; e.Handled = true; };
+        mainBorder.DragLeave += (_, _) => Highlight(mainBorder, false);
+        mainBorder.Drop += (_, e) => { Highlight(mainBorder, false); DropOn(e, "main", null); };
+        _zonePanels["main"] = mainPanel;
+        _zoneBorders["main"] = mainBorder;
+        Children.Add(new TextBlock
+        {
+            Text = L.T("کادر اصلی اورلی: بخش‌هایی که این‌جان توی یه کادر کنار هم می‌شینن (جای کادر رو با «گوشه‌ی صفحه» یا «جابجایی اورلی با ماوس» مشخص کن).",
+                "Main overlay frame: groups here share one frame (set where it sits with “Corner of the screen” or “Move the overlay with the mouse”)."),
+            Style = (Style)Application.Current.Resources["Label"], TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0),
+        });
+        Children.Add(mainBorder);
+        Children.Add(new TextBlock
+        {
+            Text = L.T("یا یه بخش رو بکش به یه ناحیه‌ی صفحه تا کادر جدا و مستقل داشته باشه:", "Or drag a group into a screen zone to give it a frame of its own:"),
+            Style = (Style)Application.Current.Resources["Label"], TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0),
+        });
+
         // the screen: a top band, the game in the middle, a bottom band
         var screen = new Grid { FlowDirection = FlowDirection.LeftToRight, MinHeight = 250 };
         for (var c = 0; c < 3; c++) screen.ColumnDefinitions.Add(new ColumnDefinition());
@@ -87,7 +113,7 @@ internal sealed class OverlayEditor : StackPanel
         zone.Background = on ? Brush("AccentSoft") : Brushes.Transparent;
     }
 
-    private string ZoneOf(GroupPlace place, OverlaySettings o) => place.Anchor == "main" ? (Zones.Contains(o.Anchor) ? o.Anchor : "tl") : place.Anchor;
+    private static string ZoneOf(GroupPlace place, OverlaySettings o) => place.Anchor == "main" ? "main" : place.Anchor;
 
     /// <summary>Rebuilds the tiles from the saved settings.</summary>
     public void Rebuild()
@@ -95,11 +121,6 @@ internal sealed class OverlayEditor : StackPanel
         var o = _settings();
         foreach (var panel in _zonePanels.Values) panel.Children.Clear();
         _free.Children.Clear();
-        foreach (var (key, border) in _zoneBorders)
-        {
-            // the zone the main block sits in says so
-            border.ToolTip = key == o.Anchor ? L.T("جای بخش اصلی اورلی", "Where the main overlay block sits") : null;
-        }
         var ordered = _groups.OrderBy(g => o.OrderOf(g.key)).ToList();
         foreach (var (key, fa, en) in ordered)
         {
@@ -192,7 +213,7 @@ internal sealed class OverlayEditor : StackPanel
         // the place: the zone of the main block means "with the main block"
         var place = o.Places.FirstOrDefault(p => p.Group == group);
         if (place is null) o.Places.Add(place = new GroupPlace { Group = group });
-        place.Anchor = zone == o.Anchor ? "main" : zone;
+        place.Anchor = zone;
         // the order: in front of the tile it was dropped on, or at the end of the zone
         var order = _groups.OrderBy(g => o.OrderOf(g.key)).Select(g => g.key).Where(k => k != group).ToList();
         var index = before is not null ? order.IndexOf(before) : order.FindLastIndex(k => ZoneOf(o.PlaceOf(k), o) == zone && o.PlaceOf(k).Anchor != "free") + 1;
