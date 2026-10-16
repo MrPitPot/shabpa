@@ -95,13 +95,21 @@ public static class LauncherDetector
             foreach (var path in candidates)
             {
                 if (string.IsNullOrWhiteSpace(path)) continue;
-                var clean = path.Trim().Trim('"');
+                var clean = Normalize(path.Trim().Trim('"'));
                 if (!clean.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || !probe.Exists(clean)) continue;
                 found.Add(new LauncherInfo { Key = spec.Key, Name = spec.Name, ExePath = clean, Process = spec.Process });
                 break;
             }
         }
         return found;
+    }
+
+    /// <summary>Steam and Riot store their paths with forward slashes ("c:/program files (x86)/steam/steam.exe"). Explorer
+    /// does not understand those and opens the Documents folder instead, so every path is written the Windows way.</summary>
+    public static string Normalize(string path)
+    {
+        try { return Path.GetFullPath(path.Replace('/', Path.DirectorySeparatorChar)); }
+        catch { return path.Replace('/', Path.DirectorySeparatorChar); }
     }
 
     private static IEnumerable<T> SafeList<T>(Func<IEnumerable<T>> source)
@@ -218,6 +226,7 @@ public static class LauncherDetector
     /// resume help still applies); anything else is a generic launcher that is only opened.</summary>
     public static LauncherInfo FromFile(string path)
     {
+        path = Normalize(path);
         var file = Path.GetFileName(path);
         var known = Specs.FirstOrDefault(s => IsOneOf(path, s.Exe) && (s.Key != "rockstar" || path.Contains("Rockstar", StringComparison.OrdinalIgnoreCase)));
         if (known is not null)
@@ -342,6 +351,7 @@ public static class LauncherDetector
     /// become a way to run something with them).</summary>
     public static void Open(string exePath)
     {
+        exePath = Normalize(exePath);
         if (Hub.Elevated && Environment.GetFolderPath(Environment.SpecialFolder.Windows) is { Length: > 0 } windows)
         {
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Path.Combine(windows, "explorer.exe"), $"\"{exePath}\"") { UseShellExecute = false });

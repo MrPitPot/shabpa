@@ -81,6 +81,15 @@ public sealed class MacroAndLauncherTests
     }
 
     [Fact]
+    public void Paths_with_forward_slashes_are_written_the_Windows_way()
+    {
+        // Steam's registry value and Riot's json use forward slashes; Explorer opens Documents for those
+        Assert.Equal(@"C:\Program Files (x86)\Steam\steam.exe", LauncherDetector.Normalize("C:/Program Files (x86)/Steam/steam.exe"));
+        var found = LauncherDetector.Detect(Pc([@"D:\Games\Steam\steam.exe"], registry: (key, name) => name == "SteamExe" ? "d:/games/steam/steam.exe" : null));
+        Assert.DoesNotContain('/', found.Single().ExePath);
+    }
+
+    [Fact]
     public void A_known_launcher_file_added_by_hand_keeps_its_key()
     {
         var info = LauncherDetector.FromFile(@"D:\Weird\Folder\steam.exe");
