@@ -73,7 +73,7 @@ public partial class App : Application
                 maxOut = Math.Max(maxOut, filter.OutLevel);
                 maxRed = Math.Max(maxRed, filter.ReductionDb);
             }
-            log.AppendLine($"levels seen (0-1): in max {maxIn:0.000}, out max {maxOut:0.000}, reduction max {maxRed:0.0} dB; still running: {filter.Running}");
+            log.AppendLine($"engine: {filter.Engine}"); log.AppendLine($"levels seen (0-1): in max {maxIn:0.000}, out max {maxOut:0.000}, reduction max {maxRed:0.0} dB; still running: {filter.Running}");
             filter.Stop();
             log.AppendLine($"after stop running: {filter.Running}");
             File.WriteAllText(voiceReport, log.ToString());

@@ -1,0 +1,7 @@
+EXPORTS
+rnnoise_get_size
+rnnoise_get_frame_size
+rnnoise_init
+rnnoise_create
+rnnoise_destroy
+rnnoise_process_frame

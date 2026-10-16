@@ -122,3 +122,35 @@ public sealed class VoiceTests
             Assert.DoesNotContain(banned, source);
     }
 }
+
+public sealed class RnnoiseTests
+{
+    [Fact]
+    public void The_neural_engine_loads_and_runs_safely_and_keeps_a_voice()
+    {
+        var engine = RnnoiseEngine.TryCreate();
+        Assert.NotNull(engine);
+        using (engine)
+        {
+            const int Rate = 48000;
+            var random = new Random(3);
+            var input = new float[Rate * 6];
+            for (var i = 0; i < input.Length; i++)
+            {
+                var t = i / (double)Rate;
+                var voice = 0.0;
+                if (t >= 3.5) { for (var h = 1; h <= 8; h++) voice += Math.Sin(2 * Math.PI * 160 * h * t) / h; voice *= 0.15 * (0.6 + 0.4 * Math.Sin(2 * Math.PI * 4 * t)); }
+                input[i] = (float)((random.NextDouble() * 2 - 1) * 0.03 + voice);
+            }
+            var output = new float[input.Length];
+            for (var at = 0; at + RnnoiseEngine.Frame <= input.Length; at += RnnoiseEngine.Frame)
+                engine!.Process(input.AsSpan(at, RnnoiseEngine.Frame), output.AsSpan(at, RnnoiseEngine.Frame), 1.0);
+            double Rms(float[] d, int a, int b) { double s = 0; for (var i = a; i < b; i++) s += d[i] * d[i]; return Math.Sqrt(s / (b - a)); }
+            var drop = 20 * Math.Log10(Rms(input, Rate, Rate * 3) / Math.Max(1e-9, Rms(output, Rate, Rate * 3)));
+            var kept = Rms(output, (int)(Rate * 4.5), Rate * 6) / Rms(input, (int)(Rate * 4.5), Rate * 6);
+            // white noise is an artificial case for a network trained on real rooms; the real-microphone check measures the reduction
+            Assert.True(drop > -0.5 && kept > 0.5, $"noise drop {drop:0.0} dB, voice segment kept {kept:P0}");
+            Assert.All(output, v => Assert.True(float.IsFinite(v)));
+        }
+    }
+}

@@ -1,3 +1,4 @@
+using System.IO;
 using System.Runtime.InteropServices;
 
 namespace Shabpa.Core;
@@ -201,6 +202,68 @@ public sealed class NoiseSuppressor
     }
 }
 
+/// <summary>RNNoise (Xiph.Org, BSD-3-Clause): a small neural network that tells speech from noise, run locally through
+/// <c>rnnoise.dll</c>. It works on 10 ms frames at 48 kHz. Missing or unusable, the classic suppressor takes over.</summary>
+public sealed class RnnoiseEngine : IDisposable
+{
+    [DllImport("rnnoise.dll")] private static extern IntPtr rnnoise_create(IntPtr model);
+    [DllImport("rnnoise.dll")] private static extern void rnnoise_destroy(IntPtr state);
+    [DllImport("rnnoise.dll")] private static extern float rnnoise_process_frame(IntPtr state, float[] output, float[] input);
+    [DllImport("rnnoise.dll")] private static extern int rnnoise_get_frame_size();
+
+    public const int Frame = 480;
+    private IntPtr _state;
+    private readonly float[] _in = new float[Frame], _out = new float[Frame];
+
+    public static bool Available
+    {
+        get
+        {
+            try
+            {
+                return NativeLibrary.TryLoad(Path.Combine(AppContext.BaseDirectory, "rnnoise.dll"), out _) && rnnoise_get_frame_size() == Frame;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+
+    private RnnoiseEngine(IntPtr state) => _state = state;
+
+    public static RnnoiseEngine? TryCreate()
+    {
+        try
+        {
+            if (!Available) return null;
+            var state = rnnoise_create(IntPtr.Zero);
+            return state == IntPtr.Zero ? null : new RnnoiseEngine(state);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Cleans exactly one 10 ms frame (480 samples, -1..1). <paramref name="wet"/> is how much of the cleaned sound
+    /// is used (1 = all of it; less lets a little of the original through).</summary>
+    public void Process(ReadOnlySpan<float> input, Span<float> output, double wet)
+    {
+        for (var i = 0; i < Frame; i++) _in[i] = float.IsFinite(input[i]) ? Math.Clamp(input[i], -1f, 1f) * 32768f : 0f; // the model expects 16-bit scale
+        rnnoise_process_frame(_state, _out, _in);
+        var w = (float)Math.Clamp(wet, 0, 1);
+        for (var i = 0; i < Frame; i++) output[i] = _out[i] / 32768f * w + input[i] * (1 - w);
+    }
+
+    public void Dispose()
+    {
+        if (_state == IntPtr.Zero) return;
+        rnnoise_destroy(_state);
+        _state = IntPtr.Zero;
+    }
+}
+
 /// <summary>One sound device Windows lists (the names it gives to this older interface are cut at 31 characters).</summary>
 public sealed record AudioDevice(int Index, string Name);
 
@@ -301,6 +364,8 @@ public sealed class VoiceFilter : IDisposable
     /// <summary>Average reduction in dB over the last moments (positive = quieter).</summary>
     public double ReductionDb { get; private set; }
     public string? Error { get; private set; }
+    /// <summary>"ai" (RNNoise) or "classic" while running.</summary>
+    public string Engine { get; private set; } = "";
     public double Strength
     {
         get => _suppressor[0]?.Strength ?? _strength;
@@ -336,6 +401,7 @@ public sealed class VoiceFilter : IDisposable
         _thread?.Join(1500);
         _thread = null;
         InLevel = OutLevel = ReductionDb = 0;
+        Engine = "";
     }
 
     public void Dispose() => Stop();
@@ -391,6 +457,9 @@ public sealed class VoiceFilter : IDisposable
             var block = rate / 100; // 10 ms
             var suppressor = new NoiseSuppressor(rate) { Strength = _strength };
             _suppressor[0] = suppressor;
+            // the neural network needs 48 kHz; any other rate keeps the classic suppressor
+            using var ai = rate == 48000 ? RnnoiseEngine.TryCreate() : null;
+            Engine = ai is null ? "classic" : "ai";
             for (var i = 0; i < Buffers; i++)
             {
                 inData[i] = Marshal.AllocHGlobal(block * 2);
@@ -424,7 +493,8 @@ public sealed class VoiceFilter : IDisposable
                     var count = Math.Min(recorded, block);
                     Marshal.Copy(inData[next], samples, 0, count);
                     for (var i = 0; i < count; i++) floats[i] = samples[i] / 32768f;
-                    suppressor.Process(floats.AsSpan(0, count), cleaned.AsSpan(0, count));
+                    if (ai is not null && count == RnnoiseEngine.Frame) ai.Process(floats.AsSpan(0, count), cleaned.AsSpan(0, count), 0.5 + 0.5 * _strength);
+                    else suppressor.Process(floats.AsSpan(0, count), cleaned.AsSpan(0, count));
                     var before = Level(floats, count);
                     var after = Level(cleaned, count);
                     smoothIn = smoothIn * 0.6 + before * 0.4;

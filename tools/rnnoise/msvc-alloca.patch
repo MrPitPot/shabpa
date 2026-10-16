@@ -1,0 +1,45 @@
+--- orig/rnnoise-0.1.1/src/pitch.c	2024-03-23 01:14:13.000000000 +0330
++++ rnnoise-0.1.1/src/pitch.c	2026-10-16 14:01:17.655484100 +0330
+@@ -1,3 +1,4 @@
++#include <malloc.h>
+ /* Copyright (c) 2007-2008 CSIRO
+    Copyright (c) 2007-2009 Xiph.Org Foundation
+    Written by Jean-Marc Valin */
+@@ -294,9 +295,9 @@
+    celt_assert(max_pitch>0);
+    lag = len+max_pitch;
+ 
+-   opus_val16 x_lp4[len>>2];
+-   opus_val16 y_lp4[lag>>2];
+-   opus_val32 xcorr[max_pitch>>1];
++   opus_val16 *x_lp4 = (opus_val16*)_alloca(sizeof(opus_val16)*(len>>2));
++   opus_val16 *y_lp4 = (opus_val16*)_alloca(sizeof(opus_val16)*(lag>>2));
++   opus_val32 *xcorr = (opus_val32*)_alloca(sizeof(opus_val32)*(max_pitch>>1));
+ 
+    /* Downsample by 2 again */
+    for (j=0;j<len>>2;j++)
+@@ -440,7 +441,7 @@
+       *T0_=maxperiod-1;
+ 
+    T = T0 = *T0_;
+-   opus_val32 yy_lookup[maxperiod+1];
++   opus_val32 *yy_lookup = (opus_val32*)_alloca(sizeof(opus_val32)*(maxperiod+1));
+    dual_inner_prod(x, x, x-T0, N, &xx, &xy);
+    yy_lookup[0] = xx;
+    yy=xx;
+--- orig/rnnoise-0.1.1/src/celt_lpc.c	2024-03-23 01:14:13.000000000 +0330
++++ rnnoise-0.1.1/src/celt_lpc.c	2026-10-16 14:01:17.655484100 +0330
+@@ -1,3 +1,4 @@
++#include <malloc.h>
+ /* Copyright (c) 2009-2010 Xiph.Org Foundation
+    Written by Jean-Marc Valin */
+ /*
+@@ -101,7 +102,7 @@
+    int fastN=n-lag;
+    int shift;
+    const opus_val16 *xptr;
+-   opus_val16 xx[n];
++   opus_val16 *xx = (opus_val16*)_alloca(sizeof(opus_val16)*n);
+    celt_assert(n>0);
+    celt_assert(overlap>=0);
+    if (overlap == 0)

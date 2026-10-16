@@ -45,8 +45,8 @@ public sealed class MicrophonePage : PageBase
 
         // ---- live noise suppression ---------------------------------------------------------------
         var (voiceCard, voice) = Ui2.Card(L.T("نویزگیر زنده‌ی شب‌پا", "Shabpa live noise suppression"),
-            L.T("صدای میکروفون رو همین الان تمیز می‌کنه: خش‌خش، وزوز و صدای فن کم می‌شه و صدای تو می‌مونه. همه‌چیز توی حافظه و روی همین کامپیوتر انجام می‌شه؛ صدا ذخیره یا فرستاده نمی‌شه.",
-                "Cleans the microphone live: hiss, hum and fan noise go down and your voice stays. It all happens in memory on this PC; audio is never saved or sent."));
+            L.T("صدای میکروفون رو همین الان با شبکه‌ی عصبی RNNoise تمیز می‌کنه: خش‌خش، وزوز، فن و صدای کیبورد کم می‌شه و صدای تو می‌مونه. همه‌چیز توی حافظه و روی همین کامپیوتر انجام می‌شه؛ صدا ذخیره یا فرستاده نمی‌شه.",
+                "Cleans the microphone live with the RNNoise neural network: hiss, hum, fans and keyboard clatter go down and your voice stays. It all happens in memory on this PC; audio is never saved or sent."));
         voice.Children.Add(Ui2.Label(L.T("میکروفون", "Microphone"), 12, 4));
         voice.Children.Add(_voiceIn);
         voice.Children.Add(Ui2.Label(L.T("صدای تمیز کجا بره؟", "Where should the clean sound go?"), 8, 4));
@@ -159,7 +159,8 @@ public sealed class MicrophonePage : PageBase
         {
             _voiceIn1.Value = Hub.Voice.InLevel;
             _voiceOut1.Value = Hub.Voice.OutLevel;
-            if (Hub.Voice.Running) _voiceNote.Text = L.T($"روشنه · الان {Fa.Digits(Hub.Voice.ReductionDb.ToString("0"))} دسی‌بل از صدای زمینه کم شده.", $"On · currently {Hub.Voice.ReductionDb:0} dB quieter in the background.");
+            if (Hub.Voice.Running) _voiceNote.Text = L.T($"روشنه ({(Hub.Voice.Engine == "ai" ? "هوش مصنوعی RNNoise" : "کلاسیک")}) · الان {Fa.Digits(Hub.Voice.ReductionDb.ToString("0"))} دسی‌بل از صدای زمینه کم شده.",
+                $"On ({(Hub.Voice.Engine == "ai" ? "RNNoise neural network" : "classic")}) · currently {Hub.Voice.ReductionDb:0} dB quieter in the background.");
         };
         IsVisibleChanged += (_, _) =>
         {
