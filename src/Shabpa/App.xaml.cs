@@ -112,6 +112,31 @@ public partial class App : Application
             return;
         }
 
+        // Test aid: lists program updates through winget and graphics drivers, read-only, and writes a summary.
+        if (Value(e.Args, "--updates-test") is { } updReport)
+        {
+            var log = new System.Text.StringBuilder();
+            log.AppendLine($"winget available: {Core.Winget.IsAvailable()}");
+            try
+            {
+                var apps = Task.Run(() => Core.Winget.ListUpgradesAsync()).GetAwaiter().GetResult();
+                log.AppendLine($"updates found: {apps.Count}");
+                foreach (var a in apps.Take(25)) log.AppendLine($"  {a.Name} | {a.Id} | {a.Installed} -> {a.Available} | {a.Source}");
+            }
+            catch (Exception ex) { log.AppendLine("winget list failed: " + ex.GetType().Name + " " + ex.Message); }
+            foreach (var g in Core.Drivers.Gpus()) log.AppendLine($"gpu: {g.Name} | {g.Vendor} | {g.Version} -> {g.FriendlyVersion} | {g.Date:yyyy-MM-dd} | {g.DownloadPage}");
+            try
+            {
+                var offers = Task.Run(() => Core.Drivers.WindowsUpdateOffersAsync()).GetAwaiter().GetResult();
+                log.AppendLine($"driver offers: {offers.Count}");
+                foreach (var o in offers.Take(10)) log.AppendLine($"  {o.Title} | {o.Manufacturer} | {o.Class}");
+            }
+            catch (Exception ex) { log.AppendLine("driver search failed: " + ex.GetType().Name + " " + ex.Message); }
+            File.WriteAllText(updReport, log.ToString());
+            Shutdown();
+            return;
+        }
+
         // Test aid: reads the default microphone and listens for 2 seconds; only loudness numbers are written.
         if (Value(e.Args, "--mic-test") is { } micReport)
         {

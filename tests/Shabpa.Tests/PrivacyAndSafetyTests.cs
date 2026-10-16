@@ -18,21 +18,31 @@ public class PrivacyAndSafetyTests
 
     private static string Source(string relative) => File.ReadAllText(Path.Combine(RepoRoot(), "src", "Shabpa", relative.Replace('/', Path.DirectorySeparatorChar)));
 
+    // never contain a web address or network code at all
     private static readonly string[] LocalOnlyFiles =
     [
         "Core/Tasks.cs", "Core/Files.cs", "Core/Backup.cs", "Core/Health.cs", "Core/Profiles.cs", "Core/SettingsBackup.cs",
-        "Pages/TasksPage.cs", "Pages/FilesPage.cs", "Pages/HealthPage.cs", "Pages/ProfilesPage.cs",
+        "Core/Cleanup.cs", "Core/Microphone.cs", "Core/PowerPlan.cs",
+        "Pages/TasksPage.cs", "Pages/FilesPage.cs", "Pages/HealthPage.cs", "Pages/ProfilesPage.cs", "Pages/MicrophonePage.cs",
     ];
+
+    // may open a vendor's page in the browser or run Windows' own tools, but contain no network API of their own
+    private static readonly string[] NoNetworkApiFiles = [.. LocalOnlyFiles, "Core/Winget.cs", "Core/Drivers.cs", "Pages/UpdatesPage.cs"];
 
     [Fact]
     public void The_daily_use_features_contain_no_network_code()
     {
-        var forbidden = new[] { "HttpClient", "WebClient", "WebRequest", "HttpWebRequest", "Socket", "TcpClient", "UdpClient", "WebSocket", "api.telegram", "https://", "http://" };
-        foreach (var file in LocalOnlyFiles)
+        var forbidden = new[] { "HttpClient", "WebClient", "WebRequest", "HttpWebRequest", "Socket", "TcpClient", "UdpClient", "WebSocket", "api.telegram" };
+        foreach (var file in NoNetworkApiFiles)
         {
             var text = Source(file);
             foreach (var word in forbidden)
                 Assert.False(text.Contains(word, StringComparison.Ordinal), $"{file} mentions {word}");
+        }
+        foreach (var file in LocalOnlyFiles)
+        {
+            var text = Source(file);
+            Assert.False(text.Contains("https://", StringComparison.Ordinal) || text.Contains("http://", StringComparison.Ordinal), $"{file} holds a web address");
         }
     }
 
@@ -79,7 +89,11 @@ public class PrivacyAndSafetyTests
     [Fact]
     public void Nothing_in_the_new_features_deletes_files_directly()
     {
-        foreach (var file in new[] { "Core/Files.cs", "Core/Tasks.cs", "Core/Health.cs", "Core/Profiles.cs", "Core/SettingsBackup.cs", "Pages/FilesPage.cs", "Pages/TasksPage.cs", "Pages/HealthPage.cs", "Pages/ProfilesPage.cs" })
+        foreach (var file in new[]
+                 {
+                     "Core/Files.cs", "Core/Tasks.cs", "Core/Health.cs", "Core/Profiles.cs", "Core/SettingsBackup.cs", "Core/Microphone.cs", "Core/PowerPlan.cs", "Core/Winget.cs", "Core/Drivers.cs",
+                     "Pages/FilesPage.cs", "Pages/TasksPage.cs", "Pages/HealthPage.cs", "Pages/ProfilesPage.cs", "Pages/MicrophonePage.cs", "Pages/UpdatesPage.cs",
+                 })
         {
             var text = Source(file);
             Assert.DoesNotContain("File.Delete(", text);
@@ -94,20 +108,30 @@ public class PrivacyAndSafetyTests
     [Fact]
     public void Starting_other_programs_is_limited_to_known_ones()
     {
-        // new files may start only explorer.exe (show a file) and sc.exe (service state)
+        // the only programs the new files may start
         var allowed = new Dictionary<string, string[]>
         {
             ["Core/Health.cs"] = ["sc.exe"],
             ["Pages/FilesPage.cs"] = ["explorer.exe"],
+            ["Core/PowerPlan.cs"] = ["powercfg.exe"],
+            ["Core/Winget.cs"] = ["winget.exe"],
+            ["Core/Drivers.cs"] = ["powershell.exe"],
         };
-        foreach (var file in LocalOnlyFiles)
+        foreach (var file in NoNetworkApiFiles)
         {
             var text = Source(file);
             var starts = Regex.Matches(text, @"ProcessStartInfo\(""([^""]+)""").Select(m => m.Groups[1].Value).ToList();
             var ok = allowed.TryGetValue(file, out var list) ? list : [];
-            Assert.All(starts, s => Assert.Contains(s, ok));
+            Assert.All(starts, x => Assert.True(ok.Contains(x) || x.StartsWith("ms-settings:", StringComparison.Ordinal), $"{file} starts {x}"));
             Assert.DoesNotContain("Process.Start(\"", text);
         }
+        // the microphone page opens only Windows settings pages
+        var page = Source("Pages/MicrophonePage.cs");
+        var targets = Regex.Matches(page, @"Launch\(""([^""]+)""").Select(m => m.Groups[1].Value);
+        Assert.All(targets, t => Assert.True(t.StartsWith("ms-settings:", StringComparison.Ordinal) || t == "control.exe", t));
+        // driver and update pages open Windows settings or the maker's page that came from the driver list
+        var updates = Source("Pages/UpdatesPage.cs");
+        Assert.All(Regex.Matches(updates, @"ProcessStartInfo\(""([^""]+)""").Select(m => m.Groups[1].Value), t => Assert.StartsWith("ms-settings:", t));
     }
 
     [Theory]

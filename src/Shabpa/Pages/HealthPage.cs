@@ -10,7 +10,7 @@ namespace Shabpa.Pages;
 /// repair anything or to be an antivirus.</summary>
 public sealed class HealthPage : TabsPage
 {
-    public static readonly string[] TabKeys = ["overview", "security", "report"];
+    public static readonly string[] TabKeys = ["overview", "security", "apps", "drivers", "report"];
 
     public override string PageTitle => L.T("سلامت و امنیت", "Health & security");
 
@@ -18,6 +18,8 @@ public sealed class HealthPage : TabsPage
     {
         Add("overview", L.T("سلامت سیستم", "System health"), new HealthOverviewPage());
         Add("security", L.T("امنیت و استارتاپ", "Security & startup"), new SecurityPage());
+        Add("apps", L.T("به‌روزرسانی برنامه‌ها", "Program updates"), new AppUpdatesPage());
+        Add("drivers", L.T("درایورها", "Drivers"), new DriversPage());
         Add("report", L.T("گزارش", "Report"), new HealthReportPage());
     }
 }
