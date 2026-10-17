@@ -47,7 +47,7 @@ public sealed class BotLink : IDisposable
     public const string DefaultEndpoint = "https://bot.shabpa.ir";
     public const string BotUsername = "ShabPa_Bot";
 
-    internal TimeSpan PollEvery { get; init; } = TimeSpan.FromSeconds(5);
+    internal TimeSpan PollEvery { get; init; } = TimeSpan.FromSeconds(3);
 
     private readonly Func<Settings> _settings;
     private readonly Action _save;

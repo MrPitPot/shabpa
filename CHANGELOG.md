@@ -4,6 +4,19 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [3.6.0] - 2026-10-17
+
+### Added
+- **Playtime page** - records each game session (length, temperatures, background programs) with Today / week / month / all-time totals and per-game detail; an end-of-game notification gives a short summary.
+- **Circular theme change** - switching theme from the title-bar button now reveals the new colours as an expanding circle, live, with no restart or confirmation.
+
+### Changed
+- Lower idle RAM and CPU use.
+- Pages follow a live theme change.
+
+### Fixed
+- Overlay ring layouts: values now fit inside the gauges.
+
 ## [3.5.1] - 2026-10-17
 
 ### Fixed

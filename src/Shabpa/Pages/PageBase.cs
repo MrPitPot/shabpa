@@ -26,7 +26,7 @@ public class PageBase : UserControl
     protected static Hub Hub => Hub.I;
     protected static FlowDirection Flow => Ui.Flow;
 
-    protected static Brush Res(string key) => (Brush)Application.Current.Resources[key];
+    protected static Brush Res(string key) => Ui.Live(key); // long-lived brush: follows a live theme change
     protected static Style St(string key) => (Style)Application.Current.Resources[key];
 
     protected static TextBlock Txt(string text, string style = "Body") => new() { Text = text, Style = St(style) };
