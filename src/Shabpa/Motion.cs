@@ -39,13 +39,18 @@ public static class Motion
     }
 
     /// <summary>The design's "rise": opacity 0 to 1, translateY 22 to 0, scale .97 to 1; index * 55 ms stagger.</summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Transform, object> RiseGroups = new();
+
     public static void Rise(FrameworkElement element, int index, double dy = 22, double seconds = 0.8)
     {
         if (!Enabled) return;
+        // A transform left behind by an earlier (interrupted or repeated) Rise is ours: never nest it, or its half-way values stick.
         var original = element.RenderTransform;
+        if (original is { } prev && RiseGroups.TryGetValue(prev, out _)) original = Transform.Identity;
         var scale = new ScaleTransform(0.97, 0.97);
         var move = new TranslateTransform(0, dy);
         var group = new TransformGroup();
+        RiseGroups.Add(group, new object());
         if (original is { } o && o != Transform.Identity && !o.IsFrozen) group.Children.Add(o);
         group.Children.Add(scale);
         group.Children.Add(move);
@@ -75,6 +80,8 @@ public static class Motion
             scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
             scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
             move.BeginAnimation(TranslateTransform.YProperty, null);
+            // Clearing an animation leaves the start value behind (.97 / dy): make a stale group harmless.
+            scale.ScaleX = 1; scale.ScaleY = 1; move.Y = 0;
             if (ReferenceEquals(element.RenderTransform, group))
             {
                 element.RenderTransform = original is { } o2 && !o2.IsFrozen ? o2 : Transform.Identity;
