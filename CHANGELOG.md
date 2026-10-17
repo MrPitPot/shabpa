@@ -4,6 +4,14 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [3.5.1] - 2026-10-17
+
+### Fixed
+- Cards could stay slightly smaller or lower after a page was entered repeatedly.
+- The tab highlight could stay on the previously selected tab.
+- The game play timer restarted when switching windows with Alt+Tab.
+- Header spacing in the glass theme.
+
 ## [3.5.0] - 2026-10-17
 
 ### Added

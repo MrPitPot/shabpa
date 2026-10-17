@@ -91,7 +91,7 @@ Check $res 0 -Extra {
   foreach ($n in 'DisplayName', 'DisplayVersion', 'Publisher', 'InstallLocation', 'UninstallString', 'QuietUninstallString', 'DisplayIcon', 'EstimatedSize') {
     if (-not $k.$n) { $e += "registry value $n missing" }
   }
-  if ($k.DisplayVersion -ne '3.5.0') { $e += "DisplayVersion=$($k.DisplayVersion)" }
+  if ($k.DisplayVersion -ne '3.5.1') { $e += "DisplayVersion=$($k.DisplayVersion)" }
   $e
 }
 $happyLog = $res.Log
