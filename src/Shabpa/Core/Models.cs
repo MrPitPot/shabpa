@@ -136,6 +136,10 @@ public sealed class Settings
     public bool AutoUpdateCheck { get; set; } = true;
     /// <summary>The newest version the user was already told about, so each release is announced once.</summary>
     public string AnnouncedVersion { get; set; } = "";
+    /// <summary>The person's birthday, "fa:7-26" (Jalali) or "en:10-18" (Gregorian); empty = not told. See <see cref="Core.Birthday"/>.</summary>
+    public string Birthday { get; set; } = "";
+    /// <summary>"yyyy-MM-dd" of the last birthday party, so it plays once that day.</summary>
+    public string BirthdayShown { get; set; } = "";
 }
 
 public sealed class AppState

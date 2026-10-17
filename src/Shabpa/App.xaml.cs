@@ -414,6 +414,9 @@ public partial class App : Application
             _window.Height = height;
         }
         if (Value(e.Args, "--page") is { } page) _window.Navigate(page);
+        _window.Parties = shots is null;
+        // test aid: --birthday mine|maker shows the birthday party right away, whatever the date
+        if (Value(e.Args, "--birthday") is { } party) _window.ShowParty(party == "maker" ? Birthday.Kind.Maker : Birthday.Kind.Mine);
         if (shots is not null)
         {
             // screenshot runs render the window's own visual tree; the window itself sits far off-screen and never takes focus

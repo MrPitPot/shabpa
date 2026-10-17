@@ -58,6 +58,13 @@ public static class Fa
 
     public static string MonthName(DateTime d) => L.En ? d.ToString("MMMM", Inv) : Months[Calendar.GetMonth(d) - 1];
 
+    /// <summary>Month <paramref name="month"/> (1 to 12) by name: Jalali in Persian, Gregorian in English.</summary>
+    public static string MonthName(int month) => L.En ? Inv.DateTimeFormat.GetMonthName(month) : Months[month - 1];
+
+    /// <summary>A month and day in their own calendar (a Jalali one is named in Persian even in English), e.g. «۲۶ مهر» or "October 18".</summary>
+    public static string MonthDay(bool jalali, int month, int day) =>
+        jalali ? $"{Digits(day.ToString(Inv))} {Months[month - 1]}" : L.En ? $"{Inv.DateTimeFormat.GetMonthName(month)} {day}" : $"{day} {Inv.DateTimeFormat.GetMonthName(month)}";
+
     public static int DayOfMonth(DateTime d) => L.En ? d.Day : Calendar.GetDayOfMonth(d);
 
     /// <summary>Midnight of the first day of the month <paramref name="d"/> falls in, in the calendar the user sees

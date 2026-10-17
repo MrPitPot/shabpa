@@ -194,6 +194,9 @@ public sealed class SettingsPage : PageBase
         backupBody.Children.Add(BackupHint);
         Put(backup, 1, 3);
 
+        // ---- birthday ---------------------------------------------------------------------------------
+        Put(BirthdayCard(), 0, 5);
+
         // ---- rating -----------------------------------------------------------------------------------
         Put(new RatingCard(), 1, 5);
 
@@ -217,6 +220,66 @@ public sealed class SettingsPage : PageBase
             _cols.Children.Add(card);
         }
         Content = _cols;
+    }
+
+    /// <summary>The person's birthday: a day box and the twelve months (Jalali in Persian, Gregorian in English). On that day
+    /// the window opens with a small party. Kept on this PC only.</summary>
+    private GlassCard BirthdayCard()
+    {
+        var (card, body) = Card(L.T("تولدت کِیه؟", "When is your birthday?"),
+            L.T("روز تولدت رو بگو تا شب‌پا اون روز موقع باز شدن برات جشن بگیره. فقط روی همین سیستم می‌مونه.", "Tell Shabpa your birthday and it throws you a small party when you open it that day. Kept on this PC only."));
+        var jalali = !L.En;
+        var saved = Birthday.TryParse(Hub.Settings.Birthday, out var savedJalali, out var savedMonth, out var savedDay);
+        var month = saved && savedJalali == jalali ? savedMonth : 0;
+        var dayBox = new TextBox { Width = 64, Text = saved && savedJalali == jalali ? Fa.Digits(savedDay.ToString()) : "" };
+        StyleNumberBox(dayBox);
+        var months = new WrapPanel();
+        Chips(months, Enumerable.Range(1, 12).Select(m => (m, Fa.MonthName(m))), month, m => month = m);
+        var status = new TextBlock { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
+        var clear = new Button { Style = St("Btn"), Content = L.T("پاکش کن", "Clear"), Margin = new Thickness(8, 0, 0, 0) };
+
+        void Show()
+        {
+            var set = Birthday.TryParse(Hub.Settings.Birthday, out var j, out var m, out var d);
+            status.Text = set ? L.T($"تولدت: {Fa.MonthDay(j, m, d)}", $"Your birthday: {Fa.MonthDay(j, m, d)}") : L.T("هنوز چیزی نگفتی.", "Not set yet.");
+            clear.Visibility = set ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        body.Children.Add(K.SettingRow(L.T("روز", "Day"), dayBox, first: true));
+        body.Children.Add(Stacked(L.T("ماه", "Month"), months));
+        var buttons = new WrapPanel();
+        var save = new Button { Style = St("BtnPrimary"), Content = L.T("ذخیره", "Save") };
+        save.Click += (_, _) =>
+        {
+            var digits = new string(dayBox.Text.Select(c => c is >= '۰' and <= '۹' ? (char)('0' + (c - '۰')) : c).ToArray()).Trim();
+            if (!int.TryParse(digits, out var day) || !Birthday.IsValid(jalali, month, day))
+            {
+                status.Text = month == 0 ? L.T("ماهش رو هم انتخاب کن.", "Pick the month too.") : L.T("این روز توی اون ماه نیست.", "That month has no such day.");
+                Motion.Pop(dayBox);
+                return;
+            }
+            Hub.Settings.Birthday = Birthday.Format(jalali, month, day);
+            Hub.Settings.BirthdayShown = "";
+            Hub.Store.Save();
+            Show();
+            Motion.Pop(status);
+        };
+        clear.Click += (_, _) =>
+        {
+            Hub.Settings.Birthday = "";
+            Hub.Store.Save();
+            dayBox.Text = "";
+            Show();
+        };
+        var preview = new Button { Style = St("Btn"), Content = L.T("یه پیش‌نمایش ببینم", "Show me a preview"), Margin = new Thickness(8, 0, 0, 0) };
+        preview.Click += (_, _) => (Window.GetWindow(this) as MainWindow)?.ShowParty(Birthday.Kind.Mine);
+        buttons.Children.Add(save);
+        buttons.Children.Add(preview);
+        buttons.Children.Add(clear);
+        body.Children.Add(buttons);
+        body.Children.Add(status);
+        Show();
+        return card;
     }
 
     /// <summary>A glass card whose cards sit one under the other: title, optional subtitle and a body.</summary>

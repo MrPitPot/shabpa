@@ -263,9 +263,29 @@ public partial class MainWindow : Window
             _current?.Refresh();
             if (_current is not null) _current.OnTick(Hub.I.Snapshot);
             UpdateSide();
+            Celebrate();
         }
         else if (!_release.IsEnabled) _release.Start();
     }
+
+    /// <summary>False for screenshot and test runs, so a capture taken on a birthday shows the plain page.</summary>
+    public bool Parties { get; set; } = true;
+
+    /// <summary>On the person's birthday (or the maker's, 26 Mehr) the window greets with a party, once that day.</summary>
+    private void Celebrate()
+    {
+        if (!Parties) return;
+        var now = DateTime.Now;
+        var kind = Birthday.Due(now, Hub.I.Settings);
+        if (kind == Birthday.Kind.None) return;
+        Birthday.MarkShown(now, Hub.I.Settings);
+        Hub.I.Store.Save();
+        ShowParty(kind);
+    }
+
+    /// <summary>Also the test aid behind --birthday mine|maker.</summary>
+    public void ShowParty(Birthday.Kind kind) =>
+        Dispatcher.BeginInvoke(() => BirthdayParty.Show(Root, kind), System.Windows.Threading.DispatcherPriority.Loaded);
 
     private static readonly HashSet<string> KeepBuilt = ["mic", "gaming", "settings", "weather", "ping", "dns", "download"];
 
