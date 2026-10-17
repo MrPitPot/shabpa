@@ -426,7 +426,9 @@ public partial class App : Application
             // --interactive: just show the window (real sensors, nothing saved) so it can be driven by hand or by a test.
             if (Value(e.Args, "--toast") is { } toast) // test aid: shows an in-app notice for the screenshot
                 Dispatcher.BeginInvoke(() => _window.ShowToast(toast.Split('|')[0], toast.Split('|').ElementAtOrDefault(1) ?? ""), DispatcherPriority.ApplicationIdle);
-            if (Value(e.Args, "--motion-test") is { } motionReport) _ = MotionProbe(shots, motionReport);
+            if (Value(e.Args, "--overlay-gallery") is { } galleryDir) _ = OverlayGallery(galleryDir);
+            else if (Value(e.Args, "--theme-reveal-test") is { } revealDir) _ = RevealProbe(revealDir);
+            else if (Value(e.Args, "--motion-test") is { } motionReport) _ = MotionProbe(shots, motionReport);
             else if (Value(e.Args, "--tick-test") is { } tickReport) _ = Pages.TickProbe.Run(_window, tickReport, shots, Save);
             else if (Value(e.Args, "--motion-audit") is { } auditReport) _ = Pages.MotionAudit.Run(_window, auditReport, shots, Save);
             else if (!args.Contains("--interactive")) _ = CaptureAll(shots, Value(e.Args, "--only"));
@@ -695,6 +697,130 @@ public partial class App : Application
             File.WriteAllText(report, log.ToString());
             Shutdown();
         }
+    }
+
+    /// <summary>Test aid (--screenshots x --overlay-gallery dir): draws every overlay layout over several plates, sizes and metric counts.</summary>
+    private async Task OverlayGallery(string folder)
+    {
+        try
+        {
+            Directory.CreateDirectory(folder);
+            await Task.Delay(1500);
+            MetricView M(string key, string label, string value, string unit, double? f, int level = 0) => new(key, label, value, unit, f, level);
+            var all = new List<MetricView>
+            {
+                M("fps", "FPS", "156", "", 0.8), M("gpu", "GPU", "64", "%", 0.64), M("hotspot", "HOT", "84", "°C", 0.84, 1), M("gputemp", "GPU", "96", "°C", 0.96, 2),
+                M("gpufan", "FAN", "46", "%", 0.46), M("vram", "VRAM", "9.2", "GB", 0.58), M("cpu", "CPU", "32", "%", 0.32),
+                M("ram", "RAM", "100", "%", 1.0, 2), M("cputemp", "SYS", "1.4k", "", 0.3), M("frame", "FT", "8.3", "ms", null), M("ping", "PING", "23", "ms", null),
+                M("low1", "1%", "118", "", 0.6), M("gpupower", "PWR", "1234", "W", 0.5),
+            };
+            var persian = all.Take(7).Select(m => m with { Value = Fa.Digits(m.Value) }).ToList();
+            var sets = new (string name, List<MetricView> items)[] { ("1", all.Take(1).ToList()), ("3", all.Take(3).ToList()), ("7", all.Take(7).ToList()), ("many", all.ToList()), ("fa-digits", persian) };
+            var looks = new (string name, string look, string back)[] { ("theme", "theme", ""), ("sunset", "sunset", ""), ("mono", "mono", ""), ("custom-light", "custom", "F4F4F6") };
+            var layouts = new[] { "card", "bar", "compact", "minimal", "rings", "graph" };
+            var history = Enumerable.Range(0, 60).Select(i => new TelemetrySample { Fps = 100 + 50 * Math.Sin(i / 6.0) }).ToList();
+            var tag = L.En ? "en" : "fa";
+            foreach (var layout in layouts)
+            {
+                var sheet = new System.Windows.Controls.StackPanel { Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(70, 90, 70)), FlowDirection = FlowDirection.LeftToRight };
+                foreach (var (lname, look, back) in looks)
+                {
+                    var row = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, Margin = new Thickness(8) };
+                    foreach (var (name, items) in sets)
+                    {
+                        var o = new OverlaySettings { Layout = layout, Look = look, Scale = 1 };
+                        if (back.Length > 0) { o.CustomBack = back; o.CustomText = "1A1A1A"; o.CustomAccent = "2563EB"; }
+                        var view = OverlayRenderer.Build(o, items, history);
+                        view.Margin = new Thickness(0, 0, 14, 0);
+                        view.VerticalAlignment = VerticalAlignment.Top;
+                        row.Children.Add(view);
+                    }
+                    sheet.Children.Add(row);
+                }
+                SaveSheet(sheet, Path.Combine(folder, $"{layout}-{tag}.png"));
+            }
+            var scaleSheet = new System.Windows.Controls.StackPanel { Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(70, 90, 70)), FlowDirection = FlowDirection.LeftToRight, Orientation = System.Windows.Controls.Orientation.Horizontal };
+            foreach (var scale in new[] { 0.5, 1, 1.5, 2.5 })
+            {
+                var o = new OverlaySettings { Layout = "rings", Look = "sunset", Scale = scale };
+                var view = OverlayRenderer.Build(o, all.Take(7).ToList());
+                view.Margin = new Thickness(8);
+                view.VerticalAlignment = VerticalAlignment.Top;
+                scaleSheet.Children.Add(view);
+            }
+            SaveSheet(scaleSheet, Path.Combine(folder, $"rings-scales-{tag}.png"));
+        }
+        catch (Exception ex) { File.WriteAllText(Path.Combine(folder, "error.txt"), ex.ToString()); }
+        Shutdown();
+    }
+
+    private static void SaveSheet(FrameworkElement sheet, string file)
+    {
+        sheet.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        sheet.Arrange(new Rect(sheet.DesiredSize));
+        sheet.UpdateLayout();
+        var bitmap = new RenderTargetBitmap((int)Math.Ceiling(sheet.DesiredSize.Width * 2), (int)Math.Ceiling(sheet.DesiredSize.Height * 2), 192, 192, PixelFormats.Pbgra32);
+        bitmap.Render(sheet);
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var stream = File.Create(file);
+        encoder.Save(stream);
+    }
+
+    /// <summary>Test aid (--screenshots x --theme-reveal-test dir): toggles the theme with the reveal and saves frames at
+    /// 0/150/300/450/700 ms, then toggles 20 more times and reports the memory before and after.</summary>
+    private async Task RevealProbe(string folder)
+    {
+        var log = new System.Text.StringBuilder();
+        try
+        {
+            Directory.CreateDirectory(folder);
+            await Task.Delay(3000);
+            Hub.I.Settings.Animations = true;
+            var tag = L.En ? "en" : "fa";
+            var button = (FrameworkElement)_window!.FindName("ThemeButton");
+            string Mem()
+            {
+                GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
+                using var p = System.Diagnostics.Process.GetCurrentProcess();
+                return $"workingSet={p.WorkingSet64 / 1048576.0:F1}MB private={p.PrivateMemorySize64 / 1048576.0:F1}MB managed={GC.GetTotalMemory(true) / 1048576.0:F1}MB";
+            }
+            var pid0 = Environment.ProcessId; var win0 = _window.GetHashCode();
+            log.AppendLine($"pid at start: {pid0}");
+            log.AppendLine($"theme at start: {Ui.Theme.Key} (light={Ui.Theme.Light}) lang={tag} glass={Ui.Glass}");
+            for (var i = 0; i < 6; i++) { _window.SwitchTheme(Ui.Theme.Light ? "night" : "white", button); await Task.Delay(800); } // warm-up: first-use caches
+            log.AppendLine("memory before (after 6 warm-up toggles): " + Mem());
+            foreach (var step in new[] { 0, 1 })
+            {
+                var from = Ui.Theme.Light ? "light" : "dark";
+                _window.SwitchTheme(Ui.Theme.Light ? "night" : "white", button);
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                foreach (var at in new[] { 0, 150, 300, 450, 700 })
+                {
+                    while (sw.ElapsedMilliseconds < at) await Task.Delay(5);
+                    var t = sw.ElapsedMilliseconds;
+                    Save(_window.CaptureRoot, Path.Combine(folder, $"reveal-{tag}-{from}-to-{(from == "dark" ? "light" : "dark")}-{at:000}ms.png"));
+                    log.AppendLine($"{from}->: frame {at} ms taken at {t} ms, circle radius {_window.RevealRadius:F0}, running={_window.RevealRunning}");
+                }
+                await Task.Delay(300);
+                log.AppendLine($"after animation: running={_window.RevealRunning}");
+            }
+            for (var i = 0; i < 20; i++)
+            {
+                _window.SwitchTheme(Ui.Theme.Light ? "night" : "white", button);
+                await Task.Delay(800);
+            }
+            await Task.Delay(500);
+            log.AppendLine($"after 20 toggles: running={_window.RevealRunning} theme={Ui.Theme.Key}");
+            log.AppendLine("memory after: " + Mem());
+            log.AppendLine($"pid at end: {Environment.ProcessId} (same={Environment.ProcessId == pid0}), same window object={win0 == _window.GetHashCode()}, window visible={_window.IsVisible}");
+            Hub.I.Settings.Animations = false;
+            _window.SwitchTheme(Ui.Theme.Light ? "night" : "white", button);
+            log.AppendLine($"animations off: running={_window.RevealRunning} theme={Ui.Theme.Key}");
+        }
+        catch (Exception ex) { log.AppendLine("error: " + ex); }
+        File.WriteAllText(Path.Combine(folder, $"report-{(L.En ? "en" : "fa")}.txt"), log.ToString());
+        Shutdown();
     }
 
     private async Task MotionProbe(string folder, string report)

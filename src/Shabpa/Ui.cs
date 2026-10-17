@@ -75,9 +75,8 @@ public static class Ui
 
     private static SolidColorBrush Solid(System.Windows.Media.Color c)
     {
-        var b = new SolidColorBrush(c);
-        b.Freeze();
-        return b;
+        // left unfrozen on purpose: a theme change rewrites these very brushes in place (see SetTheme)
+        return new SolidColorBrush(c);
     }
 
     private static LinearGradientBrush Linear(System.Windows.Media.Color a, System.Windows.Media.Color b, Point from, Point to,
@@ -87,7 +86,6 @@ public static class Ui
         g.GradientStops.Add(new GradientStop(a, 0));
         if (mid >= 0 && midColor is { } m) g.GradientStops.Add(new GradientStop(m, mid));
         g.GradientStops.Add(new GradientStop(b, 1));
-        g.Freeze();
         return g;
     }
 
@@ -122,9 +120,7 @@ public static class Ui
             Bloom(t.Wall4, 0.00, 1.00, 0.50, 0.50, 0.6);
         }
         scene.Freeze();
-        var result = new DrawingBrush(scene) { Stretch = Stretch.Fill };
-        result.Freeze();
-        return result;
+        return new DrawingBrush(scene) { Stretch = Stretch.Fill };
     }
 
     /// <summary>Builds the brush resources the styles in Theme.xaml refer to. Legacy keys (Bg, Panel, Panel2, Text, Accent...)
@@ -209,7 +205,6 @@ public static class Ui
         rim.GradientStops.Add(new GradientStop(FromArgb(t.Hi), 0));
         rim.GradientStops.Add(new GradientStop(line, 0.22));
         rim.GradientStops.Add(new GradientStop(line, 1));
-        rim.Freeze();
         resources["CardRim"] = rim;
 
         var a1 = Color(palette, "Accent1");
@@ -223,9 +218,69 @@ public static class Ui
         var glow = new RadialGradientBrush { Center = new Point(0.163, 0.244), GradientOrigin = new Point(0.163, 0.244), RadiusX = 0.285, RadiusY = 0.64 };
         glow.GradientStops.Add(new GradientStop(WithAlpha(a1, 0x38), 0));
         glow.GradientStops.Add(new GradientStop(WithAlpha(a1, 0), 1));
-        glow.Freeze();
         resources["HeroGlow"] = glow;
+        RegisterLive(resources);
+        _active ??= resources;
         return resources;
+    }
+
+    /// <summary>The dictionary the app was started with; a live theme change rewrites its brushes in place.</summary>
+    private static ResourceDictionary? _active;
+
+    /// <summary>Switches the colour theme right now, no restart. Styles and templates (which WPF freezes) follow because the
+    /// dictionary entries are replaced and the XAML refers to them dynamically; brushes that code-built screens already hold
+    /// (<see cref="Live"/>) are rewritten in place.</summary>
+    public static void SetTheme(Palette palette)
+    {
+        var old = _active;
+        var fresh = Resources(palette, Glass, GlassLevel); // also sets Theme, the veil and rewrites the live brushes
+        if (old is null || ReferenceEquals(old, fresh)) return;
+        foreach (var key in fresh.Keys.Cast<object>().ToList()) old[key] = fresh[key];
+        foreach (Window window in Application.Current.Windows)
+            if (window.IsLoaded) Chrome(window);
+    }
+
+    /// <summary>The brushes code-built screens hold (<c>K.Brush</c>): one long-lived instance per key that a theme change
+    /// rewrites in place, so a page that is already on screen changes colour without being rebuilt.</summary>
+    private static readonly Dictionary<string, Brush> _live = [];
+
+    public static Brush Live(string key) =>
+        _live.TryGetValue(key, out var brush) ? brush : (Brush)Application.Current.Resources[key];
+
+    private static void RegisterLive(ResourceDictionary resources)
+    {
+        foreach (var key in resources.Keys.Cast<object>().OfType<string>())
+        {
+            if (resources[key] is not Brush fresh) continue;
+            if (_live.TryGetValue(key, out var live) && live.Dispatcher == fresh.Dispatcher && !live.IsFrozen && Sync(live, fresh)) continue; // another thread's brush (tests) is replaced
+            _live[key] = fresh.Clone();
+        }
+    }
+
+    private static bool Sync(object? old, object? fresh)
+    {
+        switch (old)
+        {
+            case SolidColorBrush o when fresh is SolidColorBrush n && !o.IsFrozen:
+                o.Color = n.Color;
+                return true;
+            case LinearGradientBrush o when fresh is LinearGradientBrush n && !o.IsFrozen:
+                o.StartPoint = n.StartPoint;
+                o.EndPoint = n.EndPoint;
+                o.GradientStops = n.GradientStops.Clone();
+                return true;
+            case RadialGradientBrush o when fresh is RadialGradientBrush n && !o.IsFrozen:
+                o.Center = n.Center;
+                o.GradientOrigin = n.GradientOrigin;
+                o.RadiusX = n.RadiusX;
+                o.RadiusY = n.RadiusY;
+                o.GradientStops = n.GradientStops.Clone();
+                return true;
+            case DrawingBrush o when fresh is DrawingBrush n && !o.IsFrozen:
+                o.Drawing = n.Drawing;
+                return true;
+        }
+        return false;
     }
 
     /// <summary>Colours the window's title bar to match the theme (caption colour needs Windows 11). The main window draws

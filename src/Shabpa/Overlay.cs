@@ -264,41 +264,89 @@ public static class OverlayRenderer
         var rings = metrics.Where(m => m.Fraction is not null && m.Key is "gpu" or "cpu" or "ram" or "vram" or "gputemp" or "hotspot" or "fps" or "gpufan").ToList();
         var rest = metrics.Except(rings).ToList();
         var root = new StackPanel();
-        var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
-        foreach (var m in rings)
+        // many gauges wrap into balanced rows (7 become 4 + 3) instead of one endless strip
+        var perRow = rings.Count <= 4 ? Math.Max(1, rings.Count) : (int)Math.Ceiling(rings.Count / Math.Ceiling(rings.Count / 4.0));
+        for (var start = 0; start < rings.Count; start += perRow)
         {
-            const double size = 62;
-            var cell = new Grid { Width = size + 8, Height = size + 22, Margin = new Thickness(2, 0, 2, 0) };
-            cell.RowDefinitions.Add(new RowDefinition { Height = new GridLength(size) });
-            cell.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            var gauge = new Grid { Width = size, Height = size };
-            gauge.Children.Add(new Ellipse { Stroke = Brush(Color.FromArgb(0x40, c.Text.R, c.Text.G, c.Text.B)), StrokeThickness = 5, Margin = new Thickness(3) });
-            gauge.Children.Add(new Path
-            {
-                Stroke = Brush(ValueColor(o, c, m)), StrokeThickness = 5, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
-                Data = Arc(size, m.Fraction ?? 0),
-            });
-            gauge.Children.Add(Text(m.HasValue ? m.Value : "—", 14, c.Text, font, FontWeights.Bold, o.Shadow));
-            cell.Children.Add(gauge);
-            if (o.ShowLabels)
-            {
-                var label = Text(Short(m), 10.5, c.Muted, font, FontWeights.Medium, o.Shadow);
-                label.HorizontalAlignment = HorizontalAlignment.Center;
-                Grid.SetRow(label, 1);
-                cell.Children.Add(label);
-            }
-            row.Children.Add(cell);
+            var row = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, start == 0 ? 0 : 6, 0, 0) };
+            foreach (var m in rings.Skip(start).Take(perRow)) row.Children.Add(RingCell(o, c, font, m));
+            root.Children.Add(row);
         }
-        if (rings.Count > 0) root.Children.Add(row);
         if (rest.Count > 0) root.Children.Add(Compact(o, c, font, rest));
         return root;
     }
 
-    private static Geometry Arc(double size, double fraction)
+    // Gauge geometry (everything follows the size slider because the whole overlay is scaled as one piece):
+    // the ring's stroke and radius come from the diameter, and the number is fitted into the free circle inside it.
+    private const double RingSize = 68, RingStroke = 5.5, RingGap = 3.5;
+
+    private static FrameworkElement RingCell(OverlaySettings o, Skin c, FontFamily font, MetricView m)
     {
-        var r = size / 2 - 5.5;
+        var r = (RingSize - RingStroke) / 2 - 0.5;          // centre line of the ring
+        var free = r - RingStroke / 2 - RingGap;            // radius of the empty disc inside the ring
+        var gauge = new Grid { Width = RingSize, Height = RingSize };
+        var track = Brush(Color.FromArgb(0x40, c.Text.R, c.Text.G, c.Text.B));
+        gauge.Children.Add(new Path { Stroke = track, StrokeThickness = RingStroke, Data = new EllipseGeometry(new Point(RingSize / 2, RingSize / 2), r, r) });
+        var fraction = m.Fraction ?? 0;
+        gauge.Children.Add(new Path
+        {
+            Stroke = Brush(ValueColor(o, c, m)), StrokeThickness = RingStroke, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round,
+            Data = fraction >= 0.995 ? new EllipseGeometry(new Point(RingSize / 2, RingSize / 2), r, r) : Arc(RingSize, r, fraction),
+        });
+        var value = m.HasValue ? m.Value : "—";
+        var number = Text(value, FitInCircle(value, font, FontWeights.Bold, free), c.Text, font, FontWeights.Bold, o.Shadow);
+        number.HorizontalAlignment = HorizontalAlignment.Center;
+        number.TextAlignment = TextAlignment.Center;
+        gauge.Children.Add(number);
+
+        var label = o.ShowLabels ? Short(m) : "";
+        var labelSize = 10.5;
+        var cellWidth = RingSize + 6;
+        if (label.Length > 0)
+        {
+            var wide = Measure(label, font, FontWeights.Medium, labelSize);
+            if (wide > cellWidth) labelSize = Math.Max(7.5, labelSize * cellWidth / wide);
+        }
+        var cell = new StackPanel { Width = cellWidth, Margin = new Thickness(2, 0, 2, 0) };
+        cell.Children.Add(gauge);
+        if (label.Length > 0)
+        {
+            var text = Text(label, labelSize, c.Muted, font, FontWeights.Medium, o.Shadow);
+            text.HorizontalAlignment = HorizontalAlignment.Center;
+            text.Margin = new Thickness(0, 2, 0, 0);
+            text.TextTrimming = TextTrimming.CharacterEllipsis;
+            cell.Children.Add(text);
+        }
+        return cell;
+    }
+
+    private static double Measure(string text, FontFamily font, FontWeight weight, double size)
+    {
+        var formatted = new FormattedText(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface(font, FontStyles.Normal, weight, FontStretches.Normal),
+            size, Brushes.Black, 1.0);
+        return formatted.WidthIncludingTrailingWhitespace;
+    }
+
+    /// <summary>The biggest font (at most 17) at which the text's box sits inside a circle of radius <paramref name="radius"/>:
+    /// "9.2" gets large, "156" and "1.4k" shrink, a four-digit value shrinks further.</summary>
+    private static double FitInCircle(string text, FontFamily font, FontWeight weight, double radius)
+    {
+        var unit = Measure(text, font, weight, 100) / 100;     // width per point of font size
+        const double heightPerSize = 0.78;                      // digits are about this tall (no descenders in a gauge value)
+        var best = 8.0;
+        for (var size = 17.0; size >= 8; size -= 0.25)
+        {
+            var half = unit * size / 2;
+            var tall = heightPerSize * size / 2;
+            if (half * half + tall * tall <= radius * radius * 0.94) { best = size; break; }
+        }
+        return best;
+    }
+
+    private static Geometry Arc(double size, double r, double fraction)
+    {
         var center = size / 2;
-        fraction = Math.Clamp(fraction, 0.003, 0.999);
+        fraction = Math.Clamp(fraction, 0.003, 0.995);
         var angle = fraction * 2 * Math.PI;
         var end = new Point(center + r * Math.Sin(angle), center - r * Math.Cos(angle));
         var figure = new PathFigure { StartPoint = new Point(center, center - r) };

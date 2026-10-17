@@ -1,0 +1,19 @@
+pid at start: 11292
+theme at start: night (light=False) lang=en glass=off
+memory before (after 6 warm-up toggles): workingSet=222.7MB private=337.9MB managed=11.3MB
+dark->: frame 0 ms taken at 0 ms, circle radius 0, running=True
+dark->: frame 150 ms taken at 153 ms, circle radius 158, running=True
+dark->: frame 300 ms taken at 303 ms, circle radius 588, running=True
+dark->: frame 450 ms taken at 455 ms, circle radius 1088, running=True
+dark->: frame 700 ms taken at 701 ms, circle radius 0, running=False
+after animation: running=False
+light->: frame 0 ms taken at 0 ms, circle radius 0, running=True
+light->: frame 150 ms taken at 152 ms, circle radius 146, running=True
+light->: frame 300 ms taken at 304 ms, circle radius 589, running=True
+light->: frame 450 ms taken at 455 ms, circle radius 1072, running=True
+light->: frame 700 ms taken at 706 ms, circle radius 0, running=False
+after animation: running=False
+after 20 toggles: running=False theme=night
+memory after: workingSet=209.2MB private=217.4MB managed=11.3MB
+pid at end: 11292 (same=True), same window object=True, window visible=True
+animations off: running=False theme=white

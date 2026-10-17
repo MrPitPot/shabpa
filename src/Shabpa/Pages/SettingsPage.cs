@@ -98,7 +98,7 @@ public sealed class SettingsPage : PageBase
         lookBody.Children.Add(levelRow);
         lookBody.Children.Add(new TextBlock
         {
-            Text = L.T("با عوض کردن زبان یا تم رنگی، برنامه یک لحظه بسته و دوباره باز می‌شه. تیرگی شیشه و جابه‌جایی بین میکا و آکریلیک بدون بازشدن دوباره انجام می‌شن.", "Changing the language or colour theme briefly closes and reopens the app. Glass darkness and switching between Mica and Acrylic apply right away."),
+            Text = L.T("با عوض کردن زبان، برنامه یک لحظه بسته و دوباره باز می‌شه. تم رنگی، تیرگی شیشه و جابه‌جایی بین میکا و آکریلیک بدون بازشدن دوباره انجام می‌شن.", "Changing the language briefly closes and reopens the app. The colour theme, glass darkness and switching between Mica and Acrylic apply right away."),
             Style = St("Tip"), Margin = new Thickness(0, 4, 0, 0),
         });
         Put(look, 0, 0);
@@ -297,8 +297,8 @@ public sealed class SettingsPage : PageBase
             };
             chip.Checked += (_, _) =>
             {
-                Hub.Settings.Theme = key;
-                Apply();
+                if (Application.Current.MainWindow is MainWindow main) main.SwitchTheme(key, chip); // live, no restart
+                else { Hub.Settings.Theme = key; Apply(); }
             };
             ThemePanel.Children.Add(chip);
         }

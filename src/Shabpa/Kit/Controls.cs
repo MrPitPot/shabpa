@@ -11,7 +11,7 @@ namespace Shabpa.Kit;
 /// <summary>Small helpers shared by the kit controls and by pages that build their UI in code.</summary>
 public static class K
 {
-    public static Brush Brush(string key) => (Brush)Application.Current.Resources[key];
+    public static Brush Brush(string key) => Ui.Live(key);
     public static Style Style(string key) => (Style)Application.Current.Resources[key];
     public static Color ColorOf(string key) => Application.Current.Resources[key] switch { Color c => c, SolidColorBrush b => b.Color, _ => Colors.Gray };
 

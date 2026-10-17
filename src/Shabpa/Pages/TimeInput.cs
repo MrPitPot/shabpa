@@ -115,8 +115,8 @@ internal sealed class DayPicker
         _next = Arrow(!L.En, L.T("روز بعد", "Next day"), 1);
         var day = new Border
         {
-            Background = (System.Windows.Media.Brush)Application.Current.Resources["Panel2"],
-            BorderBrush = (System.Windows.Media.Brush)Application.Current.Resources["Line"],
+            Background = Ui.Live("Panel2"),
+            BorderBrush = Ui.Live("Line"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(11),
             Padding = new Thickness(14, 8, 14, 8),
