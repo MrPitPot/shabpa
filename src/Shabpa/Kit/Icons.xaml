@@ -1,0 +1,47 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:po="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options"
+                    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="po">
+    <!-- 24x24 stroke icons (the Glass Depth set), frozen once and drawn by Kit.Icon. Add new ones here as I.name. -->
+    <StreamGeometry x:Key="I.home" po:Freeze="True">M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z</StreamGeometry>
+    <StreamGeometry x:Key="I.mon" po:Freeze="True">M3 5h18v11H3zM8 20h8M12 16v4</StreamGeometry>
+    <StreamGeometry x:Key="I.tasks" po:Freeze="True">M5 6l2 2 3-3M13 7h7M5 14l2 2 3-3M13 15h7</StreamGeometry>
+    <StreamGeometry x:Key="I.dl" po:Freeze="True">M12 4v11m0 0l-4-4m4 4l4-4M5 20h14</StreamGeometry>
+    <StreamGeometry x:Key="I.ecg" po:Freeze="True">M3 12h4l2-6 4 12 2-6h6</StreamGeometry>
+    <StreamGeometry x:Key="I.shield" po:Freeze="True">M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z</StreamGeometry>
+    <StreamGeometry x:Key="I.mic" po:Freeze="True">M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3zM6 11a6 6 0 0 0 12 0M12 17v4</StreamGeometry>
+    <StreamGeometry x:Key="I.net" po:Freeze="True">M2 9a15 15 0 0 1 20 0M5 13a10 10 0 0 1 14 0M8.5 16.5a5 5 0 0 1 7 0M12 20h.01</StreamGeometry>
+    <StreamGeometry x:Key="I.bolt" po:Freeze="True">M13 2L4 14h7l-1 8 9-12h-7z</StreamGeometry>
+    <StreamGeometry x:Key="I.set" po:Freeze="True">M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6</StreamGeometry>
+    <StreamGeometry x:Key="I.pw" po:Freeze="True">M12 3v9M6.3 6.8a8 8 0 1 0 11.4 0</StreamGeometry>
+    <StreamGeometry x:Key="I.moon" po:Freeze="True">M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z</StreamGeometry>
+    <StreamGeometry x:Key="I.cpu" po:Freeze="True">M7 7h10v10H7zM10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4</StreamGeometry>
+    <StreamGeometry x:Key="I.ram" po:Freeze="True">M3 8h18v8H3zM7 8v8M11 8v8M15 8v8</StreamGeometry>
+    <StreamGeometry x:Key="I.temp" po:Freeze="True">M10 14V5a2 2 0 0 1 4 0v9a4 4 0 1 1-4 0z</StreamGeometry>
+    <StreamGeometry x:Key="I.clk" po:Freeze="True">M12 7v5l3 2M12 21a9 9 0 1 1 0-18 9 9 0 0 1 0 18z</StreamGeometry>
+    <StreamGeometry x:Key="I.brush" po:Freeze="True">M5 20h14M8 16l2-12h4l2 12z</StreamGeometry>
+    <StreamGeometry x:Key="I.chk" po:Freeze="True">M5 12.5l4.5 4.5L19 7</StreamGeometry>
+    <StreamGeometry x:Key="I.x" po:Freeze="True">M6 6l12 12M18 6L6 18</StreamGeometry>
+    <StreamGeometry x:Key="I.min" po:Freeze="True">M6 12h12</StreamGeometry>
+    <StreamGeometry x:Key="I.max" po:Freeze="True">M6 6h12v12H6z</StreamGeometry>
+    <StreamGeometry x:Key="I.sun" po:Freeze="True">M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4</StreamGeometry>
+    <StreamGeometry x:Key="I.user" po:Freeze="True">M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 3.6-7 8-7s8 3 8 7</StreamGeometry>
+    <StreamGeometry x:Key="I.globe" po:Freeze="True">M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18</StreamGeometry>
+    <StreamGeometry x:Key="I.folder" po:Freeze="True">M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z</StreamGeometry>
+    <StreamGeometry x:Key="I.cloud" po:Freeze="True">M7 18a4 4 0 1 1 .9-7.9A5.5 5.5 0 0 1 18.5 11 3.5 3.5 0 0 1 18 18z</StreamGeometry>
+    <StreamGeometry x:Key="I.life" po:Freeze="True">M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5.6 5.6l3.2 3.2M15.2 15.2l3.2 3.2M18.4 5.6l-3.2 3.2M8.8 15.2l-3.2 3.2</StreamGeometry>
+    <StreamGeometry x:Key="I.refresh" po:Freeze="True">M20 11a8 8 0 0 0-14.5-4M4 4v4h4M4 13a8 8 0 0 0 14.5 4M20 20v-4h-4</StreamGeometry>
+    <StreamGeometry x:Key="I.trash" po:Freeze="True">M4 7h16M10 3h4M6 7l1 13h10l1-13M10 11v6M14 11v6</StreamGeometry>
+    <StreamGeometry x:Key="I.lock" po:Freeze="True">M6 11h12v9H6zM8 11V8a4 4 0 0 1 8 0v3</StreamGeometry>
+    <StreamGeometry x:Key="I.plus" po:Freeze="True">M12 5v14M5 12h14</StreamGeometry>
+    <StreamGeometry x:Key="I.alarm" po:Freeze="True">M12 21a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM12 9v4l2 2M4 5l3-2M20 5l-3-2</StreamGeometry>
+    <StreamGeometry x:Key="I.star" po:Freeze="True">M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z</StreamGeometry>
+    <StreamGeometry x:Key="I.edit" po:Freeze="True">M4 20h4L19 9l-4-4L4 16zM13 7l4 4</StreamGeometry>
+    <StreamGeometry x:Key="I.chev" po:Freeze="True">M9 6l6 6-6 6</StreamGeometry>
+    <StreamGeometry x:Key="I.bell" po:Freeze="True">M6 17V11a6 6 0 0 1 12 0v6l2 2H4zM10 21h4</StreamGeometry>
+    <StreamGeometry x:Key="I.play" po:Freeze="True">M7 4l13 8-13 8z</StreamGeometry>
+    <StreamGeometry x:Key="I.heart" po:Freeze="True">M12 20s-8-4.6-8-10.5A4.5 4.5 0 0 1 12 7a4.5 4.5 0 0 1 8 2.5C20 15.4 12 20 12 20z</StreamGeometry>
+    <StreamGeometry x:Key="I.hib" po:Freeze="True">M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5L12 6.5l2.5-2M9.5 19.5l2.5-2 2.5 2</StreamGeometry>
+    <StreamGeometry x:Key="I.warn" po:Freeze="True">M12 4l9 16H3zM12 10v4M12 17.2v.1</StreamGeometry>
+    <StreamGeometry x:Key="I.copy" po:Freeze="True">M9 9h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2zM15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1</StreamGeometry>
+</ResourceDictionary>

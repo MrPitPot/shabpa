@@ -372,6 +372,7 @@ public static class Health
         foreach (var (key, command) in baseline.Where(b => !now.Contains(b.Key)))
         {
             var bar = key.IndexOf('|');
+            if (bar < 0) continue; // a hand-edited or damaged baseline entry must not stop the whole check
             changes.Add(new StartupChange(new StartupItem(key[..bar], key[(bar + 1)..], command, false, false), "removed", command));
         }
         return changes;

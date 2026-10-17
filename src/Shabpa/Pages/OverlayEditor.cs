@@ -2,8 +2,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
 using Shabpa.Core;
+using Shabpa.Kit;
 
 namespace Shabpa.Pages;
 
@@ -14,13 +14,20 @@ internal sealed class OverlayEditor : StackPanel
 {
     private static readonly string[] Zones = ["tl", "tc", "tr", "bl", "bc", "br"];
 
+    private static readonly Dictionary<string, (string fa, string en)> ZoneNames = new()
+    {
+        ["tl"] = ("بالا چپ", "Top left"), ["tc"] = ("بالا وسط", "Top centre"), ["tr"] = ("بالا راست", "Top right"),
+        ["bl"] = ("پایین چپ", "Bottom left"), ["bc"] = ("پایین وسط", "Bottom centre"), ["br"] = ("پایین راست", "Bottom right"),
+        ["main"] = ("کادر اصلی", "Main frame"),
+    };
+
     private readonly Func<OverlaySettings> _settings;
     private readonly IReadOnlyList<(string key, string fa, string en)> _groups;
     private readonly Action _changed;
     private readonly Func<string, Panel> _readings;
     private readonly Dictionary<string, StackPanel> _zonePanels = [];
     private readonly Dictionary<string, Border> _zoneBorders = [];
-    private readonly Border _readingsHost = new() { Margin = new Thickness(0, 12, 0, 0) };
+    private readonly Border _readingsHost = new() { Margin = new Thickness(0, 14, 0, 0) };
     private readonly StackPanel _free = new();
     private string _selected = "";
     private Point _down;
@@ -38,7 +45,7 @@ internal sealed class OverlayEditor : StackPanel
         var mainPanel = new StackPanel { MinHeight = 56 };
         var mainBorder = new Border
         {
-            Child = mainPanel, Margin = new Thickness(0, 10, 0, 0), Padding = new Thickness(8), CornerRadius = new CornerRadius(10), AllowDrop = true, Background = Brushes.Transparent,
+            Child = mainPanel, Margin = new Thickness(0, 10, 0, 0), Padding = new Thickness(8), CornerRadius = new CornerRadius(14), AllowDrop = true, Background = Brushes.Transparent,
             BorderThickness = new Thickness(1.5), BorderBrush = Brush("Line"), Tag = "main",
         };
         mainBorder.DragEnter += (_, e) => { Highlight(mainBorder, true); e.Effects = DragDropEffects.Move; e.Handled = true; };
@@ -51,17 +58,17 @@ internal sealed class OverlayEditor : StackPanel
         {
             Text = L.T("کادر اصلی اورلی: بخش‌هایی که این‌جان توی یه کادر کنار هم می‌شینن (جای کادر رو با «گوشه‌ی صفحه» یا «جابجایی اورلی با ماوس» مشخص کن).",
                 "Main overlay frame: groups here share one frame (set where it sits with “Corner of the screen” or “Move the overlay with the mouse”)."),
-            Style = (Style)Application.Current.Resources["Label"], TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0),
+            Style = (Style)Application.Current.Resources["Label"], TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 14, 0, 0),
         });
         Children.Add(mainBorder);
         Children.Add(new TextBlock
         {
             Text = L.T("یا یه بخش رو بکش به یه ناحیه‌ی صفحه تا کادر جدا و مستقل داشته باشه:", "Or drag a group into a screen zone to give it a frame of its own:"),
-            Style = (Style)Application.Current.Resources["Label"], TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0),
+            Style = (Style)Application.Current.Resources["Label"], TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 14, 0, 0),
         });
 
         // the screen: a top band, the game in the middle, a bottom band
-        var screen = new Grid { FlowDirection = FlowDirection.LeftToRight, MinHeight = 250 };
+        var screen = new Grid { FlowDirection = FlowDirection.LeftToRight, MinHeight = 250, Margin = new Thickness(6) };
         for (var c = 0; c < 3; c++) screen.ColumnDefinitions.Add(new ColumnDefinition());
         screen.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         screen.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star), MinHeight = 36 });
@@ -72,8 +79,8 @@ internal sealed class OverlayEditor : StackPanel
             var panel = new StackPanel { MinHeight = 74 };
             var border = new Border
             {
-                Child = panel, Margin = new Thickness(4), Padding = new Thickness(6), CornerRadius = new CornerRadius(10), AllowDrop = true, Background = Brushes.Transparent,
-                BorderThickness = new Thickness(1.5), BorderBrush = Brush("Line"), Tag = key,
+                Child = panel, Margin = new Thickness(4), Padding = new Thickness(6), CornerRadius = new CornerRadius(12), AllowDrop = true, Background = SceneArt.ZoneShade,
+                BorderThickness = new Thickness(1.5), BorderBrush = SceneArt.ZoneLine, Tag = key,
             };
             border.DragEnter += (_, e) => { Highlight(border, true); e.Effects = DragDropEffects.Move; e.Handled = true; };
             border.DragOver += (_, e) => { e.Effects = DragDropEffects.Move; e.Handled = true; };
@@ -87,19 +94,18 @@ internal sealed class OverlayEditor : StackPanel
         }
         var game = new TextBlock
         {
-            Text = L.T("بازی", "Game"), Foreground = Brush("Faint"), FontSize = 20, FontWeight = FontWeights.SemiBold, Opacity = 0.35,
+            Text = L.T("بازی", "Game"), Foreground = SceneArt.ZoneText, FontSize = 20, FontWeight = FontWeights.SemiBold, Opacity = 0.6,
             HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false,
         };
         Grid.SetRow(game, 1);
         Grid.SetColumnSpan(game, 3);
         screen.Children.Add(game);
-        Children.Add(new Border
-        {
-            Child = screen, CornerRadius = new CornerRadius(12), Padding = new Thickness(6), Margin = new Thickness(0, 10, 0, 0),
-            Background = new LinearGradientBrush([new GradientStop(Color.FromRgb(18, 24, 44), 0), new GradientStop(Color.FromRgb(36, 30, 62), 1)], new Point(0, 0), new Point(1, 1)),
-        });
+        var frame = new Grid { Margin = new Thickness(0, 12, 0, 0) };
+        frame.Children.Add(SceneArt.Build(14));
+        frame.Children.Add(screen);
+        Children.Add(frame);
 
-        _free.Margin = new Thickness(0, 8, 0, 0);
+        _free.Margin = new Thickness(0, 10, 0, 0);
         Children.Add(_free);
         Children.Add(_readingsHost);
     }
@@ -108,9 +114,23 @@ internal sealed class OverlayEditor : StackPanel
 
     private static void Highlight(Border zone, bool on)
     {
-        var brush = on ? Brush("Accent") : Brush("Line");
-        zone.BorderBrush = brush;
-        zone.Background = on ? Brush("AccentSoft") : Brushes.Transparent;
+        // the zone under the dragged tile swells a little and relaxes again when the tile leaves
+        if (zone.RenderTransform is not ScaleTransform)
+        {
+            zone.RenderTransformOrigin = new Point(0.5, 0.5);
+            zone.RenderTransform = new ScaleTransform(1, 1);
+        }
+        var swell = (ScaleTransform)zone.RenderTransform;
+        Fx.Anim(swell, ScaleTransform.ScaleXProperty, on ? 1.015 : 1);
+        Fx.Anim(swell, ScaleTransform.ScaleYProperty, on ? 1.015 : 1);
+        if ((string)zone.Tag == "main")
+        {
+            zone.BorderBrush = on ? Brush("Accent") : Brush("Line");
+            zone.Background = on ? Brush("AccentSoft") : Brushes.Transparent;
+            return;
+        }
+        zone.BorderBrush = on ? SceneArt.ZoneHot : SceneArt.ZoneLine;
+        zone.Background = on ? SceneArt.ZoneHotFill : SceneArt.ZoneShade;
     }
 
     private static string ZoneOf(GroupPlace place, OverlaySettings o) => place.Anchor == "main" ? "main" : place.Anchor;
@@ -129,6 +149,17 @@ internal sealed class OverlayEditor : StackPanel
             if (place.Anchor == "free") _free.Children.Add(FreeRow(key, tile));
             else _zonePanels[ZoneOf(place, o)].Children.Add(tile);
         }
+        // an empty zone names itself, so it is clear where a tile would land
+        foreach (var (key, panel) in _zonePanels)
+        {
+            if (panel.Children.Count > 0 || !ZoneNames.TryGetValue(key, out var name)) continue;
+            panel.Children.Add(new TextBlock
+            {
+                Text = L.T(name.fa, name.en), FontSize = 11.5, FontWeight = FontWeights.SemiBold, TextAlignment = TextAlignment.Center, IsHitTestVisible = false,
+                Foreground = key == "main" ? Brush("Faint") : SceneArt.ZoneText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, key == "main" ? 14 : 24, 0, 0),
+                FlowDirection = Ui.Flow,
+            });
+        }
         ShowReadings();
     }
 
@@ -141,9 +172,25 @@ internal sealed class OverlayEditor : StackPanel
         {
             Text = L.T("جای دلخواه (با «جابجایی اورلی با ماوس» تعیین شده)؛ برای برگردوندن به یه ناحیه، تیکش رو بکش اون‌جا.",
                 "Custom spot (set with “Move the overlay with the mouse”); drag it into a zone to bring it back."),
-            Style = (Style)Application.Current.Resources["Label"], TextWrapping = TextWrapping.Wrap, MaxWidth = 340, Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
+            Style = (Style)Application.Current.Resources["Label"], TextWrapping = TextWrapping.Wrap, MaxWidth = 340, Margin = new Thickness(12, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center,
         });
         return row;
+    }
+
+    /// <summary>Six small dots: the drag handle.</summary>
+    private static FrameworkElement Grip()
+    {
+        var grid = new Grid { Width = 10, Height = 16, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0), IsHitTestVisible = false };
+        for (var c = 0; c < 2; c++) grid.ColumnDefinitions.Add(new ColumnDefinition());
+        for (var r = 0; r < 3; r++) grid.RowDefinitions.Add(new RowDefinition());
+        for (var i = 0; i < 6; i++)
+        {
+            var dot = new System.Windows.Shapes.Ellipse { Width = 3, Height = 3, Fill = Brush("Faint"), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            Grid.SetColumn(dot, i % 2);
+            Grid.SetRow(dot, i / 2);
+            grid.Children.Add(dot);
+        }
+        return grid;
     }
 
     private Border Tile(string group, string title, OverlaySettings o)
@@ -155,21 +202,22 @@ internal sealed class OverlayEditor : StackPanel
         text.Children.Add(new TextBlock
         {
             Text = count > 0 ? L.T($"{Fa.Digits(count.ToString())} مورد", $"{count} shown") : L.T("چیزی نشون داده نمی‌شه", "nothing shown"),
-            FontSize = 11, Foreground = Brush("Faint"),
+            FontSize = 11, Foreground = Brush("Muted"),
         });
-        var grip = new TextBlock { Text = "", FontFamily = new FontFamily("Segoe MDL2 Assets"), Foreground = Brush("Faint"), FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        var row = new DockPanel { FlowDirection = FlowDirection.LeftToRight };
+        var row = new DockPanel { FlowDirection = FlowDirection.LeftToRight, Margin = new Thickness(11, 8, 11, 8) };
+        var grip = Grip();
         DockPanel.SetDock(grip, Dock.Left);
         row.Children.Add(grip);
         row.Children.Add(text);
+        var face = new Grid();
+        if (selected) face.Children.Add(new Border { Background = Brush("AccentSoft"), CornerRadius = new CornerRadius(9) });
+        face.Children.Add(row);
         var tile = new Border
         {
-            Child = row, Padding = new Thickness(10, 7, 10, 7), Margin = new Thickness(0, 0, 0, 4), CornerRadius = new CornerRadius(9), Cursor = Cursors.SizeAll, AllowDrop = true,
-            Background = Brush(selected ? "AccentSoft" : "Panel2"), BorderThickness = new Thickness(1), BorderBrush = Brush(selected ? "Accent" : "Line"), Tag = group,
-            RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = new ScaleTransform(1, 1),
+            Child = face, Margin = new Thickness(0, 0, 0, 4), CornerRadius = new CornerRadius(10), Cursor = Cursors.SizeAll, AllowDrop = true,
+            Background = Brush("Panel3"), BorderThickness = new Thickness(1.5), BorderBrush = Brush(selected ? "Accent" : "Line"), Tag = group,
         };
-        tile.MouseEnter += (_, _) => Pulse(tile, 1.03);
-        tile.MouseLeave += (_, _) => Pulse(tile, 1);
+        Fx.Attach(tile, grow: 1.025, press: 1);
         tile.PreviewMouseLeftButtonDown += (_, e) => { _pressed = group; _down = e.GetPosition(this); };
         tile.PreviewMouseLeftButtonUp += (_, _) =>
         {
@@ -177,6 +225,7 @@ internal sealed class OverlayEditor : StackPanel
             _pressed = null;
             _selected = group;
             Rebuild();
+            PopTile(group);
         };
         tile.PreviewMouseMove += (_, e) =>
         {
@@ -197,14 +246,6 @@ internal sealed class OverlayEditor : StackPanel
         return tile;
     }
 
-    private static void Pulse(Border tile, double to)
-    {
-        if (!Motion.Enabled || tile.RenderTransform is not ScaleTransform scale) return;
-        var animation = new DoubleAnimation(to, TimeSpan.FromMilliseconds(140)) { EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut } };
-        scale.BeginAnimation(ScaleTransform.ScaleXProperty, animation);
-        scale.BeginAnimation(ScaleTransform.ScaleYProperty, animation);
-    }
-
     private void DropOn(DragEventArgs e, string zone, string? before)
     {
         e.Handled = true;
@@ -222,15 +263,18 @@ internal sealed class OverlayEditor : StackPanel
         _selected = group;
         _changed();
         Rebuild();
-        // the dropped tile pops in
+        // the dropped tile pops in (a short spring, nothing left running afterwards)
+        PopTile(group);
+    }
+
+    private void PopTile(string group)
+    {
         foreach (var panel in _zonePanels.Values)
             foreach (var tile in panel.Children.OfType<Border>().Where(b => (string)b.Tag == group))
-                if (Motion.Enabled && tile.RenderTransform is ScaleTransform scale)
-                {
-                    var pop = new DoubleAnimation(0.85, 1, TimeSpan.FromMilliseconds(260)) { EasingFunction = new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.5 } };
-                    scale.BeginAnimation(ScaleTransform.ScaleXProperty, pop);
-                    scale.BeginAnimation(ScaleTransform.ScaleYProperty, pop);
-                }
+                Motion.Pop(tile);
+        foreach (var row in _free.Children.OfType<StackPanel>())
+            foreach (var tile in row.Children.OfType<Border>().Where(b => (string?)b.Tag == group))
+                Motion.Pop(tile);
     }
 
     private bool _readingsBuilt;
@@ -242,13 +286,14 @@ internal sealed class OverlayEditor : StackPanel
         if (_readingsBuilt) return;
         _readingsBuilt = true;
         var panel = new StackPanel();
+        panel.Children.Add(new Border { Height = 1, Background = Brush("Line"), Margin = new Thickness(0, 0, 0, 14) });
         panel.Children.Add(new TextBlock
         {
-            Text = L.T("چی نشون داده بشه؟", "What to show"), Style = (Style)Application.Current.Resources["H2"], Margin = new Thickness(0, 6, 0, 0),
+            Text = L.T("چی نشون داده بشه؟", "What to show"), Style = (Style)Application.Current.Resources["H2"], Margin = new Thickness(0, 0, 0, 2),
         });
         foreach (var (key, fa, en) in _groups)
         {
-            panel.Children.Add(new TextBlock { Text = L.T(fa, en), Style = (Style)Application.Current.Resources["Label"], Margin = new Thickness(0, 12, 0, 4) });
+            panel.Children.Add(new TextBlock { Text = L.T(fa, en), Style = (Style)Application.Current.Resources["Label"], FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 14, 0, 6) });
             var wrap = _readings(key);
             if (wrap.Parent is Border old) old.Child = null;
             else if (wrap.Parent is Panel oldPanel) oldPanel.Children.Remove(wrap);

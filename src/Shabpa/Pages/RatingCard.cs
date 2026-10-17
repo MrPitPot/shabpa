@@ -4,17 +4,18 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using Shabpa.Core;
+using Shabpa.Kit;
 
 namespace Shabpa.Pages;
 
 /// <summary>"Rate Shabpa": one to five stars. Nothing is sent anywhere: the choice is kept on this PC, and the card can
 /// open the project's GitHub page (to leave a real star) or its issue page (for a written opinion).</summary>
-public sealed class RatingCard : Border
+public sealed class RatingCard : GlassCard
 {
     private const string RepoUrl = "https://github.com/" + GitHubIssue.Repo;
 
-    private readonly List<TextBlock> _stars = [];
-    private readonly TextBlock _state = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
+    private readonly List<System.Windows.Shapes.Path> _stars = [];
+    private readonly TextBlock _state = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
     private readonly WrapPanel _actions = new() { Margin = new Thickness(0, 10, 0, 0) };
 
     /// <summary>The line shown in the confirmation: playful, never rude, and for a low score it nudges toward a higher one.</summary>
@@ -35,30 +36,42 @@ public sealed class RatingCard : Border
 
     public RatingCard()
     {
-        Style = (Style)Application.Current.Resources["Card"];
-        Margin = new Thickness(0, 12, 0, 0);
+        Margin = new Thickness(0);
+        Padding = new Thickness(22, 20, 22, 18);
         var body = new StackPanel();
-        body.Children.Add(new TextBlock { Text = L.T("به شب‌پا امتیاز بده", "Rate Shabpa"), Style = (Style)Application.Current.Resources["H2"] });
-        body.Children.Add(new TextBlock
+        var head = new Grid();
+        head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        head.ColumnDefinitions.Add(new ColumnDefinition());
+        head.Children.Add(new IconBadge("star", "HueC", 38, 19, 12) { VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 0, 14, 0) });
+        var titles = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        titles.Children.Add(new TextBlock { Text = L.T("به شب‌پا امتیاز بده", "Rate Shabpa"), Style = (Style)Application.Current.Resources["H2"] });
+        titles.Children.Add(new TextBlock
         {
             Text = L.T("از یک تا پنج ستاره. امتیازت فقط روی همین کامپیوتر ذخیره می‌شه و چیزی جایی فرستاده نمی‌شه. برای ثبت واقعی می‌تونی توی گیت‌هاب ستاره بدی.",
                 "One to five stars. Your choice stays on this PC and nothing is sent. For a public one you can star the project on GitHub."),
             Style = (Style)Application.Current.Resources["Body"], TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0),
         });
-        var row = new StackPanel { Orientation = Orientation.Horizontal, FlowDirection = FlowDirection.LeftToRight, Margin = new Thickness(0, 12, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
+        Grid.SetColumn(titles, 1);
+        head.Children.Add(titles);
+        body.Children.Add(head);
+        var row = new StackPanel { Orientation = Orientation.Horizontal, FlowDirection = FlowDirection.LeftToRight, Margin = new Thickness(0, 14, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
+        var geometry = (Geometry)Application.Current.Resources["I.star"];
         for (var i = 1; i <= 5; i++)
         {
             var value = i;
-            var star = new TextBlock
+            var star = new System.Windows.Shapes.Path
             {
-                FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 30, Margin = new Thickness(0, 0, 8, 0), Cursor = Cursors.Hand,
-                RenderTransformOrigin = new Point(0.5, 0.5), RenderTransform = new ScaleTransform(1, 1),
+                Data = geometry, Width = 32, Height = 32, Stretch = Stretch.Uniform, StrokeThickness = 1.6, StrokeLineJoin = PenLineJoin.Round,
+                StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, Margin = new Thickness(4), IsHitTestVisible = false,
             };
-            star.MouseEnter += (_, _) => { Paint(value); Grow(star, 1.18); };
-            star.MouseLeave += (_, _) => { Paint(Hub.I.Settings.Rating); Grow(star, 1); };
-            star.MouseLeftButtonUp += (_, _) => Choose(value);
+            // a transparent hit box around the star, so the hover is steady and the spring grows the whole thing
+            var host = new Border { Background = Application.Current.Resources["Transparent"] as Brush, Cursor = Cursors.Hand, Child = star, CornerRadius = new CornerRadius(10), Margin = new Thickness(0, 0, 4, 0) };
+            Fx.Attach(host, grow: 1.18, press: 0.9);
+            host.MouseEnter += (_, _) => Paint(value);
+            host.MouseLeave += (_, _) => Paint(Hub.I.Settings.Rating);
+            host.MouseLeftButtonUp += (_, _) => Choose(value);
             _stars.Add(star);
-            row.Children.Add(star);
+            row.Children.Add(host);
         }
         body.Children.Add(row);
         _state.Style = (Style)Application.Current.Resources["Label"];
@@ -75,20 +88,14 @@ public sealed class RatingCard : Border
         Refresh();
     }
 
-    private static void Grow(TextBlock star, double to)
-    {
-        if (!Motion.Enabled || star.RenderTransform is not ScaleTransform scale) return;
-        var animation = new System.Windows.Media.Animation.DoubleAnimation(to, TimeSpan.FromMilliseconds(130));
-        scale.BeginAnimation(ScaleTransform.ScaleXProperty, animation);
-        scale.BeginAnimation(ScaleTransform.ScaleYProperty, animation);
-    }
-
     private void Paint(int filled)
     {
         for (var i = 0; i < _stars.Count; i++)
         {
-            _stars[i].Text = i < filled ? "" : ""; // filled star, outline star
-            _stars[i].Foreground = (Brush)Application.Current.Resources[i < filled ? "Gold" : "Faint"];
+            var on = i < filled;
+            var brush = (Brush)Application.Current.Resources[on ? "Gold" : "Faint"];
+            _stars[i].Stroke = brush;
+            _stars[i].Fill = on ? brush : null;
         }
     }
 
@@ -113,6 +120,34 @@ public sealed class RatingCard : Border
         Hub.I.Store.Save();
         Refresh();
         _state.Text += "  " + Reply(stars);
+        Celebrate(stars);
+    }
+
+    /// <summary>The chosen stars spring in one after another, then the reply line rises in.</summary>
+    private void Celebrate(int stars)
+    {
+        if (!Motion.Enabled) return;
+        for (var i = 0; i < stars && i < _stars.Count; i++)
+        {
+            var star = _stars[i];
+            var scale = new ScaleTransform(0.5, 0.5);
+            star.RenderTransformOrigin = new Point(0.5, 0.5);
+            star.RenderTransform = scale;
+            var grow = new System.Windows.Media.Animation.DoubleAnimation(0.5, 1, TimeSpan.FromMilliseconds(650))
+            {
+                EasingFunction = SpringEase.I, BeginTime = TimeSpan.FromMilliseconds(i * 70), FillBehavior = System.Windows.Media.Animation.FillBehavior.HoldEnd,
+            };
+            grow.Completed += (_, _) =>
+            {
+                // settled: drop the clock and the transform
+                scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+                scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+                star.RenderTransform = Transform.Identity;
+            };
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, grow);
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, grow);
+        }
+        Motion.Rise(_state, 0, 8, 0.45);
     }
 
     private static void Open(string url)

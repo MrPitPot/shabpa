@@ -4,7 +4,7 @@
     <OutputType>WinExe</OutputType>
     <!-- .NET Framework 4.8 ships with every Windows 10/11, so the installer opens anywhere with nothing to
          install first. It then fetches the .NET 10 runtime the app needs, but only if it is missing. -->
-    <TargetFramework>net48</TargetFramework>
+    <TargetFramework>net472</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
@@ -12,7 +12,8 @@
     <RootNamespace>Shabpa.Setup</RootNamespace>
     <ApplicationIcon>shabpa.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>3.4.0</Version>
+    <StartupObject>Shabpa.Setup.Program</StartupObject>
+    <Version>3.5.0</Version>
     <Product>Shabpa Setup</Product>
     <AssemblyTitle>Shabpa Setup</AssemblyTitle>
     <Company>Mr.PitPot</Company>
@@ -30,6 +31,7 @@
     <Resource Include="logo.png" />
     <Resource Include="..\Shabpa\Fonts\Vazirmatn-Medium.ttf" Link="Fonts\Vazirmatn-Medium.ttf" />
     <Resource Include="..\Shabpa\Fonts\Vazirmatn-Bold.ttf" Link="Fonts\Vazirmatn-Bold.ttf" />
+    <Resource Include="..\Shabpa\Fonts\Vazirmatn-SemiBold.ttf" Link="Fonts\Vazirmatn-SemiBold.ttf" />
     <EmbeddedResource Include="$(PayloadFile)" LogicalName="payload.bin" Condition="Exists('$(PayloadFile)')" />
   </ItemGroup>
 

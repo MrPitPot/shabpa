@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using Shabpa.Core;
+using Shabpa.Kit;
 
 namespace Shabpa.Pages;
 
@@ -11,6 +12,8 @@ public class PageBase : UserControl
 {
     public virtual string PageTitle => "";
     public virtual string PageSubtitle => "";
+    /// <summary>Optional element shown at the far end of the page header (status badge, primary action). See PORTING-GUIDE.md.</summary>
+    public virtual UIElement? HeaderAccessory => null;
     /// <summary>Raised when title or subtitle change while the page is showing.</summary>
     public event Action? HeaderChanged;
     protected void RaiseHeaderChanged() => HeaderChanged?.Invoke();
@@ -28,8 +31,11 @@ public class PageBase : UserControl
 
     protected static TextBlock Txt(string text, string style = "Body") => new() { Text = text, Style = St(style) };
 
+    /// <summary>Tinted rounded square with an icon. <paramref name="glyph"/> is an icon name from Icons.xaml ("cpu") or, for
+    /// older pages, a Segoe Fluent glyph character. <paramref name="tint"/>: Accent, Green, Gold, Red, HueA..HueE.</summary>
     protected static Border Badge(string glyph, string tint, double size = 40)
     {
+        if (Icon.Has(glyph)) return new IconBadge(glyph, tint, size, size * 0.46, size * 0.3);
         return new Border
         {
             Width = size,
@@ -95,18 +101,30 @@ public class PageBase : UserControl
         {
             Style = St("BtnIcon"),
             ToolTip = tooltip,
-            Content = new TextBlock { Text = glyph, Style = St("Icon"), FontSize = 14 },
+            Content = Icon.Has(glyph) ? new Icon(glyph, 17) : new TextBlock { Text = glyph, Style = St("Icon"), FontSize = 14 },
         };
         button.Click += (_, _) => onClick();
         return button;
     }
 
-    /// <summary>Fills a panel with mutually exclusive chips.</summary>
+    /// <summary>Fills a panel with a mutually exclusive choice. Two to four short options become the design's segmented
+    /// control (one thumb that springs to the choice); longer or more numerous options become wrapping chips.</summary>
     protected static void Chips<T>(Panel panel, IEnumerable<(T value, string label)> options, T selected, Action<T> onPick)
     {
         panel.Children.Clear();
+        var list = options.ToList();
+        if (list.Count is >= 2 and <= 4 && list.Sum(o => o.label.Length) <= 36)
+        {
+            var seg = new Segmented(list.Select(o => o.label).ToList(), Math.Max(0, list.FindIndex(o => EqualityComparer<T>.Default.Equals(o.value, selected))))
+            {
+                Margin = new Thickness(0, 0, 8, 6),
+            };
+            seg.Changed += i => onPick(list[i].value);
+            panel.Children.Add(seg);
+            return;
+        }
         var group = Guid.NewGuid().ToString("N");
-        foreach (var (value, label) in options)
+        foreach (var (value, label) in list)
         {
             var chip = new RadioButton
             {

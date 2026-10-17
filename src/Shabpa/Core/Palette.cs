@@ -37,7 +37,7 @@ public sealed record Palette(string Key, string Fa, string En, bool Light, IRead
     [
         Make("night", "آبی شب", "Night blue", false, """
             Bg=0A0D18 Side=0D111F Panel=111627 Panel2=171D33 Panel3=1E2540 Line=232B47
-            Text=EEF1FA Muted=8E97B6 Faint=6A7396
+            Text=EEF1FA Muted=AAB3D3 Faint=8089AD
             Accent=8087FF Accent1=7B6BF5 Accent2=5C6CFF AccentSoft=1B2052 OnAccent=FFFFFF
             Gold=FFC764 GoldSoft=3A2F17 Green=3DDC97 GreenSoft=10352B Red=FF6B7F RedSoft=3D1722 RedLine=6B2534
             Hero=1B1D4A Thumb=2C3559 Glow=FFFFFF

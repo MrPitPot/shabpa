@@ -167,6 +167,18 @@ public class StartupTests
     }
 
     [Fact]
+    public void A_damaged_baseline_key_without_a_separator_is_skipped_instead_of_throwing()
+    {
+        var current = new List<StartupItem> { new("HKCU Run", "Fresh", @"C:
+ew.exe", true, true) };
+        var baseline = new Dictionary<string, string> { ["no-separator"] = "x.exe", ["HKCU Run|Gone"] = @"C:\gone.exe" };
+        var changes = Health.Compare(current, baseline);
+        Assert.Contains(changes, c => c.Kind == "new" && c.Item.Name == "Fresh");
+        Assert.Contains(changes, c => c.Kind == "removed" && c.Item.Name == "Gone");
+        Assert.Equal(2, changes.Count);
+    }
+
+    [Fact]
     public void Suspicious_looking_entries_get_plain_notes_but_normal_ones_do_not()
     {
         Assert.Empty(Health.Notes(new StartupItem("HKCU Run", "X", @"C:\Windows\System32\notepad.exe", true, true)));

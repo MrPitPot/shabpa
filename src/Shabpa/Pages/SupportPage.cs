@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using Shabpa.Core;
+using Shabpa.Kit;
 
 namespace Shabpa.Pages;
 
@@ -15,11 +16,20 @@ public sealed class SupportPage : PageBase
     private readonly WrapPanel _categoryChips = new();
     private readonly WrapPanel _viaChips = new();
     private readonly TextBox _title = new(), _body = new(), _contact = new(), _endpoint = new();
-    private readonly CheckBox _diag = new();
+    private readonly Kit.Switch _diag = new();
     private readonly TextBlock _diagPreview = new(), _viaNote = new(), _sendNote = new(), _adminNote = new();
     private readonly StackPanel _mine = new(), _all = new();
     private readonly PasswordBox _adminKey = new();
     private bool _busy;
+
+    // layout: ticket form and "my tickets" side by side, the owner card under them (one column when the window is narrow)
+    private readonly Grid _root = new() { Margin = new Thickness(-8, 0, -8, 0) };
+    private FrameworkElement _ticketCard = null!, _mineCard = null!, _adminCard = null!;
+    private bool? _wide;
+
+    // rows already shown, so only a new ticket rises in (the page entrance handles the first draw)
+    private readonly HashSet<string> _seen = [];
+    private bool _primed;
 
     public override string PageTitle => L.T("پشتیبانی", "Support");
     public override string PageSubtitle => L.T("مشکل، پیشنهاد یا سؤالت رو بفرست و جوابش رو همین‌جا ببین.", "Send a problem, an idea or a question and see the answer here.");
@@ -28,7 +38,8 @@ public sealed class SupportPage : PageBase
 
     public SupportPage()
     {
-        var root = new StackPanel();
+        for (var i = 0; i < 3; i++) _root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        for (var i = 0; i < 12; i++) _root.ColumnDefinitions.Add(new ColumnDefinition());
 
         // ---- new ticket -------------------------------------------------------------------------------
         var (card, form) = Ui2.Card(L.T("تیکت جدید", "New ticket"),
@@ -37,44 +48,51 @@ public sealed class SupportPage : PageBase
         form.Children.Add(Ui2.Label(L.T("موضوع", "Topic")));
         form.Children.Add(_categoryChips);
         form.Children.Add(Ui2.Label(L.T("عنوان", "Title")));
-        StyleBox(_title, 460, false);
+        StyleBox(_title, 0, false);
         _title.MaxLength = 120;
         form.Children.Add(_title);
         form.Children.Add(Ui2.Label(L.T("توضیح (چی شد؟ انتظارت چی بود؟)", "Details (what happened? what did you expect?)")));
-        StyleBox(_body, 460, true);
+        StyleBox(_body, 0, true);
         _body.MaxLength = 4000;
         form.Children.Add(_body);
         form.Children.Add(Ui2.Label(L.T("راه تماس (اختیاری؛ فقط اگه می‌خوای بیرون از برنامه هم جواب بدم)", "Contact (optional; only if you want an answer outside the app)")));
-        StyleBox(_contact, 320, false);
+        StyleBox(_contact, 0, false);
         _contact.MaxLength = 100;
         form.Children.Add(_contact);
 
-        _diag.Style = St("Check");
-        _diag.Content = L.T("اطلاعات فنی ساده هم همراهش بره (ورژن برنامه، ویندوز، ادمین بودن)", "Include simple technical details (app version, Windows, admin or not)");
-        _diag.Margin = new Thickness(0, 12, 0, 0);
+        _diag.Content = new TextBlock
+        {
+            Text = L.T("اطلاعات فنی ساده هم همراهش بره (ورژن برنامه، ویندوز، ادمین بودن)", "Include simple technical details (app version, Windows, admin or not)"),
+            TextWrapping = TextWrapping.Wrap, FontWeight = FontWeights.Medium, Margin = new Thickness(0, 6, 0, 6),
+        };
+        _diag.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _diag.MinHeight = 44;
         _diag.Click += (_, _) => UpdateDiag();
+        form.Children.Add(new Border { Height = 1, Background = Res("Line"), Margin = new Thickness(0, 14, 0, 0) });
         form.Children.Add(_diag);
         _diagPreview.Style = St("Label");
         _diagPreview.TextWrapping = TextWrapping.Wrap;
         _diagPreview.FlowDirection = FlowDirection.LeftToRight;
-        _diagPreview.Margin = new Thickness(0, 6, 0, 0);
+        _diagPreview.FontFamily = new FontFamily("Consolas");
+        _diagPreview.Margin = new Thickness(0);
         form.Children.Add(_diagPreview);
 
-        form.Children.Add(Ui2.Label(L.T("از کجا بفرستم؟", "Send through"), 14, 4));
+        form.Children.Add(new Border { Height = 1, Background = Res("Line"), Margin = new Thickness(0, 6, 0, 0) });
+        form.Children.Add(Ui2.Label(L.T("از کجا بفرستم؟", "Send through"), 10, 8));
         form.Children.Add(_viaChips);
         _viaNote.Style = St("Label");
         _viaNote.TextWrapping = TextWrapping.Wrap;
         _viaNote.Margin = new Thickness(0, 4, 0, 0);
         form.Children.Add(_viaNote);
 
-        var send = new Button { Style = St("BtnPrimary"), Content = L.T("ارسال تیکت", "Send ticket"), HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(18, 9, 18, 9), Margin = new Thickness(0, 14, 0, 0) };
+        var send = new Button { Style = St("BtnPrimary"), Content = L.T("ارسال تیکت", "Send ticket"), HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(26, 10, 26, 10), Margin = new Thickness(0, 16, 0, 0) };
         send.Click += async (_, _) => await SendAsync();
         form.Children.Add(send);
         _sendNote.Style = St("Label");
         _sendNote.TextWrapping = TextWrapping.Wrap;
         _sendNote.Margin = new Thickness(0, 8, 0, 0);
         form.Children.Add(_sendNote);
-        root.Children.Add(card);
+        _ticketCard = card;
 
         // ---- my tickets -------------------------------------------------------------------------------
         var (mineCard, mine) = Ui2.Card(L.T("تیکت‌های من", "My tickets"));
@@ -82,22 +100,20 @@ public sealed class SupportPage : PageBase
         refresh.Click += async (_, _) => await RefreshMineAsync();
         mine.Children.Add(refresh);
         mine.Children.Add(_mine);
-        root.Children.Add(mineCard);
+        _mineCard = mineCard;
 
         // ---- project owner ----------------------------------------------------------------------------
         var (admin, adminBody) = Ui2.Card(L.T("مدیر پروژه", "Project owner"),
             L.T("اگه صاحب پروژه‌ای، کلید مدیر رو وارد کن تا همه‌ی تیکت‌ها رو ببینی و جواب بدی. کلید فقط روی همین کامپیوتر و رمزگذاری‌شده نگه داشته می‌شه.",
                 "If you own the project, enter the admin key to see and answer every ticket. The key is kept only on this PC, encrypted."));
-        _adminKey.Padding = new Thickness(10, 7, 10, 7);
-        _adminKey.Width = 300;
+        _adminKey.Style = St("InputPass");
+        _adminKey.Width = 360;
         _adminKey.HorizontalAlignment = HorizontalAlignment.Left;
-        _adminKey.Margin = new Thickness(0, 10, 0, 0);
-        _adminKey.Background = Res("Panel2");
-        _adminKey.Foreground = Res("Text");
-        _adminKey.BorderBrush = Res("Line");
+        _adminKey.Margin = new Thickness(0, 12, 0, 0);
         _adminKey.FlowDirection = FlowDirection.LeftToRight;
         adminBody.Children.Add(_adminKey);
-        StyleBox(_endpoint, 420, false);
+        StyleBox(_endpoint, 460, false);
+        _endpoint.FlowDirection = FlowDirection.LeftToRight;
         _endpoint.Margin = new Thickness(0, 8, 0, 0);
         adminBody.Children.Add(Ui2.Label(L.T("آدرس سرور (اختیاری؛ اگه توی برنامه ثابت نشده)", "Server address (optional; if not built in)"), 10, 2));
         adminBody.Children.Add(_endpoint);
@@ -117,23 +133,56 @@ public sealed class SupportPage : PageBase
         _adminNote.Margin = new Thickness(0, 8, 0, 0);
         adminBody.Children.Add(_adminNote);
         adminBody.Children.Add(_all);
-        root.Children.Add(admin);
+        _adminCard = admin;
 
-        Content = root;
+        foreach (var block in new[] { _ticketCard, _mineCard, _adminCard })
+        {
+            block.Margin = new Thickness(8);
+            _root.Children.Add(block);
+        }
+        Content = _root;
+        SizeChanged += (_, e) => ApplyLayout(e.NewSize.Width > 900);
+        ApplyLayout(true);
 
         Chips(_categoryChips, SupportInfo.Categories.Select(c => (c, SupportInfo.CategoryName(c))), _category, v => _category = v);
     }
 
+    private static void Place(UIElement e, int row, int column, int span)
+    {
+        Grid.SetRow(e, row);
+        Grid.SetColumn(e, column);
+        Grid.SetColumnSpan(e, span);
+    }
+
+    private void ApplyLayout(bool wide)
+    {
+        if (_wide == wide) return;
+        _wide = wide;
+        if (wide)
+        {
+            Place(_ticketCard, 0, 0, 7);
+            Place(_mineCard, 0, 7, 5);
+            Place(_adminCard, 1, 0, 12);
+        }
+        else
+        {
+            Place(_ticketCard, 0, 0, 12);
+            Place(_mineCard, 1, 0, 12);
+            Place(_adminCard, 2, 0, 12);
+        }
+    }
+
+    /// <param name="width">0 = fill the card; otherwise a fixed width at the start side.</param>
     private static void StyleBox(TextBox box, double width, bool multiline)
     {
         box.Style = St("Input");
-        box.Width = width;
-        box.HorizontalAlignment = HorizontalAlignment.Left;
-        box.Padding = new Thickness(10, 7, 10, 7);
+        if (width > 0) box.Width = width;
+        box.HorizontalAlignment = width > 0 ? HorizontalAlignment.Left : HorizontalAlignment.Stretch;
+        box.Padding = new Thickness(12, 8, 12, 8);
         if (!multiline) return;
         box.AcceptsReturn = true;
         box.TextWrapping = TextWrapping.Wrap;
-        box.MinHeight = 110;
+        box.MinHeight = 120;
         box.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
     }
 
@@ -173,6 +222,14 @@ public sealed class SupportPage : PageBase
         if (Client.Available) _ = RefreshMineAsync();
     }
 
+    /// <summary>Sets a status line and lets it rise in, so a result does not just appear.</summary>
+    private static void Say(TextBlock note, string brush, string text)
+    {
+        note.Foreground = Res(brush);
+        note.Text = text;
+        if (text.Length > 0) Motion.Rise(note, 0, 8, 0.45);
+    }
+
     private void UpdateViaNote()
     {
         _viaNote.Text = _via == "github"
@@ -189,8 +246,7 @@ public sealed class SupportPage : PageBase
         var body = _body.Text.Trim();
         if (title.Length < 3 || body.Length < 5)
         {
-            _sendNote.Foreground = Res("Red");
-            _sendNote.Text = L.T("عنوان و توضیح رو کامل‌تر بنویس.", "Please write a fuller title and description.");
+            Say(_sendNote, "Red", L.T("عنوان و توضیح رو کامل‌تر بنویس.", "Please write a fuller title and description."));
             return;
         }
         var diag = _diag.IsChecked == true ? SupportInfo.Diagnostics(Hub.Elevated) : "";
@@ -219,15 +275,13 @@ public sealed class SupportPage : PageBase
         _busy = false;
         if (id is null)
         {
-            _sendNote.Foreground = Res("Red");
-            _sendNote.Text = error ?? "";
+            Say(_sendNote, "Red", error ?? "");
             return;
         }
         Remember(id, title, "server");
         _title.Text = "";
         _body.Text = "";
-        _sendNote.Foreground = Res("Green");
-        _sendNote.Text = L.T($"ارسال شد. شماره‌ی تیکت: {id}", $"Sent. Ticket number: {id}");
+        Say(_sendNote, "Green", L.T($"ارسال شد. شماره‌ی تیکت: {id}", $"Sent. Ticket number: {id}"));
         await RefreshMineAsync();
     }
 
@@ -246,20 +300,38 @@ public sealed class SupportPage : PageBase
     {
         _mine.Children.Clear();
         var shown = new HashSet<string>();
+        var index = 0;
         foreach (var t in _fromServer)
         {
             shown.Add(t.Id);
-            _mine.Children.Add(TicketRow(t, admin: false));
+            Add(_mine, TicketRow(t, admin: false), "s" + t.Id, index++);
         }
         foreach (var r in Hub.State.Tickets.Where(r => r.Via == "github" || !shown.Contains(r.Id)).Take(20))
         {
             var github = r.Via == "github";
-            var open = github ? IconButton("", L.T("باز کردن ایشوها", "Open issues"), () => OpenUrl(GitHubIssue.IssuesUrl)) : null;
-            _mine.Children.Add(Row("", github ? "Gold" : "Accent", r.Title,
-                (github ? L.T("گیت‌هاب", "GitHub") : L.T("سرور شب‌پا", "Shabpa server")) + " · " + $"{Fa.RelativeDay(r.Created, DateTime.Now)} {Fa.Clock(r.Created)}", open));
+            var open = github ? IconButton("globe", L.T("باز کردن ایشوها", "Open issues"), () => OpenUrl(GitHubIssue.IssuesUrl)) : null;
+            var row = Row(github ? "globe" : "cloud", github ? "Gold" : "Accent", r.Title,
+                (github ? L.T("گیت‌هاب", "GitHub") : L.T("سرور شب‌پا", "Shabpa server")) + " · " + $"{Fa.RelativeDay(r.Created, DateTime.Now)} {Fa.Clock(r.Created)}", open);
+            Add(_mine, row, "l" + r.Id, index++);
         }
-        if (_mine.Children.Count == 0)
-            _mine.Children.Add(Ui2.Label(L.T("هنوز تیکتی نفرستادی.", "You have not sent a ticket yet.")));
+        if (_mine.Children.Count == 0) _mine.Children.Add(Empty(L.T("هنوز تیکتی نفرستادی.", "You have not sent a ticket yet.")));
+        _primed = true;
+    }
+
+    /// <summary>Adds a ticket row; one that was not on screen before springs in (the first draw is left to the page entrance).</summary>
+    private void Add(Panel list, UIElement row, string key, int index)
+    {
+        list.Children.Add(row);
+        if (!_seen.Add(key) || !_primed || row is not FrameworkElement fe) return;
+        Motion.Rise(fe, Math.Min(index, 4), 14, 0.55);
+    }
+
+    private static UIElement Empty(string text)
+    {
+        var box = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 22, 0, 12) };
+        box.Children.Add(new IconBadge("life", "HueA", 46, 22, 15) { HorizontalAlignment = HorizontalAlignment.Center });
+        box.Children.Add(new TextBlock { Text = text, Style = St("Label"), TextAlignment = TextAlignment.Center, Margin = new Thickness(0, 10, 0, 0) });
+        return box;
     }
 
     private async Task RefreshMineAsync()
@@ -268,8 +340,7 @@ public sealed class SupportPage : PageBase
         var (tickets, error) = await Client.MineAsync();
         if (tickets is null)
         {
-            _sendNote.Foreground = Res("Gold");
-            _sendNote.Text = error ?? "";
+            Say(_sendNote, "Gold", error ?? "");
             return;
         }
         _fromServer = tickets;
@@ -280,7 +351,7 @@ public sealed class SupportPage : PageBase
     {
         var panel = new StackPanel();
         var sub = $"{SupportInfo.StatusName(t.Status)} · {SupportInfo.CategoryName(t.Category)} · #{t.Id}";
-        panel.Children.Add(Row("", t.Status == "answered" ? "Green" : t.Status == "closed" ? "Gold" : "Accent", t.Title, sub));
+        panel.Children.Add(Row(t.Status == "answered" ? "chk" : t.Status == "closed" ? "lock" : "clk", t.Status == "answered" ? "Green" : t.Status == "closed" ? "Gold" : "Accent", t.Title, sub));
         var text = new TextBlock { Text = t.Body, Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(54, 0, 0, 4) };
         panel.Children.Add(text);
         if (admin && t.Diag.Length > 0)
@@ -290,12 +361,12 @@ public sealed class SupportPage : PageBase
         foreach (var reply in t.Replies)
             panel.Children.Add(new Border
             {
-                Background = Res(reply.Admin ? "AccentSoft" : "Panel2"), CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(54, 2, 0, 4),
+                Background = Res(reply.Admin ? "AccentSoft" : "Panel2"), CornerRadius = new CornerRadius(12), Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(54, 2, 0, 4),
                 Child = new TextBlock { Text = (reply.Admin ? L.T("پشتیبانی: ", "Support: ") : "") + reply.Text, Style = St("Body"), TextWrapping = TextWrapping.Wrap },
             });
         if (admin)
         {
-            var reply = new TextBox { Style = St("Input"), Width = 360, Padding = new Thickness(8, 6, 8, 6), AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(54, 4, 8, 4) };
+            var reply = new TextBox { Style = St("Input"), Width = 360, Padding = new Thickness(10, 7, 10, 7), AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(54, 4, 8, 4) };
             var bar = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
             bar.Children.Add(reply);
             foreach (var (status, label) in new[] { ("answered", L.T("جواب بده", "Answer")), ("reviewing", L.T("در حال بررسی", "Reviewing")), ("closed", L.T("ببند", "Close")) })
@@ -323,8 +394,7 @@ public sealed class SupportPage : PageBase
         var endpoint = _endpoint.Text.Trim();
         if (endpoint.Length > 0 && !SupportClient.IsValidEndpoint(endpoint))
         {
-            _adminNote.Foreground = Res("Red");
-            _adminNote.Text = L.T("آدرس باید با https شروع بشه.", "The address must start with https.");
+            Say(_adminNote, "Red", L.T("آدرس باید با https شروع بشه.", "The address must start with https."));
             return;
         }
         s.Endpoint = endpoint;
@@ -351,20 +421,18 @@ public sealed class SupportPage : PageBase
     {
         if (!Client.IsAdmin || !Client.Available)
         {
-            _adminNote.Foreground = Res("Gold");
-            _adminNote.Text = Client.Available ? L.T("کلید مدیر وارد نشده.", "No admin key entered.") : L.T("آدرس سرور تنظیم نشده.", "The server address is not set.");
+            Say(_adminNote, "Gold", Client.Available ? L.T("کلید مدیر وارد نشده.", "No admin key entered.") : L.T("آدرس سرور تنظیم نشده.", "The server address is not set."));
             return;
         }
         var (tickets, error) = await Client.AllAsync();
         _all.Children.Clear();
         if (tickets is null)
         {
-            _adminNote.Foreground = Res("Red");
-            _adminNote.Text = error ?? "";
+            Say(_adminNote, "Red", error ?? "");
             return;
         }
-        _adminNote.Foreground = Res("Muted");
-        _adminNote.Text = L.T($"{Fa.Digits(tickets.Count.ToString())} تیکت", $"{tickets.Count} tickets");
-        foreach (var t in tickets.Take(60)) _all.Children.Add(TicketRow(t, admin: true));
+        Say(_adminNote, "Muted", L.T($"{Fa.Digits(tickets.Count.ToString())} تیکت", $"{tickets.Count} tickets"));
+        var n = 0;
+        foreach (var t in tickets.Take(60)) Add(_all, TicketRow(t, admin: true), "a" + t.Id, n++);
     }
 }

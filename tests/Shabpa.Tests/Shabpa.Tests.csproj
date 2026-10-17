@@ -16,10 +16,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Shabpa\Shabpa.csproj" />
-    <!-- The installer targets .NET Framework 4.8; its logic is plain C# and is tested by compiling it in. -->
+    <!-- The installer targets .NET Framework 4.7.2; its logic is plain C# and is tested by compiling it in. -->
     <Compile Include="..\..\src\Setup\Payload.cs" Link="Setup\Payload.cs" />
     <Compile Include="..\..\src\Setup\Installer.cs" Link="Setup\Installer.cs" />
     <Compile Include="..\..\src\Setup\Runtime.cs" Link="Setup\Runtime.cs" />
+    <Compile Include="..\..\src\Setup\SetupLog.cs" Link="Setup\SetupLog.cs" />
+    <Compile Include="..\..\src\Setup\Quiet.cs" Link="Setup\Quiet.cs" />
     <Using Include="Xunit" />
     <Using Include="Shabpa.Core" />
   </ItemGroup>

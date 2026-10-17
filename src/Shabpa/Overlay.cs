@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using System.Windows.Threading;
@@ -67,11 +68,18 @@ public static class OverlayRenderer
         return brush;
     }
 
-    private static Color LevelColor(int level) => Hex(LevelColors[Math.Clamp(level, 0, 2)]);
+    /// <summary>Good / warning / bad value colours; on a light plate (white theme) darker tones keep the contrast readable.</summary>
+    private static readonly string[] LevelColorsOnLight = ["15803D", "B45309", "B91C1C"];
+
+    private static Color LevelColor(int level, Color back)
+    {
+        var luminance = (0.299 * back.R + 0.587 * back.G + 0.114 * back.B) / 255;
+        return Hex((luminance > 0.62 ? LevelColorsOnLight : LevelColors)[Math.Clamp(level, 0, 2)]);
+    }
 
     private static Color ValueColor(OverlaySettings o, Skin c, MetricView m) =>
-        o.ColorByValue && m.HasValue && m.Level > 0 ? LevelColor(m.Level)
-        : o.ColorByValue && m.HasValue && m.Key is "fps" or "low1" && m.Level == 0 && m.Fraction is > 0 ? LevelColor(0)
+        o.ColorByValue && m.HasValue && m.Level > 0 ? LevelColor(m.Level, c.Back)
+        : o.ColorByValue && m.HasValue && m.Key is "fps" or "low1" && m.Level == 0 && m.Fraction is > 0 ? LevelColor(0, c.Back)
         : c.Accent;
 
     /// <summary>Builds the visual for the given settings. <paramref name="history"/> feeds the graph layout.</summary>
@@ -439,23 +447,66 @@ public sealed class OverlayWindow : Window
         var o = _hub.Settings.Overlay;
         RegisterHotkeys();
         var want = !_userHidden && (o.Mode == OverlayMode.Always || (o.Mode == OverlayMode.InGame && _hub.Snapshot.GameRunning) || _moving);
+        if (want && _fadingOut)
+        {
+            // wanted again while it was fading away: stay
+            _fadingOut = false;
+            SetOpacity(this, 1);
+            foreach (var block in _blocks.Values) SetOpacity(block, 1);
+            AcquireDemand(true);
+        }
         if (want && !IsVisible)
         {
             Show();
+            FadeIn(this);
             AcquireDemand(true);
             Render(_hub.Telemetry.Latest);
         }
         else if (!want && IsVisible)
         {
-            Hide();
-            foreach (var block in _blocks.Values) block.Close();
-            _blocks.Clear();
+            if (_fadingOut) return;
             AcquireDemand(false);
+            if (!Motion.Enabled) { HideNow(); return; }
+            // the HUD fades away (160 ms), then it is hidden for real
+            _fadingOut = true;
+            var fade = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(160)) { FillBehavior = FillBehavior.HoldEnd };
+            fade.Completed += (_, _) =>
+            {
+                if (!_fadingOut) return;
+                _fadingOut = false;
+                SetOpacity(this, 1);
+                HideNow();
+            };
+            BeginAnimation(OpacityProperty, fade);
+            foreach (var block in _blocks.Values) block.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(160)) { FillBehavior = FillBehavior.HoldEnd });
         }
         else if (want)
         {
             Render(_hub.Telemetry.Latest);
         }
+    }
+
+    private bool _fadingOut;
+
+    private void HideNow()
+    {
+        Hide();
+        foreach (var block in _blocks.Values) block.Close();
+        _blocks.Clear();
+    }
+
+    private static void SetOpacity(Window window, double value)
+    {
+        window.BeginAnimation(OpacityProperty, null);
+        window.Opacity = value;
+    }
+
+    /// <summary>The HUD (and each separate block) fades in over 220 ms when it appears; nothing is left running afterwards.</summary>
+    private static void FadeIn(Window window)
+    {
+        SetOpacity(window, 1);
+        if (!Motion.Enabled) return;
+        window.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220)) { FillBehavior = FillBehavior.Stop });
     }
 
     private void AcquireDemand(bool on)
@@ -497,6 +548,7 @@ public sealed class OverlayWindow : Window
             {
                 _blocks[group.Key] = block = new OverlayBlockWindow(group.Key, Place, SaveBlockPosition);
                 block.Show();
+                FadeIn(block);
                 block.SetMoveMode(_moving);
             }
             block.Update(side, [.. group], history);

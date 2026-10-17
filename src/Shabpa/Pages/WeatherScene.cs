@@ -54,8 +54,19 @@ public sealed class WeatherScene : Grid
             Rebuild();
         };
         IsVisibleChanged += (_, _) => Toggle();
-        Loaded += (_, _) => Toggle();
-        Unloaded += (_, _) => Stop();
+        Loaded += (_, _) =>
+        {
+            // The scene is the one thing that animates all the time, so it only runs while the window is the one in front
+            // (and visible, and motion is on): an app left open behind other windows costs nothing.
+            _window = Window.GetWindow(this);
+            if (_window is not null) { _window.Activated += OnActivity; _window.Deactivated += OnActivity; }
+            Toggle();
+        };
+        Unloaded += (_, _) =>
+        {
+            if (_window is not null) { _window.Activated -= OnActivity; _window.Deactivated -= OnActivity; _window = null; }
+            Stop();
+        };
         Background = Gradient(Sky.Clear, true);
     }
 
@@ -106,9 +117,14 @@ public sealed class WeatherScene : Grid
 
     private bool Wet => _sky is Sky.Drizzle or Sky.Rain or Sky.Showers or Sky.Thunder;
 
+    private Window? _window;
+
+    private void OnActivity(object? sender, EventArgs e) => Toggle();
+
     private void Toggle()
     {
-        if (IsVisible && IsLoaded && Motion.Enabled) Start();
+        var inFront = _window is { IsActive: true } || Hub.I is { Demo: true }; // demo and screenshot runs never take focus
+        if (IsVisible && IsLoaded && Motion.Enabled && inFront) Start();
         else Stop();
     }
 
@@ -571,7 +587,8 @@ public sealed class WeatherScene : Grid
     {
         var now = ((RenderingEventArgs)e).RenderingTime;
         if (now == _last) return; // WPF can raise this twice for one frame
-        var dt = _last == TimeSpan.Zero ? 0.016 : Math.Min(0.05, (now - _last).TotalSeconds);
+        if (_last != TimeSpan.Zero && (now - _last).TotalMilliseconds < 30) return; // 30 frames a second is plenty for ambient art
+        var dt = _last == TimeSpan.Zero ? 0.033 : Math.Min(0.07, (now - _last).TotalSeconds);
         _last = now;
         _time += dt;
         var w = ActualWidth;
