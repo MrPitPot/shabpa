@@ -382,18 +382,8 @@ public partial class MainWindow : Window
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();
 
-    /// <summary>Dark / light, the way Settings does it: the choice is saved and the app restarts so every screen is rebuilt.</summary>
-    private void OnThemeClick(object sender, RoutedEventArgs e)
-    {
-        var next = Ui.Theme.Light ? "night" : "white";
-        if (!ConfirmWindow.AskAlways(L.T("تغییر پوسته", "Change theme"),
-                L.T("پوسته عوض می‌شه و برنامه یه لحظه بسته و دوباره باز می‌شه. چیزی از دست نمی‌ره.", "The theme changes and the app restarts for a moment. Nothing is lost."),
-                L.T("عوض کن", "Change"), L.T("بیخیال", "Cancel"))) return;
-        Hub.I.Settings.Theme = next;
-        Hub.I.Store.Save();
-        if (Hub.I.Store.ReadOnly) return; // demo and screenshot runs never persist, so a restart would change nothing
-        (Application.Current as App)?.Restart(page: ActiveKey);
-    }
+    /// <summary>Dark / light: switches live with the reveal growing out of this button (no restart).</summary>
+    private void OnThemeClick(object sender, RoutedEventArgs e) => SwitchTheme(Ui.Theme.Light ? "night" : "white", ThemeButton);
 
     private void OnLangClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {

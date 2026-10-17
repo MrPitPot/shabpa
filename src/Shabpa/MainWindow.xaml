@@ -4,7 +4,7 @@
         xmlns:s="clr-namespace:Shabpa"
         xmlns:kit="clr-namespace:Shabpa.Kit"
         Title="{s:Tr 'شب‌پا', 'Shabpa'}" Width="1280" Height="800" MinWidth="960" MinHeight="620"
-        WindowStartupLocation="CenterScreen" Background="{StaticResource BgGradient}" Foreground="{StaticResource Text}"
+        WindowStartupLocation="CenterScreen" Background="{DynamicResource BgGradient}" Foreground="{DynamicResource Text}"
         FontFamily="{StaticResource Ui}" FontSize="13" FontWeight="Medium"
         TextOptions.TextFormattingMode="Ideal" UseLayoutRounding="True" SnapsToDevicePixels="True"
         WindowStyle="SingleBorderWindow"
@@ -18,7 +18,7 @@
         <Style x:Key="WinBtn" TargetType="Button">
             <Setter Property="Width" Value="40"/>
             <Setter Property="Height" Value="28"/>
-            <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Muted}"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
@@ -32,8 +32,8 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="b" Property="Background" Value="{StaticResource Line}"/>
-                                <Setter Property="Foreground" Value="{StaticResource Text}"/>
+                                <Setter TargetName="b" Property="Background" Value="{DynamicResource Line}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource Text}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -60,14 +60,14 @@
         <Style x:Key="NavGroup" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="{StaticResource Faint}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Faint}"/>
             <Setter Property="Margin" Value="14,14,0,3"/>
         </Style>
     </Window.Resources>
 
-    <Grid x:Name="Root" Background="{StaticResource BgGradient}">
+    <Grid x:Name="Root" Background="{DynamicResource BgGradient}">
         <!-- layer 1: the Mica plate (a veil over the wallpaper, or over the real Windows 11 material in glass mode) -->
-        <Border Background="{StaticResource MicaVeil}"/>
+        <Border Background="{DynamicResource MicaVeil}"/>
 
         <Grid x:Name="Frame">
             <Grid.RowDefinitions>
@@ -91,7 +91,7 @@
                 </StackPanel>
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
                     <Image Source="pack://application:,,,/Assets/logo.png" Width="20" Height="20" RenderOptions.BitmapScalingMode="HighQuality" FlowDirection="LeftToRight"/>
-                    <TextBlock Text="{s:Tr 'شب‌پا', 'Shabpa'}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Text}" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                    <TextBlock Text="{s:Tr 'شب‌پا', 'Shabpa'}" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Text}" Margin="10,0,0,0" VerticalAlignment="Center"/>
                 </StackPanel>
                 <Border/>
             </DockPanel>
@@ -109,8 +109,8 @@
                         <Grid x:Name="Pill" Height="42" VerticalAlignment="Top" IsHitTestVisible="False" Opacity="0" Margin="0,1,0,0">
                             <Grid.RenderTransform><TranslateTransform x:Name="PillMove"/></Grid.RenderTransform>
                             <kit:Shadow Radius="10" Blur="24" Spread="-10" OffsetY="10" Layers="7" Color="{StaticResource ShadowC}"/>
-                            <Border CornerRadius="10" Background="{StaticResource Card2Fill}" BorderBrush="{StaticResource CardRim}" BorderThickness="1"/>
-                            <Border Width="3" Margin="0,11" CornerRadius="3" HorizontalAlignment="Left" Background="{StaticResource AccentBar}"/>
+                            <Border CornerRadius="10" Background="{DynamicResource Card2Fill}" BorderBrush="{DynamicResource CardRim}" BorderThickness="1"/>
+                            <Border Width="3" Margin="0,11" CornerRadius="3" HorizontalAlignment="Left" Background="{DynamicResource AccentBar}"/>
                         </Grid>
                         <StackPanel x:Name="NavPanel">
                             <RadioButton Style="{StaticResource Nav}" Tag="home" Content="{s:Tr 'خانه', 'Home'}" x:Name="NavHome" Checked="OnNav"/>
@@ -141,36 +141,36 @@
                 </ScrollViewer>
 
                 <StackPanel Grid.Row="1" Margin="0,8,0,0">
-                    <Border x:Name="DryRunPill" Style="{StaticResource Pill}" Background="{StaticResource GoldSoft}" HorizontalAlignment="Stretch"
+                    <Border x:Name="DryRunPill" Style="{StaticResource Pill}" Background="{DynamicResource GoldSoft}" HorizontalAlignment="Stretch"
                             Margin="0,0,0,10" Visibility="Collapsed"
                             ToolTip="{s:Tr 'دستورهای برق اجرا نمی‌شن، فقط شبیه‌سازی می‌شن.', 'Power commands are only simulated, never run.'}">
-                        <TextBlock Text="{s:Tr 'حالت آزمایشی', 'Test mode'}" Foreground="{StaticResource Gold}" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                        <TextBlock Text="{s:Tr 'حالت آزمایشی', 'Test mode'}" Foreground="{DynamicResource Gold}" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center"/>
                     </Border>
                     <kit:GlassCard CornerRadius="14" Padding="14,12">
                         <StackPanel>
                             <DockPanel>
-                                <Ellipse x:Name="LiveDot" Width="7" Height="7" Fill="{StaticResource Green}" DockPanel.Dock="Left" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="SideWatts" FontFamily="{StaticResource Num}" Text="— W" FontSize="16" FontWeight="Bold" Foreground="{StaticResource Text}"
+                                <Ellipse x:Name="LiveDot" Width="7" Height="7" Fill="{DynamicResource Green}" DockPanel.Dock="Left" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="SideWatts" FontFamily="{StaticResource Num}" Text="— W" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource Text}"
                                            FlowDirection="LeftToRight" HorizontalAlignment="Right"/>
                             </DockPanel>
                             <StackPanel x:Name="SideGame" Visibility="Collapsed" Margin="0,8,0,0">
                                 <TextBlock x:Name="SideGameName" Style="{StaticResource Body}" FontWeight="SemiBold" FontSize="12.5" TextTrimming="CharacterEllipsis"/>
-                                <TextBlock x:Name="SideGameTime" Style="{StaticResource Label}" FontFamily="{StaticResource Num}" FontSize="12" FlowDirection="LeftToRight" HorizontalAlignment="Left" Foreground="{StaticResource Green}"/>
+                                <TextBlock x:Name="SideGameTime" Style="{StaticResource Label}" FontFamily="{StaticResource Num}" FontSize="12" FlowDirection="LeftToRight" HorizontalAlignment="Left" Foreground="{DynamicResource Green}"/>
                             </StackPanel>
                             <TextBlock x:Name="SideNext" Style="{StaticResource Label}" FontSize="11.5" Margin="0,6,0,0" TextWrapping="Wrap"/>
                         </StackPanel>
                     </kit:GlassCard>
                     <Border x:Name="LangChip" Height="30" CornerRadius="15" Padding="12,0" Margin="2,10,0,0" HorizontalAlignment="Left" Cursor="Hand"
-                            Background="{StaticResource CardFill}" BorderBrush="{StaticResource Line}" BorderThickness="1"
+                            Background="{DynamicResource CardFill}" BorderBrush="{DynamicResource Line}" BorderThickness="1"
                             kit:Fx.Press="0.94" MouseLeftButtonUp="OnLangClick">
-                        <TextBlock x:Name="LangText" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Muted}" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="LangText" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Muted}" VerticalAlignment="Center"/>
                     </Border>
                 </StackPanel>
             </Grid>
 
             <!-- main surface: layer 1.5, faint gradient with a rim light on its start / top edge -->
             <Border x:Name="Main" Grid.Row="1" Grid.Column="1" CornerRadius="14,0,0,0" BorderThickness="1,1,0,0"
-                    Background="{StaticResource MainBg}" BorderBrush="{StaticResource CardRim}">
+                    Background="{DynamicResource MainBg}" BorderBrush="{DynamicResource CardRim}">
                 <Grid>
                     <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
                         <StackPanel x:Name="PageStack" Margin="30,22,24,28" MaxWidth="1240" HorizontalAlignment="Stretch">
@@ -199,12 +199,12 @@
                             </TransformGroup>
                         </Grid.RenderTransform>
                         <kit:Shadow Radius="14" Blur="30" Spread="-10" OffsetY="14" Layers="8" Color="{StaticResource ShadowHoverC}" IsHitTestVisible="False"/>
-                        <Border Background="{StaticResource Ink}" CornerRadius="14" Padding="20,12">
+                        <Border Background="{DynamicResource Ink}" CornerRadius="14" Padding="20,12">
                             <DockPanel>
-                                <kit:TickMark x:Name="ToastTick" DockPanel.Dock="Left" Width="20" Height="20" Weight="2.2" Foreground="{StaticResource Green}" VerticalAlignment="Top" Margin="0,2,12,0" Progress="1"/>
+                                <kit:TickMark x:Name="ToastTick" DockPanel.Dock="Left" Width="20" Height="20" Weight="2.2" Foreground="{DynamicResource Green}" VerticalAlignment="Top" Margin="0,2,12,0" Progress="1"/>
                                 <StackPanel VerticalAlignment="Center">
-                                    <TextBlock x:Name="ToastTitle" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource OnInk}" TextWrapping="Wrap"/>
-                                    <TextBlock x:Name="ToastText" FontSize="12.5" Foreground="{StaticResource OnInk}" Opacity="0.75" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                    <TextBlock x:Name="ToastTitle" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource OnInk}" TextWrapping="Wrap"/>
+                                    <TextBlock x:Name="ToastText" FontSize="12.5" Foreground="{DynamicResource OnInk}" Opacity="0.75" Margin="0,2,0,0" TextWrapping="Wrap"/>
                                 </StackPanel>
                             </DockPanel>
                         </Border>
@@ -213,15 +213,15 @@
             </Border>
 
             <!-- footer / status line -->
-            <Border Grid.Row="2" Grid.ColumnSpan="2" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="16,0">
+            <Border Grid.Row="2" Grid.ColumnSpan="2" BorderBrush="{DynamicResource Line}" BorderThickness="0,1,0,0" Padding="16,0">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Ellipse Width="6" Height="6" Fill="{StaticResource Green}" VerticalAlignment="Center"/>
-                    <TextBlock x:Name="VersionText" FontSize="11" Foreground="{StaticResource Faint}" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                    <Ellipse Width="6" Height="6" Fill="{DynamicResource Green}" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="VersionText" FontSize="11" Foreground="{DynamicResource Faint}" Margin="10,0,0,0" VerticalAlignment="Center"/>
                 </StackPanel>
             </Border>
         </Grid>
 
         <!-- hairline round the whole window -->
-        <Border BorderBrush="{StaticResource Line}" BorderThickness="1" IsHitTestVisible="False"/>
+        <Border BorderBrush="{DynamicResource Line}" BorderThickness="1" IsHitTestVisible="False"/>
     </Grid>
 </Window>

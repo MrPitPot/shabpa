@@ -14,7 +14,7 @@
     <Grid Margin="36,24,36,46" x:Name="Sheet" RenderTransformOrigin="0.5,0.5">
         <kit:Shadow Radius="22" Blur="30" Spread="-14" OffsetY="14" Layers="9" Color="{StaticResource ShadowC}" IsHitTestVisible="False"/>
         <kit:Shadow Radius="22" Blur="3" Spread="0" OffsetY="1" Layers="3" Color="{StaticResource ShadowTightC}" IsHitTestVisible="False"/>
-        <Border Background="{StaticResource FlyoutFill}" BorderBrush="{StaticResource CardRim}" BorderThickness="1" CornerRadius="22"
+        <Border Background="{DynamicResource FlyoutFill}" BorderBrush="{DynamicResource CardRim}" BorderThickness="1" CornerRadius="22"
                 MouseLeftButtonDown="OnDrag">
             <StackPanel Margin="28,26,28,24">
                 <ContentControl x:Name="BadgeHost" HorizontalAlignment="Center" Focusable="False"/>
@@ -24,7 +24,7 @@
                 <Grid Width="176" Height="176" HorizontalAlignment="Center">
                     <kit:RingGauge x:Name="Ring" ViewSize="200" RingRadius="84" Thickness="12" Ticks="False" Knob="False"/>
                     <StackPanel VerticalAlignment="Center">
-                        <TextBlock x:Name="SecondsText" FontSize="48" FontWeight="Bold" Foreground="{StaticResource Text}" HorizontalAlignment="Center"
+                        <TextBlock x:Name="SecondsText" FontSize="48" FontWeight="Bold" Foreground="{DynamicResource Text}" HorizontalAlignment="Center"
                                    LineHeight="56" LineStackingStrategy="BlockLineHeight" FlowDirection="LeftToRight" RenderTransformOrigin="0.5,0.5"/>
                         <TextBlock Text="{s:Tr 'ثانیه', 'seconds'}" Style="{StaticResource Label}" HorizontalAlignment="Center" Margin="0,-2,0,0"/>
                     </StackPanel>

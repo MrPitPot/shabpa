@@ -38,7 +38,7 @@ public sealed class MacroBanner : Window
             Fill = (Brush)Application.Current.Resources[recording ? "Red" : "Accent"],
         };
         row.Children.Add(dot);
-        _text.Foreground = (Brush)Application.Current.Resources["Text"];
+        _text.Foreground = Ui.Live("Text");
         row.Children.Add(_text);
         if (recording)
         {
@@ -55,7 +55,7 @@ public sealed class MacroBanner : Window
         bar.Children.Add(new Border
         {
             Child = row, Padding = new Thickness(16, 11, 16, 11), CornerRadius = new CornerRadius(14),
-            Background = (Brush)Application.Current.Resources["FlyoutFill"], BorderBrush = (Brush)Application.Current.Resources["CardRim"], BorderThickness = new Thickness(1),
+            Background = Ui.Live("FlyoutFill"), BorderBrush = Ui.Live("CardRim"), BorderThickness = new Thickness(1),
         });
         Content = bar;
         _bar = bar;

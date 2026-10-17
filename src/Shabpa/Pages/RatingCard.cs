@@ -65,7 +65,7 @@ public sealed class RatingCard : GlassCard
                 StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, Margin = new Thickness(4), IsHitTestVisible = false,
             };
             // a transparent hit box around the star, so the hover is steady and the spring grows the whole thing
-            var host = new Border { Background = Application.Current.Resources["Transparent"] as Brush, Cursor = Cursors.Hand, Child = star, CornerRadius = new CornerRadius(10), Margin = new Thickness(0, 0, 4, 0) };
+            var host = new Border { Background = Ui.Live("Transparent"), Cursor = Cursors.Hand, Child = star, CornerRadius = new CornerRadius(10), Margin = new Thickness(0, 0, 4, 0) };
             Fx.Attach(host, grow: 1.18, press: 0.9);
             host.MouseEnter += (_, _) => Paint(value);
             host.MouseLeave += (_, _) => Paint(Hub.I.Settings.Rating);

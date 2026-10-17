@@ -66,7 +66,7 @@ public partial class CountdownWindow : Window
         {
             _shown = whole;
             // every second the number pops and the last five seconds turn the ring red
-            if (whole <= 5) Ring.ArcBrush = (System.Windows.Media.Brush)Application.Current.Resources["Red"];
+            if (whole <= 5) Ring.ArcBrush = Ui.Live("Red");
             if (Motion.Enabled && whole < _total)
             {
                 _tick.ScaleX = 1.14;
