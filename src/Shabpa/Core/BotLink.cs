@@ -44,7 +44,7 @@ public static class Secret
 /// Only outgoing HTTPS calls are made; nothing on the PC listens.</summary>
 public sealed class BotLink : IDisposable
 {
-    public const string DefaultEndpoint = "https://shabpa-bot.amber-garden-174c.workers.dev";
+    public const string DefaultEndpoint = "https://bot.shabpa.ir";
     public const string BotUsername = "ShabPa_Bot";
 
     internal TimeSpan PollEvery { get; init; } = TimeSpan.FromSeconds(5);

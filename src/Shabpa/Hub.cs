@@ -40,7 +40,9 @@ public sealed class Hub
     /// <summary>Support tickets (GitHub link or the project server).</summary>
     public SupportClient Support { get; }
     public Telemetry Telemetry { get; }
-    private readonly GameSessionTracker _session = new();
+    private readonly GameSessionRecorder _gameRecorder = new();
+    /// <summary>Every recorded game session (local file games.json).</summary>
+    public GameLogStore GameLog { get; }
     private readonly BreakPlanner _breaks = new();
     private readonly WakeTimer _wake = new();
     private bool _holdingAwake;
@@ -60,6 +62,8 @@ public sealed class Hub
     public Updater Updater { get; }
     public bool DryRun { get; }
     public bool Demo { get; }
+    /// <summary>The main window is on screen (set by the window); nothing asks for live numbers while it is hidden in the tray.</summary>
+    public volatile bool WindowShown;
     public SensorSnapshot Snapshot => Sensors.Latest;
     public static string ExePath => Environment.ProcessPath ?? "Shabpa.exe";
 
@@ -93,6 +97,9 @@ public sealed class Hub
         Ping = new PingMeter(() => Settings.PingHost);
         Telemetry = new Telemetry(() => Sensors.Latest, () => Ping.Samples);
         Telemetry.UseBoardSensors = Settings.Overlay.BoardSensors && !demo;
+        Telemetry.LogWhileGameAlive = Settings.GameLog && !demo;
+        Sensors.InteractiveCheck = () => WindowShown || Telemetry.HasDemand;
+        GameLog = new GameLogStore(Store.Folder, readOnly: store.ReadOnly || demo);
         Updater = new Updater(() => Settings);
         if (Settings.Support.DeviceId.Length != 32) Settings.Support.DeviceId = Guid.NewGuid().ToString("N");
         Support = new SupportClient(() => Settings.Support, () => Settings.ProxyUrl);
@@ -136,6 +143,7 @@ public sealed class Hub
             _pendingMissed = startupMissed;
         }
 
+        if (!Demo) GameLog.Load();
         Traffic.Load(State.NetUsage, DateTime.Now);
         if (Demo) Usage.FillDemo(DateTime.Now);
         else Usage.Load(UsageFile);
@@ -191,6 +199,7 @@ public sealed class Hub
         _wake.Dispose();
         Sensors.Dispose();
         Telemetry.Dispose();
+        if (_gameRecorder.Flush(DateTime.Now) is { } last) GameLog.Add(last);
         Bot.Dispose();
         Ping.Dispose();
         _net?.Dispose();
@@ -463,13 +472,83 @@ public sealed class Hub
 
     private void OnTelemetryForReport(TelemetrySample sample)
     {
-        if (!Settings.GameReports) return;
-        long down = 0, up = 0;
-        if (sample.Game.Length > 0 && Apps.FirstOrDefault(a => a.Key == sample.Game) is { } app)
-            (down, up) = (app.DownBytes, app.UpBytes);
-        var report = _session.Update(sample, down, up);
-        if (report is not null) Application.Current?.Dispatcher.BeginInvoke(() => AnnounceReport(report));
+        var key = Settings.GameLog ? sample.GameKey : "";
+        Telemetry.LogWhileGameAlive = Settings.GameLog;
+        if (key.Length == 0 && !_gameRecorder.Active) return;
+        var now = sample.Time;
+        FinishedSession? done;
+        if (key.Length > 0 && !_gameRecorder.Wants(now) && string.Equals(key, _gameRecorder.Key, StringComparison.OrdinalIgnoreCase)) done = null;
+        else
+        {
+            long down = 0, up = 0;
+            var known = false;
+            if (key.Length > 0)
+            {
+                var apps = Apps;
+                for (var i = 0; i < apps.Count; i++)
+                    if (apps[i].Key == key) { (down, up, known) = (apps[i].DownBytes, apps[i].UpBytes, true); break; }
+            }
+            done = _gameRecorder.Feed(new RecorderInput(now, key, sample.GameName, sample.CpuLoad, sample.GpuLoad ?? 0, sample.CpuTempC, sample.Gpu.TempC,
+                sample.RamPercent, sample.DownMbps, sample.UpMbps, sample.Fps, down, up, known));
+        }
+        if (key.Length > 0 && _gameRecorder.TryBeginProcessLook(now))
+            _ = Task.Run(async () => _gameRecorder.AddProcessLook(key, await ProcessProbe.Measure(key).ConfigureAwait(false)));
+        if (done is not null) FinishSession(done);
     }
+
+    private void FinishSession(FinishedSession done)
+    {
+        GameLog.Add(done);
+        Application.Current?.Dispatcher.BeginInvoke(() => AnnounceSession(done));
+    }
+
+    /// <summary>The summary shown when a game ends: time, internet, temperatures and peak load.</summary>
+    public static string DescribeSession(FinishedSession f)
+    {
+        var r = f.Record;
+        var lines = new List<string> { L.T($"🎮 {f.Name} · {Fa.Duration(r.Length)}", $"🎮 {f.Name} · {Fa.Duration(r.Length)}") };
+        if (r.DownBytes + r.UpBytes > 1_000_000)
+            lines.Add(L.T($"اینترنت بازی: ↓{Fa.Bytes(r.DownBytes)} ↑{Fa.Bytes(r.UpBytes)}" + (r.NetApprox ? " (کل سیستم)" : ""),
+                $"Internet: ↓{Fa.Bytes(r.DownBytes)} ↑{Fa.Bytes(r.UpBytes)}" + (r.NetApprox ? " (whole PC)" : "")));
+        var temps = new List<string>();
+        if (r.Stat(GameMetric.GpuTemp) is { } g) temps.Add(L.T($"گرافیک {Fa.N(g.Avg, 0)}° (تا {Fa.N(g.Max, 0)}°)", $"GPU {Fa.N(g.Avg, 0)}° (up to {Fa.N(g.Max, 0)}°)"));
+        if (r.Stat(GameMetric.CpuTemp) is { } c) temps.Add(L.T($"پردازنده {Fa.N(c.Avg, 0)}° (تا {Fa.N(c.Max, 0)}°)", $"CPU {Fa.N(c.Avg, 0)}° (up to {Fa.N(c.Max, 0)}°)"));
+        if (temps.Count > 0) lines.Add(L.T("دما: ", "Temperature: ") + string.Join(L.Comma, temps));
+        var load = new List<string>();
+        if (r.Stat(GameMetric.GpuLoad) is { } gl) load.Add(L.T($"گرافیک تا {Fa.N(gl.Max, 0)}٪", $"GPU up to {Fa.N(gl.Max, 0)}%"));
+        if (r.Stat(GameMetric.CpuLoad) is { } cl) load.Add(L.T($"پردازنده تا {Fa.N(cl.Max, 0)}٪", $"CPU up to {Fa.N(cl.Max, 0)}%"));
+        if (r.Stat(GameMetric.Ram) is { } rm) load.Add(L.T($"رم تا {Fa.N(rm.Max, 0)}٪", $"RAM up to {Fa.N(rm.Max, 0)}%"));
+        if (load.Count > 0) lines.Add(L.T("بیشترین مصرف: ", "Peak use: ") + string.Join(L.Comma, load));
+        if (r.Stat(GameMetric.Fps) is { } f2) lines.Add(L.T($"فریم بر ثانیه: میانگین {Fa.N(f2.Avg, 0)}", $"FPS: average {Fa.N(f2.Avg, 0)}"));
+        return string.Join('\n', lines);
+    }
+
+    private void AnnounceSession(FinishedSession f)
+    {
+        var r = f.Record;
+        var fps = r.Stat(GameMetric.Fps);
+        State.GameHistory.Add(new GameLogEntry
+        {
+            Game = f.Name, Start = r.Start, Minutes = r.Seconds / 60.0, AvgFps = fps?.Avg ?? 0, MaxGpuTemp = r.Stat(GameMetric.GpuTemp)?.Max ?? 0,
+            AvgGpuLoad = r.Stat(GameMetric.GpuLoad)?.Avg ?? 0,
+        });
+        if (State.GameHistory.Count > 60) State.GameHistory.RemoveRange(0, State.GameHistory.Count - 60);
+        Store.Save();
+        ComfortUpdated?.Invoke();
+        if (!Settings.GameReports) return;
+        var text = DescribeSession(f);
+        Notify(L.T("گزارش بازی", "Game report"), text, "playtime:" + f.Key);
+        Bot.Notify("game", text);
+    }
+
+    /// <summary>The page the last notice leads to when clicked ("playtime:csgo2"), or null.</summary>
+    public string? NoticeTarget { get; private set; }
+    public event Action<string>? OpenPage;
+    public void OpenNoticeTarget()
+    {
+        if (NoticeTarget is { } t) OpenPage?.Invoke(t);
+    }
+    public void RequestPage(string key) => OpenPage?.Invoke(key);
 
     public static string DescribeReport(GameReport r)
     {
@@ -487,17 +566,6 @@ public sealed class Hub
         if (r.DownBytes + r.UpBytes > 1_000_000)
             lines.Add(L.T($"اینترنت بازی: ↓{Fa.Bytes(r.DownBytes)} ↑{Fa.Bytes(r.UpBytes)}", $"Game traffic: ↓{Fa.Bytes(r.DownBytes)} ↑{Fa.Bytes(r.UpBytes)}"));
         return string.Join("\n", lines);
-    }
-
-    private void AnnounceReport(GameReport report)
-    {
-        State.GameHistory.Add(GameLogEntry.From(report));
-        if (State.GameHistory.Count > 60) State.GameHistory.RemoveRange(0, State.GameHistory.Count - 60);
-        Store.Save();
-        ComfortUpdated?.Invoke();
-        var text = DescribeReport(report);
-        Notify(L.T("گزارش بازی", "Game report"), text);
-        Bot.Notify("game", text);
     }
 
     private DateTime _lastBudgetCheck = DateTime.MinValue;
@@ -1551,13 +1619,14 @@ public sealed class Hub
     /// <summary>The last notices shown, newest last; memory only (they may mention task titles).</summary>
     public List<(DateTime Time, string Title, string Text)> Notices { get; } = [];
 
-    public void Notify(string title, string text)
+    public void Notify(string title, string text, string? target = null)
     {
         if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
         {
-            dispatcher.BeginInvoke(() => Notify(title, text));
+            dispatcher.BeginInvoke(() => Notify(title, text, target));
             return;
         }
+        NoticeTarget = target;
         Notices.Add((DateTime.Now, title, text));
         if (Notices.Count > 30) Notices.RemoveAt(0);
         // game mode: nothing pops up over the game; it is all in the notice list afterwards
@@ -1597,10 +1666,19 @@ public sealed class Hub
     }
 
     /// <summary>Sample data for --demo runs; never written to disk.</summary>
+    /// <summary>Fake sessions in memory (demo runs); with <paramref name="save"/> they are written to the data folder instead (--demo-games, scratch folders only).</summary>
+    public void SeedGameLog(DateTime now, bool save = false)
+    {
+        var (games, series) = GameLogDemo.Make(now);
+        GameLog.Seed(games, id => series.GetValueOrDefault(id) ?? new SessionSeries());
+        if (save) GameLog.SaveWithSeries(series);
+    }
+
     public void FillDemo()
     {
         var now = DateTime.Now;
         var random = new Random(7);
+        SeedGameLog(now);
         Settings.Launchers =
         [
             new LauncherInfo { Key = "steam", Name = "Steam", ExePath = @"C:\Program Files (x86)\Steam\steam.exe", Process = "steam" },

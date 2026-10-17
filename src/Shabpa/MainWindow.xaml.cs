@@ -21,7 +21,7 @@ public partial class MainWindow : Window
 
     /// <summary>Every screen worth a screenshot, including the tabs inside «کنترل سیستم».</summary>
     public IEnumerable<string> CaptureKeys =>
-        ["home", .. SystemPage.TabKeys.Select(t => $"system:{t}"), .. NetworkPage.TabKeys.Select(t => $"ping:{t}"), "gaming", "weather", "dns", "download", "comfort", "tasks", .. TasksPage.TabKeys.Select(t => $"tasks:{t}"), "files", .. FilesPage.TabKeys.Select(t => $"files:{t}"), "health", .. HealthPage.TabKeys.Select(t => $"health:{t}"), "profiles", .. ProfilesPage.TabKeys.Select(t => $"profiles:{t}"), "mic", "support", "update", "settings", "kit"];
+        ["home", .. SystemPage.TabKeys.Select(t => $"system:{t}"), .. NetworkPage.TabKeys.Select(t => $"ping:{t}"), "gaming", "playtime", "playtime:eldenring", "weather", "dns", "download", "comfort", "tasks", .. TasksPage.TabKeys.Select(t => $"tasks:{t}"), "files", .. FilesPage.TabKeys.Select(t => $"files:{t}"), "health", .. HealthPage.TabKeys.Select(t => $"health:{t}"), "profiles", .. ProfilesPage.TabKeys.Select(t => $"profiles:{t}"), "mic", "support", "update", "settings", "kit"];
 
     public FrameworkElement CaptureRoot => Root;
 
@@ -55,6 +55,7 @@ public partial class MainWindow : Window
             ["comfort"] = (NavComfort, () => new ComfortPage()),
             ["profiles"] = (NavProfiles, () => new ProfilesPage()),
             ["gaming"] = (NavGaming, () => new OverlayPage()),
+            ["playtime"] = (NavPlaytime, () => new GameLogPage()),
             ["ping"] = (NavPing, () => new NetworkPage()),
             ["dns"] = (NavDns, () => new DnsPage()),
             ["download"] = (NavDownload, () => new DownloadsPage()),
@@ -72,6 +73,7 @@ public partial class MainWindow : Window
         var hub = Hub.I;
         DryRunPill.Visibility = hub.DryRun ? Visibility.Visible : Visibility.Collapsed;
         // Nobody sees a hidden window, so it is not redrawn every second; showing it again refreshes everything.
+        hub.OpenPage += Navigate;
         hub.Changed += () => { if (!Shown) return; _current?.Refresh(); UpdateSide(); };
         hub.Tick += s => { if (!Shown) return; _current?.OnTick(s); UpdateSide(); };
         hub.Second += () => { if (Shown) { _current?.OnSecond(); UpdateSide(); } };
@@ -224,7 +226,11 @@ public partial class MainWindow : Window
         ToastMove.BeginAnimation(System.Windows.Media.TranslateTransform.YProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 14, TimeSpan.FromMilliseconds(200)));
     }
 
-    private void OnToastClick(object sender, System.Windows.Input.MouseButtonEventArgs e) => HideToast();
+    private void OnToastClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        HideToast();
+        Hub.I.OpenNoticeTarget();
+    }
 
     protected override void OnSourceInitialized(EventArgs e)
     {
@@ -255,6 +261,7 @@ public partial class MainWindow : Window
 
     private void OnShownChanged()
     {
+        Hub.I.WindowShown = Shown;
         if (Shown)
         {
             _release.Stop();
@@ -288,6 +295,7 @@ public partial class MainWindow : Window
         var page = Page(parts[0]);
         if (parts.Length > 1 && page is SystemPage system) system.Select(parts[1]);
         if (parts.Length > 1 && page is TabsPage tabs) tabs.Select(parts[1]);
+        if (page is GameLogPage log) log.Open(parts.Length > 1 ? parts[1] : null);
         if (entry.nav.IsChecked != true)
         {
             entry.nav.IsChecked = true; // re-enters through OnNav

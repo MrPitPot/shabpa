@@ -25,7 +25,7 @@ public sealed class SettingsPage : PageBase
     private readonly FrameworkElement GlassLevelRow;
 
     // behaviour
-    private readonly Switch AutostartCheck = new(), ConfirmCheck = new(), ReportCheck = new(), AnimCheck = new(), SoundCheck = new(), SoftwareCheck = new(), LowMemoryCheck = new(), MinimizedCheck = new();
+    private readonly Switch AutostartCheck = new(), ConfirmCheck = new(), ReportCheck = new(), GameLogCheck = new(), AnimCheck = new(), SoundCheck = new(), SoftwareCheck = new(), LowMemoryCheck = new(), MinimizedCheck = new();
     private readonly TextBlock AutostartHint = new() { Style = St("Label"), FontSize = 11.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 2) };
 
     // power estimate
@@ -111,7 +111,10 @@ public sealed class SettingsPage : PageBase
         behaviourBody.Children.Add(SwitchRow(ConfirmCheck, L.T("قبل از هر کار تایید بگیر", "Ask before every action"),
             L.T("قبل از زمان‌بندی، حذف، قفل کردن و خالی کردن رم یه پیام تایید با زمان دقیق نشون می‌ده.", "Shows a confirmation with the exact time before scheduling, deleting, locking or freeing RAM.")));
         behaviourBody.Children.Add(SwitchRow(ReportCheck, L.T("بعد از هر بازی گزارش بده", "Report after every game"),
-            L.T("فریم بر ثانیه، پینگ، دمای کارت و حجم اینترنت بازی؛ با تلگرام هم می‌فرسته.", "Frame rate, ping, GPU temperature and the data the game used; also sent to Telegram.")));
+            L.T("وقتی بازی بسته شد: مدت بازی، اینترنت مصرفی، دماها و بیشترین مصرف؛ با کلیک روش گزارش کامل باز می‌شه. با تلگرام هم می‌فرسته.", "When a game closes: play time, internet used, temperatures and peak load; click it for the full log. Also sent to Telegram.")));
+        behaviourBody.Children.Add(SwitchRow(GameLogCheck, L.T("ثبت نوبت‌های بازی (زمان بازی)", "Log game sessions (Playtime)"),
+            L.T("زمان بازی، دماها، مصرف و برنامه‌های پس‌زمینه‌ی هر نوبت رو روی همین کامپیوتر ذخیره می‌کنه و تو صفحه‌ی «زمان بازی» نشون می‌ده. چیزی جایی فرستاده نمی‌شه.",
+                "Keeps play time, temperatures, load and background programs of each session on this PC for the Playtime page. Nothing is uploaded.")));
         behaviourBody.Children.Add(SwitchRow(AnimCheck, L.T("انیمیشن‌ها", "Animations"),
             L.T("حرکت نرم صفحه‌ها و دکمه‌ها. اگه ویندوز انیمیشن‌ها رو خاموش کرده باشه، این‌جا هم خاموش می‌مونن.", "Smooth motion for pages and buttons. If Windows has animations turned off, they stay off here too.")));
         behaviourBody.Children.Add(SwitchRow(SoundCheck, L.T("صدای ریز موقع حرکت ماوس (آزمایشی)", "Tiny sounds on hover (experimental)"),
@@ -123,7 +126,7 @@ public sealed class SettingsPage : PageBase
             L.T("کم‌مصرف‌ترین حالت: انیمیشن‌ها و صدای رابط خاموش می‌شن، پنجره به‌جای کارت گرافیک با پردازنده کشیده می‌شه (حدود ۴۵ مگ رم کمتر) و حافظه‌ی بلااستفاده زودتر برگردونده می‌شه. برنامه دوباره باز می‌شه.",
                 "The lightest mode: animations and interface sounds are off, the window is drawn by the processor instead of the graphics card (about 45 MB less RAM) and unused memory is handed back sooner. The app restarts.")));
         behaviourBody.Children.Add(SwitchRow(MinimizedCheck, L.T("همیشه بی‌صدا کنار ساعت باز بشه", "Always start quietly in the tray"), null));
-        foreach (var sw in new[] { AutostartCheck, ConfirmCheck, ReportCheck, AnimCheck, SoundCheck, MinimizedCheck }) sw.Click += OnBehaviour;
+        foreach (var sw in new[] { AutostartCheck, ConfirmCheck, ReportCheck, GameLogCheck, AnimCheck, SoundCheck, MinimizedCheck }) sw.Click += OnBehaviour;
         SoftwareCheck.Click += OnSoftware;
         LowMemoryCheck.Click += OnLowMemory;
         SoftwareCheck.IsChecked = !s.SoftwareRender && !s.LowMemory; // on = the graphics card draws the window
@@ -319,6 +322,7 @@ public sealed class SettingsPage : PageBase
         MinimizedCheck.IsChecked = Hub.Settings.StartMinimized;
         ConfirmCheck.IsChecked = Hub.Settings.ConfirmActions;
         ReportCheck.IsChecked = Hub.Settings.GameReports;
+        GameLogCheck.IsChecked = Hub.Settings.GameLog;
         RefreshNotices();
         AnimCheck.IsChecked = Hub.Settings.Animations;
         SoundCheck.IsChecked = Hub.Settings.UiSounds;
@@ -440,6 +444,8 @@ public sealed class SettingsPage : PageBase
         Hub.Settings.StartMinimized = MinimizedCheck.IsChecked == true;
         Hub.Settings.ConfirmActions = ConfirmCheck.IsChecked == true;
         Hub.Settings.GameReports = ReportCheck.IsChecked == true;
+        Hub.Settings.GameLog = GameLogCheck.IsChecked == true;
+        Hub.Telemetry.LogWhileGameAlive = Hub.Settings.GameLog;
         Hub.Settings.Animations = AnimCheck.IsChecked == true;
         Hub.Settings.UiSounds = SoundCheck.IsChecked == true;
         Hub.Store.Save();

@@ -29,6 +29,9 @@ public sealed record TelemetrySample
     public double UpMbps { get; init; }
     public bool InGame { get; init; }
     public string Game { get; init; } = "";
+    /// <summary>The recognised game's program while it lives, also when another window is in front; "" when none.</summary>
+    public string GameKey { get; init; } = "";
+    public string GameName { get; init; } = "";
     public TimeSpan GameTime { get; init; }
 
     public double? GpuLoad => Gpu.LoadPercent;
@@ -69,6 +72,10 @@ public sealed class Telemetry : IDisposable
     private DateTime? _gameStarted;
     private string _fpsError = "";
     private bool _wasActive;
+    private volatile bool _background;
+
+    /// <summary>Keep sampling (slowly) while a game runs behind another window, for the game log.</summary>
+    public volatile bool LogWhileGameAlive;
 
     public TelemetrySample Latest { get; private set; } = new();
     public event Action<TelemetrySample>? Updated;
@@ -128,6 +135,9 @@ public sealed class Telemetry : IDisposable
 
     public void Release() => Interlocked.Decrement(ref _demand);
 
+    /// <summary>Someone (overlay, graphics page) is looking at live numbers.</summary>
+    public bool HasDemand => Volatile.Read(ref _demand) > 0;
+
     public IReadOnlyList<TelemetrySample> History()
     {
         lock (_gate) return [.. _history];
@@ -141,16 +151,21 @@ public sealed class Telemetry : IDisposable
         while (true)
         {
             var sensors = _sensors();
-            var active = Volatile.Read(ref _demand) > 0 || sensors.GameRunning;
-            var signalled = WaitHandle.WaitAny([_stop.WaitHandle, _wake.WaitHandle], active ? 1000 : 3000);
+            var foreground = Volatile.Read(ref _demand) > 0 || sensors.GameRunning;
+            // a game that is running behind another window is still logged, but only every 5 s and without frame counting
+            _background = !foreground && LogWhileGameAlive && sensors.GameKey.Length > 0;
+            var active = foreground || _background;
+            var signalled = WaitHandle.WaitAny([_stop.WaitHandle, _wake.WaitHandle], foreground ? 1000 : _background ? 5000 : 3000);
             if (signalled == 0) break;
             if (signalled == 1)
             {
                 _wake.Reset();
                 active = true;
+                _background = false;
             }
             try
             {
+                if (_background) StopFps();
                 if (!active)
                 {
                     StopFps();
@@ -240,7 +255,7 @@ public sealed class Telemetry : IDisposable
             _board = null;
         }
 
-        var (fps, low, frameMs, fpsProcess) = ReadFrames();
+        var (fps, low, frameMs, fpsProcess) = _background ? (0, 0, 0, "") : ReadFrames();
         return new TelemetrySample
         {
             Time = now,
@@ -264,6 +279,8 @@ public sealed class Telemetry : IDisposable
             UpMbps = sensors.UpMbps,
             InGame = sensors.GameRunning,
             Game = sensors.GameProcess,
+            GameKey = sensors.GameKey,
+            GameName = sensors.GameName,
             GameTime = _gameStarted is { } started ? now - started : TimeSpan.Zero,
         };
     }
@@ -349,22 +366,32 @@ public sealed class Telemetry : IDisposable
                 if (_fps.Busiest(p => !IsShell(p)) is not { } busy) return (0, 0, 0, "");
                 (pid, stats) = busy;
             }
-            string name;
-            try
-            {
-                using var process = Process.GetProcessById(pid);
-                name = process.ProcessName;
-            }
-            catch
-            {
-                name = "";
-            }
-            return (stats.Fps, stats.OnePercentLowFps, stats.AverageFrameMs, name);
+            return (stats.Fps, stats.OnePercentLowFps, stats.AverageFrameMs, NameOf(pid));
         }
         catch
         {
             return (0, 0, 0, "");
         }
+    }
+
+    private int _namePid;
+    private string _name = "";
+
+    /// <summary>The program's name, looked up once per process instead of once a second.</summary>
+    private string NameOf(int pid)
+    {
+        if (pid == _namePid && _name.Length > 0) return _name;
+        try
+        {
+            using var process = Process.GetProcessById(pid);
+            _name = process.ProcessName;
+            _namePid = pid;
+        }
+        catch
+        {
+            _name = "";
+        }
+        return _name;
     }
 
     private static readonly HashSet<string> ShellNames = new(StringComparer.OrdinalIgnoreCase)
