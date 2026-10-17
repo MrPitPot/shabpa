@@ -1,13 +1,10 @@
-# Code signing policy
+# Code signing policy (no certificate at the moment)
 
-Shabpa's release installer and application are meant to be digitally signed so that Windows can show who published them.
+Shabpa's releases are currently **not code-signed**. Windows SmartScreen may show a warning: *More info -> Run anyway*.
+The SHA-256 of every installer is published next to it so you can verify the download. A free-signing application to the
+SignPath Foundation was not accepted (2026-10-17); signing may be revisited later, and this page will say so if it happens.
 
-> Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org).
-
-The project has applied to the SignPath Foundation for this. Until the application is accepted, releases are unsigned and
-Windows SmartScreen may show a warning: *More info → Run anyway*. The SHA-256 of every installer is published next to it.
-
-## What is signed
+## What would be signed if signing is set up
 
 - `ShabpaSetup.exe` (the installer) and `Shabpa.exe` (the application) of every official release.
 - Only files built from this repository's public source by the project's own build. Nothing from third parties is signed
@@ -22,7 +19,7 @@ Windows SmartScreen may show a warning: *More info → Run anyway*. The SHA-256 
 | Reviewer of changes | [MrPitPot](https://github.com/MrPitPot) (pull requests from others are reviewed before merging) |
 | Approver of a signing request | [MrPitPot](https://github.com/MrPitPot) |
 
-Everyone with a role uses two-factor authentication on GitHub and SignPath.
+Everyone with a role uses two-factor authentication on GitHub.
 
 ## Privacy
 

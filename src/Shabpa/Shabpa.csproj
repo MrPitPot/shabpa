@@ -11,7 +11,7 @@
     <RootNamespace>Shabpa</RootNamespace>
     <ApplicationIcon>Assets\shabpa.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>3.4.0</Version>
+    <Version>3.5.0</Version>
     <Product>Shabpa</Product>
     <Company>Mr.PitPot</Company>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
@@ -22,7 +22,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="5" />
+    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="9" />
   </ItemGroup>
 
   <ItemGroup>

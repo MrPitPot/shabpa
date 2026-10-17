@@ -1,7 +1,9 @@
 using System.IO;
+using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
 using Shabpa.Core;
+using Shabpa.Kit;
 
 namespace Shabpa.Pages;
 
@@ -23,12 +25,15 @@ public sealed class ProfilesPage : TabsPage
 
 public sealed class ProfileListPage : PageBase
 {
-    private readonly StackPanel _list = new();
+    private readonly AutoColumns _list = new() { MinColumnWidth = 440, Margin = new Thickness(-8, 8, -8, 0) };
     private readonly StackPanel _editor = new();
     private readonly Button _undo = new() { Style = St("Btn"), Visibility = Visibility.Collapsed, Margin = new Thickness(0, 10, 8, 0) };
     private readonly TextBlock _hint = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
     private WorkProfile? _draft;
     private Guid? _editingId;
+    private readonly HashSet<Guid> _seen = [];
+    private bool _listShown, _closing;
+    private int _newRow = -1;
 
     public override string PageTitle => L.T("پروفایل‌ها", "Profiles");
     public override string PageSubtitle => L.T("با یه کلیک چند کار رو با هم انجام بده: نور صفحه، صدا، تمرکز، یادآور استراحت و بیشتر.",
@@ -38,29 +43,28 @@ public sealed class ProfileListPage : PageBase
     {
         var root = new StackPanel();
         var (card, body) = Ui2.Card(L.T("پروفایل‌های تو", "Your profiles"));
-        var tools = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
-        var add = new Button { Style = St("BtnPrimary"), Content = L.T("پروفایل جدید", "New profile"), Margin = new Thickness(0, 0, 8, 0) };
+        card.Margin = new Thickness(0);
+        var tools = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
+        var add = new Button { Style = St("BtnPrimary"), Content = GroupB.IconText("plus", L.T("پروفایل جدید", "New profile")), Margin = new Thickness(0, 0, 8, 6) };
         add.Click += (_, _) => Edit(new WorkProfile { Name = "", Actions = [] }, null);
         tools.Children.Add(add);
         _undo.Click += (_, _) =>
         {
             if (Hub.UndoProfile()) Refresh();
         };
-        _undo.Margin = new Thickness(0, 0, 8, 0);
+        _undo.Margin = new Thickness(0, 0, 8, 6);
         tools.Children.Add(_undo);
-        var export = new Button { Style = St("Btn"), Content = L.T("خروجی گرفتن…", "Export…"), Margin = new Thickness(0, 0, 8, 0) };
+        var export = new Button { Style = St("Btn"), Content = L.T("خروجی گرفتن…", "Export…"), Margin = new Thickness(0, 0, 8, 6) };
         export.Click += (_, _) => Export();
-        var import = new Button { Style = St("Btn"), Content = L.T("وارد کردن…", "Import…") };
+        var import = new Button { Style = St("Btn"), Content = L.T("وارد کردن…", "Import…"), Margin = new Thickness(0, 0, 0, 6) };
         import.Click += (_, _) => Import();
         tools.Children.Add(export);
         tools.Children.Add(import);
         body.Children.Add(tools);
         body.Children.Add(_hint);
-        _editor.Margin = new Thickness(0, 4, 0, 0);
-        body.Children.Add(_editor);
-        _list.Margin = new Thickness(0, 6, 0, 0);
-        body.Children.Add(_list);
         root.Children.Add(card);
+        root.Children.Add(_editor);
+        root.Children.Add(_list);
         Content = root;
         Hub.ProfilesChanged += () => Dispatcher.BeginInvoke(() =>
         {
@@ -74,38 +78,86 @@ public sealed class ProfileListPage : PageBase
         RefreshList();
     }
 
+    private static readonly string[] Hues = ["HueA", "HueB", "HueC", "HueD", "HueE"];
+
+    private static string KindIcon(string kind) => kind switch
+    {
+        ActionKinds.Dim => "sun",
+        ActionKinds.Volume => "bell",
+        ActionKinds.RamClean => "brush",
+        ActionKinds.Focus => "clk",
+        ActionKinds.Breaks => "alarm",
+        ActionKinds.SleepMode => "moon",
+        ActionKinds.PowerLater => "pw",
+        _ => "bell",
+    };
+
     private void RefreshList()
     {
         _undo.Visibility = Hub.CanUndoProfile ? Visibility.Visible : Visibility.Collapsed;
         _undo.Content = L.T("برگردوندن به حالت قبل از پروفایل", "Undo the last profile");
         _list.Children.Clear();
         if (Hub.State.Profiles.Count == 0)
-            _list.Children.Add(new TextBlock { Text = L.T("پروفایلی نداری. یکی بساز.", "No profiles. Create one."), Style = St("Body"), Margin = new Thickness(0, 10, 0, 0) });
-        foreach (var profile in Hub.State.Profiles.ToList()) _list.Children.Add(Card(profile));
+            _list.Children.Add(new TextBlock { Text = L.T("پروفایلی نداری. یکی بساز.", "No profiles. Create one."), Style = St("Body"), Margin = new Thickness(8, 10, 8, 0) });
+        var index = 0;
+        var fresh = 0;
+        foreach (var profile in Hub.State.Profiles.ToList())
+        {
+            var card = Card(profile, Hues[index++ % Hues.Length]);
+            _list.Children.Add(card);
+            // a profile that was just created or copied rises in; the first fill is covered by the page entrance
+            if (_listShown && !_seen.Contains(profile.Id)) GroupB.Appear(card, fresh++);
+            _seen.Add(profile.Id);
+        }
+        _listShown = true;
     }
 
-    private FrameworkElement Card(WorkProfile profile)
+    private FrameworkElement Card(WorkProfile profile, string hue)
     {
-        var box = new Border
-        {
-            Background = Res("Panel2"), BorderBrush = Res("Line"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(14),
-            Padding = new Thickness(14, 12, 14, 12), Margin = new Thickness(0, 10, 0, 0),
-        };
+        var box = new GlassCard { Padding = new Thickness(22, 20, 22, 14), Margin = new Thickness(8), Lift = true };
         var s = new StackPanel();
-        s.Children.Add(new TextBlock { Text = profile.Name, Style = St("H2"), FontSize = 15 });
-        if (profile.Actions.Count == 0) s.Children.Add(new TextBlock { Text = L.T("هنوز کاری نداره.", "No actions yet."), Style = St("Label"), Margin = new Thickness(0, 4, 0, 0) });
-        foreach (var a in profile.Actions)
-            s.Children.Add(new TextBlock { Text = "• " + Core.Profiles.Describe(a) + (ActionKinds.IsPower(a.Kind) ? "  ⚠" : ""), Style = St("Body"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) });
-        var buttons = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
-        Button B(string text, Action click, string style = "Btn")
+        var head = new Grid();
+        head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        head.ColumnDefinitions.Add(new ColumnDefinition());
+        head.Children.Add(new IconBadge("user", hue, 42, 20, 12) { VerticalAlignment = VerticalAlignment.Center });
+        var titles = new StackPanel { Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        titles.Children.Add(new TextBlock { Text = profile.Name, Style = St("H2"), FontSize = 15, TextTrimming = TextTrimming.CharacterEllipsis });
+        titles.Children.Add(new TextBlock
         {
-            var b = new Button { Style = St(style), Content = text, Margin = new Thickness(0, 0, 8, 6) };
+            Text = profile.Actions.Count == 0 ? L.T("هنوز کاری نداره.", "No actions yet.") : L.T($"{Fa.Digits(profile.Actions.Count.ToString())} کار", profile.Actions.Count == 1 ? "1 action" : $"{profile.Actions.Count} actions"),
+            Style = St("Label"), Margin = new Thickness(0, 2, 0, 0),
+        });
+        Grid.SetColumn(titles, 1);
+        head.Children.Add(titles);
+        s.Children.Add(head);
+
+        var actions = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
+        foreach (var a in profile.Actions)
+        {
+            var line = new Grid { Margin = new Thickness(0, 3, 0, 3) };
+            line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            line.ColumnDefinitions.Add(new ColumnDefinition());
+            line.Children.Add(new Icon(KindIcon(a.Kind), 16, Res(ActionKinds.IsPower(a.Kind) ? "Gold" : "Accent")) { Margin = new Thickness(0, 4, 10, 0), VerticalAlignment = VerticalAlignment.Top });
+            var text = new TextBlock { Style = St("Body"), TextWrapping = TextWrapping.Wrap };
+            text.Inlines.Add(new System.Windows.Documents.Run(Core.Profiles.Describe(a)));
+            if (ActionKinds.IsPower(a.Kind)) text.Inlines.Add(new System.Windows.Documents.Run("  ⚠") { Foreground = Res("Gold") });
+            Grid.SetColumn(text, 1);
+            line.Children.Add(text);
+            actions.Children.Add(line);
+        }
+        if (profile.Actions.Count > 0) s.Children.Add(actions);
+
+        s.Children.Add(new Border { Height = 1, Background = Res("Line"), Margin = new Thickness(0, 12, 0, 12) });
+        var buttons = new WrapPanel();
+        Button B(string icon, string text, Action click, string style = "Btn")
+        {
+            var b = new Button { Style = St(style), Content = GroupB.IconText(icon, text, 15), Margin = new Thickness(0, 0, 8, 6) };
             b.Click += (_, _) => click();
             return b;
         }
-        buttons.Children.Add(B(L.T("اجرا", "Run"), () => RunNow(profile), "BtnPrimary"));
-        buttons.Children.Add(B(L.T("ویرایش", "Edit"), () => Edit(Clone(profile), profile.Id)));
-        buttons.Children.Add(B(L.T("کپی", "Duplicate"), () =>
+        buttons.Children.Add(B("play", L.T("اجرا", "Run"), () => RunNow(profile), "BtnPrimary"));
+        buttons.Children.Add(B("edit", L.T("ویرایش", "Edit"), () => Edit(Clone(profile), profile.Id)));
+        buttons.Children.Add(B("plus", L.T("کپی", "Duplicate"), () =>
         {
             var copy = Clone(profile);
             copy.Id = Guid.NewGuid();
@@ -114,13 +166,16 @@ public sealed class ProfileListPage : PageBase
             Hub.Store.Save();
             RefreshList();
         }));
-        buttons.Children.Add(B(L.T("حذف", "Delete"), () =>
+        buttons.Children.Add(B("trash", L.T("حذف", "Delete"), () =>
         {
             if (!ConfirmWindow.Ask(L.T("حذف پروفایل", "Delete profile"), L.T($"«{profile.Name}» و خودکارسازی‌های وابسته‌اش حذف می‌شن.", $"“{profile.Name}” and the automations that use it are deleted."), L.T("حذف کن", "Delete"), danger: true)) return;
-            Hub.State.Profiles.Remove(profile);
-            Hub.State.Triggers.RemoveAll(t => t.ProfileId == profile.Id);
-            Hub.Store.Save();
-            RefreshList();
+            GroupB.Vanish(box, () =>
+            {
+                Hub.State.Profiles.Remove(profile);
+                Hub.State.Triggers.RemoveAll(t => t.ProfileId == profile.Id);
+                Hub.Store.Save();
+                RefreshList();
+            });
         }, "BtnDanger"));
         s.Children.Add(buttons);
         box.Child = s;
@@ -153,28 +208,34 @@ public sealed class ProfileListPage : PageBase
 
     private void Edit(WorkProfile draft, Guid? editing)
     {
+        var opening = _draft is null;
         _draft = draft;
         _editingId = editing;
         BuildEditor();
+        if (opening && _editor.Children.Count > 0 && _editor.Children[0] is FrameworkElement box) GroupB.Appear(box);
     }
 
     private void CloseEditor()
     {
-        _draft = null;
-        _editingId = null;
-        _editor.Children.Clear();
-        RefreshList();
+        if (_closing) return;
+        _closing = true;
+        void Finish()
+        {
+            _draft = null;
+            _editingId = null;
+            _editor.Children.Clear();
+            _closing = false;
+            RefreshList();
+        }
+        if (_editor.Children.Count > 0 && _editor.Children[0] is FrameworkElement box) GroupB.Vanish(box, Finish);
+        else Finish();
     }
 
     private void BuildEditor()
     {
         _editor.Children.Clear();
         if (_draft is not { } draft) return;
-        var box = new Border
-        {
-            Background = Res("Panel"), BorderBrush = Res("Accent"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(14),
-            Padding = new Thickness(14, 12, 14, 12), Margin = new Thickness(0, 10, 0, 0),
-        };
+        var box = new GlassCard { BorderBrush = Res("Accent"), BorderThickness = new Thickness(1.5), Margin = new Thickness(0, 16, 0, 0) };
         var s = new StackPanel();
         s.Children.Add(new TextBlock { Text = _editingId is null ? L.T("پروفایل جدید", "New profile") : L.T("ویرایش پروفایل", "Edit profile"), Style = St("H2") });
         s.Children.Add(Ui2.Label(L.T("اسم", "Name"), 8, 4));
@@ -182,16 +243,23 @@ public sealed class ProfileListPage : PageBase
         name.TextChanged += (_, _) => draft.Name = name.Text;
         s.Children.Add(name);
         s.Children.Add(Ui2.Label(L.T("کارها (به ترتیب اجرا می‌شن)", "Actions (run in this order)"), 12, 4));
-        for (var i = 0; i < draft.Actions.Count; i++) s.Children.Add(ActionRow(draft, draft.Actions[i]));
+        for (var i = 0; i < draft.Actions.Count; i++)
+        {
+            var row = ActionRow(draft, draft.Actions[i]);
+            s.Children.Add(row);
+            if (i == _newRow) GroupB.Appear(row);
+        }
+        _newRow = -1;
 
-        s.Children.Add(Ui2.Label(L.T("افزودن کار", "Add an action"), 12, 4));
+        s.Children.Add(Ui2.Label(L.T("افزودن کار", "Add an action"), 14, 6));
         var chips = new WrapPanel();
         void Add(string kind, string text, ProfileAction template)
         {
-            var b = new Button { Style = St("Btn"), Content = "+ " + text, Margin = new Thickness(0, 0, 8, 6) };
+            var b = new Button { Style = St("Btn"), Content = GroupB.IconText("plus", text, 14), Margin = new Thickness(0, 0, 8, 6) };
             b.Click += (_, _) =>
             {
                 if (draft.Actions.Count >= Core.Profiles.MaxActions) return;
+                _newRow = draft.Actions.Count;
                 draft.Actions.Add(template);
                 BuildEditor();
             };
@@ -208,7 +276,7 @@ public sealed class ProfileListPage : PageBase
         s.Children.Add(chips);
 
         var buttons = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
-        var save = new Button { Style = St("BtnPrimary"), Content = L.T("ذخیره", "Save"), Margin = new Thickness(0, 0, 8, 0) };
+        var save = new Button { Style = St("BtnPrimary"), Content = GroupB.IconText("chk", L.T("ذخیره", "Save")), Margin = new Thickness(0, 0, 8, 0) };
         save.Click += (_, _) =>
         {
             if (Core.Profiles.Clean(draft) is not { } clean)
@@ -238,11 +306,20 @@ public sealed class ProfileListPage : PageBase
 
     private FrameworkElement ActionRow(WorkProfile draft, ProfileAction a)
     {
-        var row = new Grid { Margin = new Thickness(0, 6, 0, 6) };
+        // a flat surface inside the editor card
+        var surface = new Border
+        {
+            Background = Res("Panel2"), BorderBrush = Res("Line"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(14),
+            Padding = new Thickness(14, 10, 10, 12), Margin = new Thickness(0, 6, 0, 6),
+        };
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition());
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.Children.Add(new IconBadge(KindIcon(a.Kind), ActionKinds.IsPower(a.Kind) ? "HueC" : "HueA", 34, 17, 10) { VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 12, 0) });
         var left = new StackPanel();
-        var title = new TextBlock { Style = St("Body"), FontWeight = FontWeights.SemiBold };
+        Grid.SetColumn(left, 1);
+        var title = new TextBlock { Style = St("Body"), FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap };
         void Retitle() => title.Text = Core.Profiles.Describe(a);
         Retitle();
         left.Children.Add(title);
@@ -261,7 +338,7 @@ public sealed class ProfileListPage : PageBase
         {
             case ActionKinds.Dim:
             {
-                var on = new CheckBox { Style = St("Check"), Content = L.T("روشن بشه (وگرنه به حالت عادی برمی‌گرده)", "Switch on (otherwise back to normal)"), IsChecked = a.Value2 != 0, Margin = new Thickness(0, 4, 0, 0) };
+                var on = new Switch { Content = L.T("روشن بشه (وگرنه به حالت عادی برمی‌گرده)", "Switch on (otherwise back to normal)"), IsChecked = a.Value2 != 0, Margin = new Thickness(0, 6, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
                 on.Click += (_, _) =>
                 {
                     a.Value2 = on.IsChecked == true ? 1 : 0;
@@ -276,7 +353,7 @@ public sealed class ProfileListPage : PageBase
             case ActionKinds.SleepMode: SliderFor(5, 180, v => a.Value = v); break;
             case ActionKinds.Breaks:
             {
-                var on = new CheckBox { Style = St("Check"), Content = L.T("روشن باشه", "On"), IsChecked = a.Value != 0, Margin = new Thickness(0, 4, 0, 0) };
+                var on = new Switch { Content = L.T("روشن باشه", "On"), IsChecked = a.Value != 0, Margin = new Thickness(0, 6, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
                 on.Click += (_, _) =>
                 {
                     a.Value = on.IsChecked == true ? 1 : 0;
@@ -287,7 +364,7 @@ public sealed class ProfileListPage : PageBase
             }
             case ActionKinds.Notify:
             {
-                var text = new TextBox { Style = St("Input"), Text = a.Text, MaxLength = 120, Margin = new Thickness(0, 4, 0, 0) };
+                var text = new TextBox { Style = St("Input"), Text = a.Text, MaxLength = 120, Margin = new Thickness(0, 6, 0, 0) };
                 text.TextChanged += (_, _) =>
                 {
                     a.Text = text.Text;
@@ -298,7 +375,7 @@ public sealed class ProfileListPage : PageBase
             }
             case ActionKinds.PowerLater:
             {
-                var chips = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
+                var chips = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
                 var group = "pw" + a.GetHashCode();
                 foreach (var act in new[] { PowerAction.Sleep, PowerAction.Hibernate, PowerAction.Shutdown, PowerAction.Restart, PowerAction.Lock })
                 {
@@ -317,15 +394,17 @@ public sealed class ProfileListPage : PageBase
             }
         }
         row.Children.Add(left);
-        var remove = new Button { Style = St("Btn"), Content = new TextBlock { Text = "", Style = St("Icon") }, Padding = new Thickness(9, 7, 9, 7), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(10, 0, 0, 0), ToolTip = L.T("حذف این کار", "Remove this action") };
-        remove.Click += (_, _) =>
+        var remove = IconButton("trash", L.T("حذف این کار", "Remove this action"), () => GroupB.Vanish(surface, () =>
         {
             draft.Actions.Remove(a);
             BuildEditor();
-        };
-        Grid.SetColumn(remove, 1);
+        }));
+        remove.VerticalAlignment = VerticalAlignment.Top;
+        remove.Margin = new Thickness(10, 0, 0, 0);
+        Grid.SetColumn(remove, 2);
         row.Children.Add(remove);
-        return row;
+        surface.Child = row;
+        return surface;
     }
 
     // ---- export / import -------------------------------------------------------------------------------
@@ -401,14 +480,16 @@ public sealed class AutomationPage : PageBase
     private readonly WrapPanel _kindChips = new();
     private readonly WrapPanel _profileChips = new();
     private readonly WrapPanel _dayChips = new();
-    private readonly StackPanel _timeRow = new() { Orientation = Orientation.Horizontal, FlowDirection = FlowDirection.LeftToRight, HorizontalAlignment = HorizontalAlignment.Left };
-    private readonly TextBox _hour = new() { Style = St("Input"), Width = 56, Padding = new Thickness(8, 6, 8, 6), FlowDirection = FlowDirection.LeftToRight, TextAlignment = TextAlignment.Center, Text = "22" };
-    private readonly TextBox _minute = new() { Style = St("Input"), Width = 56, Padding = new Thickness(8, 6, 8, 6), FlowDirection = FlowDirection.LeftToRight, TextAlignment = TextAlignment.Center, Text = "00" };
+    private readonly StackPanel _timeRow;
+    private readonly StackPanel _daysBlock = new();
+    private readonly TextBox _hour = GroupB.TimeBox("22");
+    private readonly TextBox _minute = GroupB.TimeBox("00");
     private readonly TextBlock _hint = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
-    private readonly Button _save = new() { Style = St("BtnPrimary"), Content = L.T("افزودن", "Add"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
+    private readonly Button _save = new() { Style = St("BtnPrimary"), Content = GroupB.IconText("plus", L.T("افزودن", "Add")), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 14, 0, 0) };
     private TriggerKind _kind = TriggerKind.Time;
+    private AutomationTrigger? _touched, _added;
     private Guid? _profile;
-    private readonly HashSet<DayOfWeek> _days = [];
+    private readonly Func<List<DayOfWeek>> _days;
 
     public override string PageTitle => L.T("پروفایل‌ها", "Profiles");
     public override string PageSubtitle => L.T("بگو یه پروفایل کی خودش اجرا بشه: ساعت مشخص، شروع بازی، پایان بازی یا بالا اومدن شب‌پا.",
@@ -418,12 +499,14 @@ public sealed class AutomationPage : PageBase
     {
         var root = new StackPanel();
         var (listCard, list) = Ui2.Card(L.T("خودکارسازی‌ها", "Automations"));
+        listCard.Margin = new Thickness(0);
         list.Children.Add(_list);
         root.Children.Add(listCard);
 
         var (card, body) = Ui2.Card(L.T("خودکارسازی جدید", "New automation"),
             L.T("پروفایلی که خاموشی یا خواب داره هیچ‌وقت خودکار اجرا نمی‌شه.", "A profile that can switch the PC off never runs by itself."));
-        body.Children.Add(Ui2.Label(L.T("وقتی…", "When…"), 10, 4));
+        card.Margin = new Thickness(0, 16, 0, 0);
+        body.Children.Add(Ui2.Label(L.T("وقتی…", "When…"), 12, 6));
         var kgroup = "trig" + GetHashCode();
         foreach (var (kind, text) in new[]
         {
@@ -436,31 +519,24 @@ public sealed class AutomationPage : PageBase
             chip.Checked += (_, _) =>
             {
                 _kind = captured;
-                var time = captured == TriggerKind.Time;
-                _timeRow.Visibility = _dayChips.Visibility = time ? Visibility.Visible : Visibility.Collapsed;
+                _daysBlock.Visibility = captured == TriggerKind.Time ? Visibility.Visible : Visibility.Collapsed;
             };
             _kindChips.Children.Add(chip);
         }
         body.Children.Add(_kindChips);
-        _timeRow.Children.Add(_hour);
-        _timeRow.Children.Add(new TextBlock { Text = ":", FontSize = 18, FontWeight = FontWeights.Bold, Foreground = Res("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 6, 0) });
-        _timeRow.Children.Add(_minute);
+
+        // time of day and weekdays only matter for the time trigger
+        _timeRow = GroupB.TimePair(_hour, _minute);
+        _timeRow.Margin = new Thickness(0, 6, 0, 0);
         TimeBoxes.Wire(_hour, _minute);
-        body.Children.Add(_timeRow);
-        foreach (var d in new[] { DayOfWeek.Saturday, DayOfWeek.Sunday, DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday })
-        {
-            var chip = new CheckBox { Style = St("Check"), Content = Fa.DayName(d), Margin = new Thickness(0, 8, 8, 0) };
-            var captured = d;
-            chip.Click += (_, _) =>
-            {
-                if (chip.IsChecked == true) _days.Add(captured);
-                else _days.Remove(captured);
-            };
-            _dayChips.Children.Add(chip);
-        }
-        body.Children.Add(_dayChips);
-        body.Children.Add(Ui2.Label(L.T("روزها رو خالی بذاری هر روز اجرا می‌شه.", "Leave the days empty to run every day."), 4, 0));
-        body.Children.Add(Ui2.Label(L.T("این پروفایل اجرا بشه", "Run this profile"), 12, 4));
+        _daysBlock.Children.Add(Ui2.Label(L.T("ساعت", "Time of day"), 10, 0));
+        _daysBlock.Children.Add(_timeRow);
+        _daysBlock.Children.Add(Ui2.Label(L.T("روزها", "Days"), 14, 6));
+        _days = DayToggles(_dayChips);
+        _daysBlock.Children.Add(_dayChips);
+        _daysBlock.Children.Add(Ui2.Label(L.T("روزها رو خالی بذاری هر روز اجرا می‌شه.", "Leave the days empty to run every day."), 6, 0));
+        body.Children.Add(_daysBlock);
+        body.Children.Add(Ui2.Label(L.T("این پروفایل اجرا بشه", "Run this profile"), 16, 6));
         body.Children.Add(_profileChips);
         _save.Click += (_, _) => Add();
         body.Children.Add(_save);
@@ -483,7 +559,7 @@ public sealed class AutomationPage : PageBase
         }
         if (_profileChips.Children.Count == 0)
             _profileChips.Children.Add(new TextBlock { Text = L.T("پروفایل مناسبی نیست (پروفایل‌های دارای خاموشی اینجا نمیان).", "No suitable profile (profiles with a power action are not offered here)."), Style = St("Label") });
-        _timeRow.Visibility = _dayChips.Visibility = _kind == TriggerKind.Time ? Visibility.Visible : Visibility.Collapsed;
+        _daysBlock.Visibility = _kind == TriggerKind.Time ? Visibility.Visible : Visibility.Collapsed;
         RefreshList();
     }
 
@@ -495,46 +571,59 @@ public sealed class AutomationPage : PageBase
         _ => L.T("وقتی شب‌پا بالا میاد", "When Shabpa starts"),
     };
 
+    private static string TriggerIcon(TriggerKind kind) => kind switch
+    {
+        TriggerKind.Time => "clk",
+        TriggerKind.GameStart => "play",
+        TriggerKind.GameEnd => "chk",
+        _ => "bolt",
+    };
+
     private void RefreshList()
     {
         _list.Children.Clear();
         if (Hub.State.Triggers.Count == 0)
             _list.Children.Add(new TextBlock { Text = L.T("هنوز خودکارسازی‌ای نداری.", "No automations yet."), Style = St("Body"), Margin = new Thickness(0, 10, 0, 0) });
+        _list.Margin = new Thickness(0, Hub.State.Triggers.Count > 0 ? 8 : 0, 0, 0);
+        var first = true;
         foreach (var t in Hub.State.Triggers.ToList())
         {
             var profile = Hub.State.Profiles.FirstOrDefault(p => p.Id == t.ProfileId);
-            var row = new Grid { Margin = new Thickness(0, 8, 0, 8) };
-            row.ColumnDefinitions.Add(new ColumnDefinition());
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var text = new StackPanel();
-            text.Children.Add(new TextBlock { Text = Describe(t), Style = St("Body"), FontWeight = FontWeights.SemiBold });
-            text.Children.Add(new TextBlock
-            {
-                Text = "→ " + (profile?.Name ?? L.T("پروفایل حذف شده", "profile deleted")) + (t.LastRun is { } last ? L.T($" · آخرین اجرا {Fa.DayOf(last, DateTime.Now)} {Fa.Clock(last)}", $" · last ran {Fa.DayOf(last, DateTime.Now)} {last:HH:mm}") : ""),
-                Style = St("Label"), TextWrapping = TextWrapping.Wrap,
-            });
-            row.Children.Add(text);
+            var rowHolder = new StrongBox<FrameworkElement?>();
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
             var toggle = new Button { Style = St("Btn"), Content = t.Enabled ? L.T("مکث", "Pause") : L.T("ادامه", "Resume"), Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
             toggle.Click += (_, _) =>
             {
                 t.Enabled = !t.Enabled;
+                _touched = t;
                 Hub.Store.Save();
                 RefreshList();
             };
-            Grid.SetColumn(toggle, 1);
-            row.Children.Add(toggle);
             var delete = new Button { Style = St("BtnDanger"), Content = L.T("حذف", "Delete"), Margin = new Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
-            delete.Click += (_, _) =>
+            delete.Click += (_, _) => GroupB.Vanish(rowHolder.Value!, () =>
             {
                 Hub.State.Triggers.Remove(t);
                 Hub.Store.Save();
                 RefreshList();
-            };
-            Grid.SetColumn(delete, 2);
-            row.Children.Add(delete);
+            });
+            buttons.Children.Add(toggle);
+            buttons.Children.Add(delete);
+            var sub = "→ " + (profile?.Name ?? L.T("پروفایل حذف شده", "profile deleted")) + (t.LastRun is { } last ? L.T($" · آخرین اجرا {Fa.DayOf(last, DateTime.Now)} {Fa.Clock(last)}", $" · last ran {Fa.DayOf(last, DateTime.Now)} {last:HH:mm}") : "");
+            if (!first) _list.Children.Add(GroupB.Line());
+            first = false;
+            var row = Row(TriggerIcon(t.Kind), t.Enabled ? "HueA" : "HueC", Describe(t), sub, buttons);
+            rowHolder.Value = row;
             _list.Children.Add(row);
+            if (ReferenceEquals(t, _added)) GroupB.Appear(row);
+            if (!t.Enabled)
+            {
+                // a row that was just paused fades to its dimmed look
+                if (ReferenceEquals(t, _touched)) Fx.Anim(row, UIElement.OpacityProperty, 0.65, null, 280);
+                else row.Opacity = 0.65;
+            }
+            else if (ReferenceEquals(t, _touched)) { row.Opacity = 0.65; Fx.Anim(row, UIElement.OpacityProperty, 1, null, 280); }
         }
+        _touched = null;
     }
 
     private void Add()
@@ -551,7 +640,7 @@ public sealed class AutomationPage : PageBase
             _hint.Text = L.T("این پروفایل خاموشی داره و خودکار اجرا نمی‌شه.", "This profile has a power action and does not run by itself.");
             return;
         }
-        var trigger = new AutomationTrigger { Kind = _kind, ProfileId = id, Days = [.. _days] };
+        var trigger = new AutomationTrigger { Kind = _kind, ProfileId = id, Days = [.. _days()] };
         if (_kind == TriggerKind.Time)
         {
             if (!TimeBoxes.TryRead(_hour, _minute, out var h, out var m))
@@ -567,7 +656,10 @@ public sealed class AutomationPage : PageBase
         Hub.Store.Save();
         _hint.Foreground = Res("Muted");
         _hint.Text = L.T("اضافه شد.", "Added.");
+        GroupB.Appear(_hint);
+        _added = trigger;
         RefreshList();
+        _added = null;
     }
 }
 
@@ -581,15 +673,22 @@ public sealed class RunHistoryPage : PageBase
     public RunHistoryPage()
     {
         var (card, body) = Ui2.Card(L.T("تاریخچه", "History"));
-        var clear = new Button { Style = St("Btn"), Content = L.T("پاک کردن تاریخچه", "Clear history"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0) };
+        card.Margin = new Thickness(0);
+        var clear = new Button { Style = St("Btn"), Content = GroupB.IconText("trash", L.T("پاک کردن تاریخچه", "Clear history"), 15), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
         clear.Click += (_, _) =>
         {
-            Hub.State.RunLog.Clear();
-            Hub.Store.Save();
-            Refresh();
+            GroupB.Vanish(_list, () =>
+            {
+                Hub.State.RunLog.Clear();
+                Hub.Store.Save();
+                Refresh();
+                _list.Opacity = 1;
+                _list.BeginAnimation(UIElement.OpacityProperty, null);
+                _list.RenderTransform = System.Windows.Media.Transform.Identity;
+            });
         };
         body.Children.Add(clear);
-        _list.Margin = new Thickness(0, 6, 0, 0);
+        _list.Margin = new Thickness(0, 8, 0, 0);
         body.Children.Add(_list);
         Content = card;
         Hub.ProfilesChanged += () => Dispatcher.BeginInvoke(() =>
@@ -603,21 +702,42 @@ public sealed class RunHistoryPage : PageBase
         _list.Children.Clear();
         if (Hub.State.RunLog.Count == 0)
             _list.Children.Add(new TextBlock { Text = L.T("هنوز چیزی اجرا نشده.", "Nothing has run yet."), Style = St("Body"), Margin = new Thickness(0, 10, 0, 0) });
+        var first = true;
         foreach (var entry in Hub.State.RunLog.AsEnumerable().Reverse().Take(40))
         {
             var source = entry.Source switch
             {
                 "manual" => L.T("دستی", "by hand"), "time" => L.T("ساعت", "time"), "game" => L.T("بازی", "game"), "start" => L.T("شروع برنامه", "app start"), "undo" => L.T("برگردوندن", "undo"), _ => entry.Source,
             };
-            var box = new StackPanel { Margin = new Thickness(0, 8, 0, 8) };
+            var row = new Grid { Margin = new Thickness(0, 8, 0, 8) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition());
+            row.Children.Add(new IconBadge(entry.Ok ? "chk" : "bolt", entry.Ok ? "HueB" : "HueC", 34, 17, 10) { VerticalAlignment = VerticalAlignment.Top });
+            var box = new StackPanel { Margin = new Thickness(14, 0, 0, 0) };
+            Grid.SetColumn(box, 1);
             box.Children.Add(new TextBlock
             {
-                Text = $"{(entry.Ok ? "✓" : "⚠")} {entry.Profile} · {source} · {Fa.DayOf(entry.Time, DateTime.Now)} {Fa.Clock(entry.Time)}",
-                Style = St("H2"), FontSize = 13,
+                Text = $"{entry.Profile} · {source} · {Fa.DayOf(entry.Time, DateTime.Now)} {Fa.Clock(entry.Time)}",
+                Style = St("H2"), FontSize = 13.5, TextWrapping = TextWrapping.Wrap,
             });
             foreach (var step in entry.Steps)
-                box.Children.Add(new TextBlock { Text = step, Style = St("Label"), Margin = new Thickness(8, 2, 0, 0), TextWrapping = TextWrapping.Wrap, Foreground = step.StartsWith('✗') ? Res("Red") : Res("Muted") });
-            _list.Children.Add(box);
+            {
+                // "✓ text" / "✗ text" is stored data: show the marker as a drawn icon (a text tick is bidi-reordered in Persian), never as a glyph
+                var failed = step.StartsWith('✗');
+                var text = step.StartsWith('✗') || step.StartsWith('✓') ? step[1..].TrimStart() : step;
+                var line = new Grid { Margin = new Thickness(0, 3, 0, 0) };
+                line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                line.ColumnDefinitions.Add(new ColumnDefinition());
+                if (step != text) line.Children.Add(new Icon(failed ? "x" : "chk", 13, Res(failed ? "Red" : "Green"), 2.2) { VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 4, 7, 0) });
+                var label = new TextBlock { Text = text, Style = St("Label"), TextWrapping = TextWrapping.Wrap, Foreground = failed ? Res("Red") : Res("Muted") };
+                Grid.SetColumn(label, 1);
+                line.Children.Add(label);
+                box.Children.Add(line);
+            }
+            row.Children.Add(box);
+            if (!first) _list.Children.Add(GroupB.Line());
+            first = false;
+            _list.Children.Add(row);
         }
     }
 }

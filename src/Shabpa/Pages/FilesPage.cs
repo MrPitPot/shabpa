@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using Shabpa.Core;
+using Shabpa.Kit;
 
 namespace Shabpa.Pages;
 
@@ -55,19 +56,27 @@ internal static class FolderPick
         try { Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = false }); }
         catch (Exception ex) { Log.Write($"explorer: {ex.Message}"); }
     }
+
+    /// <summary>The button that opens a path in Explorer (icon only, with a tooltip).</summary>
+    public static Button ExplorerButton(string path) =>
+        ListUi.IconBtn("folder", L.T("نمایش توی اکسپلورر", "Show in Explorer"), () => ShowInExplorer(path));
 }
 
 /// <summary>Where the space went in a folder: the biggest sub-folders and files.</summary>
 public sealed class SpacePage : PageBase
 {
     private readonly WrapPanel _quick = new();
-    private readonly TextBlock _status = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
+    private readonly TextBlock _status = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
     private readonly StackPanel _folders = new();
     private readonly StackPanel _files = new();
-    private readonly Button _cancel = new() { Style = St("Btn"), Content = L.T("توقف", "Stop"), Visibility = Visibility.Collapsed, Margin = new Thickness(8, 0, 0, 0) };
-    private readonly Button _delete = new() { Style = St("BtnDanger"), Visibility = Visibility.Collapsed, Margin = new Thickness(0, 12, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly Button _cancel = new() { Style = St("Btn"), Content = L.T("توقف", "Stop"), Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 8, 8) };
+    private readonly Button _delete = new() { Style = St("BtnDanger"), Visibility = Visibility.Collapsed, Margin = new Thickness(0, 14, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
     private readonly Dictionary<string, CheckBox> _checks = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, long> _sizes = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Grid _grid = ListUi.PageGrid(3);
+    private Border _pickCard = null!, _foldersCard = null!, _filesCard = null!;
+    private bool? _wide;
+    private bool _seeded;
     private CancellationTokenSource? _cts;
     private string _root = "";
 
@@ -77,27 +86,29 @@ public sealed class SpacePage : PageBase
 
     public SpacePage()
     {
-        var root = new StackPanel();
         var (card, body) = Ui2.Card(L.T("یه پوشه انتخاب کن", "Pick a folder"));
-        _quick.Margin = new Thickness(0, 10, 0, 0);
+        _quick.Margin = new Thickness(0, 14, 0, 0);
         foreach (var (name, path) in FolderPick.Quick())
         {
-            var b = new Button { Style = St("Btn"), Content = name, Margin = new Thickness(0, 0, 8, 8) };
             var p = path;
-            b.Click += (_, _) => Scan(p);
+            var b = ListUi.Btn("folder", name, "Btn", () => Scan(p));
+            b.Margin = new Thickness(0, 0, 8, 8);
             _quick.Children.Add(b);
         }
-        var other = new Button { Style = St("Btn"), Content = L.T("پوشه‌ی دیگه…", "Other folder…"), Margin = new Thickness(0, 0, 8, 8) };
-        other.Click += (_, _) =>
+        var other = ListUi.Btn("plus", L.T("پوشه‌ی دیگه…", "Other folder…"), "Btn", () =>
         {
             if (FolderPick.Choose() is { } p) Scan(p);
-        };
+        });
+        other.Margin = new Thickness(0, 0, 8, 8);
         _quick.Children.Add(other);
         foreach (var drive in DriveInfo.GetDrives().Where(d => d.DriveType == DriveType.Fixed && d.IsReady))
         {
-            var b = new Button { Style = St("Btn"), Content = L.T("درایو ", "Drive ") + "‎" + drive.Name.TrimEnd((char)92), Margin = new Thickness(0, 0, 8, 8) };
             var p = drive.RootDirectory.FullName;
-            b.Click += (_, _) => Scan(p);
+            var b = ListUi.Btn("mon", L.T("درایو", "Drive"), "Btn", () => Scan(p));
+            // the letter and its colon are their own left-to-right run, so the colon cannot jump to the wrong side in Persian
+            if (b.Content is StackPanel driveRow)
+                driveRow.Children.Add(new TextBlock { Text = drive.Name.TrimEnd((char)92), FlowDirection = FlowDirection.LeftToRight, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) });
+            b.Margin = new Thickness(0, 0, 8, 8);
             _quick.Children.Add(b);
         }
         body.Children.Add(_quick);
@@ -106,17 +117,55 @@ public sealed class SpacePage : PageBase
         row.Children.Add(_cancel);
         body.Children.Add(row);
         body.Children.Add(_status);
-        root.Children.Add(card);
+        _pickCard = card;
 
         var (fCard, f) = Ui2.Card(L.T("بزرگ‌ترین پوشه‌ها", "Biggest folders"));
+        _folders.Margin = new Thickness(0, 8, 0, 0);
         f.Children.Add(_folders);
-        root.Children.Add(fCard);
+        _foldersCard = fCard;
         var (bCard, b2) = Ui2.Card(L.T("بزرگ‌ترین فایل‌ها", "Biggest files"), L.T("تیک بزن و به سطل بازیافت بفرست؛ از اونجا برمی‌گردن.", "Tick files and send them to the Recycle Bin; they can be restored from there."));
         b2.Children.Add(_files);
+        _files.Margin = new Thickness(0, 6, 0, 0);
         _delete.Click += (_, _) => DeleteSelected();
         b2.Children.Add(_delete);
-        root.Children.Add(bCard);
-        Content = root;
+        _filesCard = bCard;
+
+        foreach (var c in new[] { _pickCard, _foldersCard, _filesCard })
+        {
+            c.Margin = new Thickness(8);
+            _grid.Children.Add(c);
+        }
+        _foldersCard.Visibility = _filesCard.Visibility = Visibility.Collapsed; // appear after the first scan
+        Content = _grid;
+        SizeChanged += (_, e) => ApplyLayout(e.NewSize.Width > 900);
+        ApplyLayout(true);
+    }
+
+    private void ApplyLayout(bool wide)
+    {
+        if (_wide == wide) return;
+        _wide = wide;
+        while (_grid.RowDefinitions.Count < 3) _grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        ListUi.Place(_pickCard, 0, 0, 12);
+        if (wide)
+        {
+            ListUi.Place(_foldersCard, 1, 0, 5);
+            ListUi.Place(_filesCard, 1, 5, 7);
+        }
+        else
+        {
+            ListUi.Place(_foldersCard, 1, 0, 12);
+            ListUi.Place(_filesCard, 2, 0, 12);
+        }
+    }
+
+    public override void Refresh()
+    {
+        if (Hub.Demo && !_seeded)
+        {
+            _seeded = true;
+            Show(GroupDemo.Space());
+        }
     }
 
     private void Scan(string path)
@@ -132,7 +181,7 @@ public sealed class SpacePage : PageBase
         _delete.Visibility = Visibility.Collapsed;
         _cancel.Visibility = Visibility.Visible;
         _status.Foreground = Res("Muted");
-        _status.Text = L.T("در حال بررسی…", "Scanning…");
+        Mo.Say(_status, L.T("در حال بررسی…", "Scanning…"));
         _ = Task.Run(() =>
         {
             try
@@ -144,7 +193,7 @@ public sealed class SpacePage : PageBase
             {
                 Dispatcher.BeginInvoke(() =>
                 {
-                    _status.Text = L.T("متوقف شد.", "Stopped.");
+                    Mo.Say(_status, L.T("متوقف شد.", "Stopped."));
                     _cancel.Visibility = Visibility.Collapsed;
                 });
             }
@@ -153,7 +202,7 @@ public sealed class SpacePage : PageBase
                 Log.Write($"space scan: {ex.GetType().Name}: {ex.Message}");
                 Dispatcher.BeginInvoke(() =>
                 {
-                    _status.Text = L.T("بررسی انجام نشد.", "The scan failed.");
+                    Mo.Say(_status, L.T("بررسی انجام نشد.", "The scan failed."));
                     _cancel.Visibility = Visibility.Collapsed;
                 });
             }
@@ -162,51 +211,50 @@ public sealed class SpacePage : PageBase
 
     private void Show(FolderReport report)
     {
+        _root = report.Root;
+        Mo.Show(_foldersCard, true, 20, 0.7);
+        Mo.Show(_filesCard, true, 20, 0.7);
         _cancel.Visibility = Visibility.Collapsed;
-        _status.Text = L.T($"{report.Root}: {Fa.Bytes(report.TotalBytes)} در {Fa.Digits(report.FileCount.ToString())} فایل", $"{report.Root}: {Fa.Bytes(report.TotalBytes)} in {report.FileCount} files")
-            + (report.SkippedFolders > 0 ? L.T($" ({Fa.Digits(report.SkippedFolders.ToString())} پوشه خونده نشد)", $" ({report.SkippedFolders} folder(s) could not be read)") : "");
+        var folderMemo = new Mo.Memo(_folders);
+        var fileMemo = new Mo.Memo(_files);
+        Mo.Say(_status, L.T($"{report.Root}: {Fa.Bytes(report.TotalBytes)} در {Fa.Digits(report.FileCount.ToString())} فایل", $"{report.Root}: {Fa.Bytes(report.TotalBytes)} in {report.FileCount} files")
+            + (report.SkippedFolders > 0 ? L.T($" ({Fa.Digits(report.SkippedFolders.ToString())} پوشه خونده نشد)", $" ({report.SkippedFolders} folder(s) could not be read)") : ""));
         var max = Math.Max(1, report.Folders.Count == 0 ? 1 : report.Folders[0].Bytes);
         _folders.Children.Clear();
+        var folderIndex = 0;
         foreach (var folder in report.Folders)
         {
-            var grid = new Grid { Margin = new Thickness(0, 5, 0, 5) };
+            var grid = new Grid { Margin = new Thickness(0, 7, 0, 7) };
+            // the size column has one width for every row so the bars start and end at the same place
             grid.ColumnDefinitions.Add(new ColumnDefinition());
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(78) });
             var left = new StackPanel();
-            left.Children.Add(new TextBlock { Text = Path.GetFileName(folder.Path), Style = St("Body"), FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = folder.Path });
-            left.Children.Add(new ProgressBar { Style = St("Bar"), Minimum = 0, Maximum = 1, Value = (double)folder.Bytes / max, Height = 6, Margin = new Thickness(0, 4, 0, 0) });
+            left.Children.Add(new TextBlock { Text = Path.GetFileName(folder.Path), FontSize = 13.5, FontWeight = FontWeights.SemiBold, Foreground = Res("Text"), TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = folder.Path });
+            var bar = new ProgressBar { Style = St("Bar"), Minimum = 0, Maximum = 1, Value = (double)folder.Bytes / max, Height = 6, Margin = new Thickness(0, 6, 0, 0) };
+            left.Children.Add(bar);
+            Mo.Fill(bar, 0, 650 + folderIndex++ * 90);
             grid.Children.Add(left);
-            var size = new TextBlock { Text = Fa.Bytes(folder.Bytes), Style = St("Label"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
+            var size = new TextBlock { Text = Fa.Bytes(folder.Bytes), Style = St("Label"), VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(14, 0, 0, 0), FlowDirection = FlowDirection.LeftToRight, HorizontalAlignment = HorizontalAlignment.Left };
             Grid.SetColumn(size, 1);
             grid.Children.Add(size);
-            _folders.Children.Add(grid);
+            _folders.Children.Add(folderMemo.Item(folder.Path, grid));
         }
         if (report.Folders.Count == 0) _folders.Children.Add(new TextBlock { Text = L.T("زیرپوشه‌ای نیست.", "No sub-folders."), Style = St("Body") });
 
         _files.Children.Clear();
         _checks.Clear();
+        var firstFile = true;
         foreach (var file in report.Largest)
         {
             _sizes[file.Path] = file.Size;
-            var grid = new Grid { Margin = new Thickness(0, 4, 0, 4) };
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            grid.ColumnDefinitions.Add(new ColumnDefinition());
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var check = new CheckBox { Style = St("Check"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
+            var check = new CheckBox { Style = St("Check") };
             check.Click += (_, _) => UpdateDelete();
             _checks[file.Path] = check;
-            grid.Children.Add(check);
-            var text = new StackPanel();
-            text.Children.Add(new TextBlock { Text = Path.GetFileName(file.Path), Style = St("Body"), TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = file.Path });
-            text.Children.Add(new TextBlock { Text = $"{Fa.Bytes(file.Size)}  ·  {Fa.Date(file.Modified)}  ·  {Path.GetDirectoryName(file.Path)}", Style = St("Label"), TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = file.Path });
-            Grid.SetColumn(text, 1);
-            grid.Children.Add(text);
-            var open = new Button { Style = St("Btn"), Content = new TextBlock { Text = "", Style = St("Icon") }, ToolTip = L.T("نمایش توی اکسپلورر", "Show in Explorer"), Padding = new Thickness(9, 7, 9, 7) };
-            var p = file.Path;
-            open.Click += (_, _) => FolderPick.ShowInExplorer(p);
-            Grid.SetColumn(open, 2);
-            grid.Children.Add(open);
-            _files.Children.Add(grid);
+            var item = ListUi.CheckItem(check, Path.GetFileName(file.Path),
+                $"{Fa.Bytes(file.Size)}{ListUi.Sep}{Fa.Date(file.Modified)}{ListUi.Sep}\u200E{Path.GetDirectoryName(file.Path)}\u200E", FolderPick.ExplorerButton(file.Path), firstFile);
+            item.ToolTip = file.Path;
+            _files.Children.Add(fileMemo.Item(file.Path, item));
+            firstFile = false;
         }
         UpdateDelete();
     }
@@ -216,9 +264,9 @@ public sealed class SpacePage : PageBase
     private void UpdateDelete()
     {
         var chosen = Selected();
-        _delete.Visibility = chosen.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        _delete.Content = L.T($"فرستادن {Fa.Digits(chosen.Count.ToString())} فایل ({Fa.Bytes(chosen.Sum(p => _sizes[p]))}) به سطل بازیافت",
-            $"Send {chosen.Count} file(s) ({Fa.Bytes(chosen.Sum(p => _sizes[p]))}) to the Recycle Bin");
+        Mo.Show(_delete, chosen.Count > 0, 8, 0.4);
+        ListUi.SetContent(_delete, "trash", L.T($"فرستادن {Fa.Digits(chosen.Count.ToString())} فایل ({Fa.Bytes(chosen.Sum(p => _sizes[p]))}) به سطل بازیافت",
+            $"Send {chosen.Count} file(s) ({Fa.Bytes(chosen.Sum(p => _sizes[p]))}) to the Recycle Bin"));
     }
 
     private void DeleteSelected()
@@ -244,13 +292,15 @@ public sealed class SpacePage : PageBase
 public sealed class DuplicatesPage : PageBase
 {
     private readonly WrapPanel _quick = new();
-    private readonly WrapPanel _sizeChips = new();
-    private readonly TextBlock _status = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
+    private readonly TextBlock _status = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
     private readonly StackPanel _groups = new();
-    private readonly Button _delete = new() { Style = St("BtnDanger"), Visibility = Visibility.Collapsed, Margin = new Thickness(0, 12, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
-    private readonly Button _pickOld = new() { Style = St("Btn"), Content = L.T("همه رو جز قدیمی‌ترین نسخه‌ی هر گروه علامت بزن", "Tick all but the oldest copy of each group"), Visibility = Visibility.Collapsed, Margin = new Thickness(0, 12, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
-    private readonly Button _cancel = new() { Style = St("Btn"), Content = L.T("توقف", "Stop"), Visibility = Visibility.Collapsed };
+    private readonly Button _delete = new() { Style = St("BtnDanger"), Visibility = Visibility.Collapsed, Margin = new Thickness(0, 14, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly Button _pickOld = new() { Style = St("Btn"), Content = L.T("همه رو جز قدیمی‌ترین نسخه‌ی هر گروه علامت بزن", "Tick all but the oldest copy of each group"), Visibility = Visibility.Collapsed, Margin = new Thickness(0, 14, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly Button _cancel = new() { Style = St("Btn"), Content = L.T("توقف", "Stop"), Visibility = Visibility.Collapsed, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 8, 0, 0) };
     private readonly List<(DuplicateGroup group, List<(FileEntry file, CheckBox box)> items)> _shown = [];
+    private readonly Grid _grid = ListUi.PageGrid(2);
+    private Border _groupsCard = null!;
+    private bool _seeded;
     private CancellationTokenSource? _cts;
     private long _minSize = 1 << 20;
     private string _root = "";
@@ -261,39 +311,36 @@ public sealed class DuplicatesPage : PageBase
 
     public DuplicatesPage()
     {
-        var root = new StackPanel();
         var (card, body) = Ui2.Card(L.T("کجا بگردم؟", "Where to look?"));
-        _quick.Margin = new Thickness(0, 10, 0, 0);
+        _quick.Margin = new Thickness(0, 14, 0, 0);
         foreach (var (name, path) in FolderPick.Quick())
         {
-            var b = new Button { Style = St("Btn"), Content = name, Margin = new Thickness(0, 0, 8, 8) };
             var p = path;
-            b.Click += (_, _) => Scan(p);
+            var b = ListUi.Btn("folder", name, "Btn", () => Scan(p));
+            b.Margin = new Thickness(0, 0, 8, 8);
             _quick.Children.Add(b);
         }
-        var other = new Button { Style = St("Btn"), Content = L.T("پوشه‌ی دیگه…", "Other folder…"), Margin = new Thickness(0, 0, 8, 8) };
-        other.Click += (_, _) =>
+        var other = ListUi.Btn("plus", L.T("پوشه‌ی دیگه…", "Other folder…"), "Btn", () =>
         {
             if (FolderPick.Choose() is { } p) Scan(p);
-        };
+        });
+        other.Margin = new Thickness(0, 0, 8, 8);
         _quick.Children.Add(other);
         body.Children.Add(_quick);
-        body.Children.Add(Ui2.Label(L.T("فقط فایل‌های بزرگ‌تر از", "Only files bigger than"), 4, 4));
-        var group = "dup" + GetHashCode();
-        foreach (var (text, size) in new[] { ("۱ MB", 1L << 20), ("۱۰ MB", 10L << 20), ("۱۰۰ MB", 100L << 20) })
-        {
-            var chip = new RadioButton { Style = St("Chip"), GroupName = group, Content = L.En ? text.Replace('۱', '1').Replace('۰', '0') : text, Margin = new Thickness(0, 0, 8, 6), IsChecked = size == _minSize };
-            var s = size;
-            chip.Checked += (_, _) => _minSize = s;
-            _sizeChips.Children.Add(chip);
-        }
-        body.Children.Add(_sizeChips);
+        body.Children.Add(Ui2.Label(L.T("فقط فایل‌های بزرگ‌تر از", "Only files bigger than"), 4, 6));
+        var sizes = new[] { ("1 MB", 1L << 20), ("10 MB", 10L << 20), ("100 MB", 100L << 20) };
+        var sizeSeg = new Segmented([.. sizes.Select(s => "\u200E" + s.Item1 + "\u200E")], 0);
+        sizeSeg.Changed += i => _minSize = sizes[i].Item2;
+        body.Children.Add(sizeSeg);
         _cancel.Click += (_, _) => _cts?.Cancel();
         body.Children.Add(_cancel);
         body.Children.Add(_status);
-        root.Children.Add(card);
+        card.Margin = new Thickness(8);
+        _grid.Children.Add(card);
+        ListUi.Place(card, 0, 0, 12);
 
         var (gCard, g) = Ui2.Card(L.T("گروه‌های تکراری", "Duplicate groups"));
+        _groups.Margin = new Thickness(0, 4, 0, 0);
         g.Children.Add(_groups);
         _pickOld.Click += (_, _) =>
         {
@@ -304,8 +351,21 @@ public sealed class DuplicatesPage : PageBase
         g.Children.Add(_pickOld);
         _delete.Click += (_, _) => DeleteSelected();
         g.Children.Add(_delete);
-        root.Children.Add(gCard);
-        Content = root;
+        gCard.Margin = new Thickness(8);
+        gCard.Visibility = Visibility.Collapsed; // appears once a search has finished
+        _groupsCard = gCard;
+        _grid.Children.Add(gCard);
+        ListUi.Place(gCard, 1, 0, 12);
+        Content = _grid;
+    }
+
+    public override void Refresh()
+    {
+        if (Hub.Demo && !_seeded)
+        {
+            _seeded = true;
+            Show(GroupDemo.Duplicates());
+        }
     }
 
     private void Scan(string path)
@@ -318,7 +378,7 @@ public sealed class DuplicatesPage : PageBase
         _shown.Clear();
         _delete.Visibility = _pickOld.Visibility = Visibility.Collapsed;
         _cancel.Visibility = Visibility.Visible;
-        _status.Text = L.T("در حال جستجو… (برای پوشه‌های بزرگ ممکنه چند دقیقه طول بکشه)", "Searching… (big folders can take a few minutes)");
+        Mo.Say(_status, L.T("در حال جستجو… (برای پوشه‌های بزرگ ممکنه چند دقیقه طول بکشه)", "Searching… (big folders can take a few minutes)"));
         var min = _minSize;
         _ = Task.Run(() =>
         {
@@ -331,7 +391,7 @@ public sealed class DuplicatesPage : PageBase
             {
                 Dispatcher.BeginInvoke(() =>
                 {
-                    _status.Text = L.T("متوقف شد.", "Stopped.");
+                    Mo.Say(_status, L.T("متوقف شد.", "Stopped."));
                     _cancel.Visibility = Visibility.Collapsed;
                 });
             }
@@ -340,7 +400,7 @@ public sealed class DuplicatesPage : PageBase
                 Log.Write($"duplicates: {ex.GetType().Name}: {ex.Message}");
                 Dispatcher.BeginInvoke(() =>
                 {
-                    _status.Text = L.T("جستجو انجام نشد.", "The search failed.");
+                    Mo.Say(_status, L.T("جستجو انجام نشد.", "The search failed."));
                     _cancel.Visibility = Visibility.Collapsed;
                 });
             }
@@ -354,48 +414,42 @@ public sealed class DuplicatesPage : PageBase
         _shown.Clear();
         if (found.Count == 0)
         {
-            _status.Text = L.T("فایل تکراری پیدا نشد.", "No duplicate files found.");
+            Mo.Say(_status, L.T("فایل تکراری پیدا نشد.", "No duplicate files found."));
+            _groupsCard.Visibility = Visibility.Collapsed;
             return;
         }
+        Mo.Show(_groupsCard, true, 20, 0.7);
+        var groupMemo = new Mo.Memo(_groups);
         var shown = found.Take(100).ToList();
-        _status.Text = L.T($"{Fa.Digits(found.Count.ToString())} گروه تکراری پیدا شد؛ با نگه داشتن یه نسخه از هر گروه تا {Fa.Bytes(found.Sum(f => f.Reclaimable))} آزاد می‌شه.",
+        Mo.Say(_status, L.T($"{Fa.Digits(found.Count.ToString())} گروه تکراری پیدا شد؛ با نگه داشتن یه نسخه از هر گروه تا {Fa.Bytes(found.Sum(f => f.Reclaimable))} آزاد می‌شه.",
             $"{found.Count} duplicate group(s); keeping one of each frees up to {Fa.Bytes(found.Sum(f => f.Reclaimable))}.")
-            + (found.Count > shown.Count ? L.T($" (۱۰۰ گروه اول نشون داده می‌شه)", " (first 100 shown)") : "");
+            + (found.Count > shown.Count ? L.T($" (۱۰۰ گروه اول نشون داده می‌شه)", " (first 100 shown)") : ""));
         foreach (var group in shown)
         {
-            var box = new StackPanel { Margin = new Thickness(0, 8, 0, 8) };
-            box.Children.Add(new TextBlock
+            var box = ListUi.Nested();
+            var content = new StackPanel();
+            content.Children.Add(new TextBlock
             {
-                Text = L.T($"{Fa.Digits(group.Files.Count.ToString())} نسخه · هرکدوم {Fa.Bytes(group.Size)}", $"{group.Files.Count} copies · {Fa.Bytes(group.Size)} each"),
-                Style = St("H2"), FontSize = 13,
+                Text = ListUi.Ltr(L.T($"{Fa.Digits(group.Files.Count.ToString())} نسخه · هرکدوم {Fa.Bytes(group.Size)}", $"{group.Files.Count} copies · {Fa.Bytes(group.Size)} each")),
+                Style = St("H2"), FontSize = 13.5, Margin = new Thickness(0, 0, 0, 2),
             });
             var items = new List<(FileEntry, CheckBox)>();
+            var first = true;
             foreach (var file in group.Files)
             {
-                var row = new Grid { Margin = new Thickness(0, 3, 0, 3) };
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                row.ColumnDefinitions.Add(new ColumnDefinition());
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                var check = new CheckBox { Style = St("Check"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
+                var check = new CheckBox { Style = St("Check") };
                 check.Click += (_, _) => UpdateDelete();
-                row.Children.Add(check);
-                var text = new StackPanel();
-                text.Children.Add(new TextBlock { Text = Path.GetFileName(file.Path), Style = St("Body"), TextTrimming = TextTrimming.CharacterEllipsis });
-                text.Children.Add(new TextBlock { Text = $"{Path.GetDirectoryName(file.Path)}  ·  {Fa.Date(file.Modified)}", Style = St("Label"), TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = file.Path });
-                Grid.SetColumn(text, 1);
-                row.Children.Add(text);
-                var open = new Button { Style = St("Btn"), Content = new TextBlock { Text = "", Style = St("Icon") }, ToolTip = L.T("نمایش توی اکسپلورر", "Show in Explorer"), Padding = new Thickness(9, 7, 9, 7) };
-                var p = file.Path;
-                open.Click += (_, _) => FolderPick.ShowInExplorer(p);
-                Grid.SetColumn(open, 2);
-                row.Children.Add(open);
-                box.Children.Add(row);
+                var row = ListUi.CheckItem(check, Path.GetFileName(file.Path), $"\u200E{Path.GetDirectoryName(file.Path)}\u200E{ListUi.Sep}{Fa.Date(file.Modified)}", FolderPick.ExplorerButton(file.Path), first);
+                row.ToolTip = file.Path;
+                content.Children.Add(row);
                 items.Add((file, check));
+                first = false;
             }
-            _groups.Children.Add(box);
+            box.Child = content;
+            _groups.Children.Add(groupMemo.Item(string.Join("|", group.Files.Select(f => f.Path)), box));
             _shown.Add((group, items));
         }
-        _pickOld.Visibility = Visibility.Visible;
+        Mo.Show(_pickOld, true, 8, 0.4);
         UpdateDelete();
     }
 
@@ -408,11 +462,11 @@ public sealed class DuplicatesPage : PageBase
     {
         var chosen = Selected();
         var all = AllTicked();
-        _delete.Visibility = chosen.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        Mo.Show(_delete, chosen.Count > 0, 8, 0.4);
         _delete.IsEnabled = !all;
-        _delete.Content = all
+        ListUi.SetContent(_delete, all ? "warn" : "trash", all
             ? L.T("از هر گروه باید یه نسخه بدون علامت بمونه", "Leave at least one copy unticked in every group")
-            : L.T($"فرستادن {Fa.Digits(chosen.Count.ToString())} نسخه ({Fa.Bytes(chosen.Sum(f => f.Size))}) به سطل بازیافت", $"Send {chosen.Count} copies ({Fa.Bytes(chosen.Sum(f => f.Size))}) to the Recycle Bin");
+            : L.T($"فرستادن {Fa.Digits(chosen.Count.ToString())} نسخه ({Fa.Bytes(chosen.Sum(f => f.Size))}) به سطل بازیافت", $"Send {chosen.Count} copies ({Fa.Bytes(chosen.Sum(f => f.Size))}) to the Recycle Bin"));
     }
 
     private void DeleteSelected()
@@ -436,16 +490,19 @@ public sealed class DuplicatesPage : PageBase
 public sealed class BackupPage : PageBase
 {
     private readonly StackPanel _jobs = new();
+    private readonly Mo.Memo _jobMemo;
     private readonly TextBox _name = new() { Style = St("Input"), MaxLength = 60 };
-    private readonly ListBox _sources = new() { MinHeight = 20, Background = System.Windows.Media.Brushes.Transparent, BorderThickness = new Thickness(0) };
+    private readonly StackPanel _sources = new() { MinHeight = 20 };
     private readonly TextBlock _destination = new() { Style = St("Body"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) };
-    private readonly TextBox _hour = new() { Style = St("Input"), Width = 56, Padding = new Thickness(8, 6, 8, 6), FlowDirection = FlowDirection.LeftToRight, TextAlignment = TextAlignment.Center, Text = "22" };
-    private readonly TextBox _minute = new() { Style = St("Input"), Width = 56, Padding = new Thickness(8, 6, 8, 6), FlowDirection = FlowDirection.LeftToRight, TextAlignment = TextAlignment.Center, Text = "00" };
-    private readonly WrapPanel _freq = new();
-    private readonly WrapPanel _days = new();
-    private readonly CheckBox _verify = new() { Style = St("Check"), Content = L.T("بعد از کپی، فایل‌ها رو دوباره بخون و درستیشون رو چک کن", "After copying, read the files back and check them"), IsChecked = true, Margin = new Thickness(0, 10, 0, 0) };
-    private readonly TextBlock _hint = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
+    private readonly TextBox _hour = new() { Style = St("NumberInput"), Text = "22", FlowDirection = FlowDirection.LeftToRight };
+    private readonly TextBox _minute = new() { Style = St("NumberInput"), Text = "00", FlowDirection = FlowDirection.LeftToRight };
+    private readonly WrapPanel _days = new() { Margin = new Thickness(0, 4, 0, 0) };
+    private readonly CheckBox _verify = new Kit.Switch { IsChecked = true };
+    private readonly TextBlock _hint = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
     private readonly List<string> _chosenSources = [];
+    private readonly Grid _root = ListUi.PageGrid(2);
+    private GlassCard _listCard = null!;
+    private bool _seeded;
     private string _dest = "";
     private BackupFrequency _frequency = BackupFrequency.Daily;
     private DayOfWeek _day = DayOfWeek.Friday;
@@ -456,110 +513,117 @@ public sealed class BackupPage : PageBase
 
     public BackupPage()
     {
-        var root = new StackPanel();
+        _jobMemo = new Mo.Memo(_jobs);
         var (listCard, list) = Ui2.Card(L.T("پشتیبان‌گیری‌های تو", "Your backups"));
         list.Children.Add(_jobs);
-        root.Children.Add(listCard);
+        listCard.Margin = new Thickness(8);
+        _listCard = (GlassCard)listCard;
+        _root.Children.Add(listCard);
+        ListUi.Place(listCard, 0, 0, 12);
 
         var (card, body) = Ui2.Card(L.T("پشتیبان‌گیری جدید", "New backup"));
-        body.Children.Add(Ui2.Label(L.T("اسم", "Name"), 10, 4));
-        body.Children.Add(_name);
-        body.Children.Add(Ui2.Label(L.T("چه پوشه‌هایی؟", "Which folders?"), 12, 4));
-        body.Children.Add(_sources);
-        var srcButtons = new WrapPanel();
-        var addSrc = new Button { Style = St("Btn"), Content = L.T("افزودن پوشه…", "Add folder…"), Margin = new Thickness(0, 4, 8, 6) };
-        addSrc.Click += (_, _) =>
+        card.Margin = new Thickness(8);
+        var cols = new ListUi.TwoColumns { Margin = new Thickness(0, 4, 0, 0) };
+        var left = cols.Left;
+        var right = cols.Right;
+
+        // left: what, from where, to where
+        left.Children.Add(Ui2.Label(L.T("اسم", "Name"), 10, 6));
+        left.Children.Add(_name);
+        left.Children.Add(Ui2.Label(L.T("چه پوشه‌هایی؟", "Which folders?"), 14, 6));
+        var sourceBox = new Border { Background = Res("FieldFill"), BorderBrush = Res("Line"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Padding = new Thickness(14, 10, 14, 10), MinHeight = 44, Child = _sources };
+        left.Children.Add(sourceBox);
+        var srcButtons = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
+        srcButtons.Children.Add(Small(ListUi.Btn("folder", L.T("افزودن پوشه…", "Add folder…"), "Btn", () =>
         {
             if (FolderPick.Choose() is not { } p || _chosenSources.Contains(p, StringComparer.OrdinalIgnoreCase)) return;
             _chosenSources.Add(p);
             ShowSources();
-        };
-        srcButtons.Children.Add(addSrc);
+        })));
         foreach (var (name, path) in FolderPick.Quick().Take(4))
         {
-            var b = new Button { Style = St("Btn"), Content = "+ " + name, Margin = new Thickness(0, 4, 8, 6) };
             var p = path;
-            b.Click += (_, _) =>
+            srcButtons.Children.Add(Small(ListUi.Btn(null, "+ " + name, "Btn", () =>
             {
                 if (_chosenSources.Contains(p, StringComparer.OrdinalIgnoreCase)) return;
                 _chosenSources.Add(p);
                 ShowSources();
-            };
-            srcButtons.Children.Add(b);
+            })));
         }
-        body.Children.Add(srcButtons);
-        var clear = new Button { Style = St("Btn"), Content = L.T("خالی کردن لیست پوشه‌ها", "Clear the folder list"), HorizontalAlignment = HorizontalAlignment.Left };
-        clear.Click += (_, _) =>
+        left.Children.Add(srcButtons);
+        var clear = ListUi.Btn("x", L.T("خالی کردن لیست پوشه‌ها", "Clear the folder list"), "Btn", () =>
         {
             _chosenSources.Clear();
             ShowSources();
-        };
-        body.Children.Add(clear);
+        });
+        clear.HorizontalAlignment = HorizontalAlignment.Left;
+        left.Children.Add(clear);
 
-        body.Children.Add(Ui2.Label(L.T("کجا ذخیره بشه؟ (ترجیحاً یه دیسک یا فلش دیگه)", "Where to store it? (ideally another disk or drive)"), 12, 4));
-        body.Children.Add(_destination);
-        var pickDest = new Button { Style = St("Btn"), Content = L.T("انتخاب مقصد…", "Choose destination…"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 0) };
-        pickDest.Click += (_, _) =>
+        left.Children.Add(Ui2.Label(L.T("کجا ذخیره بشه؟ (ترجیحاً یه دیسک یا فلش دیگه)", "Where to store it? (ideally another disk or drive)"), 16, 4));
+        left.Children.Add(_destination);
+        var pickDest = ListUi.Btn("folder", L.T("انتخاب مقصد…", "Choose destination…"), "Btn", () =>
         {
             if (FolderPick.Choose(_dest) is not { } p) return;
             _dest = p;
             _destination.Text = p;
-        };
-        body.Children.Add(pickDest);
+        });
+        pickDest.HorizontalAlignment = HorizontalAlignment.Left;
+        pickDest.Margin = new Thickness(0, 8, 0, 0);
+        left.Children.Add(pickDest);
 
-        body.Children.Add(Ui2.Label(L.T("هر چند وقت", "How often"), 12, 4));
-        var fgroup = "freq" + GetHashCode();
-        foreach (var (f, text) in new[]
+        // right: when, how often, checking
+        right.Children.Add(Ui2.Label(L.T("هر چند وقت", "How often"), 10, 6));
+        var freq = new Segmented([L.T("هر روز", "Daily"), L.T("هر هفته", "Weekly"), L.T("فقط دستی", "Manual only")], 0);
+        BackupFrequency[] freqs = [BackupFrequency.Daily, BackupFrequency.Weekly, BackupFrequency.Manual];
+        freq.Changed += i =>
         {
-            (BackupFrequency.Daily, L.T("هر روز", "Daily")), (BackupFrequency.Weekly, L.T("هر هفته", "Weekly")), (BackupFrequency.Manual, L.T("فقط دستی", "Manual only")),
-        })
-        {
-            var chip = new RadioButton { Style = St("Chip"), GroupName = fgroup, Content = text, Margin = new Thickness(0, 0, 8, 6), IsChecked = f == _frequency };
-            var captured = f;
-            chip.Checked += (_, _) =>
-            {
-                _frequency = captured;
-                _days.Visibility = captured == BackupFrequency.Weekly ? Visibility.Visible : Visibility.Collapsed;
-            };
-            _freq.Children.Add(chip);
-        }
-        body.Children.Add(_freq);
-        var dgroup = "day" + GetHashCode();
-        foreach (var d in new[] { DayOfWeek.Saturday, DayOfWeek.Sunday, DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday })
-        {
-            var chip = new RadioButton { Style = St("Chip"), GroupName = dgroup, Content = Fa.DayName(d), Margin = new Thickness(0, 0, 8, 6), IsChecked = d == _day };
-            var captured = d;
-            chip.Checked += (_, _) => _day = captured;
-            _days.Children.Add(chip);
-        }
+            _frequency = freqs[i];
+            _days.Visibility = _frequency == BackupFrequency.Weekly ? Visibility.Visible : Visibility.Collapsed;
+        };
+        right.Children.Add(freq);
+        right.Children.Add(_days);
+        Chips(_days, new[] { DayOfWeek.Saturday, DayOfWeek.Sunday, DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday }
+            .Select(d => (d, Fa.DayName(d))), _day, d => _day = d);
         _days.Visibility = Visibility.Collapsed;
-        body.Children.Add(_days);
-        var time = new StackPanel { Orientation = Orientation.Horizontal, FlowDirection = FlowDirection.LeftToRight, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 4, 0, 0) };
+        right.Children.Add(Ui2.Label(L.T("ساعت اجرا", "Time of day"), 14, 6));
+        var time = new StackPanel { Orientation = Orientation.Horizontal, FlowDirection = FlowDirection.LeftToRight, HorizontalAlignment = HorizontalAlignment.Left };
         time.Children.Add(_hour);
-        time.Children.Add(new TextBlock { Text = ":", FontSize = 18, FontWeight = FontWeights.Bold, Foreground = Res("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 6, 0) });
+        time.Children.Add(new TextBlock { Text = ":", FontSize = 22, FontWeight = FontWeights.Bold, Foreground = Res("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) });
         time.Children.Add(_minute);
         TimeBoxes.Wire(_hour, _minute);
-        body.Children.Add(Ui2.Label(L.T("ساعت اجرا", "Time of day"), 8, 2));
-        body.Children.Add(time);
-        body.Children.Add(_verify);
-        var save = new Button { Style = St("BtnPrimary"), Content = L.T("ساختن پشتیبان‌گیری", "Create backup"), HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(18, 9, 18, 9), Margin = new Thickness(0, 14, 0, 0) };
-        save.Click += (_, _) => Create();
+        right.Children.Add(time);
+        var verifyRow = K.SettingRow(L.T("بعد از کپی، فایل‌ها رو دوباره بخون و درستیشون رو چک کن", "After copying, read the files back and check them"), _verify);
+        verifyRow.Margin = new Thickness(0, 14, 0, 0);
+        right.Children.Add(verifyRow);
+        body.Children.Add(cols);
+
+        var save = ListUi.Btn("plus", L.T("ساختن پشتیبان‌گیری", "Create backup"), "BtnPrimary", Create);
+        save.HorizontalAlignment = HorizontalAlignment.Left;
+        save.Margin = new Thickness(0, 18, 0, 0);
         body.Children.Add(save);
         body.Children.Add(_hint);
         body.Children.Add(Ui2.Label(L.T("چیزی از مقصد یا پوشه‌های اصلی حذف نمی‌شه؛ فقط فایل‌های جدید یا تغییرکرده کپی می‌شن. این یه «همگام‌سازی» نیست.",
             "Nothing is deleted at the destination or the source; only new or changed files are copied. This is not a sync."), 10, 0));
-        root.Children.Add(card);
-        Content = root;
+        _root.Children.Add(card);
+        ListUi.Place(card, 1, 0, 12);
+        Content = _root;
 
         Hub.BackupsChanged += () => Dispatcher.BeginInvoke(RefreshJobs);
         ShowSources();
     }
 
+    private static Button Small(Button b)
+    {
+        b.Margin = new Thickness(0, 0, 8, 8);
+        return b;
+    }
+
     private void ShowSources()
     {
-        _sources.Items.Clear();
-        foreach (var s in _chosenSources) _sources.Items.Add(new TextBlock { Text = s, Style = St("Body") });
-        if (_chosenSources.Count == 0) _sources.Items.Add(new TextBlock { Text = L.T("هنوز پوشه‌ای انتخاب نشده.", "No folder chosen yet."), Style = St("Label") });
+        _sources.Children.Clear();
+        foreach (var s in _chosenSources)
+            _sources.Children.Add(new TextBlock { Text = s, Style = St("Body"), FlowDirection = FlowDirection.LeftToRight, HorizontalAlignment = HorizontalAlignment.Left, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = s, Foreground = Res("Text") });
+        if (_chosenSources.Count == 0) _sources.Children.Add(new TextBlock { Text = L.T("هنوز پوشه‌ای انتخاب نشده.", "No folder chosen yet."), Style = St("Label") });
     }
 
     private void Create()
@@ -572,13 +636,13 @@ public sealed class BackupPage : PageBase
         };
         if (Backups.Problem(job) is { } problem)
         {
-            _hint.Text = problem;
+            Mo.Say(_hint, problem);
             _hint.Foreground = Res("Red");
             return;
         }
         if (Hub.State.Backups.Any(j => Backups.SafeName(j.Name).Equals(Backups.SafeName(job.Name), StringComparison.OrdinalIgnoreCase)))
         {
-            _hint.Text = L.T("یه پشتیبان‌گیری با همین اسم هست.", "A backup with this name already exists.");
+            Mo.Say(_hint, L.T("یه پشتیبان‌گیری با همین اسم هست.", "A backup with this name already exists."));
             _hint.Foreground = Res("Red");
             return;
         }
@@ -588,11 +652,19 @@ public sealed class BackupPage : PageBase
         _chosenSources.Clear();
         ShowSources();
         _hint.Foreground = Res("Muted");
-        _hint.Text = L.T("ساخته شد. می‌تونی همین الان از لیست بالا اجراش کنی.", "Created. You can run it now from the list above.");
+        Mo.Say(_hint, L.T("ساخته شد. می‌تونی همین الان از لیست بالا اجراش کنی.", "Created. You can run it now from the list above."));
         RefreshJobs();
     }
 
-    public override void Refresh() => RefreshJobs();
+    public override void Refresh()
+    {
+        if (Hub.Demo && !_seeded)
+        {
+            _seeded = true;
+            if (Hub.State.Backups.Count == 0) Hub.State.Backups.AddRange(GroupDemo.Backups());
+        }
+        RefreshJobs();
+    }
 
     public override void OnSecond()
     {
@@ -609,68 +681,84 @@ public sealed class BackupPage : PageBase
     private void RefreshJobs()
     {
         _jobs.Children.Clear();
+        _jobMemo.Begin();
         if (Hub.State.Backups.Count == 0)
         {
-            _jobs.Children.Add(new TextBlock { Text = L.T("هنوز پشتیبان‌گیری‌ای نساختی. پایین یکی بساز.", "No backups yet. Create one below."), Style = St("Body"), Margin = new Thickness(0, 10, 0, 0) });
+            _jobMemo.End();
+            _jobs.Children.Add(new TextBlock { Text = L.T("هنوز پشتیبان‌گیری‌ای نساختی. پایین یکی بساز.", "No backups yet. Create one below."), Style = St("Body"), Margin = new Thickness(0, 8, 0, 0) });
             return;
         }
-        foreach (var job in Hub.State.Backups.ToList()) _jobs.Children.Add(JobCard(job));
+        foreach (var job in Hub.State.Backups.ToList()) _jobs.Children.Add(_jobMemo.Item(job.Id.ToString(), JobCard(job)));
+        _jobMemo.End();
     }
 
     private FrameworkElement JobCard(BackupJob job)
     {
         var running = Hub.BackupRunningId == job.Id;
-        var box = new Border
-        {
-            Background = Res("Panel2"), BorderBrush = Res("Line"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(14),
-            Padding = new Thickness(14, 12, 14, 12), Margin = new Thickness(0, 10, 0, 0),
-        };
+        var box = ListUi.Nested();
         var s = new StackPanel();
-        s.Children.Add(new TextBlock { Text = job.Name, Style = St("H2"), FontSize = 15 });
-        s.Children.Add(new TextBlock { Text = ScheduleText(job) + "  ·  " + string.Join("، ", job.Sources.Select(p => new DirectoryInfo(p).Name)) + "  →  " + job.Destination, Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) });
+
+        var head = new Grid();
+        head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        head.ColumnDefinitions.Add(new ColumnDefinition());
+        head.Children.Add(new IconBadge("cloud", job.Enabled ? "HueA" : "HueC", 38, 19, 12) { VerticalAlignment = VerticalAlignment.Top });
+        var titles = new StackPanel { Margin = new Thickness(14, 0, 0, 0) };
+        titles.Children.Add(new TextBlock { Text = job.Name, Style = St("H2"), FontSize = 15 });
+        var sources = string.Join("، ", job.Sources.Select(p => new DirectoryInfo(p).Name));
+        titles.Children.Add(new TextBlock { Text = ScheduleText(job) + "  ·  " + sources, Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) });
+        titles.Children.Add(new TextBlock { Text = "→  " + job.Destination, Style = St("Label"), FlowDirection = FlowDirection.LeftToRight, HorizontalAlignment = HorizontalAlignment.Left, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = job.Destination, Margin = new Thickness(0, 2, 0, 0) });
+        Grid.SetColumn(titles, 1);
+        head.Children.Add(titles);
+        s.Children.Add(head);
+
         var last = job.History.LastOrDefault();
-        var lastText = last is null
-            ? L.T("هنوز اجرا نشده.", "Not run yet.")
-            : (last.Ok ? "✅ " : "⚠️ ") + L.T($"آخرین اجرا {Fa.DayOf(last.Time, DateTime.Now)} ساعت {Fa.Clock(last.Time)}: {Fa.Digits(last.Files.ToString())} فایل ({Fa.Bytes(last.Bytes)})", $"Last run {Fa.DayOf(last.Time, DateTime.Now)} {last.Time:HH:mm}: {last.Files} file(s) ({Fa.Bytes(last.Bytes)})") + (last.Note.Length > 0 ? " · " + last.Note : "");
-        s.Children.Add(new TextBlock { Text = lastText, Style = St("Body"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) });
+        if (last is null)
+            s.Children.Add(new TextBlock { Text = L.T("هنوز اجرا نشده.", "Not run yet."), Style = St("Body"), Margin = new Thickness(0, 10, 0, 0) });
+        else
+            s.Children.Add(ListUi.IconLine(last.Ok ? "chk" : "warn", last.Ok ? "Green" : "Gold",
+                L.T($"آخرین اجرا {Fa.DayOf(last.Time, DateTime.Now)} ساعت {Fa.Clock(last.Time)}: {Fa.Digits(last.Files.ToString())} فایل ({Fa.Bytes(last.Bytes)})", $"Last run {Fa.DayOf(last.Time, DateTime.Now)} {last.Time:HH:mm}: {last.Files} file(s) ({Fa.Bytes(last.Bytes)})") + (last.Note.Length > 0 ? " · " + last.Note : ""), 10));
         if (job.Enabled && job.NextOccurrence(DateTime.Now) is { } next && !running)
-            s.Children.Add(new TextBlock { Text = L.T($"بعدی: {Fa.DayOf(next, DateTime.Now)} ساعت {Fa.Clock(next)}", $"Next: {Fa.DayOf(next, DateTime.Now)} {next:HH:mm}"), Style = St("Label"), Margin = new Thickness(0, 2, 0, 0) });
+            s.Children.Add(new TextBlock { Text = L.T($"بعدی: {Fa.DayOf(next, DateTime.Now)} ساعت {Fa.Clock(next)}", $"Next: {Fa.DayOf(next, DateTime.Now)} {next:HH:mm}"), Style = St("Label"), Margin = new Thickness(0, 4, 0, 0) });
         if (Backups.Problem(job) is { } problem)
-            s.Children.Add(new TextBlock { Text = "⚠️ " + problem, Style = St("Label"), Foreground = Res("Red"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
+            s.Children.Add(ListUi.IconLine("warn", "Red", problem, 6));
 
         if (running)
         {
-            s.Children.Add(new ProgressBar { Style = St("Bar"), Minimum = 0, Maximum = Math.Max(1, Hub.BackupTotal), Value = Hub.BackupDone, Height = 8, Margin = new Thickness(0, 10, 0, 0) });
-            var stop = new Button { Style = St("Btn"), Content = L.T("توقف", "Stop"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 8, 0, 0) };
-            stop.Click += (_, _) => Hub.CancelBackup();
+            s.Children.Add(new ProgressBar { Style = St("Bar"), Minimum = 0, Maximum = Math.Max(1, Hub.BackupTotal), Value = Hub.BackupDone, Height = 8, Margin = new Thickness(0, 12, 0, 0) });
+            var stop = ListUi.Btn("x", L.T("توقف", "Stop"), "Btn", Hub.CancelBackup);
+            stop.HorizontalAlignment = HorizontalAlignment.Left;
+            stop.Margin = new Thickness(0, 10, 0, 0);
             s.Children.Add(stop);
         }
         else
         {
-            var buttons = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
-            Button B(string text, Action click, string style = "Btn")
+            var buttons = new WrapPanel { Margin = new Thickness(0, 14, 0, 0) };
+            Button B(string icon, string text, Action click, string style = "Btn")
             {
-                var b = new Button { Style = St(style), Content = text, Margin = new Thickness(0, 0, 8, 6) };
-                b.Click += (_, _) => click();
+                var b = ListUi.Btn(icon, text, style, click);
+                b.Margin = new Thickness(0, 0, 8, 6);
                 return b;
             }
-            buttons.Children.Add(B(L.T("اجرا با پیش‌نمایش", "Run (with preview)"), () => RunWithPreview(job), "BtnPrimary"));
-            buttons.Children.Add(B(L.T("بررسی درستی نسخه‌ها", "Verify copies"), () => VerifyJob(job)));
-            buttons.Children.Add(B(L.T("بازیابی…", "Restore…"), () => RestoreJob(job)));
-            buttons.Children.Add(B(job.Enabled ? L.T("غیرفعال کردن زمان‌بندی", "Pause schedule") : L.T("فعال کردن زمان‌بندی", "Resume schedule"), () =>
+            buttons.Children.Add(B("play", L.T("اجرا با پیش‌نمایش", "Run (with preview)"), () => RunWithPreview(job), "BtnPrimary"));
+            buttons.Children.Add(B("shield", L.T("بررسی درستی نسخه‌ها", "Verify copies"), () => VerifyJob(job)));
+            buttons.Children.Add(B("refresh", L.T("بازیابی…", "Restore…"), () => RestoreJob(job)));
+            buttons.Children.Add(B(job.Enabled ? "min" : "play", job.Enabled ? L.T("غیرفعال کردن زمان‌بندی", "Pause schedule") : L.T("فعال کردن زمان‌بندی", "Resume schedule"), () =>
             {
                 job.Enabled = !job.Enabled;
                 Hub.Store.Save();
                 RefreshJobs();
             }));
-            buttons.Children.Add(B(L.T("حذف این پشتیبان‌گیری", "Delete this backup job"), () =>
+            buttons.Children.Add(B("trash", L.T("حذف این پشتیبان‌گیری", "Delete this backup job"), () =>
             {
                 if (!ConfirmWindow.AskAlways(L.T("حذف پشتیبان‌گیری", "Delete backup job"),
                         L.T($"«{job.Name}» از لیست برداشته می‌شه. فایل‌های کپی‌شده توی مقصد دست‌نخورده می‌مونن.", $"“{job.Name}” is removed from the list. The copied files at the destination are left untouched."),
                         L.T("حذف کن", "Delete"), danger: true)) return;
-                Hub.State.Backups.Remove(job);
-                Hub.Store.Save();
-                RefreshJobs();
+                Mo.Leave(box, () =>
+                {
+                    Hub.State.Backups.Remove(job);
+                    Hub.Store.Save();
+                    RefreshJobs();
+                });
             }, "BtnDanger"));
             s.Children.Add(buttons);
         }
@@ -761,10 +849,11 @@ public sealed class CleanupPage : PageBase
 {
     private readonly StackPanel _list = new();
     private readonly TextBlock _status = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
-    private readonly Button _clean = new() { Style = St("BtnDanger"), Margin = new Thickness(0, 12, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, Visibility = Visibility.Collapsed };
+    private readonly Button _clean = new() { Style = St("BtnDanger"), Margin = new Thickness(0, 14, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, Visibility = Visibility.Collapsed };
     private readonly Dictionary<string, CheckBox> _checks = [];
     private List<CleanScan> _scans = [];
     private bool _busy;
+    private bool _seeded;
 
     public override string PageTitle => L.T("فایل و پشتیبان", "Files & backup");
     public override string PageSubtitle => L.T("فایل‌های موقت و کش‌هایی که برنامه‌ها خودشون دوباره می‌سازن. اسناد، رمزها و تاریخچه هیچ‌وقت دست نمی‌خورن.",
@@ -772,10 +861,13 @@ public sealed class CleanupPage : PageBase
 
     public CleanupPage()
     {
-        var root = new StackPanel();
+        var root = ListUi.PageGrid(1);
         var (card, body) = Ui2.Card(L.T("چی جمع شده؟", "What has piled up?"));
-        var scan = new Button { Style = St("BtnPrimary"), Content = L.T("بررسی", "Scan"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0) };
-        scan.Click += (_, _) => Scan();
+        card.Margin = new Thickness(8);
+        ListUi.Place(card, 0, 0, 12);
+        var scan = ListUi.Btn("brush", L.T("بررسی", "Scan"), "BtnPrimary", Scan);
+        scan.HorizontalAlignment = HorizontalAlignment.Left;
+        scan.Margin = new Thickness(0, 14, 0, 0);
         body.Children.Add(scan);
         body.Children.Add(_status);
         _list.Margin = new Thickness(0, 8, 0, 0);
@@ -786,11 +878,20 @@ public sealed class CleanupPage : PageBase
         Content = root;
     }
 
+    public override void Refresh()
+    {
+        if (Hub.Demo && !_seeded)
+        {
+            _seeded = true;
+            Show(GroupDemo.CleanupScans());
+        }
+    }
+
     private void Scan()
     {
         if (_busy) return;
         _busy = true;
-        _status.Text = L.T("در حال بررسی…", "Scanning…");
+        Mo.Say(_status, L.T("در حال بررسی…", "Scanning…"));
         var elevated = Hub.Elevated;
         _ = Task.Run(() =>
         {
@@ -811,33 +912,24 @@ public sealed class CleanupPage : PageBase
     private void Show(List<CleanScan> scans)
     {
         _scans = scans;
+        var rowMemo = new Mo.Memo(_list);
         _list.Children.Clear();
         _checks.Clear();
         var total = scans.Where(s => !s.Blocked).Sum(s => s.Bytes);
-        _status.Text = L.T($"در مجموع {Fa.Bytes(total)} قابل پاک‌سازیه.", $"{Fa.Bytes(total)} can be cleaned in total.");
+        Mo.Say(_status, L.T($"در مجموع {Fa.Bytes(total)} قابل پاک‌سازیه.", $"{Fa.Bytes(total)} can be cleaned in total."));
+        var first = true;
         foreach (var s in scans)
         {
-            var row = new Grid { Margin = new Thickness(0, 6, 0, 6) };
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            row.ColumnDefinitions.Add(new ColumnDefinition());
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var check = new CheckBox { Style = St("Check"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0), IsEnabled = !s.Blocked && s.Files > 0 };
+            var check = new CheckBox { Style = St("Check"), IsEnabled = !s.Blocked && s.Files > 0 };
             check.Click += (_, _) => Update();
             _checks[s.Category.Id] = check;
-            row.Children.Add(check);
-            var text = new StackPanel();
-            text.Children.Add(new TextBlock { Text = s.Category.Name, Style = St("Body"), FontWeight = FontWeights.SemiBold });
-            text.Children.Add(new TextBlock { Text = s.Category.Note + (s.Blocked ? L.T(" (نیاز به اجرای ادمین)", " (needs administrator)") : ""), Style = St("Label"), TextWrapping = TextWrapping.Wrap });
-            Grid.SetColumn(text, 1);
-            row.Children.Add(text);
             var size = new TextBlock
             {
                 Text = s.Files == 0 ? L.T("چیزی نیست", "nothing") : $"{Fa.Bytes(s.Bytes)} · {Fa.Digits(s.Files.ToString())}", Style = St("Label"), VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(10, 0, 0, 0), FlowDirection = FlowDirection.LeftToRight,
+                FlowDirection = FlowDirection.LeftToRight,
             };
-            Grid.SetColumn(size, 2);
-            row.Children.Add(size);
-            _list.Children.Add(row);
+            _list.Children.Add(rowMemo.Item(s.Category.Id, ListUi.CheckItem(check, s.Category.Name, s.Category.Note + (s.Blocked ? L.T(" (نیاز به اجرای ادمین)", " (needs administrator)") : ""), size, first, trimSub: false)));
+            first = false;
         }
         Update();
     }
@@ -847,8 +939,8 @@ public sealed class CleanupPage : PageBase
     private void Update()
     {
         var chosen = Chosen();
-        _clean.Visibility = chosen.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        _clean.Content = L.T($"پاک کردن {Fa.Bytes(chosen.Sum(s => s.Bytes))}", $"Clean {Fa.Bytes(chosen.Sum(s => s.Bytes))}");
+        Mo.Show(_clean, chosen.Count > 0, 8, 0.4);
+        ListUi.SetContent(_clean, "trash", L.T($"پاک کردن {Fa.Bytes(chosen.Sum(s => s.Bytes))}", $"Clean {Fa.Bytes(chosen.Sum(s => s.Bytes))}"));
     }
 
     private void Clean()
@@ -860,7 +952,7 @@ public sealed class CleanupPage : PageBase
                 L.T($"{Fa.Bytes(chosen.Sum(s => s.Bytes))} فایل موقت و کش برای همیشه پاک می‌شه. اسناد و تنظیمات شخصی‌ت جزوش نیست.", $"{Fa.Bytes(chosen.Sum(s => s.Bytes))} of temporary files and caches is deleted for good. Your documents and personal settings are not part of it."),
                 L.T("پاک کن", "Clean"), danger: true, detail: detail)) return;
         _busy = true;
-        _status.Text = L.T("در حال پاک‌سازی…", "Cleaning…");
+        Mo.Say(_status, L.T("در حال پاک‌سازی…", "Cleaning…"));
         var categories = chosen.Select(s => s.Category).ToList();
         _ = Task.Run(() =>
         {

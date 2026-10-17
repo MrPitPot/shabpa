@@ -111,8 +111,8 @@ internal sealed class DayPicker
     {
         _time = time;
         // The earlier day sits on the reading-start side: right in Persian, left in English.
-        _prev = Arrow(L.En ? "\uE76B" : "\uE76C", L.T("روز قبل", "Previous day"), -1);
-        _next = Arrow(L.En ? "\uE76C" : "\uE76B", L.T("روز بعد", "Next day"), 1);
+        _prev = Arrow(L.En, L.T("روز قبل", "Previous day"), -1);
+        _next = Arrow(!L.En, L.T("روز بعد", "Next day"), 1);
         var day = new Border
         {
             Background = (System.Windows.Media.Brush)Application.Current.Resources["Panel2"],
@@ -128,14 +128,17 @@ internal sealed class DayPicker
         Update(DateTime.Now);
     }
 
-    private Button Arrow(string glyph, string tooltip, int step)
+    /// <summary>Chevron button; <paramref name="pointsLeft"/> mirrors the kit's right-pointing chevron.</summary>
+    private Button Arrow(bool pointsLeft, string tooltip, int step)
     {
+        var icon = new Shabpa.Kit.Icon("chev", 16) { RenderTransformOrigin = new Point(0.5, 0.5) };
+        if (pointsLeft) icon.RenderTransform = new System.Windows.Media.ScaleTransform(-1, 1);
         var button = new Button
         {
             Style = (Style)Application.Current.Resources["Btn"],
             ToolTip = tooltip,
             Padding = new Thickness(10, 8, 10, 8),
-            Content = new TextBlock { Text = glyph, Style = (Style)Application.Current.Resources["Icon"], FontSize = 13 },
+            Content = icon,
         };
         button.Click += (_, _) => Step(step);
         return button;

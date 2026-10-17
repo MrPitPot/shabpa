@@ -1,10 +1,11 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
-using System.Windows.Media.Effects;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using Shabpa.Core;
+using Shabpa.Kit;
 
 namespace Shabpa.Pages;
 
@@ -12,16 +13,32 @@ namespace Shabpa.Pages;
 /// backdrop that follows the sky (rain, snow, sun, clouds, stars, fog, lightning).</summary>
 public sealed class WeatherPage : PageBase
 {
+    /// <summary>Percent sign: the Arabic one in Persian, the plain one in English.</summary>
+    private static string Pct => L.En ? "%" : "٪";
+
     private readonly WeatherClient _client = new(() => Hub.Settings.ProxyUrl);
     private readonly TextBox _search = new() { Style = St("Input"), Padding = new Thickness(12, 9, 12, 9), FontSize = 14 };
     private readonly StackPanel _suggestions = new();
     private readonly TextBlock _hint = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
-    private readonly WeatherScene _scene = new() { Height = 270 };
+    private readonly WeatherScene _scene = new() { MinHeight = 270, VerticalAlignment = VerticalAlignment.Stretch };
+    private readonly TextBlock _tempText = new() { FontSize = 66, FontWeight = FontWeights.Light, Foreground = Brushes.White, TextWrapping = TextWrapping.Wrap, FlowDirection = FlowDirection.LeftToRight };
+    private string _drawSig = "";
     private readonly StackPanel _heroText = new() { Margin = new Thickness(26, 20, 26, 20), VerticalAlignment = VerticalAlignment.Center };
     private readonly StackPanel _details = new();
     private readonly StackPanel _hours = new() { Orientation = Orientation.Horizontal };
     private readonly StackPanel _days = new();
     private readonly Border _body = new();
+    private FrameworkElement _detailCard = null!, _hourCard = null!, _dayCard = null!;
+
+    private static readonly Brush Scrim = MakeScrim();
+
+    private static Brush MakeScrim()
+    {
+        // weather art content: a light black veil so the white text stays readable on bright skies
+        var b = new SolidColorBrush(Color.FromArgb(0x3A, 0, 0, 0));
+        b.Freeze();
+        return b;
+    }
     private readonly TextBlock _footer = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(4, 12, 4, 0) };
     private readonly DispatcherTimer _debounce = new() { Interval = TimeSpan.FromMilliseconds(450) };
     private CancellationTokenSource? _searchCts;
@@ -37,39 +54,49 @@ public sealed class WeatherPage : PageBase
 
     public WeatherPage()
     {
-        var root = new StackPanel();
+        var root = new NetBlocks(1000, 6);
 
-        var (searchCard, search) = Ui2.Card(L.T("شهر", "City"));
+        var (searchCard, search) = NetParts.Card("globe", "HueA", L.T("شهر", "City"));
         _search.ToolTip = L.T("اسم شهر به فارسی یا انگلیسی", "City name in Persian or English");
-        search.Children.Add(new Border { Margin = new Thickness(0, 10, 0, 0), Child = _search });
+        search.Children.Add(new Border { Margin = new Thickness(0, 12, 0, 0), Child = _search });
         search.Children.Add(_suggestions);
         search.Children.Add(_hint);
-        root.Children.Add(searchCard);
+        root.Add(searchCard, 0, 0, 12, 0);
 
-        var heroBorder = new Border { CornerRadius = new CornerRadius(18), ClipToBounds = true, Margin = new Thickness(0, 12, 0, 0), BorderBrush = Res("Line"), BorderThickness = new Thickness(1) };
+        // the hero is art, not chrome: it keeps its own sky colours, clipped to the card's rounded corners
+        var heroBorder = new GlassCard { Padding = new Thickness(0), Margin = new Thickness(0) };
         var heroGrid = new Grid();
         heroGrid.Children.Add(_scene);
+        // soft dark scrim under the text (replaces the old text shadow, which was a blur effect)
+        heroGrid.Children.Add(new Border { IsHitTestVisible = false, Background = Scrim });
         heroGrid.Children.Add(_heroText);
+        heroGrid.SizeChanged += (_, e) => heroGrid.Clip = new RectangleGeometry(new Rect(0, 0, e.NewSize.Width, e.NewSize.Height), 17, 17);
         heroBorder.Child = heroGrid;
         _body.Child = heroBorder;
-        root.Children.Add(_body);
+        root.Add(_body, 1, 0, 7, 1);
 
-        var (detailCard, detail) = Ui2.Card(L.T("جزئیات", "Details"));
+        var (detailCard, detail) = NetParts.Card("cloud", "HueB", L.T("جزئیات", "Details"));
         detail.Children.Add(_details);
-        root.Children.Add(detailCard);
+        _detailCard = detailCard;
+        root.Add(detailCard, 1, 7, 5, 2);
 
-        var (hourCard, hour) = Ui2.Card(L.T("ساعت‌های آینده", "Next hours"));
+        var (hourCard, hour) = NetParts.Card("clk", "HueC", L.T("ساعت‌های آینده", "Next hours"));
         hour.Children.Add(new ScrollViewer
         {
             HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = _hours, Margin = new Thickness(0, 10, 0, 0), FlowDirection = Flow,
+            Content = _hours, Margin = new Thickness(0, 12, 0, 0), FlowDirection = Flow,
         });
-        root.Children.Add(hourCard);
+        _hourCard = hourCard;
+        root.Add(hourCard, 2, 0, 12, 3);
 
-        var (dayCard, day) = Ui2.Card(L.T("روزهای آینده", "Next days"));
+        var (dayCard, day) = NetParts.Card("alarm", "HueD", L.T("روزهای آینده", "Next days"));
+        _days.Margin = new Thickness(0, 6, 0, 0);
         day.Children.Add(_days);
-        root.Children.Add(dayCard);
-        root.Children.Add(_footer);
+        _dayCard = dayCard;
+        root.Add(dayCard, 3, 0, 12, 4);
+        _footer.Margin = new Thickness(0);
+        root.Add(_footer, 4, 0, 12, 5);
+        _detailCard.Visibility = _hourCard.Visibility = _dayCard.Visibility = Visibility.Collapsed;
 
         Content = root;
 
@@ -90,13 +117,16 @@ public sealed class WeatherPage : PageBase
         };
     }
 
+    private string Footer { set => NetFx.Say(_footer, value, false); }
+    private string Hint { set => NetFx.Say(_hint, value, false); }
+
     private WeatherCity? Selected => Hub.Settings.WeatherCity;
 
     public override void Refresh()
     {
         if (Selected is null)
         {
-            _hint.Text = L.T("هنوز شهری انتخاب نشده؛ اسمش رو بالا بنویس.", "No city picked yet; type its name above.");
+            Hint = L.T("هنوز شهری انتخاب نشده؛ اسمش رو بالا بنویس.", "No city picked yet; type its name above.");
             _body.Visibility = Visibility.Collapsed;
             return;
         }
@@ -125,13 +155,13 @@ public sealed class WeatherPage : PageBase
         var ct = _searchCts.Token;
         var text = _search.Text.Trim();
         var persian = text.Any(c => c is >= '؀' and <= 'ۿ');
-        _hint.Text = L.T("در حال جستجو…", "Searching…");
+        Hint = L.T("در حال جستجو…", "Searching…");
         try
         {
             var found = Hub.Demo ? DemoCities(text) : await _client.SearchAsync(text, persian || !L.En, ct);
             if (ct.IsCancellationRequested) return;
             _suggestions.Children.Clear();
-            _hint.Text = found.Count == 0 ? L.T("شهری با این اسم پیدا نشد.", "No place found with that name.") : "";
+            Hint = found.Count == 0 ? L.T("شهری با این اسم پیدا نشد.", "No place found with that name.") : "";
             foreach (var city in found)
             {
                 var pick = city;
@@ -154,13 +184,14 @@ public sealed class WeatherPage : PageBase
                     Hub.Store.Save();
                     _suggestions.Children.Clear();
                     _search.Text = "";
-                    _hint.Text = "";
+                    Hint = "";
                     _body.Visibility = Visibility.Visible;
                     _report = null;
                     await Load();
                 };
                 _suggestions.Children.Add(button);
             }
+            NetFx.RiseChildren(_suggestions, 6, 8, 0.4);
         }
         catch (OperationCanceledException)
         {
@@ -169,7 +200,7 @@ public sealed class WeatherPage : PageBase
         catch (Exception ex)
         {
             Log.Write($"weather search: {ex.Message}");
-            _hint.Text = L.T("به سرویس هواشناسی وصل نشد. اینترنت یا پروکسی رو چک کن.", "Could not reach the weather service. Check the internet or proxy.");
+            Hint = L.T("به سرویس هواشناسی وصل نشد. اینترنت یا پروکسی رو چک کن.", "Could not reach the weather service. Check the internet or proxy.");
         }
     }
 
@@ -178,7 +209,7 @@ public sealed class WeatherPage : PageBase
         if (_loading || Selected is not { } city) return;
         _loading = true;
         _error = null;
-        _footer.Text = L.T("در حال دریافت اطلاعات…", "Loading…");
+        Footer = L.T("در حال دریافت اطلاعات…", "Loading…");
         try
         {
             _report = Hub.Demo ? DemoReport(city) : await _client.ForecastAsync(city);
@@ -205,10 +236,16 @@ public sealed class WeatherPage : PageBase
     {
         if (_report is null)
         {
-            _footer.Text = _error ?? "";
+            Footer = _error ?? "";
             return;
         }
         var r = _report;
+        var sig = r.City.Title + "|" + r.Fetched.Ticks;
+        var fresh = sig != _drawSig;
+        _drawSig = sig;
+        var cards = new[] { _detailCard, _hourCard, _dayCard };
+        var wasHidden = cards.Select(c => c.Visibility != Visibility.Visible).ToArray();
+        foreach (var c in cards) c.Visibility = Visibility.Visible;
         var now = r.Now;
         _scene.Set(WeatherCodes.SkyOf(now.Code), now.IsDay);
 
@@ -216,30 +253,30 @@ public sealed class WeatherPage : PageBase
         TextBlock T(string text, double size, FontWeight? weight = null, double opacity = 1) => new()
         {
             Text = text, FontSize = size, FontWeight = weight ?? FontWeights.Normal, Foreground = white, Opacity = opacity,
-            Effect = new DropShadowEffect { BlurRadius = 8, ShadowDepth = 1, Opacity = 0.55, Color = Colors.Black },
             TextWrapping = TextWrapping.Wrap,
         };
         _heroText.Children.Clear();
         _heroText.Children.Add(T(r.City.Title, 22, FontWeights.SemiBold));
-        var temp = T(Temp(now.Temp), 66, FontWeights.Light);
-        temp.FlowDirection = FlowDirection.LeftToRight;
-        temp.TextAlignment = L.En ? TextAlignment.Left : TextAlignment.Right;
-        _heroText.Children.Add(temp);
+        _tempText.TextAlignment = L.En ? TextAlignment.Left : TextAlignment.Right;
+        NetFx.Count(_tempText, Math.Round(now.Temp), Temp, 700);
+        _heroText.Children.Add(_tempText);
         var condition = T("", 22);
         ColorEmoji.Fill(condition, $"{WeatherCodes.Emoji(now.Code, now.IsDay)}  {WeatherCodes.Text(now.Code)}");
         _heroText.Children.Add(condition);
         var today = r.Days.FirstOrDefault();
-        var extra = L.T($"احساس واقعی {Temp(now.Feels)}", $"Feels like {Temp(now.Feels)}");
-        if (today is not null) extra += L.T($"   ·   بیشینه {Temp(today.Max)}   کمینه {Temp(today.Min)}", $"   ·   High {Temp(today.Max)}   Low {Temp(today.Min)}");
+        string Lt(double t) => "\u200E" + Temp(t) + "\u200E";
+        var extra = L.T($"احساس واقعی {Lt(now.Feels)}", $"Feels like {Lt(now.Feels)}");
+        if (today is not null) extra += L.T($"   ·   بیشینه {Lt(today.Max)}   کمینه {Lt(today.Min)}", $"   ·   High {Lt(today.Max)}   Low {Lt(today.Min)}");
         _heroText.Children.Add(T(extra, 14, opacity: 0.92));
         _heroText.FlowDirection = Flow;
 
         // details
         _details.Children.Clear();
-        var grid = new UniformGrid { Columns = 4, Margin = new Thickness(-4, 10, -4, 0), FlowDirection = Flow };
+        var grid = new UniformGrid { Columns = 2, Margin = new Thickness(-4, 10, -4, 0), FlowDirection = Flow };
         void Tile(string icon, string label, string value)
         {
             var box = new Border { Style = St("Card"), Margin = new Thickness(4), Padding = new Thickness(14, 10, 14, 10) };
+            Fx.Attach(box, 2, 0, 1, 1);
             var stack = new StackPanel();
             var caption = new TextBlock { Style = St("Label") };
             ColorEmoji.Fill(caption, $"{icon} {label}");
@@ -249,20 +286,21 @@ public sealed class WeatherPage : PageBase
             {
                 Text = value, FontSize = 17, FontWeight = FontWeights.SemiBold, Foreground = Res("Text"), Margin = new Thickness(0, 6, 0, 0),
                 TextWrapping = TextWrapping.Wrap, FlowDirection = FlowDirection.LeftToRight,
-                HorizontalAlignment = L.En ? HorizontalAlignment.Left : HorizontalAlignment.Right,
+                HorizontalAlignment = HorizontalAlignment.Left,
             });
             box.Child = stack;
             grid.Children.Add(box);
         }
         Tile("🌡️", L.T("احساس واقعی", "Feels like"), Temp(now.Feels));
-        Tile("💧", L.T("رطوبت", "Humidity"), Num(now.Humidity) + "٪");
+        Tile("💧", L.T("رطوبت", "Humidity"), Num(now.Humidity) + Pct);
         Tile("💨", L.T($"باد ({WeatherCodes.Compass(now.WindDir)})", $"Wind ({WeatherCodes.Compass(now.WindDir)})"), $"{Num(now.WindKmh)} km/h");
         Tile("🧭", L.T("فشار", "Pressure"), $"{Num(now.PressureHpa)} hPa");
         Tile("☀️", L.T("پرتو فرابنفش", "UV index"), $"{Num(now.Uv, "0.#")} · {UvLevel(now.Uv)}");
-        Tile("☁️", L.T("پوشش ابر", "Cloud cover"), Num(now.CloudPercent) + "٪");
+        Tile("☁️", L.T("پوشش ابر", "Cloud cover"), Num(now.CloudPercent) + Pct);
         if (today?.Sunrise is { } sr) Tile("🌅", L.T("طلوع", "Sunrise"), Fa.Clock(sr));
         if (today?.Sunset is { } ss) Tile("🌇", L.T("غروب", "Sunset"), Fa.Clock(ss));
         _details.Children.Add(grid);
+        if (fresh) NetFx.RiseChildren(grid, 8, 12, 0.55);
 
         // hours
         _hours.Children.Clear();
@@ -271,21 +309,23 @@ public sealed class WeatherPage : PageBase
             var item = new Border
             {
                 Width = 74, Margin = new Thickness(0, 0, 8, 6), Padding = new Thickness(6, 10, 6, 10), CornerRadius = new CornerRadius(12),
-                Background = Res("Panel2"), BorderBrush = Res("Line"), BorderThickness = new Thickness(1),
+                Background = Res("Line"),
             };
+            Fx.Attach(item, 3, 0, 1, 1);
             var stack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
             stack.Children.Add(new TextBlock { Text = Fa.Clock(h.Time), Style = St("Label"), HorizontalAlignment = HorizontalAlignment.Center });
             var hourIcon = ColorEmoji.Icon(WeatherCodes.Emoji(h.Code, h.IsDay), 22);
             ((FrameworkElement)hourIcon).Margin = new Thickness(0, 6, 0, 6);
             ((FrameworkElement)hourIcon).HorizontalAlignment = HorizontalAlignment.Center;
             stack.Children.Add(hourIcon);
-            stack.Children.Add(new TextBlock { Text = Temp(h.Temp), FontWeight = FontWeights.SemiBold, Foreground = Res("Text"), HorizontalAlignment = HorizontalAlignment.Center });
+            stack.Children.Add(new TextBlock { Text = Temp(h.Temp), FontWeight = FontWeights.SemiBold, Foreground = Res("Text"), HorizontalAlignment = HorizontalAlignment.Center, FlowDirection = FlowDirection.LeftToRight });
             var chance = new TextBlock { FontSize = 11, Foreground = Res("Muted"), Margin = new Thickness(0, 4, 0, 0), HorizontalAlignment = HorizontalAlignment.Center };
-            ColorEmoji.Fill(chance, h.RainChance > 0 ? $"💧{Num(h.RainChance)}٪" : " ");
+            ColorEmoji.Fill(chance, h.RainChance > 0 ? $"💧{Num(h.RainChance)}{Pct}" : " ");
             stack.Children.Add(chance);
             item.Child = stack;
             _hours.Children.Add(item);
         }
+        if (fresh) NetFx.RiseChildren(_hours, 14, 10, 0.5);
 
         // days
         _days.Children.Clear();
@@ -313,21 +353,29 @@ public sealed class WeatherPage : PageBase
             Put(dayIcon, 1);
             Put(new TextBlock { Text = WeatherCodes.Text(d.Code), Style = St("Label"), VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap }, 2);
             var rainBox = new TextBlock { Style = St("Label"), VerticalAlignment = VerticalAlignment.Center };
-            ColorEmoji.Fill(rainBox, d.RainChance > 0 ? $"💧 {Num(d.RainChance)}٪" : "");
+            ColorEmoji.Fill(rainBox, d.RainChance > 0 ? $"💧 {Num(d.RainChance)}{Pct}" : "");
             Put(rainBox, 3);
             Put(new TextBlock { Text = Temp(d.Min), Style = St("Label"), VerticalAlignment = VerticalAlignment.Center, FlowDirection = FlowDirection.LeftToRight, HorizontalAlignment = HorizontalAlignment.Center }, 4);
 
             // a bar from the day's low to its high, placed inside the week's overall range
             var track = new Grid { Height = 8, Margin = new Thickness(8, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center, FlowDirection = FlowDirection.LeftToRight };
-            track.Children.Add(new Border { Background = Res("Panel2"), CornerRadius = new CornerRadius(4) });
+            track.Children.Add(new Border { Background = Res("Line"), CornerRadius = new CornerRadius(4) });
             track.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Max(0.001, (d.Min - lo) / span), GridUnitType.Star) });
             track.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Max(0.02, (d.Max - d.Min) / span), GridUnitType.Star) });
             track.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Max(0.001, (hi - d.Max) / span), GridUnitType.Star) });
             var fill = new Border
             {
                 CornerRadius = new CornerRadius(4),
-                Background = new LinearGradientBrush(Color.FromRgb(0x5B, 0xC0, 0xFF), Color.FromRgb(0xFF, 0xB2, 0x4D), 0),
+                Background = new LinearGradientBrush(K.ColorOf("HueA"), K.ColorOf("HueC"), 0),
             };
+            if (fresh && Motion.Enabled)
+            {
+                // the range bar grows out from its start
+                var grow = new ScaleTransform(1, 1);
+                fill.RenderTransformOrigin = new Point(0, 0.5);
+                fill.RenderTransform = grow;
+                grow.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(900)) { EasingFunction = Fx.Out, FillBehavior = FillBehavior.Stop });
+            }
             Grid.SetColumn(fill, 1);
             track.Children.Add(fill);
             Put(track, 5);
@@ -335,8 +383,13 @@ public sealed class WeatherPage : PageBase
             _days.Children.Add(row);
             if (++index < r.Days.Count) _days.Children.Add(new Border { Height = 1, Background = Res("Line"), Opacity = 0.5 });
         }
+        if (fresh) NetFx.RiseChildren(_days, 16, 10, 0.5);
+        if (fresh) Motion.Rise(_heroText, 0, 14, 0.7);
+        // cards that were hidden until the first report arrived come in like the page's own blocks
+        for (var i = 0; i < cards.Length; i++)
+            if (wasHidden[i]) Motion.Rise(cards[i], i + 1);
 
-        _footer.Text = (_error is null ? "" : _error + "\n")
+        Footer = (_error is null ? "" : _error + "\n")
             + L.T($"منبع: {r.Source} (سرویس متن‌باز و رایگان با اتصال امن HTTPS؛ داده‌ی مدل‌های سازمان‌های هواشناسی ملی) · آخرین به‌روزرسانی {Fa.Clock(r.Fetched)}",
                 $"Source: {r.Source} (free open-source service over HTTPS, using national weather agencies' models) · updated {Fa.Clock(r.Fetched)}");
     }

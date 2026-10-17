@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Shabpa.Core;
+using Shabpa.Kit;
 
 namespace Shabpa.Pages;
 
@@ -18,7 +19,7 @@ internal static class Ui2
             {
                 Text = subtitle, Style = (Style)Application.Current.Resources["Body"], TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0),
             });
-        var card = new Border { Style = (Style)Application.Current.Resources["Card"], Margin = new Thickness(0, 12, 0, 0), Child = body };
+        var card = new GlassCard { Margin = new Thickness(0, 12, 0, 0), Child = body };
         return (card, body);
     }
 
@@ -54,7 +55,8 @@ internal static class Ui2
     }
 }
 
-/// <summary>Settings and a live preview of the in-game overlay.</summary>
+/// <summary>Settings and a live preview of the in-game overlay. Glass Depth layout: preview + "when to show" on top, then
+/// layout, colours, size, position, details, sensors, the zone editor, shortcuts, profiles and history as glass cards.</summary>
 public sealed class OverlayPage : PageBase
 {
     private static readonly (string key, string fa, string en)[] Anchors =
@@ -71,10 +73,12 @@ public sealed class OverlayPage : PageBase
 
     private readonly DispatcherTimer _save = new() { Interval = TimeSpan.FromMilliseconds(400) };
     private readonly Border _previewStage = new();
+    private readonly Border _previewHost = new();
     private readonly WrapPanel _modeChips = new();
     private readonly WrapPanel _layoutChips = new();
     private readonly WrapPanel _lookChips = new();
-    private readonly WrapPanel _anchorChips = new();
+    private AnchorPicker _anchorPicker = null!;
+    private readonly TextBlock _anchorName = new();
     private readonly StackPanel _custom = new();
     private readonly TextBox _accentBox = Input(), _textBox = Input(), _backBox = Input();
     private readonly HotkeyBox _toggleKey = new(), _moveKey = new();
@@ -113,37 +117,41 @@ public sealed class OverlayPage : PageBase
             Hub.Store.Save();
         };
 
-        var root = new StackPanel();
+        var root = new BlockGrid();
 
-        // ---- preview + mode -----------------------------------------------------------------------
-        var (previewCard, preview) = Ui2.Card(L.T("پیش‌نمایش", "Preview"));
-        previewCard.Margin = new Thickness(0);
-        _previewStage.Height = 210;
-        _previewStage.CornerRadius = new CornerRadius(12);
+        // ---- preview ---------------------------------------------------------------------------------
+        var (previewCard, preview) = Ui2.Card(L.T("پیش‌نمایش", "Preview"), L.T("هر تغییری همان لحظه این‌جا دیده می‌شه.", "Every change shows here right away."));
+        _previewStage.Height = 250;
+        _previewStage.CornerRadius = new CornerRadius(14);
         _previewStage.ClipToBounds = true;
         _previewStage.FlowDirection = FlowDirection.LeftToRight;
-        _previewStage.Margin = new Thickness(0, 12, 0, 0);
-        _previewStage.Background = new LinearGradientBrush(
-            [new GradientStop(Color.FromRgb(18, 24, 44), 0), new GradientStop(Color.FromRgb(46, 31, 74), 0.55), new GradientStop(Color.FromRgb(14, 62, 74), 1)],
-            new Point(0, 0), new Point(1, 1));
+        _previewStage.Margin = new Thickness(0, 14, 0, 0);
+        var stage = new Grid();
+        stage.Children.Add(SceneArt.Build(14));
+        stage.Children.Add(_previewHost);
+        _previewStage.Child = stage;
         preview.Children.Add(_previewStage);
-        preview.Children.Add(Ui2.Label(L.T("چه موقع نشون داده بشه؟", "When should it show?")));
-        preview.Children.Add(_modeChips);
+        root.Add(previewCard, 0, 0, 7);
+
+        // ---- when to show ----------------------------------------------------------------------------
+        var (showCard, show) = Ui2.Card(L.T("نمایش", "Showing"));
+        show.Children.Add(Ui2.Label(L.T("چه موقع نشون داده بشه؟", "When should it show?"), 10, 6));
+        show.Children.Add(_modeChips);
         _note.Style = St("Label");
         _note.TextWrapping = TextWrapping.Wrap;
-        _note.Margin = new Thickness(0, 8, 0, 0);
-        preview.Children.Add(_note);
-        preview.Children.Add(Ui2.Label(L.T("بازی‌ای که شب‌پا نمی‌شناسه؟ اسم برنامه‌ش رو این‌جا بنویس (با کاما جدا کن، مثلاً cs2, valorant)", "A game Shabpa does not recognise? Type its program name here (comma separated, for example cs2, valorant)"), 12, 4));
+        _note.Margin = new Thickness(0, 6, 0, 0);
+        show.Children.Add(_note);
+        show.Children.Add(Ui2.Label(L.T("بازی‌ای که شب‌پا نمی‌شناسه؟ اسم برنامه‌ش رو این‌جا بنویس (با کاما جدا کن، مثلاً cs2, valorant)", "A game Shabpa does not recognise? Type its program name here (comma separated, for example cs2, valorant)"), 16, 6));
         var gameList = new TextBox { Style = St("Input"), FlowDirection = FlowDirection.LeftToRight, FontFamily = new FontFamily("Consolas"), Text = Hub.Settings.GameList, Margin = new Thickness(0, 0, 0, 0) };
         gameList.TextChanged += (_, _) => { Hub.Settings.GameList = gameList.Text; _save.Stop(); _save.Start(); };
-        preview.Children.Add(gameList);
-        root.Children.Add(previewCard);
+        show.Children.Add(gameList);
+        root.Add(showCard, 0, 7, 5);
 
-        // ---- layout -----------------------------------------------------------------------------
+        // ---- layout ------------------------------------------------------------------------------
         var (layoutCard, layout) = Ui2.Card(L.T("طرح", "Layout"), L.T("شش طرح متفاوت؛ همه با همین اطلاعات انتخابی کار می‌کنن.", "Six different layouts; all of them show the items you pick."));
-        layout.Children.Add(Ui2.Label("", 4, 4));
+        layout.Children.Add(Ui2.Label("", 6, 4));
         layout.Children.Add(_layoutChips);
-        root.Children.Add(layoutCard);
+        root.Add(layoutCard, 1, 0, 6);
 
         // ---- colours -----------------------------------------------------------------------------
         var (lookCard, look) = Ui2.Card(L.T("رنگ و تم", "Colours"));
@@ -151,53 +159,60 @@ public sealed class OverlayPage : PageBase
         look.Children.Add(_lookChips);
         _custom.Children.Add(Ui2.Label(L.T("رنگ‌ها را به شکل ۶ رقم هگز بنویس (مثلاً 3EE6A0):", "Enter colours as 6 hex digits (for example 3EE6A0):")));
         var customRow = new WrapPanel();
-        void Field(string label, TextBox box)
-        {
-            var cell = new StackPanel { Margin = new Thickness(0, 0, 12, 6) };
-            cell.Children.Add(new TextBlock { Text = label, Style = St("Label") });
-            box.Margin = new Thickness(0, 4, 0, 0);
-            cell.Children.Add(box);
-            customRow.Children.Add(cell);
-        }
-        Field(L.T("رنگ اصلی", "Accent"), _accentBox);
-        Field(L.T("رنگ متن", "Text"), _textBox);
-        Field(L.T("رنگ پس‌زمینه", "Background"), _backBox);
+        customRow.Children.Add(GroupB.Field(L.T("رنگ اصلی", "Accent"), _accentBox));
+        customRow.Children.Add(GroupB.Field(L.T("رنگ متن", "Text"), _textBox));
+        customRow.Children.Add(GroupB.Field(L.T("رنگ پس‌زمینه", "Background"), _backBox));
         _custom.Children.Add(customRow);
         look.Children.Add(_custom);
-        root.Children.Add(lookCard);
+        root.Add(lookCard, 1, 6, 6);
 
-        // ---- size, opacity, position -----------------------------------------------------------------
-        var (sizeCard, size) = Ui2.Card(L.T("اندازه، شفافیت و جای قرارگیری", "Size, opacity and position"));
+        // ---- size and opacity --------------------------------------------------------------------------
+        var (sizeCard, size) = Ui2.Card(L.T("اندازه و شفافیت", "Size and opacity"));
         var scale = Ui2.SliderRow(L.T("اندازه", "Size"), 0.6, 2.2, 0.05, v => $"{v * 100:0}%");
         var opacity = Ui2.SliderRow(L.T("تیرگی پس‌زمینه", "Background opacity"), 0.1, 1.0, 0.05, v => $"{v * 100:0}%");
         var offsetX = Ui2.SliderRow(L.T("فاصله از کنار", "Offset from the side"), 0, 600, 4, v => $"{v:0} px");
         var offsetY = Ui2.SliderRow(L.T("فاصله از بالا/پایین", "Offset from top/bottom"), 0, 600, 4, v => $"{v:0} px");
         (_scale, _opacity, _offsetX, _offsetY) = (scale.slider, opacity.slider, offsetX.slider, offsetY.slider);
+        scale.row.Margin = new Thickness(0, 12, 0, 0);
         foreach (var row in new[] { scale.row, opacity.row, offsetX.row, offsetY.row }) size.Children.Add(row);
-        size.Children.Add(Ui2.Label(L.T("گوشه‌ی صفحه:", "Corner of the screen:"), 14));
-        size.Children.Add(_anchorChips);
+        root.Add(sizeCard, 2, 0, 7);
+
+        // ---- position ----------------------------------------------------------------------------------
+        var (positionCard, position) = Ui2.Card(L.T("جای قرارگیری", "Position"));
+        position.Children.Add(Ui2.Label(L.T("گوشه‌ی صفحه:", "Corner of the screen:"), 10, 8));
+        _anchorPicker = new AnchorPicker(Anchors.Select(a => (a.key, L.T(a.fa, a.en))).ToList(), Hub.Settings.Overlay.Anchor);
+        _anchorName.Style = St("Label");
+        _anchorName.Margin = new Thickness(0, 8, 0, 0);
+        position.Children.Add(_anchorPicker);
+        position.Children.Add(_anchorName);
         _moveButton.Style = St("Btn");
-        _moveButton.Margin = new Thickness(0, 12, 0, 0);
+        _moveButton.Margin = new Thickness(0, 14, 0, 0);
         _moveButton.HorizontalAlignment = HorizontalAlignment.Left;
         _moveButton.Click += OnMove;
-        size.Children.Add(_moveButton);
-        root.Children.Add(sizeCard);
+        position.Children.Add(_moveButton);
+        root.Add(positionCard, 2, 7, 5);
 
         // ---- look options ------------------------------------------------------------------------
         var (optionCard, options) = Ui2.Card(L.T("جزئیات ظاهر", "Details"));
-        var optionRow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
-        CheckBox Option(string text) => new() { Style = St("Check"), Content = text, Margin = new Thickness(0, 0, 8, 8) };
-        _colorByValue = Option(L.T("رنگ هشدار (سبز/زرد/قرمز)", "Warning colours (green / amber / red)"));
-        _labels = Option(L.T("نمایش نام هر مورد", "Show item names"));
-        _shadow = Option(L.T("سایه‌ی متن", "Text shadow"));
-        _rounded = Option(L.T("گوشه‌های گرد", "Rounded corners"));
-        foreach (var box in new[] { _colorByValue, _labels, _shadow, _rounded })
+        _colorByValue = new Switch();
+        _labels = new Switch();
+        _shadow = new Switch();
+        _rounded = new Switch();
+        var optionRows = new[]
         {
-            box.Click += OnOption;
-            optionRow.Children.Add(box);
+            (L.T("رنگ هشدار (سبز/زرد/قرمز)", "Warning colours (green / amber / red)"), _colorByValue),
+            (L.T("نمایش نام هر مورد", "Show item names"), _labels),
+            (L.T("سایه‌ی متن", "Text shadow"), _shadow),
+            (L.T("گوشه‌های گرد", "Rounded corners"), _rounded),
+        };
+        for (var i = 0; i < optionRows.Length; i++)
+        {
+            optionRows[i].Item2.Click += OnOption;
+            var row = GroupB.SwitchRow(optionRows[i].Item1, optionRows[i].Item2, first: i == 0);
+            if (i == 0) row.Margin = new Thickness(0, 8, 0, 0);
+            options.Children.Add(row);
         }
-        options.Children.Add(optionRow);
-        root.Children.Add(optionCard);
+        root.Add(optionCard, 3, 0, 6);
 
         // ---- items -------------------------------------------------------------------------------
         // Readings this particular card does not report (checked once, on a short-lived connection).
@@ -221,18 +236,25 @@ public sealed class OverlayPage : PageBase
             Text = L.T("چند تا از گزینه‌ها (فریم بر ثانیه، دمای CPU، فن‌ها، حسگرهای مادربورد) فقط با دسترسی ادمین کار می‌کنن. اگه تیکشون رو زدی و چیزی نمی‌بینی، دلیلش همینه.",
                 "Several readings (frame rate, CPU temperature, fans, board sensors) only work with administrator rights. If you ticked them and see nothing, this is why."),
         };
-        var adminButton = new Button { Style = St("Btn"), Content = L.T("اجرای دوباره با دسترسی ادمین", "Restart as administrator"), Margin = new Thickness(0, 8, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
+        var adminButton = new Button { Style = St("Btn"), Content = L.T("اجرای دوباره با دسترسی ادمین", "Restart as administrator"), Margin = new Thickness(0, 10, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
         adminButton.Click += (_, _) =>
         {
             if (Application.Current is App app && !app.Restart(elevated: true, page: "gaming"))
                 _note.Text = L.T("اجازه‌ی ادمین داده نشد.", "Administrator permission was not given.");
         };
-        var adminPanel = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
+        var adminPanel = new StackPanel();
         adminPanel.Children.Add(adminText);
         adminPanel.Children.Add(adminButton);
-        _adminBanner.Child = adminPanel;
-        _adminBanner.Padding = new Thickness(12, 10, 12, 12);
-        _adminBanner.CornerRadius = new CornerRadius(10);
+        var adminRow = new Grid();
+        adminRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        adminRow.ColumnDefinitions.Add(new ColumnDefinition());
+        adminRow.Children.Add(new IconBadge("bolt", "Gold", 34, 18, 10) { VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 0, 12, 0) });
+        Grid.SetColumn(adminPanel, 1);
+        adminRow.Children.Add(adminPanel);
+        _adminBanner.Child = adminRow;
+        _adminBanner.Padding = new Thickness(14, 12, 14, 14);
+        _adminBanner.CornerRadius = new CornerRadius(14);
+        _adminBanner.Margin = new Thickness(0, 14, 0, 0);
         _adminBanner.Background = Res("GoldSoft");
         items.Children.Add(_adminBanner);
         foreach (var (key, fa, en) in Groups)
@@ -275,13 +297,12 @@ public sealed class OverlayPage : PageBase
             _save.Start();
         }, key => _groupWraps[key]);
         items.Children.Add(_editor);
-        root.Children.Add(itemCard);
 
         // ---- optional advanced sensors ------------------------------------------------------------
         var (boardCard, board) = Ui2.Card(L.T("حسگرهای پیشرفته (اختیاری)", "Advanced sensors (optional)"),
             L.T("دمای واقعی CPU و دور و درصد فن CPU از حسگر مادربورد خونده می‌شن. به اجرای شب‌پا با دسترسی ادمین و درایور PawnIO نیاز داره؛ شب‌پا چیزی نصب نمی‌کنه.",
                 "Real CPU temperature and CPU fan speed are read from the motherboard chip. Needs Shabpa running as administrator and the PawnIO driver; Shabpa installs nothing."));
-        _board = new CheckBox { Style = St("Check"), Content = L.T("فعال‌سازی حسگرهای پیشرفته", "Enable advanced sensors"), Margin = new Thickness(0, 10, 0, 6) };
+        _board = new Switch();
         _board.Click += (_, _) =>
         {
             if (_loading) return;
@@ -291,33 +312,29 @@ public sealed class OverlayPage : PageBase
             Hub.Telemetry.Acquire();
             Hub.Telemetry.Release();
         };
+        var boardRow = GroupB.SwitchRow(L.T("فعال‌سازی حسگرهای پیشرفته", "Enable advanced sensors"), _board, first: true);
+        boardRow.Margin = new Thickness(0, 8, 0, 0);
+        board.Children.Add(boardRow);
         _boardNote.Style = St("Label");
         _boardNote.TextWrapping = TextWrapping.Wrap;
-        board.Children.Add(_board);
+        _boardNote.Margin = new Thickness(0, 8, 0, 0);
         board.Children.Add(_boardNote);
-        root.Children.Add(boardCard);
+        root.Add(boardCard, 3, 6, 6);
+        root.Add(itemCard, 4, 0, 12);
 
         // ---- hotkeys ---------------------------------------------------------------------------
         var (keyCard, keys) = Ui2.Card(L.T("میان‌بر کیبورد", "Keyboard shortcuts"),
             L.T("روی دکمه کلیک کن و ترکیب جدید رو بزن. حتماً Ctrl یا Alt توش باشه؛ Shift اختیاریه. Backspace میان‌بر رو خاموش می‌کنه و Esc لغو می‌کنه.",
                 "Click a button and press the new combination. It must include Ctrl or Alt; Shift is optional. Backspace turns it off, Esc cancels."));
-        var keyRow = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
-        void Key(string label, HotkeyBox box)
-        {
-            var cell = new StackPanel { Margin = new Thickness(0, 0, 14, 0) };
-            cell.Children.Add(new TextBlock { Text = label, Style = St("Label") });
-            box.Margin = new Thickness(0, 4, 0, 0);
-            cell.Children.Add(box);
-            keyRow.Children.Add(cell);
-        }
-        Key(L.T("نمایش / پنهان", "Show / hide"), _toggleKey);
-        Key(L.T("جابجایی با ماوس", "Move with the mouse"), _moveKey);
-        keys.Children.Add(keyRow);
+        var showRow = K.SettingRow(L.T("نمایش / پنهان", "Show / hide"), _toggleKey, first: true);
+        showRow.Margin = new Thickness(0, 8, 0, 0);
+        keys.Children.Add(showRow);
+        keys.Children.Add(K.SettingRow(L.T("جابجایی با ماوس", "Move with the mouse"), _moveKey));
         _keyNote.Style = St("Label");
         _keyNote.TextWrapping = TextWrapping.Wrap;
         _keyNote.Margin = new Thickness(0, 8, 0, 0);
         keys.Children.Add(_keyNote);
-        root.Children.Add(keyCard);
+        root.Add(keyCard, 5, 0, 6);
 
         // ---- per-game profiles ----------------------------------------------------------------------
         var (profileCard, profiles) = Ui2.Card(L.T("پروفایل هر بازی", "Per-game profiles"),
@@ -326,10 +343,10 @@ public sealed class OverlayPage : PageBase
         _profileGame.Style = St("Input");
         _profileGame.Width = 220;
         _profileGame.FlowDirection = FlowDirection.LeftToRight;
-        _profileGame.Margin = new Thickness(0, 10, 8, 0);
-        var saveProfile = new Button { Style = St("Btn"), Content = L.T("ذخیره برای این بازی", "Save for this game"), Margin = new Thickness(0, 10, 0, 0) };
+        _profileGame.Margin = new Thickness(0, 0, 8, 0);
+        var saveProfile = new Button { Style = St("Btn"), Content = L.T("ذخیره برای این بازی", "Save for this game") };
         saveProfile.Click += (_, _) => SaveProfile();
-        var profileRow = new WrapPanel();
+        var profileRow = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
         profileRow.Children.Add(_profileGame);
         profileRow.Children.Add(saveProfile);
         profiles.Children.Add(profileRow);
@@ -338,27 +355,29 @@ public sealed class OverlayPage : PageBase
         _profileNote.Margin = new Thickness(0, 8, 0, 0);
         profiles.Children.Add(_profileNote);
         profiles.Children.Add(_profileList);
-        root.Children.Add(profileCard);
+        root.Add(profileCard, 5, 6, 6);
 
         // ---- history -----------------------------------------------------------------------------------
         var (historyCard, history) = Ui2.Card(L.T("تاریخچه‌ی بازی‌ها", "Game history"),
             L.T("آخرین بازی‌هایی که شب‌پا گزارششون رو ساخته؛ برای مقایسه‌ی فریم، پینگ و دما.", "The latest games Shabpa made a report for, to compare frame rate, ping and temperature."));
         history.Children.Add(_historyList);
-        root.Children.Add(historyCard);
+        root.Add(historyCard, 6, 0, 12);
 
-        root.Children.Add(new TextBlock
+        var footer = new TextBlock
         {
-            Style = St("Label"), Margin = new Thickness(4, 12, 4, 0), TextWrapping = TextWrapping.Wrap,
+            Style = St("Label"), Margin = new Thickness(4, 4, 4, 0), TextWrapping = TextWrapping.Wrap,
             Text = L.T("اورلی روی بازی‌های «بدون کادر» و «پنجره‌ای» نشون داده می‌شه؛ بازی‌های تمام‌صفحه‌ی اختصاصی (exclusive) پنجره‌ی روی خودشون رو اجازه نمی‌دن. چیزی داخل بازی تزریق نمی‌شه، پس با آنتی‌چیت مشکلی نداره.",
                 "The overlay shows over borderless and windowed games; true exclusive full-screen games do not allow a window over them. Nothing is injected into any game, so anti-cheat has nothing to object to."),
-        });
+        };
+        root.Add(footer, 7, 0, 12);
+        // the grid's own margin pulls its blocks to the page edge; the footer needs no card gap below it
         Content = root;
 
         Chips(_modeChips, [(OverlayMode.Off, L.T("خاموش", "Off")), (OverlayMode.InGame, L.T("فقط موقع بازی", "Only while gaming")), (OverlayMode.Always, L.T("همیشه", "Always"))],
-            Hub.Settings.Overlay.Mode, v => Change(o => o.Mode = v));
-        Chips(_layoutChips, OverlayLayouts.All.Select(l => (l.key, L.T(l.fa, l.en))), Hub.Settings.Overlay.Layout, v => Change(o => o.Layout = v));
-        Chips(_lookChips, OverlayLook.All.Select(l => (l.Key, l.Name)), Hub.Settings.Overlay.Look, v => Change(o => o.Look = v));
-        Chips(_anchorChips, Anchors.Select(a => (a.key, L.T(a.fa, a.en))), Hub.Settings.Overlay.Anchor, v => Change(o => o.Anchor = v));
+            Hub.Settings.Overlay.Mode, v => Change(o => o.Mode = v, pop: true));
+        Chips(_layoutChips, OverlayLayouts.All.Select(l => (l.key, L.T(l.fa, l.en))), Hub.Settings.Overlay.Layout, v => Change(o => o.Layout = v, pop: true));
+        Chips(_lookChips, OverlayLook.All.Select(l => (l.Key, l.Name)), Hub.Settings.Overlay.Look, v => Change(o => o.Look = v, pop: true));
+        _anchorPicker.Picked += v => { UpdateAnchorName(); Change(o => o.Anchor = v, pop: true); };
 
         scale.slider.ValueChanged += (_, _) => Change(o => o.Scale = scale.slider.Value);
         opacity.slider.ValueChanged += (_, _) => Change(o => o.BackOpacity = opacity.slider.Value);
@@ -374,13 +393,19 @@ public sealed class OverlayPage : PageBase
         IsVisibleChanged += (_, _) => { if (IsVisible) Refresh(); };
     }
 
-    private void Change(Action<OverlaySettings> edit)
+    private void UpdateAnchorName()
+    {
+        var (_, fa, en) = Anchors.FirstOrDefault(a => a.key == _anchorPicker.Value);
+        _anchorName.Text = fa is null ? "" : L.T(fa, en);
+    }
+
+    private void Change(Action<OverlaySettings> edit, bool pop = false)
     {
         if (_loading) return;
         edit(Hub.Settings.Overlay);
         Hub.Overlay?.Evaluate();
         _editor?.Rebuild();
-        UpdatePreview();
+        UpdatePreview(pop);
         UpdateVisibility();
         _save.Stop();
         _save.Start();
@@ -399,7 +424,7 @@ public sealed class OverlayPage : PageBase
         o.ShowLabels = _labels.IsChecked == true;
         o.Shadow = _shadow.IsChecked == true;
         o.Rounded = _rounded.IsChecked == true;
-    });
+    }, pop: true);
 
     private static bool Unsupported(string key, GpuReading g) => key switch
     {
@@ -425,24 +450,38 @@ public sealed class OverlayPage : PageBase
         o.Profiles.Add(o.Snapshot(name));
         Hub.OverlayChanged();
         _profileNote.Text = L.T($"برای «{name}» ذخیره شد.", $"Saved for “{name}”.");
-        ShowProfiles();
+        GroupB.Appear(_profileNote);
+        ShowProfiles(animate: true);
     }
 
-    private void ShowProfiles()
+    private void ShowProfiles(bool animate = false)
     {
         _profileList.Children.Clear();
-        foreach (var profile in Hub.Settings.Overlay.Profiles.ToList())
+        var profiles = Hub.Settings.Overlay.Profiles.ToList();
+        for (var i = 0; i < profiles.Count; i++)
         {
+            var profile = profiles[i];
             var game = profile.Game;
-            var delete = IconButton("", L.T("حذف", "Delete"), () =>
+            FrameworkElement? shown = null;
+            var delete = IconButton("trash", L.T("حذف", "Delete"), () =>
             {
-                Hub.Settings.Overlay.Profiles.RemoveAll(p => p.Game == game);
-                Hub.OverlayChanged();
-                ShowProfiles();
+                void Remove()
+                {
+                    Hub.Settings.Overlay.Profiles.RemoveAll(p => p.Game == game);
+                    Hub.OverlayChanged();
+                    ShowProfiles();
+                }
+                if (shown is null) Remove();
+                else GroupB.Vanish(shown, Remove);
             });
-            _profileList.Children.Add(Row("", "Accent", game,
-                L.T($"{profile.Items.Count} مورد · طرح {profile.Layout}", $"{profile.Items.Count} items · {profile.Layout} layout"), delete));
+            if (i > 0) _profileList.Children.Add(GroupB.Line());
+            var row = Row("play", "HueA", game,
+                L.T($"{profile.Items.Count} مورد · طرح {profile.Layout}", $"{profile.Items.Count} items · {profile.Layout} layout"), delete);
+            shown = row;
+            _profileList.Children.Add(row);
+            if (animate) GroupB.Appear(row, i);
         }
+        _profileList.Margin = new Thickness(0, profiles.Count > 0 ? 8 : 0, 0, 0);
     }
 
     private void ShowHistory()
@@ -456,14 +495,20 @@ public sealed class OverlayPage : PageBase
             return;
         }
         var bestFps = entries.Max(e => e.AvgFps);
+        _historyList.Margin = new Thickness(0, 8, 0, 0);
+        var first = true;
         foreach (var e in entries)
         {
             var parts = new List<string> { Fa.Duration(TimeSpan.FromMinutes(e.Minutes)) };
             if (e.AvgFps > 0) parts.Add($"FPS {Fa.N(e.AvgFps, 0)} / 1% {Fa.N(e.Low1Fps, 0)}");
             if (e.AvgPing > 0) parts.Add($"{L.T("پینگ", "ping")} {Fa.N(e.AvgPing, 0)}");
             if (e.MaxGpuTemp > 0) parts.Add($"GPU {Fa.N(e.MaxGpuTemp, 0)}°");
-            var bar = new ProgressBar { Style = St("Bar"), Minimum = 0, Maximum = Math.Max(1, bestFps), Value = e.AvgFps, Height = 6, Width = 90, Margin = new Thickness(0, 0, 0, 0) };
-            _historyList.Children.Add(Row("", "Green", $"{e.Game} · {Fa.RelativeDay(e.Start, DateTime.Now)} {Fa.Clock(e.Start)}", string.Join(" · ", parts), bar));
+            var bar = new ProgressBar { Style = St("Bar"), Minimum = 0, Maximum = Math.Max(1, bestFps), Value = e.AvgFps, Height = 6, Width = 90, Margin = new Thickness(0, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+            if (!first) _historyList.Children.Add(GroupB.Line());
+            first = false;
+            bar.Value = 0;
+            Fx.Anim(bar, System.Windows.Controls.Primitives.RangeBase.ValueProperty, e.AvgFps, Fx.Out, 800); // the bar grows to its value
+            _historyList.Children.Add(Row("mon", "HueB", $"{e.Game} · {Fa.RelativeDay(e.Start, DateTime.Now)} {Fa.Clock(e.Start)}", string.Join(" · ", parts), bar));
         }
     }
 
@@ -472,7 +517,7 @@ public sealed class OverlayPage : PageBase
         // Keep the catalogue order so the overlay reads the same way every time.
         o.Items = [.. OverlayMetrics.All.Where(m => _items[m.Key].IsChecked == true && !m.Advanced).Select(m => m.Key)];
         _editor?.Rebuild();
-    });
+    }, pop: true);
 
     private void OnMove(object sender, RoutedEventArgs e)
     {
@@ -484,9 +529,9 @@ public sealed class OverlayPage : PageBase
     private void UpdateMoveButton()
     {
         var moving = Hub.Overlay?.MoveMode == true;
-        _moveButton.Content = moving
+        _moveButton.Content = GroupB.IconText("mon", moving
             ? L.T("تموم شد (جای اورلی ذخیره می‌شه)", "Done (position is saved)")
-            : L.T("جابجایی اورلی با ماوس", "Move the overlay with the mouse");
+            : L.T("جابجایی اورلی با ماوس", "Move the overlay with the mouse"));
         _moveButton.Style = St(moving ? "BtnPrimary" : "Btn");
     }
 
@@ -510,6 +555,8 @@ public sealed class OverlayPage : PageBase
         _backBox.Text = o.CustomBack;
         _toggleKey.Set(o.ToggleKey);
         _moveKey.Set(o.MoveKey);
+        _anchorPicker.Pick(o.Anchor, raise: false);
+        UpdateAnchorName();
         _loading = false;
 
         _board.IsChecked = Hub.Settings.Overlay.BoardSensors;
@@ -524,6 +571,7 @@ public sealed class OverlayPage : PageBase
                 $"Another program already uses: {string.Join(", ", w.FailedHotkeys)}. Pick a different combination.")
             : "";
         _keyNote.Foreground = Res("Gold");
+        _keyNote.Visibility = _keyNote.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         UpdateMoveButton();
         UpdateVisibility();
         UpdatePreview();
@@ -552,7 +600,7 @@ public sealed class OverlayPage : PageBase
         UpdateBoardNote();
     }
 
-    private void UpdatePreview()
+    private void UpdatePreview(bool pop = false)
     {
         var o = Hub.Settings.Overlay;
         var now = DateTime.Now;
@@ -571,10 +619,11 @@ public sealed class OverlayPage : PageBase
         string GroupOf(MetricView m) => OverlayMetrics.Find(m.Key)?.Group ?? "general";
         var metrics = all.OrderBy(m => o.OrderOf(GroupOf(m))).Where(m => o.PlaceOf(GroupOf(m)).Anchor == "main").ToList();
         var element = OverlayRenderer.Build(o, metrics, _fakeHistory);
-        var host = new Grid { Margin = new Thickness(12) };
+        var host = new Grid { Margin = new Thickness(14) };
         element.HorizontalAlignment = o.Anchor switch { "tr" or "br" => HorizontalAlignment.Right, "tc" or "bc" => HorizontalAlignment.Center, _ => HorizontalAlignment.Left };
         element.VerticalAlignment = o.Anchor is "bl" or "br" or "bc" ? VerticalAlignment.Bottom : VerticalAlignment.Top;
         host.Children.Add(element);
-        _previewStage.Child = host;
+        _previewHost.Child = host;
+        if (pop) Motion.Pop(element);
     }
 }

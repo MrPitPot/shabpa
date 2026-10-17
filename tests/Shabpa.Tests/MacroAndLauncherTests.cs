@@ -300,21 +300,37 @@ public sealed class RatingTests
 public sealed class GlassTests
 {
     [Fact]
-    public void The_glass_slider_changes_the_brushes_live_and_theme_colour_never_paints_the_window()
+    public void The_glass_slider_changes_the_veil_live_and_theme_colour_never_paints_the_window()
     {
         var dictionary = Ui.Resources(Palette.Find("midnight"), "mica", 0);
-        var panel = (System.Windows.Media.SolidColorBrush)dictionary["Panel"];
+        var veil = (System.Windows.Media.SolidColorBrush)dictionary["MicaVeil"];
         var background = (System.Windows.Media.SolidColorBrush)dictionary["BgGradient"];
-        Assert.False(panel.IsFrozen);
-        Assert.Equal(0, background.Color.A); // clearest: nothing over the backdrop
-        var before = panel.Color.A;
+        Assert.False(veil.IsFrozen);
+        Assert.Equal(0, background.Color.A); // the window plate itself is clear: the veil is the only thing over the backdrop
+        var before = veil.Color.A;
         Ui.SetGlassLevel(1);
-        Assert.True(panel.Color.A > before);
-        Assert.True(background.Color.A > 100);
+        Assert.True(veil.Color.A > before);
+        Assert.True(veil.Color.A > 100);
         // neutral: only black or white, never a theme colour
-        Assert.All(new[] { panel.Color, background.Color, ((System.Windows.Media.SolidColorBrush)dictionary["SideGradient"]).Color, ((System.Windows.Media.SolidColorBrush)dictionary["HeroGradient"]).Color },
-            c => Assert.True(c.R == c.G && c.G == c.B));
+        Assert.True(veil.Color.R == veil.Color.G && veil.Color.G == veil.Color.B);
         Ui.Resources(Palette.Find(null), "off", 0); // leave the shared state as other tests expect
+    }
+
+    [Fact]
+    public void Glass_depth_tokens_exist_for_every_theme_and_keep_the_design_numbers_for_night_and_white()
+    {
+        foreach (var palette in Palette.All)
+        {
+            var t = GlassTokens.Of(palette);
+            Assert.True((t.Card >> 24) is > 0 and < 255, palette.Key);   // translucent
+            Assert.True((t.Line >> 24) is > 0 and < 64, palette.Key);    // a hairline
+            var d = Ui.Resources(palette, "off", 0);
+            foreach (var key in new[] { "CardFill", "Card2Fill", "CardRim", "MicaVeil", "Wallpaper", "AccentGradient", "HueA", "HueE", "HueASoft", "ShadowC", "ShadowSoftC", "Hi", "FlyoutFill" })
+                Assert.True(d.Contains(key), $"{palette.Key} lacks {key}");
+        }
+        Assert.Equal(0xB82E386Au, GlassTokens.Of(Palette.Find("night")).Card2);
+        Assert.Equal(0xB8FFFFFFu, GlassTokens.Of(Palette.Find("white")).Card);
+        Ui.Resources(Palette.Find(null), "off", 0);
     }
 }
 
@@ -430,6 +446,8 @@ public sealed class WingetManifestTests
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Shabpa.slnx"))) dir = dir.Parent;
         var root = Path.Combine(dir!.FullName, "packaging", "winget", "manifests", "m", "MrPitPot", "Shabpa");
+        // The experimental Shabpa-next copy has no packaging folder (releases are never built from it); nothing to check there.
+        if (!Directory.Exists(root)) return;
         var versions = Directory.GetDirectories(root);
         Assert.NotEmpty(versions);
         foreach (var folder in versions)

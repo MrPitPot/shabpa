@@ -32,11 +32,12 @@ public sealed class MacroBanner : Window
         FontFamily = (FontFamily)Application.Current.Resources["Ui"];
 
         var row = new StackPanel { Orientation = Orientation.Horizontal };
-        row.Children.Add(new System.Windows.Shapes.Ellipse
+        var dot = new System.Windows.Shapes.Ellipse
         {
             Width = 10, Height = 10, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center,
             Fill = (Brush)Application.Current.Resources[recording ? "Red" : "Accent"],
-        });
+        };
+        row.Children.Add(dot);
         _text.Foreground = (Brush)Application.Current.Resources["Text"];
         row.Children.Add(_text);
         if (recording)
@@ -48,18 +49,38 @@ public sealed class MacroBanner : Window
             row.Children.Add(done);
             row.Children.Add(cancel);
         }
-        Content = new Border
+        // flyout surface of the design: near-opaque sheet, rim light, layered shadow (kit:Shadow, no DropShadowEffect)
+        var bar = new Grid { Margin = new Thickness(26, 14, 26, 32) };
+        bar.Children.Add(new Kit.Shadow { Radius = 14, Blur = 22, Spread = -8, OffsetY = 9, Layers = 7, Color = Kit.K.ColorOf("ShadowC"), IsHitTestVisible = false });
+        bar.Children.Add(new Border
         {
-            Child = row, Padding = new Thickness(16, 11, 16, 11), CornerRadius = new CornerRadius(14), Margin = new Thickness(18),
-            Background = (Brush)Application.Current.Resources["Panel2"], BorderBrush = (Brush)Application.Current.Resources["Line"], BorderThickness = new Thickness(1),
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 22, ShadowDepth = 5, Opacity = 0.4, Color = Colors.Black },
-        };
+            Child = row, Padding = new Thickness(16, 11, 16, 11), CornerRadius = new CornerRadius(14),
+            Background = (Brush)Application.Current.Resources["FlyoutFill"], BorderBrush = (Brush)Application.Current.Resources["CardRim"], BorderThickness = new Thickness(1),
+        });
+        Content = bar;
+        _bar = bar;
         Loaded += (_, _) =>
         {
             var area = SystemParameters.WorkArea;
             Left = area.Left + (area.Width - ActualWidth) / 2;
             Top = area.Top + 6;
+            if (!Motion.Enabled) return;
+            // the bar drops in from above with the spring; the dot breathes while something is being learned or repeated
+            var move = new TranslateTransform(0, -36);
+            var scale = new ScaleTransform(0.94, 0.94);
+            bar.RenderTransformOrigin = new Point(0.5, 0.5);
+            bar.RenderTransform = new TransformGroup { Children = { scale, move } };
+            Kit.Fx.Anim(move, TranslateTransform.YProperty, 0, null, 700);
+            Kit.Fx.Anim(scale, ScaleTransform.ScaleXProperty, 1);
+            Kit.Fx.Anim(scale, ScaleTransform.ScaleYProperty, 1);
+            bar.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220)) { FillBehavior = System.Windows.Media.Animation.FillBehavior.Stop });
+            dot.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(1, 0.3, TimeSpan.FromMilliseconds(800))
+            {
+                AutoReverse = true, RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+                EasingFunction = new System.Windows.Media.Animation.SineEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseInOut },
+            });
         };
+        Closed += (_, _) => dot.BeginAnimation(OpacityProperty, null);
         SizeChanged += (_, _) =>
         {
             var area = SystemParameters.WorkArea;
@@ -68,6 +89,17 @@ public sealed class MacroBanner : Window
     }
 
     public void SetText(string text) => _text.Text = text;
+
+    private FrameworkElement? _bar;
+    private bool _leaving;
+
+    /// <summary>Closes the bar the way the app's other flyouts leave: it lifts away and fades first (instant when motion is off).</summary>
+    public new void Close()
+    {
+        if (_leaving || _bar is null || !IsVisible) { base.Close(); return; }
+        _leaving = true;
+        Motion.Dismiss(_bar, base.Close, 0.15, -24);
+    }
 
     protected override void OnSourceInitialized(EventArgs e)
     {

@@ -10,10 +10,13 @@ namespace Shabpa;
 
 public partial class App : Application
 {
-    private const string MutexName = "Shabpa.SingleInstance";
-    private const string ShowEventName = "Shabpa.Show";
+    // Test aid: SHABPA_INSTANCE=<tag> gives a test run its own single-instance names, so it never
+    // hands over to (or gets quit by) a real Shabpa that is already running. Unset in normal use.
+    private static readonly string InstanceTag = Environment.GetEnvironmentVariable("SHABPA_INSTANCE") is { Length: > 0 } t ? "." + t : "";
+    private static readonly string MutexName = "Shabpa.SingleInstance" + InstanceTag;
+    private static readonly string ShowEventName = "Shabpa.Show" + InstanceTag;
     /// <summary>Set by the installer to make a running copy exit cleanly before files are replaced.</summary>
-    public const string QuitEventName = "Shabpa.Quit";
+    public static readonly string QuitEventName = "Shabpa.Quit" + InstanceTag;
 
     private Mutex? _mutex;
     private EventWaitHandle? _showEvent;
@@ -413,11 +416,19 @@ public partial class App : Application
         if (Value(e.Args, "--page") is { } page) _window.Navigate(page);
         if (shots is not null)
         {
+            // screenshot runs render the window's own visual tree; the window itself sits far off-screen and never takes focus
+            _window.WindowStartupLocation = WindowStartupLocation.Manual;
+            _window.Left = -30000;
+            _window.Top = -30000;
+            _window.ShowActivated = false;
+            _window.ShowInTaskbar = false;
             _window.Show();
             // --interactive: just show the window (real sensors, nothing saved) so it can be driven by hand or by a test.
             if (Value(e.Args, "--toast") is { } toast) // test aid: shows an in-app notice for the screenshot
                 Dispatcher.BeginInvoke(() => _window.ShowToast(toast.Split('|')[0], toast.Split('|').ElementAtOrDefault(1) ?? ""), DispatcherPriority.ApplicationIdle);
             if (Value(e.Args, "--motion-test") is { } motionReport) _ = MotionProbe(shots, motionReport);
+            else if (Value(e.Args, "--tick-test") is { } tickReport) _ = Pages.TickProbe.Run(_window, tickReport, shots, Save);
+            else if (Value(e.Args, "--motion-audit") is { } auditReport) _ = Pages.MotionAudit.Run(_window, auditReport, shots, Save);
             else if (!args.Contains("--interactive")) _ = CaptureAll(shots, Value(e.Args, "--only"));
             if (Value(e.Args, "--mem-report") is { } memReport)
             {
@@ -666,12 +677,10 @@ public partial class App : Application
             if (macro is not null)
             {
                 window = await Open();
-                log.AppendLine($"second form found: {window != IntPtr.Zero}");
                 // moved a little, as a real launcher window would be
                 Core.MacroNative.SetWindowPos(window, IntPtr.Zero, 380, 260, 0, 0, 0x1 | 0x4);
                 await Task.Delay(500);
                 var outcome = await Task.Run(() => Core.MacroPlayer.Run(macro, null, 15));
-                await Task.Delay(2000); // the form's handler appends to the file asynchronously
                 log.AppendLine($"replay outcome: {outcome}; form got {Lines()} clicks (expected 2)");
                 log.AppendLine("result: " + (Lines() >= macro.Steps.Count && macro.Steps.Count >= 2 && outcome == Core.MacroOutcome.Done ? "PASS (stray clicks by a person using the mouse are counted too)" : "FAIL"));
             }
@@ -709,6 +718,10 @@ public partial class App : Application
                 var transform = _window.FirstBlockHasTransform();
                 log.AppendLine($"{key}: opacity {a:0.00} -> {b:0.00} -> {c:0.00}, transform left: {transform}");
             }
+            await PowerTabsMotion(folder, log);
+            await SettingsGroupMotion(folder, log);
+            await Pages.GroupDProbe.Run(_window!, log, folder, Save);
+            await Pages.GroupCProbe.Run(_window!, log, folder, Save);
         }
         catch (Exception ex)
         {
@@ -716,6 +729,46 @@ public partial class App : Application
         }
         File.WriteAllText(report, log.ToString());
         Shutdown();
+    }
+
+    /// <summary>Motion probe for the power tabs (Power, Rules, Energy, Wake-up): each tab enters, then a queue row and a wake-up are
+    /// added and removed with motion on; screenshots are taken in the middle of the motion. Any exception ends up in the report.</summary>
+    private async Task PowerTabsMotion(string folder, System.Text.StringBuilder log)
+    {
+        try
+        {
+            foreach (var key in new[] { "system:power", "system:rules", "system:energy", "system:wake" })
+            {
+                _window!.Navigate(key);
+                await Task.Delay(320);
+                Save(_window.CaptureRoot, Path.Combine(folder, $"motion-{key.Replace(':', '-')}.png"));
+                await Task.Delay(1400);
+                log.AppendLine($"{key}: entered");
+            }
+            _window!.Navigate("system:power");
+            await Task.Delay(1500);
+            Hub.I.AddCommand(PowerAction.Restart, DateTime.Now.AddMinutes(47));
+            await Task.Delay(200);
+            Save(_window.CaptureRoot, Path.Combine(folder, "motion-power-add.png"));
+            await Task.Delay(900);
+            if (Hub.I.Queue.Items.OrderBy(c => c.DueAt).LastOrDefault() is { } last) Hub.I.RemoveCommand(last.Id);
+            await Task.Delay(400);
+            log.AppendLine("power: queue add/remove ok");
+            _window.Navigate("system:wake");
+            await Task.Delay(1500);
+            var wake = new WakeSchedule { Hour = 6, Minute = 45, Days = [] };
+            Hub.I.AddWake(wake);
+            await Task.Delay(200);
+            Save(_window.CaptureRoot, Path.Combine(folder, "motion-wake-add.png"));
+            await Task.Delay(900);
+            Hub.I.RemoveWake(wake.Id);
+            await Task.Delay(400);
+            log.AppendLine("wake: add/remove ok");
+        }
+        catch (Exception ex)
+        {
+            log.AppendLine("power tabs motion error: " + ex);
+        }
     }
 
     private async Task CaptureAll(string folder, string? only)
@@ -732,15 +785,17 @@ public partial class App : Application
                 var name = page.Replace(':', '-');
                 Save(_window.CaptureRoot, Path.Combine(folder, $"{name}.png"));
                 var extra = 0;
-                while ((only is null || page == "gaming") && _window.ScrollPage())
+                while ((only is null || page is "gaming" or "kit" or "settings" or "support") && _window.ScrollPage())
                 {
                     await Task.Delay(300);
                     Save(_window.CaptureRoot, Path.Combine(folder, $"{name}-{++extra}.png"));
                 }
             }
 
-            if (only is null)
+            if (only is null || only.Split(',').Contains("dialogs"))
             {
+              if (only is null)
+              {
                 _window.Navigate("ping");
                 await Task.Delay(8000); // a few ping samples for the chart
                 _window.OpenFirstPingEditor();
@@ -751,6 +806,7 @@ public partial class App : Application
                 _window.Navigate("system:rules");
                 await Task.Delay(4000);
                 Save(_window.CaptureRoot, Path.Combine(folder, "rules-active.png"));
+              }
 
                 var countdown = new CountdownWindow(PowerAction.Shutdown, L.T("دستور زمان‌بندی‌شده", "Scheduled command"), 30);
                 countdown.Show();
@@ -765,14 +821,15 @@ public partial class App : Application
                     L.T("تایید و ثبت", "Confirm and schedule"), L.T("انصراف", "Cancel"), false,
                     L.T($"شروع: امروز ساعت {Fa.Clock(due)} (۳۰ دقیقه دیگه)", $"Runs: today at {Fa.Clock(due)} (in 30 minutes)"));
                 await Task.Delay(600);
-                Save(confirm, Path.Combine(folder, "confirm.png"));
+                Save((FrameworkElement)confirm.Content, Path.Combine(folder, "confirm.png"));
                 confirm.Close();
                 var del = ConfirmWindow.Preview(L.T("این دستور حذف بشه؟", "Delete this command?"),
                     L.T("برای همیشه از لیست پاک می‌شه و اجرا نمی‌شه؛ هیچ شمارش معکوسی هم نمی‌بینی.", "It is removed from the list for good and will not run; no countdown will appear either."),
                     L.T("حذف کن", "Delete"), L.T("انصراف", "Cancel"), true, L.T("خاموش کردن · امروز ساعت ۰۱:۳۰", "Shut down · today at 01:30"));
                 await Task.Delay(600);
-                Save(del, Path.Combine(folder, "confirm-delete.png"));
+                Save((FrameworkElement)del.Content, Path.Combine(folder, "confirm-delete.png"));
                 del.Close();
+                TrayMenuShot(folder);
             }
 
             if (Environment.GetCommandLineArgs().Contains("--overlay-test"))

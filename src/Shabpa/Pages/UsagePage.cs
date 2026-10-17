@@ -1,87 +1,117 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using Shabpa.Core;
+using Shabpa.Kit;
 
 namespace Shabpa.Pages;
 
-/// <summary>Per-application internet use over a chosen range, drawn as one fixed-height chart and a ranked list.</summary>
+/// <summary>Per-application internet use over a chosen range: four stat cards, one fixed-height chart and a ranked list.</summary>
 public sealed class UsagePage : PageBase
 {
     public enum Span { Today, Yesterday, Week, Month, ThisMonth, All }
 
-    private const double ChartHeight = 150;
+    private const double ChartHeight = 170;
     private const int ListLimit = 40;
 
     private static readonly Span[] Spans = [Span.Today, Span.Yesterday, Span.Week, Span.Month, Span.ThisMonth, Span.All];
 
-    private readonly WrapPanel _spanChips = new() { Margin = new Thickness(0, 0, 0, 12) };
-    private readonly Border _summary = new() { Style = St("Card") };
-    private readonly Border _chartCard = new() { Style = St("Card"), Margin = new Thickness(0, 12, 0, 0) };
+    private readonly Blocks _root = new();
+    private readonly StatCard _down = new(L.T("دانلود", "Downloaded"), "dl", "HueB");
+    private readonly StatCard _up = new(L.T("آپلود", "Uploaded"), "ul", "HueA");
+    private readonly StatCard _total = new(L.T("جمع", "Total"), "net", "HueC");
+    private readonly StatCard _avg = new(L.T("میانگین روزانه", "Daily average"), "ecg", "HueD");
+    private readonly GlassCard _chartCard = new() { Padding = new Thickness(24, 20, 24, 18) };
     private readonly StackPanel _list = new();
-    private readonly StackPanel _budget = new();
     private readonly WrapPanel _budgetChips = new() { Margin = new Thickness(0, 10, 0, 0) };
     private readonly ProgressBar _budgetBar = new() { Style = St("Bar"), Maximum = 1, Margin = new Thickness(0, 12, 0, 0) };
     private readonly TextBlock _budgetText = new() { Style = St("Body"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
     private Span _span = Span.Week;
     private string? _app;
     private DateTime _lastDraw;
+    private readonly CMo.Memo _rows;
+    // user actions replay the motion; the live refresh every few seconds only updates the numbers quietly
+    private bool _animateChart, _animateList, _entering;
 
     public override string PageTitle => L.T("پایداری پینگ", "Ping stability");
     public override string PageSubtitle => L.T("هر برنامه در هر بازه‌ی زمانی چقدر اینترنت خورده.", "How much internet each app used, over any period.");
 
     public UsagePage()
     {
-        var stack = new StackPanel();
-        stack.Children.Add(_spanChips);
-        stack.Children.Add(_summary);
-        stack.Children.Add(_chartCard);
+        GroupC.EnsureIcons();
+        _rows = new CMo.Memo(_list);
 
-        var budgetCard = new Border { Style = St("Card"), Margin = new Thickness(0, 12, 0, 0), Child = _budget };
-        _budget.Children.Add(new TextBlock { Text = L.T("سقف حجم ماهانه", "Monthly allowance"), Style = St("H2") });
-        _budget.Children.Add(new TextBlock
+        // period selector
+        var spans = new Segmented(Spans.Select(SpanName).ToList(), Array.IndexOf(Spans, _span), compact: true) { Margin = new Thickness(0, 0, 0, 2) };
+        spans.Changed += i =>
         {
-            Text = L.T("اگه بسته‌ی اینترنتت حجم ماهانه داره، سقفش رو بذار تا موقع ۸۰٪ و ۱۰۰٪ خبرت کنم.", "If your plan has a monthly allowance, set it and I warn you at 80% and 100%."),
-            Style = St("Body"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0),
-        });
-        _budget.Children.Add(_budgetChips);
-        _budget.Children.Add(_budgetBar);
-        _budget.Children.Add(_budgetText);
-        stack.Children.Add(budgetCard);
+            _span = Spans[i];
+            _rows.Reset();
+            _animateChart = _animateList = true;
+            Draw();
+        };
+        _root.Add(spans, Blocks.At(0, 0, 12));
+
+        // four numbers
+        _root.Add(_down, Blocks.At(1, 0, 3), Blocks.At(1, 0, 6));
+        _root.Add(_up, Blocks.At(1, 3, 3), Blocks.At(1, 6, 6));
+        _root.Add(_total, Blocks.At(1, 6, 3), Blocks.At(2, 0, 6));
+        _root.Add(_avg, Blocks.At(1, 9, 3), Blocks.At(2, 6, 6));
+        _root.Add(_chartCard, Blocks.At(2, 0, 12), Blocks.At(3, 0, 12));
+
+        // monthly allowance
+        var (budgetCard, budget) = Ui2.Card(L.T("سقف حجم ماهانه", "Monthly allowance"),
+            L.T("اگه بسته‌ی اینترنتت حجم ماهانه داره، سقفش رو بذار تا موقع ۸۰٪ و ۱۰۰٪ خبرت کنم.", "If your plan has a monthly allowance, set it and I warn you at 80% and 100%."));
+        budget.Children.Add(_budgetChips);
+        budget.Children.Add(_budgetBar);
+        budget.Children.Add(_budgetText);
+        _root.Add(budgetCard, Blocks.At(3, 0, 12), Blocks.At(4, 0, 12));
         Chips(_budgetChips, new double[] { 0, 30, 50, 100, 200, 300, 500, 1000 }.Select(v => (v, v == 0 ? L.T("بدون سقف", "No limit") : $"{Fa.N(v, 0)} {L.T("گیگ", "GB")}")),
             Hub.Settings.MonthlyLimitGb, v =>
             {
                 Hub.Settings.MonthlyLimitGb = v;
                 Hub.Settings.BudgetWarned = "";
                 Hub.Store.Save();
+                _animateChart = true;
                 Draw();
             });
 
-        var header = new DockPanel { Margin = new Thickness(4, 18, 4, 8) };
-        var clear = new Button { Style = St("BtnDanger"), Content = L.T("پاک کردن تاریخچه", "Clear history") };
+        // ranked list with the clear button at the end of its title row
+        var header = new DockPanel { Margin = new Thickness(0, 6, 0, 4) };
+        var clear = new Button { Style = St("BtnDanger"), Padding = new Thickness(16, 8, 16, 8) };
+        var clearRow = new StackPanel { Orientation = Orientation.Horizontal };
+        clearRow.Children.Add(new Icon("trash", 16) { Margin = new Thickness(0, 0, 8, 0) });
+        clearRow.Children.Add(new TextBlock { Text = L.T("پاک کردن تاریخچه", "Clear history"), VerticalAlignment = VerticalAlignment.Center });
+        clear.Content = clearRow;
         clear.Click += OnClear;
         DockPanel.SetDock(clear, Dock.Right);
         header.Children.Add(clear);
         header.Children.Add(new TextBlock { Text = L.T("مصرف هر برنامه", "Usage per app"), Style = St("Section"), VerticalAlignment = VerticalAlignment.Center });
-        stack.Children.Add(header);
-
-        var listCard = new Border { Style = St("Card"), Child = _list };
-        stack.Children.Add(listCard);
-        stack.Children.Add(new TextBlock
+        var listBlock = new StackPanel();
+        listBlock.Children.Add(header);
+        listBlock.Children.Add(new GlassCard { Padding = new Thickness(14, 12, 14, 12), Child = _list, Margin = new Thickness(0, 8, 0, 0) });
+        listBlock.Children.Add(new TextBlock
         {
             Style = St("Label"),
-            Margin = new Thickness(4, 12, 4, 0),
+            Margin = new Thickness(6, 12, 6, 0),
             TextWrapping = TextWrapping.Wrap,
             Text = L.T("روی هر برنامه بزن تا نمودار فقط برای همون نشون داده بشه. حجم‌ها از لحظه‌ی باز بودن شب‌پا (با دسترسی ادمین) ثبت می‌شن و روی همین سیستم می‌مونن؛ چیزی جایی فرستاده نمی‌شه.",
                 "Click an app to chart only that one. Usage is recorded while Shabpa runs as administrator and stays on this PC; nothing is sent anywhere."),
         });
-        Content = stack;
-
-        Chips(_spanChips, Spans.Select(s => (s, SpanName(s))), _span, v =>
+        _root.Add(listBlock, Blocks.At(4, 0, 12), Blocks.At(5, 0, 12));
+        Content = _root;
+        Loaded += (_, _) =>
         {
-            _span = v;
+            // entrance: cards rise, the numbers count up from zero, the bars grow and the list rows follow
+            CMo.Cascade(_root);
+            foreach (var card in new[] { _down, _up, _total, _avg }) CMo.ResetBytes(card);
+            _budgetBar.Value = 0;
+            _rows.Reset();
+            _entering = true;
+            _animateChart = _animateList = true;
             Draw();
-        });
+            _entering = false;
+        };
     }
 
     private static string SpanName(Span s) => s switch
@@ -128,10 +158,12 @@ public sealed class UsagePage : PageBase
         var (down, up) = usage.Total(from, to);
         var days = Math.Max(1, to.DayNumber - from.DayNumber + 1);
 
+        var animate = _animateChart && IsLoaded;
         DrawBudget(now);
-        DrawSummary(down, up, days);
-        DrawChart(from, to);
-        DrawList(rows);
+        DrawSummary(from, to, down, up, days, animate);
+        DrawChart(from, to, animate);
+        DrawList(rows, _animateList && IsLoaded);
+        _animateChart = _animateList = false;
     }
 
     private void DrawBudget(DateTime now)
@@ -141,7 +173,9 @@ public sealed class UsagePage : PageBase
         var (down, up) = Hub.Usage.Total(from, DateOnly.FromDateTime(now));
         var check = DataBudget.Evaluate(down + up, limit);
         _budgetBar.Visibility = limit > 0 ? Visibility.Visible : Visibility.Collapsed;
+        var before = _budgetBar.Value;
         _budgetBar.Value = Math.Clamp(check.Fraction, 0, 1);
+        if (_animateChart && IsLoaded) CMo.Fill(_budgetBar, before);
         _budgetBar.Foreground = Res(check.Level == 2 ? "Red" : check.Level == 1 ? "Gold" : "Accent");
         _budgetText.Text = limit > 0
             ? L.T($"این ماه {Fa.N(check.UsedGb, 1)} از {Fa.N(limit, 0)} گیگ مصرف شده ({Fa.N(check.Fraction * 100, 0)}٪).",
@@ -149,30 +183,30 @@ public sealed class UsagePage : PageBase
             : L.T($"این ماه تا الان {Fa.N(check.UsedGb, 1)} گیگ مصرف شده.", $"This month so far: {Fa.N(check.UsedGb, 1)} GB.");
     }
 
-    private void DrawSummary(long down, long up, int days)
+    private void DrawSummary(DateOnly from, DateOnly to, long down, long up, int days, bool animate)
     {
-        var grid = new Grid();
-        for (var i = 0; i < 4; i++) grid.ColumnDefinitions.Add(new ColumnDefinition());
-        void Cell(int column, string label, string value, string tint)
+        // one point per hour for a single day, otherwise one per day: the sparkline of each card
+        List<double> d, u;
+        if (from == to)
         {
-            var cell = new StackPanel { Margin = new Thickness(6, 0, 6, 0) };
-            cell.Children.Add(new TextBlock { Text = label, Style = St("Label") });
-            cell.Children.Add(new TextBlock
-            {
-                Text = value, FontFamily = (FontFamily)Application.Current.Resources["Num"], FontSize = 22, FontWeight = FontWeights.Bold,
-                Foreground = Res(tint), FlowDirection = FlowDirection.LeftToRight, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 4, 0, 0),
-            });
-            Grid.SetColumn(cell, column);
-            grid.Children.Add(cell);
+            var (hd, hu) = Hub.Usage.Hourly(from);
+            d = hd.Select(x => (double)x).ToList();
+            u = hu.Select(x => (double)x).ToList();
         }
-        Cell(0, L.T("دانلود", "Downloaded"), Fa.Bytes(down), "Green");
-        Cell(1, L.T("آپلود", "Uploaded"), Fa.Bytes(up), "Accent");
-        Cell(2, L.T("جمع", "Total"), Fa.Bytes(down + up), "Text");
-        Cell(3, L.T("میانگین روزانه", "Daily average"), Fa.Bytes((down + up) / days), "Gold");
-        _summary.Child = grid;
+        else
+        {
+            var daily = Hub.Usage.Daily(from, to);
+            d = daily.Select(x => (double)x.down).ToList();
+            u = daily.Select(x => (double)x.up).ToList();
+        }
+        var t = d.Zip(u, (x, y) => x + y).ToList();
+        CMo.CountBytes(_down, down, d, animate);
+        CMo.CountBytes(_up, up, u, animate);
+        CMo.CountBytes(_total, down + up, t, animate);
+        CMo.CountBytes(_avg, (down + up) / days, t, animate);
     }
 
-    private void DrawChart(DateOnly from, DateOnly to)
+    private void DrawChart(DateOnly from, DateOnly to, bool animate)
     {
         var usage = Hub.Usage;
         var single = from == to;
@@ -188,7 +222,8 @@ public sealed class UsagePage : PageBase
             foreach (var (date, down, up) in usage.Daily(from, to, _app))
             {
                 var d = date.ToDateTime(TimeOnly.MinValue);
-                bars.Add((Fa.DayOfMonth(d) == 1 || date == from ? Fa.MonthName(d) + " " + Fa.Digits(Fa.DayOfMonth(d).ToString()) : "",
+                var shortRange = (to.DayNumber - from.DayNumber) < 8;
+                bars.Add((Fa.DayOfMonth(d) == 1 || date == from ? Fa.MonthName(d) + " " + Fa.Digits(Fa.DayOfMonth(d).ToString()) : shortRange ? Fa.Digits(Fa.DayOfMonth(d).ToString()) : "",
                     $"{Fa.DayName(d.DayOfWeek)} {Fa.Date(d)}", down, up));
             }
         }
@@ -197,39 +232,43 @@ public sealed class UsagePage : PageBase
         var title = _app is null
             ? L.T("همه‌ی برنامه‌ها", "All apps")
             : usage.Range(from, to).FirstOrDefault(r => r.Key == _app)?.Title ?? _app;
-        var head = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
+        var head = new DockPanel { Margin = new Thickness(0, 0, 0, 14) };
         if (_app is not null)
         {
-            var all = new Button { Style = St("Btn"), Content = L.T("نمایش همه", "Show all") };
-            all.Click += (_, _) => { _app = null; Draw(); };
+            var all = new Button { Style = St("Btn"), Content = L.T("نمایش همه", "Show all"), Padding = new Thickness(14, 6, 14, 6) };
+            all.Click += (_, _) => { _app = null; _animateChart = true; Draw(); };
             DockPanel.SetDock(all, Dock.Right);
             head.Children.Add(all);
         }
-        head.Children.Add(new TextBlock { Text = title + L.Comma + (single ? L.T("به تفکیک ساعت", "by hour") : L.T("به تفکیک روز", "by day")), Style = St("H2") });
+        head.Children.Add(new TextBlock { Text = title + L.Comma + (single ? L.T("به تفکیک ساعت", "by hour") : L.T("به تفکیک روز", "by day")), Style = St("H2"), VerticalAlignment = VerticalAlignment.Center });
         panel.Children.Add(head);
 
         var max = Math.Max(1, bars.Count == 0 ? 1 : bars.Max(b => b.down + b.up));
+        // a handful of bars get room between them and a label each; many bars sit close like a histogram
+        var few = bars.Count <= 8;
+        var gap = few ? 7.0 : 2.0;
         var chart = new Grid { Height = ChartHeight, FlowDirection = FlowDirection.LeftToRight };
-        var labels = new Grid { FlowDirection = FlowDirection.LeftToRight, Margin = new Thickness(0, 6, 0, 0) };
+        var labels = new Grid { FlowDirection = FlowDirection.LeftToRight, Margin = new Thickness(0, 8, 0, 0) };
         for (var i = 0; i < bars.Count; i++)
         {
             chart.ColumnDefinitions.Add(new ColumnDefinition());
             labels.ColumnDefinitions.Add(new ColumnDefinition());
             var (label, tip, down, up) = bars[i];
 
-            var track = new Border { Background = Res("Panel2"), CornerRadius = new CornerRadius(3), Margin = new Thickness(1.5, 0, 1.5, 0) };
+            var track = new Border { Background = Res("Line"), CornerRadius = new CornerRadius(5), Margin = new Thickness(gap, 0, gap, 0) };
             Grid.SetColumn(track, i);
             chart.Children.Add(track);
 
             if (down + up > 0)
             {
-                var column = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(1.5, 0, 1.5, 0) };
+                var column = new StackPanel { VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(gap, 0, gap, 0) };
                 var upHeight = ChartHeight * up / max;
                 var downHeight = ChartHeight * down / max;
-                if (up > 0) column.Children.Add(new Border { Background = Res("Accent"), Height = Math.Max(2, upHeight), CornerRadius = new CornerRadius(3, 3, 0, 0) });
-                if (down > 0) column.Children.Add(new Border { Background = Res("Green"), Height = Math.Max(2, downHeight), CornerRadius = new CornerRadius(up > 0 ? 0 : 3, up > 0 ? 0 : 3, 0, 0) });
+                if (up > 0) column.Children.Add(new Border { Background = Res("HueA"), Height = Math.Max(2, upHeight), CornerRadius = new CornerRadius(5, 5, 0, 0) });
+                if (down > 0) column.Children.Add(new Border { Background = Res("HueB"), Height = Math.Max(2, downHeight), CornerRadius = up > 0 ? new CornerRadius(0) : new CornerRadius(5, 5, 0, 0) });
                 Grid.SetColumn(column, i);
                 chart.Children.Add(column);
+                if (animate) CMo.Grow(column, i, delayMs: _entering ? 380 : 0);
             }
 
             var hit = new Border
@@ -242,18 +281,23 @@ public sealed class UsagePage : PageBase
 
             if (label.Length > 0)
             {
-                var text = new TextBlock { Text = label, Style = St("Label"), FontSize = 11, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(2, 0, 0, 0), FlowDirection = Flow };
+                var text = new TextBlock
+                {
+                    Text = label, Style = St("Label"), FontSize = 11.5, Foreground = Res("Faint"), FlowDirection = Flow,
+                    HorizontalAlignment = few ? HorizontalAlignment.Center : HorizontalAlignment.Left, Margin = new Thickness(few ? 0 : 2, 0, 0, 0),
+                };
                 Grid.SetColumn(text, i);
-                Grid.SetColumnSpan(text, Math.Min(6, bars.Count - i));
+                Grid.SetColumnSpan(text, few ? 1 : Math.Min(6, bars.Count - i));
                 labels.Children.Add(text);
+                if (animate) CMo.Appear(text, i / 3, 6, 0.5);
             }
         }
         panel.Children.Add(chart);
         panel.Children.Add(labels);
 
-        var legend = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
-        legend.Children.Add(Dot("Green", L.T("دانلود", "Download")));
-        legend.Children.Add(Dot("Accent", L.T("آپلود", "Upload")));
+        var legend = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
+        legend.Children.Add(Dot("HueB", L.T("دانلود", "Download")));
+        legend.Children.Add(Dot("HueA", L.T("آپلود", "Upload")));
         legend.Children.Add(new TextBlock
         {
             Text = L.T($"بلندترین ستون: {Fa.Bytes(max)}", $"Tallest bar: {Fa.Bytes(max)}"), Style = St("Label"),
@@ -271,25 +315,39 @@ public sealed class UsagePage : PageBase
         return row;
     }
 
-    private void DrawList(List<UsageRow> rows)
+    private void DrawList(List<UsageRow> rows, bool animate)
     {
         _list.Children.Clear();
+        _rows.Begin();
         if (rows.Count == 0)
         {
             _list.Children.Add(new TextBlock
             {
                 Text = L.T("هنوز مصرفی ثبت نشده. شب‌پا باید با دسترسی ادمین باز باشه تا ترافیک هر برنامه رو ببینه.",
                     "No usage recorded yet. Shabpa needs to run as administrator to see each app's traffic."),
-                Style = St("Body"), TextWrapping = TextWrapping.Wrap,
+                Style = St("Body"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(10, 8, 10, 8),
             });
+            _rows.End();
             return;
         }
 
         var top = Math.Max(1, rows[0].Total);
+        var order = 0;
         foreach (var row in rows.Take(ListLimit))
         {
             var selected = row.Key == _app;
-            var grid = new Grid { Margin = new Thickness(0, 6, 0, 6), Background = Brushes.Transparent, Cursor = System.Windows.Input.Cursors.Hand };
+            var shell = new Border
+            {
+                CornerRadius = new CornerRadius(12), Padding = new Thickness(12, 9, 12, 9), Margin = new Thickness(0, 1, 0, 1), Cursor = System.Windows.Input.Cursors.Hand,
+                Background = selected ? Res("AccentSoft") : Brushes.Transparent,
+            };
+            if (!selected)
+            {
+                shell.MouseEnter += (_, _) => shell.Background = Res("Line");
+                shell.MouseLeave += (_, _) => shell.Background = Brushes.Transparent;
+            }
+            Fx.Attach(shell, nudge: 2, press: 0.985);
+            var grid = new Grid();
             grid.ColumnDefinitions.Add(new ColumnDefinition());
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(220) });
 
@@ -300,23 +358,23 @@ public sealed class UsagePage : PageBase
                 TextTrimming = TextTrimming.CharacterEllipsis,
             });
             var bar = new Grid { Height = 8, Margin = new Thickness(0, 6, 12, 0), FlowDirection = FlowDirection.LeftToRight };
-            bar.Children.Add(new Border { Background = Res("Panel2"), CornerRadius = new CornerRadius(4) });
+            bar.Children.Add(new Border { Background = Res("Line"), CornerRadius = new CornerRadius(4) });
             var share = Math.Clamp((double)row.Total / top, 0.01, 1);
-            var fill = new Grid { HorizontalAlignment = HorizontalAlignment.Left };
+            var fill = new Grid { HorizontalAlignment = HorizontalAlignment.Stretch };
             fill.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(row.Down, GridUnitType.Star) });
             fill.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Max(row.Up, 0), GridUnitType.Star) });
-            var down = new Border { Background = Res("Green"), CornerRadius = new CornerRadius(4, 0, 0, 4) };
-            var up = new Border { Background = Res("Accent"), CornerRadius = new CornerRadius(0, 4, 4, 0) };
+            var down = new Border { Background = Res("HueB"), CornerRadius = new CornerRadius(4, 0, 0, 4) };
+            var up = new Border { Background = Res("HueA"), CornerRadius = new CornerRadius(0, 4, 4, 0) };
             Grid.SetColumn(up, 1);
             fill.Children.Add(down);
             fill.Children.Add(up);
-            // Width proportional to the biggest app; the Grid fills its parent so use a star column to scale.
+            // width proportional to the biggest app: a star column scales the whole bar
             var scaler = new Grid { HorizontalAlignment = HorizontalAlignment.Stretch };
             scaler.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(share, GridUnitType.Star) });
             scaler.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1 - share, GridUnitType.Star) });
-            fill.HorizontalAlignment = HorizontalAlignment.Stretch;
             scaler.Children.Add(fill);
             bar.Children.Add(scaler);
+            if (animate && _list.IsLoaded) CMo.Grow(fill, order, vertical: false, seconds: 0.8, delayMs: 120);
             left.Children.Add(bar);
             grid.Children.Add(left);
 
@@ -332,26 +390,27 @@ public sealed class UsagePage : PageBase
             });
             Grid.SetColumn(numbers, 1);
             grid.Children.Add(numbers);
+            shell.Child = grid;
 
             var key = row.Key;
-            grid.MouseLeftButtonUp += (_, _) =>
+            shell.MouseLeftButtonUp += (_, _) =>
             {
                 _app = _app == key ? null : key;
                 Draw();
             };
-            _list.Children.Add(grid);
-            _list.Children.Add(Divider());
+            _list.Children.Add(_rows.Item(row.Key, shell));
+            order++;
         }
+        _rows.End();
         if (rows.Count > ListLimit)
-            _list.Children.Add(new TextBlock { Text = L.T($"و {Fa.Digits((rows.Count - ListLimit).ToString())} برنامه‌ی دیگه با مصرف کمتر.", $"and {rows.Count - ListLimit} more with less use."), Style = St("Label") });
+            _list.Children.Add(new TextBlock { Text = L.T($"و {Fa.Digits((rows.Count - ListLimit).ToString())} برنامه‌ی دیگه با مصرف کمتر.", $"and {rows.Count - ListLimit} more with less use."), Style = St("Label"), Margin = new Thickness(12, 8, 12, 4) });
     }
 
     private void OnClear(object sender, RoutedEventArgs e)
     {
-        var answer = MessageBox.Show(L.T("تاریخچه‌ی مصرف همه‌ی برنامه‌ها برای همیشه پاک بشه؟", "Delete the usage history of every app for good?"),
-            L.T("شب‌پا", "Shabpa"), MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No,
-            Ui.Flow == FlowDirection.RightToLeft ? MessageBoxOptions.RtlReading | MessageBoxOptions.RightAlign : MessageBoxOptions.None);
-        if (answer != MessageBoxResult.Yes) return;
+        if (!ConfirmWindow.AskAlways(L.T("پاک کردن تاریخچه‌ی مصرف", "Clear usage history"),
+                L.T("تاریخچه‌ی مصرف همه‌ی برنامه‌ها برای همیشه پاک بشه؟", "Delete the usage history of every app for good?"),
+                L.T("پاک کن", "Delete"), danger: true)) return;
         Hub.Usage.Clear();
         _app = null;
         Draw();

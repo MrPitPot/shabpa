@@ -2,34 +2,150 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:s="clr-namespace:Shabpa"
-        Title="{s:Tr 'شب‌پا', 'Shabpa'}" Width="1140" Height="780" MinWidth="960" MinHeight="620"
+        xmlns:kit="clr-namespace:Shabpa.Kit"
+        Title="{s:Tr 'شب‌پا', 'Shabpa'}" Width="1280" Height="800" MinWidth="960" MinHeight="620"
         WindowStartupLocation="CenterScreen" Background="{StaticResource BgGradient}" Foreground="{StaticResource Text}"
-        FontFamily="{StaticResource Ui}" FontSize="13"
-        TextOptions.TextFormattingMode="Ideal" UseLayoutRounding="True"
+        FontFamily="{StaticResource Ui}" FontSize="13" FontWeight="Medium"
+        TextOptions.TextFormattingMode="Ideal" UseLayoutRounding="True" SnapsToDevicePixels="True"
+        WindowStyle="SingleBorderWindow"
         Icon="pack://application:,,,/Assets/shabpa.ico">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="40" ResizeBorderThickness="6" GlassFrameThickness="0" UseAeroCaptionButtons="False" CornerRadius="0"/>
+    </WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <!-- title-bar buttons: 40x28, hover = hairline fill, close hover = red -->
+        <Style x:Key="WinBtn" TargetType="Button">
+            <Setter Property="Width" Value="40"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Foreground" Value="{StaticResource Muted}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True"/>
+            <Setter Property="kit:Fx.Grow" Value="1.08"/>
+            <Setter Property="kit:Fx.Press" Value="0.88"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="b" CornerRadius="7" Background="Transparent">
+                            <kit:Icon Glyph="{TemplateBinding Tag}" Width="16" Height="16" Weight="1.6" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="b" Property="Background" Value="{StaticResource Line}"/>
+                                <Setter Property="Foreground" Value="{StaticResource Text}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="WinClose" TargetType="Button" BasedOn="{StaticResource WinBtn}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="b" CornerRadius="7" Background="Transparent">
+                            <kit:Icon Glyph="{TemplateBinding Tag}" Width="16" Height="16" Weight="1.6" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="b" Property="Background" Value="#C42B1C"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="NavGroup" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{StaticResource Faint}"/>
+            <Setter Property="Margin" Value="14,14,0,3"/>
+        </Style>
+    </Window.Resources>
+
     <Grid x:Name="Root" Background="{StaticResource BgGradient}">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="232"/>
-            <ColumnDefinition/>
-        </Grid.ColumnDefinitions>
+        <!-- layer 1: the Mica plate (a veil over the wallpaper, or over the real Windows 11 material in glass mode) -->
+        <Border Background="{StaticResource MicaVeil}"/>
 
-        <Border Background="{StaticResource SideGradient}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,1,0">
-            <DockPanel Margin="14,22,14,16">
-                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,0,0,24">
-                    <Image Source="pack://application:,,,/Assets/logo.png" Width="36" Height="36" RenderOptions.BitmapScalingMode="HighQuality" FlowDirection="LeftToRight"/>
-                    <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
-                        <TextBlock Text="{s:Tr 'شب‌پا', 'Shabpa'}" FontSize="18" FontWeight="Bold" Foreground="{StaticResource Text}"/>
-                        <TextBlock Text="{s:Tr 'نگهبان شبانه‌ی سیستم', 'Your PC night watch'}" FontSize="11" Foreground="{StaticResource Faint}" Margin="0,1,0,0"/>
-                    </StackPanel>
+        <Grid x:Name="Frame">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="40"/>
+                <RowDefinition/>
+                <RowDefinition Height="30"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="232"/>
+                <ColumnDefinition/>
+            </Grid.ColumnDefinitions>
+
+            <!-- title bar -->
+            <DockPanel Grid.ColumnSpan="2" Margin="14,0,8,0">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="ThemeButton" Style="{StaticResource WinBtn}" Tag="moon" Click="OnThemeClick"
+                            ToolTip="{s:Tr 'تیره / روشن', 'Dark / light'}"/>
+                    <Button Style="{StaticResource WinBtn}" Tag="min" Click="OnMinimize"/>
+                    <Button Style="{StaticResource WinBtn}" Tag="max" Click="OnMaximize"/>
+                    <Button Style="{StaticResource WinClose}" Tag="x" Click="OnClose"/>
                 </StackPanel>
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Image Source="pack://application:,,,/Assets/logo.png" Width="20" Height="20" RenderOptions.BitmapScalingMode="HighQuality" FlowDirection="LeftToRight"/>
+                    <TextBlock Text="{s:Tr 'شب‌پا', 'Shabpa'}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Text}" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
+                <Border/>
+            </DockPanel>
 
-                <StackPanel DockPanel.Dock="Bottom">
+            <!-- sidebar -->
+            <Grid Grid.Row="1" Margin="12,8,12,10">
+                <Grid.RowDefinitions>
+                    <RowDefinition/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Margin="0,0,-6,0" Padding="0,0,6,0">
+                    <Grid x:Name="NavHost">
+                        <!-- the one sliding pill: it springs to the active row -->
+                        <Grid x:Name="Pill" Height="42" VerticalAlignment="Top" IsHitTestVisible="False" Opacity="0" Margin="0,1,0,0">
+                            <Grid.RenderTransform><TranslateTransform x:Name="PillMove"/></Grid.RenderTransform>
+                            <kit:Shadow Radius="10" Blur="24" Spread="-10" OffsetY="10" Layers="7" Color="{StaticResource ShadowC}"/>
+                            <Border CornerRadius="10" Background="{StaticResource Card2Fill}" BorderBrush="{StaticResource CardRim}" BorderThickness="1"/>
+                            <Border Width="3" Margin="0,11" CornerRadius="3" HorizontalAlignment="Left" Background="{StaticResource AccentBar}"/>
+                        </Grid>
+                        <StackPanel x:Name="NavPanel">
+                            <RadioButton Style="{StaticResource Nav}" Tag="home" Content="{s:Tr 'خانه', 'Home'}" x:Name="NavHome" Checked="OnNav"/>
+                            <TextBlock Text="{s:Tr 'سیستم و برق', 'System &amp; power'}" Style="{StaticResource NavGroup}"/>
+                            <RadioButton Style="{StaticResource Nav}" Tag="cpu" Content="{s:Tr 'کنترل سیستم', 'System control'}" x:Name="NavSystem" Checked="OnNav"/>
+                            <RadioButton Style="{StaticResource Nav}" Tag="sun" Content="{s:Tr 'آسایش و استراحت', 'Comfort &amp; rest'}" x:Name="NavComfort" Checked="OnNav"/>
+                            <RadioButton Style="{StaticResource Nav}" Tag="user" Content="{s:Tr 'پروفایل‌ها', 'Profiles'}" x:Name="NavProfiles" Checked="OnNav"/>
+                            <TextBlock Text="{s:Tr 'بازی و شبکه', 'Gaming &amp; network'}" Style="{StaticResource NavGroup}"/>
+                            <RadioButton Style="{StaticResource Nav}" Tag="mon" Content="{s:Tr 'اورلی بازی', 'Game overlay'}" x:Name="NavGaming" Checked="OnNav"/>
+                            <RadioButton Style="{StaticResource Nav}" Tag="net" Content="{s:Tr 'پایداری پینگ', 'Ping stability'}" x:Name="NavPing" Checked="OnNav"/>
+                            <RadioButton Style="{StaticResource Nav}" Tag="globe" Content="{s:Tr 'دی‌ان‌اس', 'DNS'}" x:Name="NavDns" Checked="OnNav"/>
+                            <RadioButton Style="{StaticResource Nav}" Tag="dl" Content="{s:Tr 'دانلود زمان‌بندی‌شده', 'Scheduled download'}" x:Name="NavDownload" Checked="OnNav"/>
+                            <TextBlock Text="{s:Tr 'نگهداری', 'Maintenance'}" Style="{StaticResource NavGroup}"/>
+                            <RadioButton Style="{StaticResource Nav}" Tag="folder" Content="{s:Tr 'فایل و پشتیبان', 'Files &amp; backup'}" x:Name="NavFiles" Checked="OnNav"/>
+                            <RadioButton Style="{StaticResource Nav}" Tag="ecg" Content="{s:Tr 'سلامت و امنیت', 'Health &amp; security'}" x:Name="NavHealth" Checked="OnNav"/>
+                            <TextBlock Text="{s:Tr 'روزمره', 'Everyday'}" Style="{StaticResource NavGroup}"/>
+                            <RadioButton Style="{StaticResource Nav}" Tag="tasks" Content="{s:Tr 'کارها و تمرکز', 'Tasks &amp; focus'}" x:Name="NavTasks" Checked="OnNav"/>
+                            <RadioButton Style="{StaticResource Nav}" Tag="mic" Content="{s:Tr 'میکروفون', 'Microphone'}" x:Name="NavMic" Checked="OnNav"/>
+                            <RadioButton Style="{StaticResource Nav}" Tag="cloud" Content="{s:Tr 'آب و هوا', 'Weather'}" x:Name="NavWeather" Checked="OnNav"/>
+                            <TextBlock Text="{s:Tr 'برنامه', 'App'}" Style="{StaticResource NavGroup}"/>
+                            <RadioButton Style="{StaticResource Nav}" Tag="life" Content="{s:Tr 'پشتیبانی', 'Support'}" x:Name="NavSupport" Checked="OnNav"/>
+                            <RadioButton Style="{StaticResource Nav}" Tag="refresh" Content="{s:Tr 'به‌روزرسانی', 'Updates'}" x:Name="NavUpdate" Checked="OnNav"/>
+                            <RadioButton Style="{StaticResource Nav}" Tag="set" Content="{s:Tr 'تنظیمات', 'Settings'}" x:Name="NavSettings" Checked="OnNav"/>
+                            <RadioButton Style="{StaticResource Nav}" Tag="brush" Content="Design kit" x:Name="NavKit" Checked="OnNav" Visibility="Collapsed"/>
+                        </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+
+                <StackPanel Grid.Row="1" Margin="0,8,0,0">
                     <Border x:Name="DryRunPill" Style="{StaticResource Pill}" Background="{StaticResource GoldSoft}" HorizontalAlignment="Stretch"
                             Margin="0,0,0,10" Visibility="Collapsed"
                             ToolTip="{s:Tr 'دستورهای برق اجرا نمی‌شن، فقط شبیه‌سازی می‌شن.', 'Power commands are only simulated, never run.'}">
                         <TextBlock Text="{s:Tr 'حالت آزمایشی', 'Test mode'}" Foreground="{StaticResource Gold}" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center"/>
                     </Border>
-                    <Border Background="{StaticResource Panel}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="14" Padding="14,12">
+                    <kit:GlassCard CornerRadius="14" Padding="14,12">
                         <StackPanel>
                             <DockPanel>
                                 <Ellipse x:Name="LiveDot" Width="7" Height="7" Fill="{StaticResource Green}" DockPanel.Dock="Left" VerticalAlignment="Center"/>
@@ -42,71 +158,69 @@
                             </StackPanel>
                             <TextBlock x:Name="SideNext" Style="{StaticResource Label}" FontSize="11.5" Margin="0,6,0,0" TextWrapping="Wrap"/>
                         </StackPanel>
+                    </kit:GlassCard>
+                    <Border x:Name="LangChip" Height="30" CornerRadius="15" Padding="12,0" Margin="2,10,0,0" HorizontalAlignment="Left" Cursor="Hand"
+                            Background="{StaticResource CardFill}" BorderBrush="{StaticResource Line}" BorderThickness="1"
+                            kit:Fx.Press="0.94" MouseLeftButtonUp="OnLangClick">
+                        <TextBlock x:Name="LangText" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource Muted}" VerticalAlignment="Center"/>
                     </Border>
-                    <TextBlock x:Name="VersionText" FontSize="10.5" Foreground="{StaticResource Faint}" HorizontalAlignment="Center" Margin="0,12,0,0"/>
                 </StackPanel>
+            </Grid>
 
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False" Margin="0,0,-6,0" Padding="0,0,6,0">
-                <StackPanel x:Name="NavPanel">
-                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE80F;" Content="{s:Tr 'خانه', 'Home'}" x:Name="NavHome" Checked="OnNav"/>
-                    <TextBlock Text="{s:Tr 'سیستم و برق', 'System &amp; power'}" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource Faint}" Margin="12,14,0,4" Opacity="0.85"/>
-                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE7E8;" Content="{s:Tr 'کنترل سیستم', 'System control'}" x:Name="NavSystem" Checked="OnNav"/>
-                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE708;" Content="{s:Tr 'آسایش و استراحت', 'Comfort &amp; rest'}" x:Name="NavComfort" Checked="OnNav"/>
-                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE768;" Content="{s:Tr 'پروفایل‌ها', 'Profiles'}" x:Name="NavProfiles" Checked="OnNav"/>
-                    <TextBlock Text="{s:Tr 'بازی و شبکه', 'Gaming &amp; network'}" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource Faint}" Margin="12,14,0,4" Opacity="0.85"/>
-                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE7FC;" Content="{s:Tr 'اورلی بازی', 'Game overlay'}" x:Name="NavGaming" Checked="OnNav"/>
-                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE701;" Content="{s:Tr 'پایداری پینگ', 'Ping stability'}" x:Name="NavPing" Checked="OnNav"/>
-                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE774;" Content="{s:Tr 'دی‌ان‌اس', 'DNS'}" x:Name="NavDns" Checked="OnNav"/>
-                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE896;" Content="{s:Tr 'دانلود زمان‌بندی‌شده', 'Scheduled download'}" x:Name="NavDownload" Checked="OnNav"/>
-                    <TextBlock Text="{s:Tr 'نگهداری', 'Maintenance'}" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource Faint}" Margin="12,14,0,4" Opacity="0.85"/>
-                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE8B7;" Content="{s:Tr 'فایل و پشتیبان', 'Files &amp; backup'}" x:Name="NavFiles" Checked="OnNav"/>
-                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE95E;" Content="{s:Tr 'سلامت و امنیت', 'Health &amp; security'}" x:Name="NavHealth" Checked="OnNav"/>
-                    <TextBlock Text="{s:Tr 'روزمره', 'Everyday'}" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource Faint}" Margin="12,14,0,4" Opacity="0.85"/>
-                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE73A;" Content="{s:Tr 'کارها و تمرکز', 'Tasks &amp; focus'}" x:Name="NavTasks" Checked="OnNav"/>
-                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE720;" Content="{s:Tr 'میکروفون', 'Microphone'}" x:Name="NavMic" Checked="OnNav"/>
-                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE706;" Content="{s:Tr 'آب و هوا', 'Weather'}" x:Name="NavWeather" Checked="OnNav"/>
-                    <TextBlock Text="{s:Tr 'برنامه', 'App'}" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource Faint}" Margin="12,14,0,4" Opacity="0.85"/>
-                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE897;" Content="{s:Tr 'پشتیبانی', 'Support'}" x:Name="NavSupport" Checked="OnNav"/>
-                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE895;" Content="{s:Tr 'به‌روزرسانی', 'Updates'}" x:Name="NavUpdate" Checked="OnNav"/>
-                    <RadioButton Style="{StaticResource Nav}" Tag="&#xE713;" Content="{s:Tr 'تنظیمات', 'Settings'}" x:Name="NavSettings" Checked="OnNav"/>
+            <!-- main surface: layer 1.5, faint gradient with a rim light on its start / top edge -->
+            <Border x:Name="Main" Grid.Row="1" Grid.Column="1" CornerRadius="14,0,0,0" BorderThickness="1,1,0,0"
+                    Background="{StaticResource MainBg}" BorderBrush="{StaticResource CardRim}">
+                <Grid>
+                    <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                        <StackPanel x:Name="PageStack" Margin="30,22,24,28" MaxWidth="1240" HorizontalAlignment="Stretch">
+                            <Grid x:Name="HeaderGrid" Margin="0,0,0,18">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock x:Name="PageTitle" Style="{StaticResource H1}"/>
+                                    <TextBlock x:Name="PageSub" Style="{StaticResource Body}" Margin="0,0,0,0"/>
+                                </StackPanel>
+                                <ContentControl x:Name="HeaderExtra" Grid.Column="1" VerticalAlignment="Bottom" Focusable="False" Margin="16,0,0,2"/>
+                            </Grid>
+                            <ContentControl x:Name="Host" Focusable="False" HorizontalAlignment="Stretch"/>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- in-app notice (layer 3 style toast): shown here instead of a tray balloon while the window is open -->
+                    <Grid x:Name="Toast" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="24,0,24,26" MaxWidth="560"
+                          Visibility="Collapsed" Cursor="Hand" MouseLeftButtonUp="OnToastClick" Background="Transparent">
+                        <Grid.RenderTransform>
+                            <TransformGroup>
+                                <ScaleTransform x:Name="ToastScale"/>
+                                <TranslateTransform x:Name="ToastMove"/>
+                            </TransformGroup>
+                        </Grid.RenderTransform>
+                        <kit:Shadow Radius="14" Blur="30" Spread="-10" OffsetY="14" Layers="8" Color="{StaticResource ShadowHoverC}" IsHitTestVisible="False"/>
+                        <Border Background="{StaticResource Ink}" CornerRadius="14" Padding="20,12">
+                            <DockPanel>
+                                <kit:TickMark x:Name="ToastTick" DockPanel.Dock="Left" Width="20" Height="20" Weight="2.2" Foreground="{StaticResource Green}" VerticalAlignment="Top" Margin="0,2,12,0" Progress="1"/>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock x:Name="ToastTitle" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource OnInk}" TextWrapping="Wrap"/>
+                                    <TextBlock x:Name="ToastText" FontSize="12.5" Foreground="{StaticResource OnInk}" Opacity="0.75" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <!-- footer / status line -->
+            <Border Grid.Row="2" Grid.ColumnSpan="2" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0" Padding="16,0">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="6" Height="6" Fill="{StaticResource Green}" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="VersionText" FontSize="11" Foreground="{StaticResource Faint}" Margin="10,0,0,0" VerticalAlignment="Center"/>
                 </StackPanel>
-            </ScrollViewer>
-            </DockPanel>
-        </Border>
-
-        <Grid Grid.Column="1">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition/>
-            </Grid.RowDefinitions>
-            <StackPanel Margin="34,26,34,10">
-                <TextBlock x:Name="PageTitle" Style="{StaticResource H1}"/>
-                <TextBlock x:Name="PageSub" Style="{StaticResource Body}" Margin="0,4,0,0"/>
-            </StackPanel>
-            <ScrollViewer x:Name="Scroller" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
-                <ContentControl x:Name="Host" Margin="34,6,24,30" MaxWidth="1000" HorizontalAlignment="Stretch" Focusable="False"/>
-            </ScrollViewer>
-
-            <!-- in-app notice: shown here instead of a tray balloon while the window is open -->
-            <Border x:Name="Toast" Grid.Row="1" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="24,0,24,22" MaxWidth="560"
-                    Background="{StaticResource Panel2}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="14" Padding="16,12"
-                    Visibility="Collapsed" Cursor="Hand" MouseLeftButtonUp="OnToastClick">
-                <Border.Effect>
-                    <DropShadowEffect BlurRadius="24" ShadowDepth="6" Opacity="0.35" Color="Black"/>
-                </Border.Effect>
-                <Border.RenderTransform>
-                    <TranslateTransform x:Name="ToastMove"/>
-                </Border.RenderTransform>
-                <DockPanel>
-                    <Border DockPanel.Dock="Left" Width="34" Height="34" CornerRadius="10" Background="{StaticResource AccentSoft}" VerticalAlignment="Top" Margin="0,0,12,0">
-                        <TextBlock Text="&#xEA8F;" Style="{StaticResource Icon}" Foreground="{StaticResource Accent}" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                    </Border>
-                    <StackPanel VerticalAlignment="Center">
-                        <TextBlock x:Name="ToastTitle" Style="{StaticResource H2}" FontSize="14"/>
-                        <TextBlock x:Name="ToastText" Style="{StaticResource Label}" Margin="0,3,0,0" TextWrapping="Wrap"/>
-                    </StackPanel>
-                </DockPanel>
             </Border>
         </Grid>
+
+        <!-- hairline round the whole window -->
+        <Border BorderBrush="{StaticResource Line}" BorderThickness="1" IsHitTestVisible="False"/>
     </Grid>
 </Window>

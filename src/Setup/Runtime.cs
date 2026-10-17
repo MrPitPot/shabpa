@@ -1,11 +1,15 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography.X509Certificates;
+using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Win32;
 
 namespace Shabpa.Setup;
 
@@ -17,68 +21,152 @@ public static class Runtime
     /// <summary>Microsoft's permanent link to the latest .NET 10 Windows Desktop Runtime for x64.</summary>
     public const string DownloadUrl = "https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe";
 
-    /// <summary>True when a .NET 10 Windows Desktop Runtime is installed for x64.</summary>
+    /// <summary>True when a .NET 10 Windows Desktop Runtime is installed for x64. Without a folder it asks the places the
+    /// app's own launcher asks: Program Files\dotnet, DOTNET_ROOT and the registry record the runtime installer leaves.</summary>
     public static bool IsInstalled(string? dotnetRoot = null)
     {
-        dotnetRoot ??= Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet");
-        var shared = Path.Combine(dotnetRoot, "shared", "Microsoft.WindowsDesktop.App");
-        if (!Directory.Exists(shared)) return false;
-        return Directory.GetDirectories(shared)
-            .Select(Path.GetFileName)
-            .Any(name => name is not null && name.StartsWith(Major + ".", StringComparison.Ordinal) &&
-                         Version.TryParse(name.Split('-')[0], out _));
+        if (dotnetRoot is not null) return FolderHasRuntime(dotnetRoot);
+
+        switch (TestHooks.Env("SHABPA_SETUP_RUNTIME"))
+        {
+            case "present": return true;
+            case "missing": return false;
+        }
+        try
+        {
+            if (FolderHasRuntime(Path.Combine(InstallTarget.ProgramFilesDir(), "dotnet"))) return true;
+            var env = Environment.GetEnvironmentVariable("DOTNET_ROOT");
+            if (!string.IsNullOrWhiteSpace(env) && FolderHasRuntime(env!)) return true;
+            return RegistryHasRuntime();
+        }
+        catch (Exception ex)
+        {
+            SetupLog.Warn("runtime check failed: " + ex.Message);
+            return false;
+        }
     }
 
+    private static bool FolderHasRuntime(string dotnetRoot)
+    {
+        try
+        {
+            var shared = Path.Combine(dotnetRoot, "shared", "Microsoft.WindowsDesktop.App");
+            if (!Directory.Exists(shared)) return false;
+            return Directory.GetDirectories(shared)
+                .Select(Path.GetFileName)
+                .Any(name => name is not null && IsDesktopVersion(name));
+        }
+        catch { return false; }
+    }
+
+    private static bool IsDesktopVersion(string name) =>
+        name.StartsWith(Major + ".", StringComparison.Ordinal) && Version.TryParse(name.Split('-')[0], out _);
+
+    /// <summary>HKLM\SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App lists one value per installed version.</summary>
+    private static bool RegistryHasRuntime()
+    {
+        using var hklm = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64);
+        using var key = hklm.OpenSubKey(@"SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App");
+        return key is not null && key.GetValueNames().Any(IsDesktopVersion);
+    }
+
+    private static string Url => TestHooks.Env("SHABPA_SETUP_RUNTIME_URL") ?? DownloadUrl;
+
+    private static TimeSpan HeaderTimeout =>
+        TimeSpan.FromSeconds(int.TryParse(TestHooks.Env("SHABPA_SETUP_HTTP_TIMEOUT_SEC"), out var s) && s > 0 ? s : 60);
+
+    /// <summary>No byte for this long means the connection is dead: give up instead of waiting for the global limit.</summary>
+    private static TimeSpan StallTimeout => HeaderTimeout;
+
     /// <summary>Downloads, verifies and installs the runtime. <paramref name="progress"/> gets 0..1 for the
-    /// download; returns an error message or null.</summary>
+    /// download; returns an error message or null. Every step goes to the setup log.</summary>
     public static async Task<string?> InstallAsync(Action<double> progress, Func<string, string, string> t)
     {
         var file = Path.Combine(Path.GetTempPath(), "shabpa-dotnet-desktop-runtime.exe");
+        SetupLog.Info("runtime: downloading " + Url + " to " + file);
         try
         {
-            using (var http = new HttpClient { Timeout = TimeSpan.FromMinutes(20) })
-            using (var response = await http.GetAsync(DownloadUrl, HttpCompletionOption.ResponseHeadersRead))
+            using var handler = new HttpClientHandler { UseProxy = true, DefaultProxyCredentials = CredentialCache.DefaultCredentials };
+            using (var http = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(20) })
             {
+                using var headerCts = new CancellationTokenSource(HeaderTimeout);
+                using var response = await http.GetAsync(Url, HttpCompletionOption.ResponseHeadersRead, headerCts.Token).ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
                 var total = response.Content.Headers.ContentLength ?? 60_000_000;
-                using var input = await response.Content.ReadAsStreamAsync();
+                SetupLog.Info("runtime: connected, " + total + " bytes");
+                using var input = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
                 using var output = File.Create(file);
                 var buffer = new byte[81920];
                 long done = 0;
-                int read;
-                while ((read = await input.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                while (true)
                 {
-                    await output.WriteAsync(buffer, 0, read);
+                    var read = await WithStallLimit(input.ReadAsync(buffer, 0, buffer.Length)).ConfigureAwait(false);
+                    if (read <= 0) break;
+                    await output.WriteAsync(buffer, 0, read).ConfigureAwait(false);
                     done += read;
                     progress(Math.Min(1, (double)done / total));
                 }
+                SetupLog.Info("runtime: downloaded " + done + " bytes");
             }
         }
         catch (Exception ex)
         {
-            return t($"دانلود ‎.NET از سایت مایکروسافت انجام نشد ({ex.Message}). اینترنت یا فیلترشکن رو چک کن و دوباره امتحان کن.",
+            SetupLog.Error("runtime: download failed", ex);
+            TryDelete(file);
+            return t($"دانلود ‎.NET از سایت مایکروسافت انجام نشد. اینترنت یا فیلترشکن رو چک کن و دوباره امتحان کن.\n‎{ex.Message}‎",
                 $"Could not download .NET from Microsoft ({ex.Message}). Check the internet connection and try again.");
         }
 
         if (!IsSignedByMicrosoft(file))
         {
+            SetupLog.Error("runtime: the downloaded file has no valid Microsoft signature");
             TryDelete(file);
             return t("فایل دانلودشده امضای معتبر مایکروسافت رو نداشت و اجرا نشد.", "The downloaded file did not carry a valid Microsoft signature and was not run.");
         }
 
         try
         {
-            using var process = Process.Start(new ProcessStartInfo(file, "/install /quiet /norestart") { UseShellExecute = false, CreateNoWindow = true })!;
-            await Task.Run(() => process.WaitForExit());
-            // 0 = done, 3010/1641 = done but Windows wants a restart (not needed for the app to start).
-            return process.ExitCode is 0 or 3010 or 1641 || IsInstalled()
-                ? null
-                : t($"نصب ‎.NET انجام نشد (کد {process.ExitCode}).", $".NET installation failed (code {process.ExitCode}).");
+            // 1618 = another installation is running (for instance winget's own dependency step finishing): wait and retry.
+            for (var attempt = 1; ; attempt++)
+            {
+                SetupLog.Info("runtime: running the Microsoft installer (attempt " + attempt + ")");
+                using var process = Process.Start(new ProcessStartInfo(file, "/install /quiet /norestart") { UseShellExecute = false, CreateNoWindow = true })!;
+                var finished = await Task.Run(() => process.WaitForExit(10 * 60 * 1000)).ConfigureAwait(false);
+                if (!finished)
+                {
+                    try { process.Kill(); } catch { /* gone */ }
+                    SetupLog.Error("runtime: the Microsoft installer did not finish in 10 minutes");
+                    return t("نصب ‎.NET بیش از حد طول کشید.", ".NET installation took too long.");
+                }
+                var code = process.ExitCode;
+                SetupLog.Info("runtime: installer exit code " + code);
+                if (code == 1618 && attempt < 6 && !IsInstalled())
+                {
+                    await Task.Delay(15000).ConfigureAwait(false);
+                    continue;
+                }
+                // 0 = done, 3010/1641 = done but Windows wants a restart (not needed for the app to start).
+                return code is 0 or 3010 or 1641 || IsInstalled()
+                    ? null
+                    : t($"نصب ‎.NET انجام نشد (کد {code}).", $".NET installation failed (code {code}).");
+            }
+        }
+        catch (Exception ex)
+        {
+            SetupLog.Error("runtime: could not run the Microsoft installer", ex);
+            return t($"نصب ‎.NET انجام نشد: ‎{ex.Message}‎", $".NET installation failed: {ex.Message}");
         }
         finally
         {
             TryDelete(file);
         }
+    }
+
+    private static async Task<int> WithStallLimit(Task<int> read)
+    {
+        var finished = await Task.WhenAny(read, Task.Delay(StallTimeout)).ConfigureAwait(false);
+        if (finished != read) throw new TimeoutException("the download stalled for " + (int)StallTimeout.TotalSeconds + " seconds");
+        return await read.ConfigureAwait(false);
     }
 
     /// <summary>A valid Authenticode signature (checked by Windows) whose signer is Microsoft Corporation.</summary>

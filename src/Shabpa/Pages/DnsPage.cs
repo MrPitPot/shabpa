@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Shabpa.Core;
+using Shabpa.Kit;
 
 namespace Shabpa.Pages;
 
@@ -32,50 +33,66 @@ public sealed class DnsPage : PageBase
     public override string PageSubtitle => L.T("دی‌ان‌اس مناسب رو از لیست انتخاب کن، پینگش رو ببین و روی کارت شبکه‌ت ثبتش کن.",
         "Pick a DNS server from the list, see its ping and set it on your network adapter.");
 
+    private readonly TextBlock _testLabel;
+    private readonly Dictionary<string, List<TextBlock>> _pingBoxes = [];
+    private bool _drawn;
+
+    private string StatusText { set => NetFx.Say(_status, value); }
+
     public DnsPage()
     {
-        var root = new StackPanel();
+        var root = new NetBlocks(1000, 3);
 
-        var (adapterCard, adapter) = Ui2.Card(L.T("کارت شبکه", "Network adapter"),
+        var (adapterCard, adapter) = NetParts.Card("net", "HueA", L.T("کارت شبکه", "Network adapter"),
             L.T("تغییر دی‌ان‌اس به دسترسی ادمین نیاز داره و روی همین کارت شبکه اعمال می‌شه.", "Changing DNS needs administrator rights and applies to this adapter."));
+        _adapterChips.Margin = new Thickness(0, 12, 0, 0);
         adapter.Children.Add(_adapterChips);
-        adapter.Children.Add(_current);
-        var reset = new Button { Style = St("Btn"), Content = L.T("برگردوندن به حالت خودکار", "Back to automatic"), HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(16, 8, 16, 8), Margin = new Thickness(0, 12, 0, 0) };
+        var currentBox = new Border { Style = St("Card"), Padding = new Thickness(14, 10, 14, 10), Margin = new Thickness(0, 4, 0, 0), Child = _current };
+        _current.Margin = new Thickness(0);
+        adapter.Children.Add(currentBox);
+        var reset = new Button { Style = St("Btn"), Content = L.T("برگردوندن به حالت خودکار", "Back to automatic"), HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(16, 8, 16, 8), Margin = new Thickness(0, 14, 0, 0) };
         reset.Click += (_, _) => ApplyDns(L.T("خودکار (DHCP)", "Automatic (DHCP)"), "", "");
         adapter.Children.Add(reset);
-        root.Children.Add(adapterCard);
 
-        var (listCard, list) = Ui2.Card(L.T("لیست دی‌ان‌اس‌ها", "DNS servers"),
+        var (listCard, list) = NetParts.Card("globe", "HueB", L.T("لیست دی‌ان‌اس‌ها", "DNS servers"),
             L.T("پینگ با یه درخواست واقعی DNS سنجیده می‌شه. روی «اعمال» بزن تا ثبت بشه.", "Ping is measured with a real DNS query. Press Apply to set one."));
-        _test = new Button { Style = St("BtnPrimary"), Content = L.T("تست پینگ همه", "Test all pings"), HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(18, 9, 18, 9), Margin = new Thickness(0, 12, 0, 0) };
+        _test = new Button { Style = St("BtnPrimary"), HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(18, 0, 18, 0), Height = 40, VerticalAlignment = VerticalAlignment.Center };
+        _test.Content = NetParts.IconText("refresh", L.T("تست پینگ همه", "Test all pings"), out _testLabel);
         _test.Click += async (_, _) => await TestAll();
-        var sort = new CheckBox { Style = St("Check"), Content = L.T("مرتب‌سازی بر اساس پینگ", "Sort by ping"), Margin = new Thickness(14, 12, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        var sort = new CheckBox { Style = St("Check"), Content = L.T("مرتب‌سازی بر اساس پینگ", "Sort by ping"), Margin = new Thickness(14, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
         sort.Click += (_, _) =>
         {
             _sortByPing = sort.IsChecked == true;
-            DrawRows();
+            DrawRows(true);
         };
-        list.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Children = { _test, sort } });
+        list.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 14, 0, 0), Children = { _test, sort } });
         list.Children.Add(_groupChips);
         list.Children.Add(_rows);
         list.Children.Add(_status);
-        root.Children.Add(listCard);
 
-        var (manualCard, manual) = Ui2.Card(L.T("دی‌ان‌اس دلخواه", "Your own DNS"),
+        var (manualCard, manual) = NetParts.Card("edit", "HueC", L.T("دی‌ان‌اس دلخواه", "Your own DNS"),
             L.T("آدرس IPv4 دی‌ان‌اس رو بنویس. «اعمال» فقط ثبتش می‌کنه، «فقط اضافه به لیست» فقط توی لیست نگه می‌داره و چیزی روی سیستم عوض نمی‌شه.", "Type IPv4 addresses. “Apply” only sets it; “Add to list only” just keeps it in the list and changes nothing on the system."));
-        manual.Children.Add(Ui2.Label(L.T("نام (برای ذخیره)", "Name (to save)")));
-        manual.Children.Add(new StackPanel { Children = { _name }, HorizontalAlignment = HorizontalAlignment.Left });
-        manual.Children.Add(Ui2.Label(L.T("دی‌ان‌اس اصلی", "Primary DNS")));
-        manual.Children.Add(new StackPanel { Children = { _dns1 }, HorizontalAlignment = HorizontalAlignment.Left });
-        manual.Children.Add(Ui2.Label(L.T("دی‌ان‌اس دوم (اختیاری)", "Secondary DNS (optional)")));
-        manual.Children.Add(new StackPanel { Children = { _dns2 }, HorizontalAlignment = HorizontalAlignment.Left });
-        var applyOwn = new Button { Style = St("BtnPrimary"), Content = L.T("اعمال", "Apply"), Padding = new Thickness(18, 9, 18, 9), Margin = new Thickness(0, 0, 8, 0) };
+        var fields = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
+        StackPanel Field(string label, TextBox box)
+        {
+            var f = new StackPanel { Margin = new Thickness(0, 0, 12, 0) };
+            f.Children.Add(Ui2.Label(label, 8, 6));
+            f.Children.Add(box);
+            return f;
+        }
+        fields.Children.Add(Field(L.T("نام (برای ذخیره)", "Name (to save)"), _name));
+        fields.Children.Add(Field(L.T("دی‌ان‌اس اصلی", "Primary DNS"), _dns1));
+        fields.Children.Add(Field(L.T("دی‌ان‌اس دوم (اختیاری)", "Secondary DNS (optional)"), _dns2));
+        manual.Children.Add(fields);
+        var applyOwn = new Button { Style = St("BtnPrimary"), Content = L.T("اعمال", "Apply"), Padding = new Thickness(20, 0, 20, 0), Height = 40, Margin = new Thickness(0, 0, 8, 0) };
         applyOwn.Click += (_, _) => ApplyOwn();
-        var saveOwn = new Button { Style = St("Btn"), Content = L.T("فقط اضافه به لیست", "Add to list only"), Padding = new Thickness(18, 9, 18, 9) };
+        var saveOwn = new Button { Style = St("Btn"), Content = L.T("فقط اضافه به لیست", "Add to list only"), Padding = new Thickness(18, 0, 18, 0), Height = 40 };
         saveOwn.Click += (_, _) => AddOwn();
-        manual.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 14, 0, 0), Children = { applyOwn, saveOwn } });
-        root.Children.Add(manualCard);
+        manual.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 16, 0, 0), Children = { applyOwn, saveOwn } });
 
+        root.Add(adapterCard, 0, 0, 5, 0);
+        root.Add(manualCard, 0, 5, 7, 2);
+        root.Add(listCard, 1, 0, 12, 1);
         Content = root;
         DrawGroupChips();
     }
@@ -105,13 +122,13 @@ public sealed class DnsPage : PageBase
         var a = Adapter;
         if (a is null)
         {
-            _current.Text = L.T("کارت شبکه‌ی فعالی پیدا نشد.", "No active network adapter was found.");
+            NetFx.Say(_current, L.T("کارت شبکه‌ی فعالی پیدا نشد.", "No active network adapter was found."), false);
             return;
         }
         var servers = a.Servers.Length == 0 ? "—" : string.Join("  ·  ", a.Servers);
         var name = KnownName(a.Servers.FirstOrDefault());
-        _current.Text = L.T($"دی‌ان‌اس فعلی: {servers}{(name is null ? "" : $"  ({name})")} · {(a.IsAutomatic ? "خودکار" : "دستی")}",
-            $"Current DNS: {servers}{(name is null ? "" : $"  ({name})")} · {(a.IsAutomatic ? "automatic" : "manual")}");
+        NetFx.Say(_current, L.T($"دی‌ان‌اس فعلی: {servers}{(name is null ? "" : $"  ({name})")} · {(a.IsAutomatic ? "خودکار" : "دستی")}",
+            $"Current DNS: {servers}{(name is null ? "" : $"  ({name})")} · {(a.IsAutomatic ? "automatic" : "manual")}"), false);
         _current.FlowDirection = Flow;
     }
 
@@ -123,19 +140,21 @@ public sealed class DnsPage : PageBase
         Chips(_groupChips, DnsCatalog.Groups.Select(g => (g.key, L.T(g.fa, g.en))), _group, key =>
         {
             _group = key;
-            DrawRows();
+            DrawRows(true);
         });
     }
 
-    private void DrawRows()
+    private void DrawRows(bool animate = false)
     {
         _rows.Children.Clear();
+        _pingBoxes.Clear();
         var entries = Entries().ToList();
         if (_sortByPing)
             entries = [.. entries.OrderBy(e => _ping.TryGetValue(Key(e), out var ms) && ms is { } v ? v : double.MaxValue)];
         if (entries.Count == 0)
         {
             _rows.Children.Add(Ui2.Label(L.T("چیزی توی این دسته نیست.", "Nothing in this group.")));
+            if (animate) NetFx.RiseChildren(_rows);
             return;
         }
 
@@ -144,8 +163,23 @@ public sealed class DnsPage : PageBase
         foreach (var entry in entries)
         {
             number++;
-            _rows.Children.Add(Columns(header: false, entry, number));
+            var line = new Border { CornerRadius = new CornerRadius(10), Padding = new Thickness(8, 0, 8, 0), Margin = new Thickness(-8, 0, -8, 0), Child = Columns(header: false, entry, number) };
+            NetFx.HoverTint(line);
+            _rows.Children.Add(line);
             _rows.Children.Add(new Border { Height = 1, Background = Res("Line"), Opacity = 0.5 });
+        }
+        // the list rises in when it is (re)filtered or first shown; ping results later update in place, without a redraw
+        if (animate || !_drawn) NetFx.RiseChildren(_rows, 21, 8, 0.45);
+        _drawn = true;
+    }
+
+    private void UpdatePing(string key)
+    {
+        if (!_pingBoxes.TryGetValue(key, out var boxes)) return;
+        foreach (var box in boxes)
+        {
+            ShowPing(box, key);
+            Motion.Pop(box);
         }
     }
 
@@ -162,8 +196,8 @@ public sealed class DnsPage : PageBase
     private Grid Columns(bool header, DnsEntry? entry, int number)
     {
         var grid = new Grid { Margin = new Thickness(0, header ? 4 : 3, 0, header ? 6 : 3), FlowDirection = Flow };
-        foreach (var width in new[] { 34.0, 190.0, 125.0, 125.0, 78.0, 80.0 })
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(width) });
+        foreach (var width in new[] { 30.0, 0.0, 118.0, 118.0, 74.0, 78.0 })
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = width == 0 ? new GridLength(1, GridUnitType.Star) : new GridLength(width), MinWidth = width == 0 ? 110 : 0 });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         TextBlock Cell(string text, int column, bool ltr = false, bool bold = false)
@@ -177,7 +211,8 @@ public sealed class DnsPage : PageBase
             if (ltr)
             {
                 t.FlowDirection = FlowDirection.LeftToRight;
-                t.HorizontalAlignment = HorizontalAlignment.Left;
+                t.HorizontalAlignment = HorizontalAlignment.Stretch;
+                t.TextAlignment = Flow == FlowDirection.RightToLeft ? TextAlignment.Right : TextAlignment.Left;
                 if (!header) t.FontFamily = (FontFamily)Application.Current.Resources["Num"];
             }
             Grid.SetColumn(t, column);
@@ -200,23 +235,29 @@ public sealed class DnsPage : PageBase
         Cell(Fa.Digits(number.ToString()), 0);
         var name = Cell(e.Name, 1, bold: true);
         name.FlowDirection = FlowDirection.LeftToRight;
-        name.HorizontalAlignment = L.En ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+        name.HorizontalAlignment = HorizontalAlignment.Stretch;
+        name.TextAlignment = Flow == FlowDirection.RightToLeft ? TextAlignment.Right : TextAlignment.Left;
         Cell(e.Primary, 2, ltr: true);
         Cell(e.Secondary.Length > 0 ? e.Secondary : "—", 3, ltr: true);
         var pingText = Cell("", 4, ltr: true, bold: true);
         ShowPing(pingText, Key(e));
+        if (!_pingBoxes.TryGetValue(Key(e), out var boxList)) _pingBoxes[Key(e)] = boxList = [];
+        boxList.Add(pingText);
         Cell(GroupName(e.Group), 5);
 
         var apply = new Button { Style = St("Btn"), Content = L.T("اعمال", "Apply"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(4, 0, 0, 0) };
         apply.Click += (_, _) => ApplyDns(e.Name, e.Primary, e.Secondary);
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Children = { apply } };
         if (e.IsCustom)
-            buttons.Children.Add(IconButton("", L.T("حذف از لیست", "Remove"), () =>
+            buttons.Children.Add(IconButton("trash", L.T("حذف از لیست", "Remove"), () =>
             {
                 if (!Ask(L.T("این دی‌ان‌اس از لیست حذف بشه؟", "Remove this DNS from the list?"), e.Name, L.T("حذف", "Remove"), danger: true)) return;
-                Hub.Settings.CustomDns.Remove(e);
-                Hub.Store.Save();
-                DrawRows();
+                NetFx.Out(grid, () =>
+                {
+                    Hub.Settings.CustomDns.Remove(e);
+                    Hub.Store.Save();
+                    DrawRows();
+                });
             }));
         Grid.SetColumn(buttons, 6);
         grid.Children.Add(buttons);
@@ -258,7 +299,8 @@ public sealed class DnsPage : PageBase
         _testing = true;
         _cts = new CancellationTokenSource();
         var ct = _cts.Token;
-        _test.Content = L.T("توقف تست", "Stop");
+        _testLabel.Text = L.T("توقف تست", "Stop");
+        NetFx.Spin(_test, true);
         var entries = DnsCatalog.All.Concat(Hub.Settings.CustomDns).ToList();
         foreach (var e in entries) _pending.Add(Key(e));
         DrawRows();
@@ -287,7 +329,7 @@ public sealed class DnsPage : PageBase
                 {
                     _ping[Key(entry)] = ms;
                     _pending.Remove(Key(entry));
-                    if (!_sortByPing) DrawRows();
+                    if (!_sortByPing) UpdatePing(Key(entry));
                 });
             }));
         }
@@ -299,10 +341,11 @@ public sealed class DnsPage : PageBase
         {
             _pending.Clear();
             _testing = false;
-            _test.Content = L.T("تست پینگ همه", "Test all pings");
-            DrawRows();
+            _testLabel.Text = L.T("تست پینگ همه", "Test all pings");
+            NetFx.Spin(_test, false);
+            DrawRows(_sortByPing);
             var ok = _ping.Values.Count(v => v is not null);
-            _status.Text = L.T($"{Fa.Digits(ok.ToString())} دی‌ان‌اس پاسخ داد.", $"{ok} servers answered.");
+            StatusText = L.T($"{Fa.Digits(ok.ToString())} دی‌ان‌اس پاسخ داد.", $"{ok} servers answered.");
         }
     }
 
@@ -313,7 +356,7 @@ public sealed class DnsPage : PageBase
         b = Latin(_dns2.Text.Trim());
         name = _name.Text.Trim().Length > 0 ? _name.Text.Trim() : a;
         if (DnsCatalog.TryParseIPv4(a, out _) && (b.Length == 0 || DnsCatalog.TryParseIPv4(b, out _))) return true;
-        _status.Text = L.T("آدرس‌ها باید IPv4 درست باشن؛ مثل 1.1.1.1", "Addresses must be valid IPv4, like 1.1.1.1");
+        StatusText = L.T("آدرس‌ها باید IPv4 درست باشن؛ مثل 1.1.1.1", "Addresses must be valid IPv4, like 1.1.1.1");
         _status.Foreground = Res("Red");
         return false;
     }
@@ -330,16 +373,16 @@ public sealed class DnsPage : PageBase
         if (Hub.Settings.CustomDns.Any(e => e.Primary == a && e.Secondary == b) || DnsCatalog.All.Any(e => e.Primary == a && e.Secondary == b))
         {
             _status.Foreground = Res("Muted");
-            _status.Text = L.T("این دی‌ان‌اس قبلاً توی لیست هست.", "That DNS is already in the list.");
+            StatusText = L.T("این دی‌ان‌اس قبلاً توی لیست هست.", "That DNS is already in the list.");
             return;
         }
         Hub.Settings.CustomDns.Add(new DnsEntry { Name = name, Primary = a, Secondary = b, Group = "custom" });
         Hub.Store.Save();
         _status.Foreground = Res("Green");
-        _status.Text = L.T($"«{name}» به لیست اضافه شد (اعمال نشد).", $"“{name}” was added to the list (not applied).");
+        StatusText = L.T($"«{name}» به لیست اضافه شد (اعمال نشد).", $"“{name}” was added to the list (not applied).");
         _group = "all";
         DrawGroupChips();
-        DrawRows();
+        DrawRows(true);
     }
 
     /// <summary>Confirms, sets the DNS and reads it back. Empty addresses mean "automatic". False if not applied.</summary>
@@ -348,7 +391,7 @@ public sealed class DnsPage : PageBase
         var adapter = Adapter;
         if (adapter is null)
         {
-            _status.Text = L.T("کارت شبکه‌ی فعالی پیدا نشد.", "No active network adapter was found.");
+            StatusText = L.T("کارت شبکه‌ی فعالی پیدا نشد.", "No active network adapter was found.");
             return false;
         }
         var what = primary.Length == 0 ? L.T("خودکار (DHCP)", "automatic (DHCP)") : secondary.Length > 0 ? $"{primary} · {secondary}" : primary;
@@ -360,7 +403,7 @@ public sealed class DnsPage : PageBase
         if (Hub.Demo)
         {
             _status.Foreground = Res("Muted");
-            _status.Text = L.T("حالت نمایشی: چیزی ثبت نشد.", "Demo mode: nothing was changed.");
+            StatusText = L.T("حالت نمایشی: چیزی ثبت نشد.", "Demo mode: nothing was changed.");
             return false;
         }
         if (!Hub.Elevated)
@@ -369,7 +412,7 @@ public sealed class DnsPage : PageBase
                     L.T("برای تغییر دی‌ان‌اس شب‌پا باید با دسترسی ادمین اجرا بشه. الان دوباره اجرا بشه؟", "Shabpa must run as administrator to change DNS. Restart it now?"),
                     L.T("اجرا با ادمین", "Restart as admin")))
                 if (Application.Current is App app && !app.Restart(elevated: true, page: "dns"))
-                    _status.Text = L.T("اجازه‌ی ادمین داده نشد.", "Administrator permission was not given.");
+                    StatusText = L.T("اجازه‌ی ادمین داده نشد.", "Administrator permission was not given.");
             return false;
         }
 
@@ -377,7 +420,7 @@ public sealed class DnsPage : PageBase
         if (error is not null)
         {
             _status.Foreground = Res("Red");
-            _status.Text = error switch
+            StatusText = error switch
             {
                 "admin" => L.T("دسترسی ادمین نیست.", "No administrator rights."),
                 "invalid" => L.T("آدرس نامعتبره.", "Invalid address."),
@@ -388,7 +431,7 @@ public sealed class DnsPage : PageBase
             return false;
         }
         _status.Foreground = Res("Green");
-        _status.Text = L.T($"ثبت شد و از ویندوز تایید گرفت: {what}", $"Set and confirmed by Windows: {what}");
+        StatusText = L.T($"ثبت شد و از ویندوز تایید گرفت: {what}", $"Set and confirmed by Windows: {what}");
         Refresh();
         return true;
     }

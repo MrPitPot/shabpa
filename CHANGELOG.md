@@ -4,6 +4,19 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [3.5.0] - 2026-10-17
+
+### Added
+- **Glass Depth design** for every page, dialog, tray menu, countdown window and the installer; **motion everywhere** (honours the animation switch, "Use less RAM" and reduced motion; nothing animates when idle).
+
+### Changed
+- Lighter start-up and memory release; pages are dropped in "Use less RAM" mode.
+- Hardened silent installer: no UI, persistent log in %ProgramData%\Shabpa\setup-log.txt, exit codes 10-16, 10-minute watchdog, .NET Framework 4.7.2 target (runs on Windows 10 1809).
+- Code signing policy now states honestly that releases are unsigned (SignPath application was not accepted).
+
+### Fixed
+- Check marks drawn from the wrong end in right-to-left layouts; mirrored icons in Persian; several layout glitches.
+
 ## [3.4.0] - 2026-10-16
 
 ### Added
