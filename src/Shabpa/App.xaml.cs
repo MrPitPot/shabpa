@@ -666,10 +666,12 @@ public partial class App : Application
             if (macro is not null)
             {
                 window = await Open();
+                log.AppendLine($"second form found: {window != IntPtr.Zero}");
                 // moved a little, as a real launcher window would be
                 Core.MacroNative.SetWindowPos(window, IntPtr.Zero, 380, 260, 0, 0, 0x1 | 0x4);
                 await Task.Delay(500);
                 var outcome = await Task.Run(() => Core.MacroPlayer.Run(macro, null, 15));
+                await Task.Delay(2000); // the form's handler appends to the file asynchronously
                 log.AppendLine($"replay outcome: {outcome}; form got {Lines()} clicks (expected 2)");
                 log.AppendLine("result: " + (Lines() >= macro.Steps.Count && macro.Steps.Count >= 2 && outcome == Core.MacroOutcome.Done ? "PASS (stray clicks by a person using the mouse are counted too)" : "FAIL"));
             }
