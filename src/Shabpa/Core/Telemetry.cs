@@ -121,6 +121,11 @@ public sealed class Telemetry : IDisposable
         _wake.Set(); // sample straight away instead of waiting out the idle pause
     }
 
+    /// <summary>The start of the current play session: the recognised game's own start while it lives (so Alt+Tab, which makes
+    /// GameRunning false for a moment, never resets it), else the first moment a game was in front, else none.</summary>
+    public static DateTime? NextGameStart(DateTime? current, bool running, DateTime? since, DateTime now)
+        => since ?? (running ? current ?? now : null);
+
     public void Release() => Interlocked.Decrement(ref _demand);
 
     public IReadOnlyList<TelemetrySample> History()
@@ -220,8 +225,8 @@ public sealed class Telemetry : IDisposable
             }
         }
 
-        if (sensors.GameRunning) _gameStarted ??= now;
-        else _gameStarted = null;
+        // the play time follows the game's own start: Alt+Tab (another window in front) must not reset it
+        _gameStarted = NextGameStart(_gameStarted, sensors.GameRunning, sensors.GameSince, now);
 
         var board = default(BoardSensors.Reading);
         if (UseBoardSensors)

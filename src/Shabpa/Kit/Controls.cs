@@ -174,7 +174,7 @@ public sealed class Segmented : Border
     {
         if (_items.Count == 0 || !_items[Index].IsLoaded || _items[Index].ActualWidth <= 0) return;
         var o = _items[Index];
-        var p = o.TransformToAncestor(_host).TransformBounds(new Rect(0, 0, o.ActualWidth, o.ActualHeight)).TopLeft;
+        var p = new Point(Fx.Slot(_row, o).X, 0);
         var w = o.ActualWidth;
         _thumb.Height = o.ActualHeight;
         if (!animate || !Fx.Enabled || double.IsNaN(_thumb.Width))

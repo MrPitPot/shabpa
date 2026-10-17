@@ -173,14 +173,14 @@
                 <Grid>
                     <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
                         <StackPanel x:Name="PageStack" Margin="30,22,24,28" MaxWidth="1240" HorizontalAlignment="Stretch">
-                            <Grid x:Name="HeaderGrid" Margin="0,0,0,18">
+                            <Grid x:Name="HeaderGrid" Margin="0,0,0,22">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel>
                                     <TextBlock x:Name="PageTitle" Style="{StaticResource H1}"/>
-                                    <TextBlock x:Name="PageSub" Style="{StaticResource Body}" Margin="0,0,0,0"/>
+                                    <TextBlock x:Name="PageSub" Style="{StaticResource Body}" Margin="0,2,0,2" LineStackingStrategy="BlockLineHeight"/>
                                 </StackPanel>
                                 <ContentControl x:Name="HeaderExtra" Grid.Column="1" VerticalAlignment="Bottom" Focusable="False" Margin="16,0,0,2"/>
                             </Grid>

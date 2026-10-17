@@ -52,7 +52,7 @@ public abstract class TabsPage : PageBase
     {
         var tab = CheckedTab;
         if (tab is null || !tab.IsLoaded || tab.ActualWidth <= 0 || !_strip.IsLoaded) return;
-        var x = tab.TransformToAncestor(_strip).TransformBounds(new Rect(0, 0, tab.ActualWidth, tab.ActualHeight)).TopLeft.X;
+        var x = Fx.Slot(_tabs, tab).X;
         _thumb.Height = tab.ActualHeight;
         if (!animate || !Fx.Enabled || double.IsNaN(_thumb.Width))
         {

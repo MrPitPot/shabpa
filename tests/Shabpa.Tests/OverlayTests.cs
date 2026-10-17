@@ -43,3 +43,28 @@ public class OverlayModelTests
         Assert.False(OverlayLook.IsHex("3EE6A"));
     }
 }
+
+public class GameTimeAltTabTests
+{
+    [Fact]
+    public void AltTabDoesNotResetPlayTime()
+    {
+        var start = new DateTime(2026, 1, 1, 20, 0, 0);
+        DateTime? s = null;
+        s = Shabpa.Core.Telemetry.NextGameStart(s, true, start, start.AddMinutes(10));
+        // another window in front: the game is not the foreground program but is still alive
+        s = Shabpa.Core.Telemetry.NextGameStart(s, false, start, start.AddMinutes(11));
+        Assert.Equal(start, s);
+        // the game really ended
+        Assert.Null(Shabpa.Core.Telemetry.NextGameStart(s, false, null, start.AddMinutes(12)));
+    }
+
+    [Fact]
+    public void WithoutAProcessStartTheFirstSeenMomentIsKept()
+    {
+        var t0 = new DateTime(2026, 1, 1, 20, 0, 0);
+        var s = Shabpa.Core.Telemetry.NextGameStart(null, true, null, t0);
+        s = Shabpa.Core.Telemetry.NextGameStart(s, true, null, t0.AddMinutes(5));
+        Assert.Equal(t0, s);
+    }
+}

@@ -249,7 +249,7 @@ public static class OverlayMetrics
             "down" => Make(s.DownMbps, s.DownMbps >= 10 ? 0 : 1, 100),
             "up" => Make(s.UpMbps, s.UpMbps >= 10 ? 0 : 1, 100),
             "clock" => new MetricView("clock", Abbrev(def.Key), s.Time.ToString("HH:mm", CultureInfo.InvariantCulture), "", null, 0),
-            "gametime" => s.InGame
+            "gametime" => s.InGame || s.GameTime > TimeSpan.Zero
                 ? new MetricView("gametime", Abbrev(def.Key), $"{(int)s.GameTime.TotalHours}:{s.GameTime.Minutes:00}:{s.GameTime.Seconds:00}", "", null, 0)
                 : new MetricView("gametime", Abbrev(def.Key), "—", "", null, 0),
             _ => null,

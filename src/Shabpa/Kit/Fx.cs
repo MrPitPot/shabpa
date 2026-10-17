@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -120,8 +121,27 @@ public static class Fx
     {
         var from = (double)target.GetValue(p);
         target.SetValue(p, to);
-        if (!Enabled || Math.Abs(from - to) < 0.001) return;
+        if (!Enabled || Math.Abs(from - to) < 0.001)
+        {
+            target.BeginAnimation(p, null); // never leave an older animation running towards a stale target
+            return;
+        }
         target.BeginAnimation(p, new DoubleAnimation(from, to, TimeSpan.FromMilliseconds(ms)) { EasingFunction = ease ?? SpringEase.I, FillBehavior = FillBehavior.Stop });
+    }
+
+    /// <summary>Where a child sits inside a horizontal StackPanel, from layout sizes alone (left edge, width, height in the panel's left-to-right space).
+    /// Independent of render transforms (press scale, entrance motion) and of the mirroring of right-to-left flow, which made transform-based measuring unreliable.</summary>
+    public static (double X, double W, double H) Slot(StackPanel row, FrameworkElement child)
+    {
+        var x = 0.0;
+        var total = row.Children.OfType<FrameworkElement>().Sum(c => c.ActualWidth);
+        foreach (var c in row.Children.OfType<FrameworkElement>())
+        {
+            x += c.ActualWidth;
+            if (ReferenceEquals(c, child)) break;
+        }
+        var w = child.ActualWidth;
+        return (row.FlowDirection == FlowDirection.RightToLeft ? total - x : x - w, w, child.ActualHeight);
     }
 
     /// <summary>Same for an element's own dependency property (Opacity, Width...).</summary>
@@ -129,7 +149,11 @@ public static class Fx
     {
         var from = (double)target.GetValue(p);
         target.SetValue(p, to);
-        if (!Enabled || Math.Abs(from - to) < 0.001) return;
+        if (!Enabled || Math.Abs(from - to) < 0.001)
+        {
+            target.BeginAnimation(p, null);
+            return;
+        }
         target.BeginAnimation(p, new DoubleAnimation(from, to, TimeSpan.FromMilliseconds(ms)) { EasingFunction = ease, FillBehavior = FillBehavior.Stop });
     }
 
