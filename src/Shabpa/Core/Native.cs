@@ -4,6 +4,22 @@ namespace Shabpa.Core;
 
 internal static class Native
 {
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    internal struct ProcessEntry
+    {
+        public uint Size, Usage, ProcessId;
+        public UIntPtr DefaultHeapId;
+        public uint ModuleId, Threads, ParentProcessId;
+        public int PriorityClassBase;
+        public uint Flags;
+        [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.ByValTStr, SizeConst = 260)] public string ExeFile;
+    }
+
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)] internal static extern IntPtr CreateToolhelp32Snapshot(uint flags, uint processId);
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)] internal static extern bool Process32First(IntPtr snapshot, ref ProcessEntry entry);
+    [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)] internal static extern bool Process32Next(IntPtr snapshot, ref ProcessEntry entry);
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")] internal static extern bool CloseHandle(IntPtr handle);
+
     [DllImport("powrprof.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.U1)]
     public static extern bool SetSuspendState([MarshalAs(UnmanagedType.U1)] bool hibernate,

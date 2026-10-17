@@ -69,6 +69,8 @@ public sealed class Settings
     public OverlaySettings Overlay { get; set; } = new();
     /// <summary>After a game of at least a few minutes, show how it went (and send it to Telegram).</summary>
     public bool GameReports { get; set; } = true;
+    /// <summary>Record every game session (play time, temperatures, usage, other programs running) on this PC for the Playtime page.</summary>
+    public bool GameLog { get; set; } = true;
     /// <summary>Page and selection animations (also off when Windows has animation effects off).</summary>
     public bool Animations { get; set; } = true;
     /// <summary>Tiny interface sounds on hover, click and notices (experimental).</summary>

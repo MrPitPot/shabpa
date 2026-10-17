@@ -56,7 +56,7 @@ public class PrivacyAndSafetyTests
         var body = hub[start..end];
         Assert.DoesNotContain("Bot.", body);
         // the generic notice function must not hand text to the bot either
-        var notify = hub[hub.IndexOf("public void Notify(string title, string text)", StringComparison.Ordinal)..];
+        var notify = hub[hub.IndexOf("public void Notify(string title, string text, string? target = null)", StringComparison.Ordinal)..];
         notify = notify[..notify.IndexOf('}')];
         Assert.DoesNotContain("Bot.", notify);
     }

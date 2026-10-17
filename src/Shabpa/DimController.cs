@@ -40,6 +40,7 @@ public sealed class DimController : IDisposable
     public DimController(Hub hub)
     {
         _hub = hub;
+        Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplayChanged;
         try
         {
             _sink = new HwndSource(new HwndSourceParameters("ShabpaComfort") { ParentWindow = new IntPtr(-3), Width = 0, Height = 0 });
@@ -107,10 +108,18 @@ public sealed class DimController : IDisposable
             Close();
             return;
         }
-        var shape = $"{level:0.000}|{S.DimWarm}|{string.Join(';', WF.Screen.AllScreens.Select(s => s.Bounds.ToString()))}";
+        // Apply runs every second: the screen list (a native enumeration plus strings) is only looked at again after a display change
+        if (_screensStale)
+        {
+            _screensStale = false;
+            _screens = string.Join(';', WF.Screen.AllScreens.Select(s => s.Bounds.ToString()));
+        }
+        if (_windows.Count > 0 && Math.Abs(level - _level) < 0.0005 && S.DimWarm == _warm && _screens == _shapeScreens) return;
+        var shape = $"{level:0.000}|{S.DimWarm}|{_screens}";
         if (shape == _shape && _windows.Count > 0) return;
         Close(); // clears _shape, so remember the new one only afterwards or every call would rebuild the layer
         _shape = shape;
+        (_level, _warm, _shapeScreens) = (level, S.DimWarm, _screens);
         Builds++;
         // Warm cover: a hint of amber keeps blue light down on top of simply being darker.
         var colour = S.DimWarm ? Color.FromRgb(38, 14, 0) : Colors.Black;
@@ -144,12 +153,19 @@ public sealed class DimController : IDisposable
     }
 
     private bool _registered;
+    private string _k1 = "", _k2 = "", _k3 = "";
+    private double _level;
+    private bool _warm;
+    private string _screens = "", _shapeScreens = "";
+    private volatile bool _screensStale = true;
+    private void OnDisplayChanged(object? sender, EventArgs e) => _screensStale = true;
 
     private void RegisterKeys()
     {
         if (_sink is null) return;
-        var wanted = $"{S.DimKey}|{S.DimDarkerKey}|{S.DimLighterKey}";
-        if (_registered && wanted == _keys) return;
+        if (_registered && S.DimKey == _k1 && S.DimDarkerKey == _k2 && S.DimLighterKey == _k3) return;
+        (_k1, _k2, _k3) = (S.DimKey, S.DimDarkerKey, S.DimLighterKey);
+        var wanted = $"{_k1}|{_k2}|{_k3}";
         if (_registered)
             foreach (var id in new[] { ToggleId, DarkerId, LighterId }) UnregisterHotKey(_sink.Handle, id);
         _keys = wanted;
@@ -168,6 +184,7 @@ public sealed class DimController : IDisposable
 
     public void Dispose()
     {
+        Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplayChanged;
         Close();
         if (_sink is null) return;
         if (_registered)

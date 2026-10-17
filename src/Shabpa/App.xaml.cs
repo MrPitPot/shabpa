@@ -401,7 +401,10 @@ public partial class App : Application
 
         var hub = new Hub(store, dryRun, demo);
         if (demo) hub.FillDemo();
+        if (demo && args.Contains("--empty-games")) hub.GameLog.Seed([]); // test aid: the empty state of the Playtime page
         hub.Start();
+        // test aid: --demo-games writes fake sessions into the data folder, but only into a scratch one (SHABPA_DATA), never the real %AppData%
+        if (!demo && args.Contains("--demo-games") && Environment.GetEnvironmentVariable("SHABPA_DATA") is { Length: > 0 }) hub.SeedGameLog(DateTime.Now, save: true);
 
         _window = new MainWindow();
         UiSound.Install();
@@ -785,7 +788,7 @@ public partial class App : Application
                 var name = page.Replace(':', '-');
                 Save(_window.CaptureRoot, Path.Combine(folder, $"{name}.png"));
                 var extra = 0;
-                while ((only is null || page is "gaming" or "kit" or "settings" or "support") && _window.ScrollPage())
+                while ((only is null || page is "gaming" or "kit" or "settings" or "support" or "playtime:eldenring") && _window.ScrollPage())
                 {
                     await Task.Delay(300);
                     Save(_window.CaptureRoot, Path.Combine(folder, $"{name}-{++extra}.png"));

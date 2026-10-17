@@ -20,6 +20,8 @@ public sealed record SensorSnapshot
     public string GameName { get; init; } = "";
     /// <summary>When that game's program started, so a timer can show how long it has been running.</summary>
     public DateTime? GameSince { get; init; }
+    /// <summary>The program of the recognised game while it lives (also when another window is in front), or "".</summary>
+    public string GameKey { get; init; } = "";
     public bool Recording { get; init; }
     public double CpuWatts { get; init; }
     public double GpuWatts { get; init; }
@@ -48,6 +50,22 @@ public sealed class SensorHub : IDisposable
     private Dictionary<string, CounterSample> _gpu = new();
     private string? _mainGpuLuid;
     private int _tick;
+    private (double any, double main) _lastGpu;
+
+    /// <summary>True while something on screen shows live numbers (the window, the overlay, a telemetry page). When nothing does and no game
+    /// is running, the (heavy) graphics counters are read every third tick instead of every tick; the last value is kept in between.</summary>
+    public volatile bool Interactive;
+    /// <summary>Asked each tick as well (the overlay or a graphics page wants live numbers).</summary>
+    public Func<bool>? InteractiveCheck;
+    private NetworkInterface[] _nics = [];
+    private long _nicsAt;
+    private static volatile bool _nicsStale = true;
+
+    static SensorHub()
+    {
+        NetworkChange.NetworkAddressChanged += (_, _) => _nicsStale = true;
+        NetworkChange.NetworkAvailabilityChanged += (_, _) => _nicsStale = true;
+    }
 
     public SensorSnapshot Latest { get; private set; } = new() { Time = DateTime.Now };
     public event Action<SensorSnapshot>? Updated;
@@ -83,9 +101,11 @@ public sealed class SensorHub : IDisposable
         var settings = _settings();
         var (down, up) = ReadNetwork();
         var cpu = ReadCpu();
-        var (gpuAny, gpuMain) = ReadGpu();
-        var processes = ReadProcesses();
         var state = Native.SHQueryUserNotificationState(out var notification) == 0 ? notification : 0;
+        // normal desktop use (state 5, no game alive, nothing live on screen): the GPU counters are read every third tick
+        var relaxed = !Interactive && InteractiveCheck?.Invoke() != true && state is 0 or 5 or 6 or 7 && _watcher.Current is null && _tick % 3 != 0;
+        var (gpuAny, gpuMain) = relaxed ? _lastGpu : _lastGpu = ReadGpu();
+        var processes = ReadProcesses();
         var game = _watcher.Update(state, gpuAny, UserGames(settings));
         var recording = RecorderNames(settings.RecorderProcesses).Any(processes.Contains);
 
@@ -107,6 +127,7 @@ public sealed class SensorHub : IDisposable
             GameProcess = game ? (_watcher.Current?.Process ?? ForegroundProcess()) : "",
             GameName = _watcher.Current?.Name ?? "",
             GameSince = _watcher.Current?.Start,
+            GameKey = _watcher.Current?.Process ?? "",
             Recording = recording,
             CpuWatts = cpuWatts.Value,
             GpuWatts = gpuWatts,
@@ -129,7 +150,14 @@ public sealed class SensorHub : IDisposable
 
         var current = new Dictionary<string, (long rx, long tx)>();
         double down = 0, up = 0;
-        foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
+        // the adapter list changes rarely: it is looked up again after a network change event or every minute, not every tick
+        if (_nicsStale || _nics.Length == 0 || Stopwatch.GetElapsedTime(_nicsAt, now) > TimeSpan.FromMinutes(1))
+        {
+            _nicsStale = false;
+            _nicsAt = now;
+            _nics = NetworkInterface.GetAllNetworkInterfaces();
+        }
+        foreach (var nic in _nics)
         {
             if (nic.OperationalStatus != OperationalStatus.Up) continue;
             if (nic.NetworkInterfaceType is NetworkInterfaceType.Loopback) continue;
@@ -258,14 +286,25 @@ public sealed class SensorHub : IDisposable
         }
     }
 
+    /// <summary>Lower-case names of every running program, from one ToolHelp snapshot (no Process objects, no handles).</summary>
     private static HashSet<string> ReadProcesses()
     {
         var names = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var p in Process.GetProcesses())
+        var snapshot = Native.CreateToolhelp32Snapshot(2 /* TH32CS_SNAPPROCESS */, 0);
+        if (snapshot == (IntPtr)(-1)) return names;
+        try
         {
-            try { names.Add(p.ProcessName.ToLowerInvariant()); }
-            catch { /* process exited */ }
-            finally { p.Dispose(); }
+            var entry = new Native.ProcessEntry { Size = (uint)System.Runtime.InteropServices.Marshal.SizeOf<Native.ProcessEntry>() };
+            for (var ok = Native.Process32First(snapshot, ref entry); ok; ok = Native.Process32Next(snapshot, ref entry))
+            {
+                var name = entry.ExeFile;
+                if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) name = name[..^4];
+                names.Add(name.ToLowerInvariant());
+            }
+        }
+        finally
+        {
+            Native.CloseHandle(snapshot);
         }
         return names;
     }

@@ -120,6 +120,7 @@
                             <RadioButton Style="{StaticResource Nav}" Tag="user" Content="{s:Tr 'پروفایل‌ها', 'Profiles'}" x:Name="NavProfiles" Checked="OnNav"/>
                             <TextBlock Text="{s:Tr 'بازی و شبکه', 'Gaming &amp; network'}" Style="{StaticResource NavGroup}"/>
                             <RadioButton Style="{StaticResource Nav}" Tag="mon" Content="{s:Tr 'اورلی بازی', 'Game overlay'}" x:Name="NavGaming" Checked="OnNav"/>
+                            <RadioButton Style="{StaticResource Nav}" Tag="game" Content="{s:Tr 'زمان بازی', 'Playtime'}" x:Name="NavPlaytime" Checked="OnNav"/>
                             <RadioButton Style="{StaticResource Nav}" Tag="net" Content="{s:Tr 'پایداری پینگ', 'Ping stability'}" x:Name="NavPing" Checked="OnNav"/>
                             <RadioButton Style="{StaticResource Nav}" Tag="globe" Content="{s:Tr 'دی‌ان‌اس', 'DNS'}" x:Name="NavDns" Checked="OnNav"/>
                             <RadioButton Style="{StaticResource Nav}" Tag="dl" Content="{s:Tr 'دانلود زمان‌بندی‌شده', 'Scheduled download'}" x:Name="NavDownload" Checked="OnNav"/>

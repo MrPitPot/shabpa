@@ -26,7 +26,7 @@ public sealed class Tray : IDisposable
             Visible = true,
         };
         _icon.MouseClick += (_, e) => { if (e.Button == WF.MouseButtons.Left) show(); };
-        _icon.BalloonTipClicked += (_, _) => show();
+        _icon.BalloonTipClicked += (_, _) => { show(); Hub.I.OpenNoticeTarget(); };
     }
 
     /// <summary>The themed menu (also built on its own by the screenshot aid, without a notification-area icon).</summary>
