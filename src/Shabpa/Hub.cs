@@ -107,7 +107,7 @@ public sealed class Hub
         Bot = new BotLink(() => Settings, Store.Save, new BotHost
         {
             Execute = (type, args) => OnUi(() => ExecuteRemote(type, args)),
-        });
+        }, outboxFile: demo ? null : System.IO.Path.Combine(Store.Folder, "bot-outbox.json"));
     }
 
     private static T OnUi<T>(Func<T> f) => Application.Current.Dispatcher.Invoke(f);
@@ -560,7 +560,7 @@ public sealed class Hub
         if (State.GameHistory.Count > 60) State.GameHistory.RemoveRange(0, State.GameHistory.Count - 60);
         Store.Save();
         ComfortUpdated?.Invoke();
-        if (!Settings.GameReports) return;
+        if (!Settings.GameReports) { Log.Write($"game report {f.Name}: skipped (game reports are off in Settings)"); return; }
         var text = GameMessage.Plain(f);
         Notify(L.T("گزارش بازی", "Game report"), text, "playtime:" + f.Key);
         Bot.Notify("game", text, html: GameMessage.Html(f));
