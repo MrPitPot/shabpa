@@ -33,6 +33,7 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        Kit.SmoothScroll.Install();
         // All user-facing text is formatted by hand (Fa). Without this, a Persian regional format makes
         // .NET print Jalali dates and "/" decimals into things like the Task Scheduler XML.
         CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;

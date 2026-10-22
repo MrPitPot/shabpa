@@ -86,13 +86,8 @@ public sealed class WeatherPage : PageBase
             HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
             Content = _hours, Margin = new Thickness(0, 12, 0, 0), FlowDirection = Flow,
         };
-        // the wheel scrolls the strip sideways (a horizontal-only ScrollViewer otherwise swallows it and does nothing)
-        hourScroll.PreviewMouseWheel += (_, e) =>
-        {
-            if (hourScroll.ScrollableWidth <= 0) return;   // nothing to scroll: let the page scroll
-            hourScroll.ScrollToHorizontalOffset(hourScroll.HorizontalOffset - Math.Sign(e.Delta) * 90);
-            e.Handled = true;
-        };
+        // the wheel scrolls the strip sideways (a horizontal-only ScrollViewer otherwise swallows it); at either end the page takes over
+        Kit.SmoothScroll.SetHorizontalWheel(hourScroll, true);
         hour.Children.Add(hourScroll);
         _hourCard = hourCard;
         root.Add(hourCard, 2, 0, 12, 3);
