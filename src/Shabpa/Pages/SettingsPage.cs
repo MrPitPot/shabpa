@@ -224,7 +224,11 @@ public sealed class SettingsPage : PageBase
                 "Made by Mr.PitPot. Your data stays on this PC. Only what you switch on uses the internet: the update check (GitHub), weather, the Telegram bot and support tickets. Microphone sound (noise suppression) is only processed for a moment in memory and never stored; “Teach by hand” keeps only where you clicked in a launcher window, never keys or text."));
         var folder = new Button { Style = St("Btn"), Content = L.T("پوشه‌ی داده‌ها", "Data folder"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
         folder.Click += OnOpenFolder;
-        aboutBody.Children.Add(folder);
+        var tour = new Button { Style = St("Btn"), Content = L.T("دیدن دوباره‌ی تور آموزشی", "See the guided tour again"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
+        System.Windows.Automation.AutomationProperties.SetAutomationId(tour, Tour.TourSteps.ReplayId);
+        tour.Click += (_, _) => (Window.GetWindow(this) as MainWindow)?.StartTour();
+        aboutBody.Children.Add(new WrapPanel { Children = { folder, tour } });
+        folder.Margin = new Thickness(0, 12, 8, 0);
         Put(about, 1, 7);
 
         foreach (var (_, column, card) in _cards.OrderBy(c => c.order))

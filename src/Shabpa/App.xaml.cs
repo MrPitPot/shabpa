@@ -440,6 +440,7 @@ public partial class App : Application
 #if DEBUG || SHABPA_TESTHOOKS
             else if (Value(e.Args, "--birthday-probe") is { } birthdayDir) _ = Pages.BirthdayProbe.Run(_window, birthdayDir, Save);
 #endif
+            else if (Value(e.Args, "--tour-test") is { } tourReport) _ = Tour.TourProbe.Run(_window, tourReport, shots, Save);
             else if (Value(e.Args, "--glass-test") is { } glassReport) _ = Pages.GlassProbe.Run(_window, glassReport);
             else if (Value(e.Args, "--tabs-test") is { } tabsReport) _ = Pages.TabsProbe.Run(_window, tabsReport, shots, Save);
             else if (Value(e.Args, "--tick-test") is { } tickReport) _ = Pages.TickProbe.Run(_window, tickReport, shots, Save);

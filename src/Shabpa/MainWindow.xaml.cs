@@ -80,6 +80,7 @@ public partial class MainWindow : Window
         hub.BirthdayChanged += OnBirthdayChanged;
         hub.BirthdayGreet += () => ShowBirthdayGreeting();
         UpdateBirthdayDecor();
+        InitTour();
         IsVisibleChanged += (_, _) => OnShownChanged();
         StateChanged += (_, _) => OnShownChanged();
         _release.Tick += (_, _) =>
@@ -321,6 +322,7 @@ public partial class MainWindow : Window
     {
         var previous = _current;
         _current = page;
+        _tour?.PageOpened(key);
         PlacePill(true);
         void Swap()
         {

@@ -20,6 +20,8 @@ public sealed class Store
 
     public string Folder { get; }
     public AppState State { get; private set; } = new();
+    /// <summary>True when <see cref="Load"/> found no data file: this is the first run on this PC (used by the guided tour).</summary>
+    public bool FreshInstall { get; private set; }
     /// <summary>When true nothing is written to disk (demo / screenshot runs).</summary>
     public bool ReadOnly { get; set; }
 
@@ -35,7 +37,8 @@ public sealed class Store
     {
         try
         {
-            if (File.Exists(_file))
+            FreshInstall = !File.Exists(_file);
+            if (!FreshInstall)
                 State = JsonSerializer.Deserialize<AppState>(File.ReadAllText(_file), Json) ?? new AppState();
             Log.Write($"state loaded: {State.Macros.Count} taught launchers, {State.Tickets.Count} tickets, {State.Tasks.Count} tasks, {State.GameHistory.Count} games");
             Backup();

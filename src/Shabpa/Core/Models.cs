@@ -142,6 +142,8 @@ public sealed class Settings
     public bool AutoUpdateCheck { get; set; } = true;
     /// <summary>The newest version the user was already told about, so each release is announced once.</summary>
     public string AnnouncedVersion { get; set; } = "";
+    /// <summary>The guided tour: "" (undecided), "pending", "offered", "done", "skipped" or "declined" (see Tour/TourState.cs).</summary>
+    public string TourStatus { get; set; } = "";
 }
 
 public sealed class AppState
