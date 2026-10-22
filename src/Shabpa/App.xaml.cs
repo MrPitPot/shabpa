@@ -434,6 +434,7 @@ public partial class App : Application
             if (Value(e.Args, "--overlay-gallery") is { } galleryDir) _ = OverlayGallery(galleryDir);
             else if (Value(e.Args, "--theme-reveal-test") is { } revealDir) _ = RevealProbe(revealDir);
             else if (Value(e.Args, "--motion-test") is { } motionReport) _ = MotionProbe(shots, motionReport);
+            else if (Value(e.Args, "--tabs-test") is { } tabsReport) _ = Pages.TabsProbe.Run(_window, tabsReport, shots, Save);
             else if (Value(e.Args, "--tick-test") is { } tickReport) _ = Pages.TickProbe.Run(_window, tickReport, shots, Save);
             else if (Value(e.Args, "--motion-audit") is { } auditReport) _ = Pages.MotionAudit.Run(_window, auditReport, shots, Save);
             else if (!args.Contains("--interactive")) _ = CaptureAll(shots, Value(e.Args, "--only"));

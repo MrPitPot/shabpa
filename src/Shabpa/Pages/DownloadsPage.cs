@@ -34,6 +34,10 @@ public sealed class DownloadsPage : PageBase
     private readonly CheckBox _wakeUp = new Switch { IsChecked = true };
     private readonly WrapPanel _repeat = new() { Margin = new Thickness(0, 2, 0, 0) };
     private Func<List<DayOfWeek>> _repeatDays = () => [];
+    // optional end of the window; empty boxes = no end
+    private readonly TextBox _endHour = new() { Style = St("NumberInput"), Text = "" };
+    private readonly TextBox _endMinute = new() { Style = St("NumberInput"), Text = "" };
+    private readonly CheckBox _actAtEnd = new Switch();
     private readonly TextBox _threshold = new() { Style = St("Input"), Width = 76, FlowDirection = FlowDirection.LeftToRight, Text = "1", Padding = new Thickness(10, 6, 10, 6), TextAlignment = TextAlignment.Center };
     private readonly TextBox _giveUp = new() { Style = St("Input"), Width = 76, FlowDirection = FlowDirection.LeftToRight, Text = "45", Padding = new Thickness(10, 6, 10, 6), TextAlignment = TextAlignment.Center };
 
@@ -94,6 +98,20 @@ public sealed class DownloadsPage : PageBase
             },
         });
         left.Children.Add(_when);
+        TimeBoxes.Wire(_endHour, _endMinute);
+        left.Children.Add(Ui2.Label(L.T("ساعت پایان (اختیاری؛ خالی = بدون پایان)", "End time (optional; empty = no end)")));
+        left.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal, FlowDirection = FlowDirection.LeftToRight, HorizontalAlignment = HorizontalAlignment.Left,
+            Children =
+            {
+                _endHour,
+                new TextBlock { Text = ":", FontSize = 22, FontWeight = FontWeights.Bold, Foreground = Res("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) },
+                _endMinute,
+            },
+        });
+        left.Children.Add(Ui2.Label(L.T("اگه تا ساعت پایان دانلود تموم نشد، دیگه منتظرش نمی‌مونم (و به‌صورت پیش‌فرض خاموش نمی‌کنم). پایان بعد از شروع حساب می‌شه؛ مثلاً شروع ۲۳:۰۰ و پایان ۰۶:۰۰ یعنی تا صبح.",
+            "If the download is not done by the end time I stop waiting (and by default do not switch off). The end counts after the start: start 23:00 and end 06:00 means until morning."), 4, 0));
         left.Children.Add(Ui2.Label(L.T("تکرار هفتگی (اگه روزی انتخاب کنی، هر هفته همون روزها و همین ساعت تکرار می‌شه؛ خالی = فقط یک بار)",
             "Weekly repeat (pick days to repeat every week at this time; none = once)")));
         left.Children.Add(_repeat);
@@ -114,6 +132,7 @@ public sealed class DownloadsPage : PageBase
         var wakeRow = K.SettingRow(L.T("اگه کامپیوتر خواب بود، یه دقیقه قبل بیدارش کن", "If the PC is asleep, wake it a minute before"), _wakeUp);
         wakeRow.ToolTip = wakeText;
         right.Children.Add(wakeRow);
+        right.Children.Add(K.SettingRow(L.T("اگه تا ساعت پایان دانلود تموم نشد، همون موقع هم «بعدش» انجام بشه", "If the download is not done at the end time, still do the “then” action at that time"), _actAtEnd));
         form.Children.Add(columns);
 
         var add = ListUi.Btn("plus", L.T("ثبت زمان‌بندی", "Add plan"), "BtnPrimary", AddPlan);
@@ -261,6 +280,21 @@ public sealed class DownloadsPage : PageBase
             Mo.Say(_note, L.T("این زمان گذشته؛ یه روز یا ساعت بعدتر انتخاب کن.", "That time has passed; pick a later day or time."));
             return;
         }
+        int? endMinute = null;
+        if (_endHour.Text.Trim().Length > 0 || _endMinute.Text.Trim().Length > 0)
+        {
+            if (!TimeBoxes.TryRead(_endHour, _endMinute, out var endHour, out var endMin))
+            {
+                Mo.Say(_note, L.T("ساعت پایان باید بین ۰۰:۰۰ تا ۲۳:۵۹ باشه (یا خالی).", "The end time must be between 00:00 and 23:59 (or empty)."));
+                return;
+            }
+            endMinute = endHour * 60 + endMin;
+            if (DownloadPlan.EndAfter(at, endMinute) is { } e && e - at < TimeSpan.FromMinutes(10))
+            {
+                Mo.Say(_note, L.T("پایان باید حداقل ۱۰ دقیقه بعد از شروع باشه.", "The end must be at least 10 minutes after the start."));
+                return;
+            }
+        }
         var quiet = Int(_quiet, 1, 120, 10);
         var threshold = Number(_threshold, 0.1, 1000, 1);
         var giveUp = Int(_giveUp, 5, 600, 45);
@@ -270,12 +304,20 @@ public sealed class DownloadsPage : PageBase
             ? L.T($"«{launcher.Name}» {When(at)} فقط باز می‌شه{every}. هیچ خاموشی‌ای در کار نیست.", $"“{launcher.Name}” only opens {When(at)}{every}. Nothing is switched off.")
             : L.T($"«{launcher.Name}» {When(at)} باز می‌شه{every} و بعد از تموم شدن دانلود (وقتی {Fa.Digits(quiet.ToString())} دقیقه اینترنت زیر {Fa.Digits(threshold.ToString("0.#"))} مگابیت بمونه) «{Fa.ActionName(_action)}» انجام می‌شه. اگه {Fa.Digits(giveUp.ToString())} دقیقه دانلودی شروع نشه، خاموش نمی‌شه.",
                 $"“{launcher.Name}” opens {When(at)}{every}; once the download is done ({quiet} minutes below {threshold:0.#} Mbit/s) the PC will “{Fa.ActionName(_action)}”. If no download starts within {giveUp} minutes nothing is switched off.");
+        if (endMinute is not null && !_openOnly && DownloadPlan.EndAfter(at, endMinute) is { } endAt)
+        {
+            var atEnd = _actAtEnd.IsChecked == true
+                ? L.T($" اگه تا {When(endAt)} دانلود تموم نشده باشه، همون موقع هم «{Fa.ActionName(_action)}» انجام می‌شه.", $" If the download is not done by {When(endAt)}, “{Fa.ActionName(_action)}” still runs then.")
+                : L.T($" اگه تا {When(endAt)} دانلود تموم نشده باشه، دیگه منتظرش نمی‌مونم و خاموش نمی‌شه.", $" If the download is not done by {When(endAt)}, I stop waiting and nothing is switched off.");
+            message += atEnd;
+        }
         if (!Ask(L.T("این زمان‌بندی ثبت بشه؟", "Add this plan?"), message, L.T("ثبت", "Add"))) return;
 
         var plan = new DownloadPlan
         {
             LauncherKey = launcher.Key, LauncherName = launcher.Name, ExePath = launcher.ExePath, Manual = launcher.Manual, StartAt = at, Action = _action,
             QuietMinutes = quiet, RepeatDays = repeat, ThresholdMbps = threshold, GiveUpMinutes = giveUp, OpenOnly = _openOnly, WakeUp = _wakeUp.IsChecked == true,
+            EndMinute = endMinute, ActAtEnd = _actAtEnd.IsChecked == true,
         };
         Mo.Say(_note, Hub.AddDownloadPlan(plan)
             ? L.T("ثبت شد.", "Added.")
@@ -336,9 +378,10 @@ public sealed class DownloadsPage : PageBase
             });
             var then = plan.OpenOnly ? L.T("فقط باز کردن", "open only") : Fa.ActionName(plan.Action);
             var weekly = plan.Repeats ? L.T($" · هر هفته: {Fa.Days(plan.RepeatDays)}", $" · weekly: {Fa.Days(plan.RepeatDays)}") : "";
+            var endText = plan.EndMinute is { } em ? L.T($" · پایان: {Fa.Digits($"{em / 60:00}:{em % 60:00}")}", $" · ends {em / 60:00}:{em % 60:00}") : "";
             var sub = plan.State == PlanState.Running
-                ? L.T("در حال دانلود؛ منتظر تموم شدنش هستم.", "Running; waiting for it to finish.")
-                : L.T($"شروع: {When(plan.StartAt)} · بعدش: {then}{weekly}", $"Starts {When(plan.StartAt)} · then: {then}{weekly}");
+                ? L.T("در حال دانلود؛ منتظر تموم شدنش هستم.", "Running; waiting for it to finish.") + endText
+                : L.T($"شروع: {When(plan.StartAt)}{endText} · بعدش: {then}{weekly}", $"Starts {When(plan.StartAt)}{endText} · then: {then}{weekly}");
             planRow = ListUi.Item(plan.State == PlanState.Running ? "dl" : "alarm", plan.State == PlanState.Running ? "HueB" : "HueC", plan.LauncherName, sub, delete, firstPlan);
             _plans.Children.Add(_planMemo.Item(id.ToString(), planRow));
             firstPlan = false;

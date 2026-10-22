@@ -81,15 +81,35 @@ public static class Health
     public static List<HealthCheck> DisksNow() =>
         Disks(DriveInfo.GetDrives().Where(d => d.DriveType == DriveType.Fixed && d.IsReady).Select(d => (d.Name.TrimEnd('\\'), d.AvailableFreeSpace, d.TotalSize)));
 
-    public static HealthCheck PendingReboot(IRegistryProbe reg)
+    /// <summary>The rename/delete jobs Windows will really run at the next start. Entries whose source file is already gone are dead
+    /// flags (installers and antivirus tools leave them behind, and Windows never clears them), so they do not count.</summary>
+    public static int LiveFileRenames(IRegistryProbe reg, Func<string, bool>? exists = null)
     {
-        var pending = reg.KeyExists(@"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired")
-                      || reg.KeyExists(@"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending")
-                      || reg.Get(@"HKLM\SYSTEM\CurrentControlSet\Control\Session Manager", "PendingFileRenameOperations") is not null;
-        return pending
+        exists ??= p => File.Exists(p) || Directory.Exists(p);
+        if (reg.Get(@"HKLM\SYSTEM\CurrentControlSet\Control\Session Manager", "PendingFileRenameOperations") is not string[] raw) return 0;
+        var live = 0;
+        for (var i = 0; i < raw.Length; i += 2)
+        {
+            var source = raw[i].Trim();
+            if (source.Length == 0) continue;
+            source = source.TrimStart('!');
+            if (source.StartsWith(@"\??\", StringComparison.Ordinal)) source = source[4..];
+            if (exists(source)) live++;
+        }
+        return live;
+    }
+
+    public static HealthCheck PendingReboot(IRegistryProbe reg, Func<string, bool>? exists = null)
+    {
+        // the two Windows Update / servicing keys are volatile (Windows recreates them empty at every start), so a restart clears them
+        var service = reg.KeyExists(@"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired")
+                      || reg.KeyExists(@"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending");
+        var files = LiveFileRenames(reg, exists);
+        return service || files > 0
             ? new HealthCheck("reboot", L.T("راه‌اندازی مجدد", "Restart pending"), CheckState.Attention,
-                L.T("ویندوز منتظر یه ری‌استارت برای تموم کردن نصب‌هاست.", "Windows is waiting for a restart to finish installing things."),
-                L.T("وقتی کارت تموم شد یه بار ری‌استارت کن.", "Restart once when you are done with your work."))
+                service ? L.T("ویندوز منتظر یه ری‌استارت برای تموم کردن نصب‌هاست.", "Windows is waiting for a restart to finish installing things.")
+                        : L.T($"{Fa.Digits(files.ToString())} فایل منتظر جابه‌جایی یا حذف موقع ری‌استارت هستن.", $"{files} file(s) are waiting to be moved or deleted at the next restart."),
+                L.T("وقتی کارت تموم شد یه بار ری‌استارت کن. (اگه بعد از ری‌استارت هم موند، با «نادیده گرفتن» کنارش بذار.)", "Restart once when you are done with your work. (If it stays after a restart, use Ignore.)"))
             : new HealthCheck("reboot", L.T("راه‌اندازی مجدد", "Restart pending"), CheckState.Good, L.T("لازم نیست.", "Not needed."));
     }
 
@@ -251,7 +271,92 @@ public static class Health
 
     // ---- security ---------------------------------------------------------------------------------------
 
-    public static List<HealthCheck> Security(IRegistryProbe reg, Func<string, string?> service, bool elevated)
+    /// <summary>One antivirus product Windows Security Center knows about (Defender or a third-party one).</summary>
+    public sealed record AvProduct(string Name, bool Enabled, bool UpToDate);
+
+    /// <summary>Decodes the packed <c>productState</c> of root\SecurityCenter2: bits 12-15 tell whether the engine is on, bits 4-7 whether signatures are current.</summary>
+    public static AvProduct DecodeAv(string name, uint productState) => new(name, ((productState >> 12) & 0xF) == 1, (productState & 0xF0) == 0);
+
+    // Antivirus programs that do not (or not always) register with Security Center, found by the name of their running programs.
+    private static readonly (string process, string name)[] KnownAv =
+    [
+        ("sheed", "Sheed"), ("padvish", "Padvish"), ("kaspersky", "Kaspersky"), ("avp", "Kaspersky"), ("ekrn", "ESET"), ("egui", "ESET"),
+        ("avastsvc", "Avast"), ("avgsvc", "AVG"), ("bdagent", "Bitdefender"), ("vsserv", "Bitdefender"), ("nortonsecurity", "Norton"), ("nsc", "Norton"),
+        ("mcshield", "McAfee"), ("mbamservice", "Malwarebytes"), ("avguard", "Avira"), ("avira", "Avira"), ("coreserviceshell", "Trend Micro"),
+        ("sophosfs", "Sophos"), ("fsorsp", "F-Secure"), ("psanhost", "Panda"), ("quickheal", "Quick Heal"), ("360tray", "360 Total Security"),
+    ];
+
+    /// <summary>Third-party antivirus products among the running program names (without .exe).</summary>
+    public static List<AvProduct> DetectByProcess(IEnumerable<string> processNames)
+    {
+        var found = new List<AvProduct>();
+        foreach (var name in processNames)
+            foreach (var (needle, product) in KnownAv)
+                if (name.Contains(needle, StringComparison.OrdinalIgnoreCase) && found.All(f => f.Name != product))
+                    found.Add(new AvProduct(product, true, true));
+        return found;
+    }
+
+    /// <summary>Every antivirus registered with Windows Security Center plus well-known ones that are running without registering
+    /// (null if nothing could be read).</summary>
+    public static List<AvProduct>? AntivirusNow()
+    {
+        // one look at a time and at most every 20 seconds: the page asks again on every switch to its tab
+        lock (AvGate)
+        {
+            if (_avAt != default && DateTime.UtcNow - _avAt < TimeSpan.FromSeconds(20)) return _avCache?.ToList();
+            _avCache = AntivirusUncached();
+            _avAt = DateTime.UtcNow;
+            return _avCache?.ToList();
+        }
+    }
+
+    private static readonly object AvGate = new();
+    private static List<AvProduct>? _avCache;
+    private static DateTime _avAt;
+
+    private static List<AvProduct>? AntivirusUncached()
+    {
+        var list = AntivirusFromSecurityCenter();
+        try
+        {
+            var extra = DetectByProcess(System.Diagnostics.Process.GetProcesses().Select(p => { using (p) return p.ProcessName; }));
+            if (extra.Count > 0)
+            {
+                list ??= [];
+                list.AddRange(extra.Where(e => !list.Any(l => l.Enabled && l.Name.Contains(e.Name, StringComparison.OrdinalIgnoreCase))));
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            Log.Write($"antivirus processes: {ex.GetType().Name}");
+        }
+        return list;
+    }
+
+    private static List<AvProduct>? AntivirusFromSecurityCenter()
+    {
+        try
+        {
+            var type = Type.GetTypeFromProgID("WbemScripting.SWbemLocator");
+            if (type is null) return null;
+            dynamic locator = Activator.CreateInstance(type)!;
+            dynamic svc = locator.ConnectServer(".", @"root\SecurityCenter2");
+            var list = new List<AvProduct>();
+            foreach (dynamic o in svc.ExecQuery("SELECT displayName, productState FROM AntiVirusProduct"))
+                list.Add(DecodeAv((string)o.displayName, unchecked((uint)(int)o.productState)));
+            return list;
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"security center: {ex.GetType().Name} {ex.Message}");
+            return null;
+        }
+    }
+
+    private static bool IsDefenderName(string name) => name.Contains("Defender", StringComparison.OrdinalIgnoreCase);
+
+    public static List<HealthCheck> Security(IRegistryProbe reg, Func<string, string?> service, bool elevated, IReadOnlyList<AvProduct>? antivirus = null)
     {
         var list = new List<HealthCheck>();
         HealthCheck Item(string id, string fa, string en, CheckState s, string dFa, string dEn, string aFa = "", string aEn = "") =>
@@ -268,15 +373,43 @@ public static class Health
         else
             list.Add(Item("firewall", "فایروال ویندوز", "Windows Firewall", CheckState.Good, "برای همه‌ی شبکه‌ها روشنه.", "On for all network types."));
 
+        // antivirus: whatever Security Center lists, so a third-party product (not only Defender) counts
+        var other = antivirus?.Where(a => !IsDefenderName(a.Name) && a.Enabled).ToList() ?? [];
+        if (antivirus is not null)
+        {
+            var active = antivirus.Where(a => a.Enabled).ToList();
+            if (active.Count > 0)
+            {
+                var names = string.Join("، ", active.Select(a => a.Name));
+                var namesEn = string.Join(", ", active.Select(a => a.Name));
+                list.Add(active.All(a => a.UpToDate)
+                    ? Item("antivirus", "آنتی‌ویروس", "Antivirus", CheckState.Good, $"{names} روشنه و به‌روزه.", $"{namesEn} is on and up to date.")
+                    : Item("antivirus", "آنتی‌ویروس", "Antivirus", CheckState.Attention, $"{names} روشنه ولی تعریف‌های ویروسش قدیمیه.", $"{namesEn} is on but its signatures are out of date.",
+                        "از خود آنتی‌ویروس به‌روزرسانی رو بزن.", "Update it from the antivirus itself."));
+            }
+            else if (antivirus.Count > 0)
+                list.Add(Item("antivirus", "آنتی‌ویروس", "Antivirus", CheckState.Problem, "آنتی‌ویروس نصبه ولی خاموشه.", "An antivirus is installed but turned off.",
+                    "از خود آنتی‌ویروس یا Windows Security روشنش کن.", "Turn it on in the antivirus or in Windows Security."));
+            else
+                list.Add(Item("antivirus", "آنتی‌ویروس", "Antivirus", CheckState.Problem, "هیچ آنتی‌ویروسی ثبت نشده.", "No antivirus is registered.",
+                    "Microsoft Defender رو از Windows Security روشن کن یا یه آنتی‌ویروس نصب کن.", "Turn on Microsoft Defender in Windows Security or install an antivirus."));
+        }
+
         // Defender real-time protection
         var rtp = reg.Get(@"HKLM\SOFTWARE\Microsoft\Windows Defender\Real-Time Protection", "DisableRealtimeMonitoring");
         var defender = service("WinDefend");
-        if (rtp is int r && r == 1)
+        if (rtp is int r && r == 1 && other.Count > 0)
+            list.Add(Item("defender", "محافظت لحظه‌ای Defender", "Defender real-time protection", CheckState.Good,
+                $"خاموشه چون {other[0].Name} کار محافظت رو انجام می‌ده.", $"It is off because {other[0].Name} does the protecting."));
+        else if (rtp is int r1 && r1 == 1)
             list.Add(Item("defender", "محافظت لحظه‌ای Defender", "Defender real-time protection", CheckState.Attention,
                 "خاموشه. اگه آنتی‌ویروس دیگه‌ای داری طبیعیه.", "It is off. That is normal if you use another antivirus.",
                 "اگه آنتی‌ویروس دیگه‌ای نداری، از Windows Security روشنش کن.", "If you have no other antivirus, turn it on in Windows Security."));
         else if (defender == "RUNNING" || rtp is int r2 && r2 == 0)
             list.Add(Item("defender", "محافظت لحظه‌ای Defender", "Defender real-time protection", CheckState.Good, "روشنه.", "On."));
+        else if (other.Count > 0)
+            list.Add(Item("defender", "محافظت لحظه‌ای Defender", "Defender real-time protection", CheckState.Good,
+                $"استفاده نمی‌شه؛ {other[0].Name} جاش رو گرفته.", $"Not in use; {other[0].Name} has taken over."));
         else
             list.Add(Item("defender", "محافظت لحظه‌ای Defender", "Defender real-time protection", CheckState.Unknown, "وضعیتش مشخص نشد.", "Its state is unclear."));
 

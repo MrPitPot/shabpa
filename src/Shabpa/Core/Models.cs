@@ -169,6 +169,8 @@ public sealed class AppState
     public Dictionary<string, string>? StartupBaseline { get; set; }
     /// <summary>Startup changes already announced, so each is announced once.</summary>
     public List<string> StartupAnnounced { get; set; } = [];
+    /// <summary>Ids of the health or security warnings the person chose to ignore (they can bring each back).</summary>
+    public List<string> HealthIgnored { get; set; } = [];
     /// <summary>Work profiles, their triggers and the run history (phase D).</summary>
     public List<WorkProfile> Profiles { get; set; } = [];
     public List<AutomationTrigger> Triggers { get; set; } = [];

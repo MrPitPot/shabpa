@@ -1066,6 +1066,7 @@ public sealed class Hub
             plan.StartAt = Schedule.Next(plan.StartAt.Hour, plan.StartAt.Minute, plan.RepeatDays, now);
             plan.State = PlanState.Waiting;
             plan.StartedAt = null;
+            plan.EndAt = null;
         }
         else State.DownloadPlans.Remove(plan);
         Store.Save();
@@ -1263,6 +1264,7 @@ public sealed class Hub
                 }
                 plan.State = PlanState.Running;
                 plan.StartedAt = now;
+                plan.EndAt = DownloadPlan.EndAfter(plan.StartAt, plan.EndMinute);
                 ActivateRule(new Rule
                 {
                     Kind = RuleKind.Network, Upload = false, WaitForStart = true,
@@ -1279,6 +1281,20 @@ public sealed class Hub
                 var finishedOrCancelled = State.ActiveRule is null;
                 var neverStarted = !finishedOrCancelled && Engine.Status.State == RuleState.Waiting
                                    && plan.StartedAt is { } started && now - started > TimeSpan.FromMinutes(plan.GiveUpMinutes);
+                if (!finishedOrCancelled && plan.EndAt is { } windowEnd && now >= windowEnd)
+                {
+                    // the download window is over and the download is still going
+                    DeactivateRule();
+                    var act = plan.ActAtEnd && !plan.OpenOnly;
+                    Notify(L.T("وقت دانلود تموم شد", "Download time is over"),
+                        act ? L.T($"ساعت پایان «{plan.LauncherName}» رسید و دانلود هنوز تمومه نشده؛ «{Fa.ActionName(plan.Action)}» انجام می‌شه.",
+                                  $"The end time for “{plan.LauncherName}” came and the download is not done; “{Fa.ActionName(plan.Action)}” runs now.")
+                            : L.T($"ساعت پایان «{plan.LauncherName}» رسید و دانلود هنوز تمومه نشده؛ دیگه منتظرش نمی‌مونم و سیستم خاموش نمی‌شه.",
+                                  $"The end time for “{plan.LauncherName}” came and the download is not done; I stop waiting and the PC will not be switched off."));
+                    EndPlan(plan, now);
+                    if (act) RequestAction(plan.Action, L.T("پایان زمان دانلود", "Download window ended"), Settings.CountdownSeconds, "plan");
+                    continue;
+                }
                 if (neverStarted)
                 {
                     DeactivateRule();
