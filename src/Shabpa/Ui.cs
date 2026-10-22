@@ -60,6 +60,20 @@ public static class Ui
 
     public static string CleanGlass(string? value) => value is "mica" or "acrylic" ? value : "off";
 
+    /// <summary>First Windows build whose DWM honours the system backdrop attribute (Windows 11 22H2). Windows 10 has no
+    /// Mica; its only blur-behind (the undocumented accent policy) stutters while the window moves, so glass is off there.</summary>
+    public const int GlassMinBuild = 22621;
+
+    /// <summary>The running Windows build; tests replace it to fake another version.</summary>
+    public static int WindowsBuild { get; set; } = Environment.OSVersion.Version.Build;
+
+    public static bool GlassSupported(int build) => build >= GlassMinBuild;
+
+    public static bool GlassSupported() => GlassSupported(WindowsBuild);
+
+    /// <summary>What the saved glass choice means on this Windows: unsupported systems always get the normal theme.</summary>
+    public static string EffectiveGlass(string? value, int build) => GlassSupported(build) ? CleanGlass(value) : "off";
+
     public static FlowDirection Flow => L.En ? FlowDirection.LeftToRight : FlowDirection.RightToLeft;
 
     private static System.Windows.Media.Color Color(Palette palette, string key)
@@ -128,7 +142,7 @@ public static class Ui
     public static ResourceDictionary Resources(Palette palette, string glass = "off", double glassLevel = 0)
     {
         Theme = palette;
-        Glass = CleanGlass(glass);
+        Glass = EffectiveGlass(glass, WindowsBuild);
         GlassLevel = Math.Clamp(glassLevel, 0, 1);
         _veil = null;
         var t = GlassTokens.Of(palette);
@@ -200,11 +214,16 @@ public static class Ui
             ? Linear(System.Windows.Media.Color.FromArgb(0x57, 255, 255, 255), System.Windows.Media.Color.FromArgb(0x1A, 255, 255, 255), new Point(0, 0), new Point(0, 1))
             : Linear(System.Windows.Media.Color.FromArgb(0x0D, 255, 255, 255), System.Windows.Media.Color.FromArgb(0, 255, 255, 255), new Point(0, 0), new Point(0, 1));
 
-        // card rim light: bright hairline on the top edge fading into the normal hairline
+        // card rim: one thin hairline all the way round (the same colour on every side, like iPhone glass) with a soft
+        // highlight that only strengthens the top edge a little and fades out by a third of the height
+        var edge = line;
+        var lit = light
+            ? WithAlpha(Color(palette, "Text"), 0x24)
+            : System.Windows.Media.Color.FromArgb(0x30, 255, 255, 255);
         var rim = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0, 1) };
-        rim.GradientStops.Add(new GradientStop(FromArgb(t.Hi), 0));
-        rim.GradientStops.Add(new GradientStop(line, 0.22));
-        rim.GradientStops.Add(new GradientStop(line, 1));
+        rim.GradientStops.Add(new GradientStop(lit, 0));
+        rim.GradientStops.Add(new GradientStop(edge, 0.34));
+        rim.GradientStops.Add(new GradientStop(edge, 1));
         resources["CardRim"] = rim;
 
         var a1 = Color(palette, "Accent1");
