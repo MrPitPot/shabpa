@@ -4,6 +4,16 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [Unreleased]
+
+### Fixed
+- Freezes ("not responding"): programs Windows needs to ask (the start-with-Windows task, power plans, wake timers, DNS changes), the sound driver (volume, microphone), the graphics-card library, process names for the per-app network list and the startup-program check no longer run on the window's thread.
+- Settings: switching any option no longer re-registers the start-with-Windows task every time.
+- A network adapter that Windows cannot read for a moment (error 10043) can no longer stop the sensors or the DNS page.
+
+### Added
+- The log now records a stall as soon as the window has not answered for 2 seconds (not only afterwards), and, once per 10 minutes at most, which methods the window thread is stuck in (method names only, local file only).
+
 ## [3.8.1] - 2026-10-22
 
 ### Fixed

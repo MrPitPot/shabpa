@@ -97,12 +97,16 @@ public static class MemoryCleaner
     private const int MemoryPurgeStandbyList = 4;
 
     private static PerformanceCounter[]? _standby;
+    private static int _standbyFailures;
 
-    public static MemoryInfo Read()
+    // The standby cache comes from Windows performance counters. Opening them the first time loads the whole counter
+    // registry and can take seconds (or hang on a PC with damaged counters), so it is read in the background, at most every
+    // few seconds, and given up after repeated failures; Read() itself only asks the cheap memory-status call.
+    private static readonly Cached<long> StandbyBytes = new(ReadStandby, TimeSpan.FromSeconds(5));
+
+    private static long ReadStandby()
     {
-        var status = new MEMORYSTATUSEX { dwLength = (uint)Marshal.SizeOf<MEMORYSTATUSEX>() };
-        if (!GlobalMemoryStatusEx(ref status)) return new MemoryInfo(0, 0, 0);
-        long standby = 0;
+        if (Volatile.Read(ref _standbyFailures) >= 3) return 0;
         try
         {
             _standby ??=
@@ -111,9 +115,20 @@ public static class MemoryCleaner
                 new PerformanceCounter("Memory", "Standby Cache Reserve Bytes", true),
                 new PerformanceCounter("Memory", "Standby Cache Core Bytes", true),
             ];
-            standby = _standby.Sum(c => c.RawValue);
+            return _standby.Sum(c => c.RawValue);
         }
-        catch { /* counters missing: the cache size is simply not shown */ }
+        catch
+        {
+            Interlocked.Increment(ref _standbyFailures); // counters missing: the cache size is simply not shown
+            return 0;
+        }
+    }
+
+    public static MemoryInfo Read()
+    {
+        var status = new MEMORYSTATUSEX { dwLength = (uint)Marshal.SizeOf<MEMORYSTATUSEX>() };
+        if (!GlobalMemoryStatusEx(ref status)) return new MemoryInfo(0, 0, 0);
+        var standby = StandbyBytes.Get();
         return new MemoryInfo((long)status.ullTotalPhys, (long)status.ullAvailPhys, standby);
     }
 

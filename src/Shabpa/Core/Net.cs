@@ -79,6 +79,8 @@ public sealed class TrafficMeter
     private readonly Dictionary<string, Entry> _apps = [];
     private Dictionary<int, (long down, long up)> _pending = [];
     private DateOnly _date;
+    private readonly Dictionary<int, int> _waited = [];
+    private const int MaxWaitRounds = 4;
 
     public TrafficMeter(Func<int, ProcInfo?> resolve) => _resolve = resolve;
 
@@ -132,9 +134,25 @@ public sealed class TrafficMeter
         }
 
         foreach (var entry in _apps.Values) entry.StepDown = entry.StepUp = 0;
+        Dictionary<int, (long down, long up)>? carry = null;
         foreach (var (pid, (down, up)) in pending)
         {
-            var info = _resolve(pid) ?? new ProcInfo(Other, L.T("سایر", "Other"), "");
+            var found = _resolve(pid);
+            if (ReferenceEquals(found, ProcessResolver.Pending))
+            {
+                // The name is still being looked up in the background (it can take a while for a busy or protected process).
+                // The bytes wait for the next round instead of making this one wait; after a few rounds they go to "other".
+                _waited.TryGetValue(pid, out var rounds);
+                if (rounds < MaxWaitRounds)
+                {
+                    (carry ??= [])[pid] = (down, up);
+                    _waited[pid] = rounds + 1;
+                    continue;
+                }
+                found = null;
+            }
+            _waited.Remove(pid);
+            var info = found ?? new ProcInfo(Other, L.T("سایر", "Other"), "");
             if (!_apps.TryGetValue(info.Key, out var entry)) _apps[info.Key] = entry = new Entry();
             if (info.Title.Length > 0) entry.Title = info.Title;
             if (info.Path.Length > 0) entry.Path = info.Path;
@@ -146,6 +164,14 @@ public sealed class TrafficMeter
             if (down > 0) entry.LastDownload = now;
         }
 
+        if (carry is not null)
+            lock (_gate)
+                foreach (var (pid, (down, up)) in carry)
+                {
+                    _pending.TryGetValue(pid, out var value);
+                    _pending[pid] = (value.down + down, value.up + up);
+                }
+
         seconds = Math.Max(0.5, seconds);
         return _apps.Select(a => new AppTraffic(a.Key, a.Value.Title.Length > 0 ? a.Value.Title : a.Key, a.Value.Path,
                 a.Value.StepDown * 8 / 1e6 / seconds, a.Value.StepUp * 8 / 1e6 / seconds, a.Value.Down, a.Value.Up, a.Value.LastUpload, a.Value.LastDownload))
@@ -153,20 +179,76 @@ public sealed class TrafficMeter
     }
 }
 
-/// <summary>Maps process ids to applications, with a short cache because ids are looked up constantly.</summary>
+/// <summary>Maps process ids to applications, with a short cache because ids are looked up constantly. Looking a process up
+/// (its name, its file, the file's description from disk) can take tens of milliseconds, much longer behind a virus scanner,
+/// so it is never done for the caller: an unknown process answers <see cref="Pending"/> at once and is resolved on a worker.</summary>
 public sealed class ProcessResolver
 {
+    /// <summary>The answer for a process that is still being looked up (compare by reference).</summary>
+    public static readonly ProcInfo Pending = new("pending", "", "");
+
     private static readonly TimeSpan Ttl = TimeSpan.FromSeconds(45);
+    private readonly object _gate = new();
     private readonly Dictionary<int, (ProcInfo? info, long at)> _cache = [];
+    private readonly HashSet<int> _queued = [];
+    private readonly Queue<int> _queue = new();
+    private bool _working;
+    private readonly Func<int, ProcInfo?> _lookup;
+
+    public ProcessResolver() : this(Lookup) { }
+
+    internal ProcessResolver(Func<int, ProcInfo?> lookup) => _lookup = lookup;
 
     public ProcInfo? Resolve(int pid)
     {
         if (pid is 0 or 4) return new ProcInfo("system", L.T("ویندوز", "Windows"), "");
         var now = Environment.TickCount64;
-        if (_cache.TryGetValue(pid, out var hit) && now - hit.at < Ttl.TotalMilliseconds) return hit.info;
-        if (_cache.Count > 2000) _cache.Clear();
+        lock (_gate)
+        {
+            if (_cache.TryGetValue(pid, out var hit))
+            {
+                if (now - hit.at >= Ttl.TotalMilliseconds) Enqueue(pid); // out of date: the old answer serves meanwhile
+                return hit.info;
+            }
+            Enqueue(pid);
+            return Pending;
+        }
+    }
 
-        ProcInfo? info = null;
+    // called with the lock held
+    private void Enqueue(int pid)
+    {
+        if (!_queued.Add(pid)) return;
+        _queue.Enqueue(pid);
+        if (_working) return;
+        _working = true;
+        _ = Task.Run(Work);
+    }
+
+    private void Work()
+    {
+        while (true)
+        {
+            int pid;
+            lock (_gate)
+            {
+                if (_queue.Count == 0) { _working = false; return; }
+                pid = _queue.Dequeue();
+            }
+            ProcInfo? info = null;
+            try { info = _lookup(pid); }
+            catch { /* already exited */ }
+            lock (_gate)
+            {
+                _queued.Remove(pid);
+                if (_cache.Count > 2000) _cache.Clear();
+                _cache[pid] = (info, Environment.TickCount64);
+            }
+        }
+    }
+
+    private static ProcInfo? Lookup(int pid)
+    {
         try
         {
             using var process = Process.GetProcessById(pid);
@@ -182,12 +264,12 @@ public sealed class ProcessResolver
                 }
             }
             catch { /* protected process: name is enough */ }
-            info = new ProcInfo(key, title, path);
+            return new ProcInfo(key, title, path);
         }
-        catch { /* already exited */ }
-
-        _cache[pid] = (info, now);
-        return info;
+        catch
+        {
+            return null; // already exited
+        }
     }
 }
 

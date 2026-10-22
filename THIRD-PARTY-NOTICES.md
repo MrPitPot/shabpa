@@ -10,6 +10,7 @@ Shabpa's own code is under the MIT license (see `LICENSE`). It ships with these 
 | [LibreHardwareMonitorLib 0.9.6](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) (NuGet package, unmodified) | optional advanced sensors: CPU temperature, CPU fan, any-brand graphics-card readings | MPL-2.0 |
 | [Vazirmatn](https://github.com/rastikerdar/vazirmatn) by Saber Rastikerdar | Persian UI font | SIL Open Font License 1.1, see https://openfontlicense.org |
 | [Microsoft.Diagnostics.Tracing.TraceEvent](https://github.com/microsoft/perfview) and its dependencies (NuGet) | per-app network statistics (ETW) | MIT |
+| [Microsoft.Diagnostics.Runtime (ClrMD) 4.2.751201](https://github.com/microsoft/clrmd) (NuGet) | when the window stops answering for 3+ seconds, writes the method names of the window thread's stack to the local log (once per 10 minutes at most; nothing is sent anywhere) | MIT |
 | [.NET](https://github.com/dotnet/runtime) / WPF | runtime and UI | MIT |
 
 WinDivert is loaded dynamically and is not modified; you may replace `WinDivert.dll` / `WinDivert64.sys` with your own build of the same version.

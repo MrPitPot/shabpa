@@ -284,7 +284,16 @@ public static class Autostart
 
     public static bool IsEnabled() => RunKeyEnabled() || TaskEnabled();
 
-    private static bool RunKeyEnabled()
+    // "Is the logon task there" is a console tool (schtasks) that can take seconds on a busy or antivirus-scanned PC, so the
+    // window never waits for it: it gets the last answer at once and the real one arrives from the background.
+    private static readonly Cached<bool> TaskState = new(TaskEnabled, TimeSpan.FromMinutes(1));
+
+    /// <summary>The same answer as <see cref="IsEnabled"/> without ever running a program on the caller's thread.
+    /// <paramref name="changed"/> is called (on a pool thread) when the background check finds a different answer.</summary>
+    public static bool IsEnabledCached(Action<bool>? changed = null) =>
+        RunKeyEnabled() || TaskState.Get(task => changed?.Invoke(RunKeyEnabled() || task));
+
+    public static bool RunKeyEnabled()
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunKey);
         return key?.GetValue(Name) is string;
@@ -330,6 +339,12 @@ public static class Autostart
     /// <summary>With <paramref name="elevated"/> the app is started by a logon task that keeps its admin
     /// rights (a Run-key entry would start it without them). Returns an error message or null.</summary>
     public static string? Set(bool enabled, string exePath, bool elevated = false)
+    {
+        try { return SetCore(enabled, exePath, elevated); }
+        finally { TaskState.Invalidate(); }
+    }
+
+    private static string? SetCore(bool enabled, string exePath, bool elevated)
     {
         using (var key = Registry.CurrentUser.CreateSubKey(RunKey))
         {
