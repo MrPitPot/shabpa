@@ -26,6 +26,9 @@ public sealed class UpdatePage : PageBase
     private readonly TextBlock _notesTitle = new() { Style = St("H2") };
     private readonly TextBlock _notesText = new() { Style = St("Body"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
     private readonly Switch _auto = new();
+    private readonly GlassCard _offlineCard = new() { Padding = new Thickness(24, 20, 24, 20), Margin = new Thickness(0, 12, 0, 0) };
+    private readonly TextBlock _offlineHint = new() { Style = St("Body"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
+    private readonly TextBox _mirrorBox = new() { Style = St("Input"), Width = 320, FlowDirection = FlowDirection.LeftToRight, FontFamily = new System.Windows.Media.FontFamily("Consolas") };
     private UpdateState? _lastState;
     private bool _installShown, _notesShown;
 
@@ -74,6 +77,18 @@ public sealed class UpdatePage : PageBase
         status.Child = inner;
         root.Children.Add(status);
 
+        // offline / restricted internet: always available, loud when every source failed
+        var offline = new StackPanel();
+        offline.Children.Add(new TextBlock { Style = St("H2"), Text = L.T("اینترنت محدوده یا وصل نمی‌شه؟", "Restricted or no internet?") });
+        offline.Children.Add(_offlineHint);
+        var offlineRow = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
+        offlineRow.Children.Add(OfflineButton("ext", L.T("باز کردن صفحه‌ی دانلود", "Open download page"), OnOpenDownloadPage));
+        offlineRow.Children.Add(OfflineButton("dl", L.T("نصب از فایل…", "Install from file…"), OnInstallFromFile));
+        offlineRow.Children.Add(OfflineButton("dl", L.T("وارد کردن بستهٔ به‌روزرسانی…", "Import update bundle…"), OnImportBundle));
+        offline.Children.Add(offlineRow);
+        _offlineCard.Child = offline;
+        root.Children.Add(_offlineCard);
+
         // release notes (only when the available version has some)
         var notes = new StackPanel();
         notes.Children.Add(_notesTitle);
@@ -90,6 +105,9 @@ public sealed class UpdatePage : PageBase
         };
         _auto.IsChecked = Hub.Settings.AutoUpdateCheck;
         body.Children.Add(K.SettingRow(L.T("خودش هر چند ساعت بررسی کنه و خبر بده", "Check every few hours and let me know"), _auto, first: true));
+        _mirrorBox.Text = Hub.Settings.ExtraMirrorUrl;
+        _mirrorBox.LostFocus += (_, _) => SaveMirror();
+        body.Children.Add(K.SettingRow(L.T("آینه‌ی اضافه (پیشرفته): آدرس HTTPS پوشه‌ای که latest.json توشه", "Extra mirror (advanced): HTTPS folder that holds latest.json"), _mirrorBox));
         var open = new Button { Style = St("Btn"), Padding = new Thickness(16, 8, 16, 8) };
         var openRow = new StackPanel { Orientation = Orientation.Horizontal };
         openRow.Children.Add(new Icon("ext", 16) { Margin = new Thickness(0, 0, 8, 0) });
@@ -160,6 +178,13 @@ public sealed class UpdatePage : PageBase
         _progress.Value = u.Progress;
         if (downloading && IsLoaded) CMo.Fill(_progress, beforeProgress, 450);
 
+        var failed = u.AllSourcesFailed && u.State == UpdateState.Error;
+        if (failed) _offlineHint.Foreground = Res("Red"); else _offlineHint.ClearValue(TextBlock.ForegroundProperty);
+        _offlineHint.Text = failed
+            ? u.Error
+            : L.T("اگه GitHub و سایت‌های خارجی باز نمی‌شن، شب‌پا خودش از آینه‌های داخلی هم می‌گیره. دستی هم می‌تونی فایل نصب یا بستهٔ به‌روزرسانی رو از فلش یا تلگرام بیاری؛ امضا و چک‌سامش قبل از نصب بررسی می‌شه.",
+                "If GitHub and foreign sites are blocked, Shabpa also tries domestic mirrors. You can also bring an installer or update bundle from a USB stick or Telegram; its signature and checksum are verified before installing.");
+
         var showNotes = available is not null && available.Notes.Trim().Length > 0;
         _notesCard.Visibility = showNotes ? Visibility.Visible : Visibility.Collapsed;
         if (showNotes && !_notesShown && IsLoaded) CMo.Appear(_notesCard, 0, 14, 0.6);
@@ -176,6 +201,104 @@ public sealed class UpdatePage : PageBase
         if (Hub.Demo) return;
         if (await Updater.DownloadAndInstallAsync(Hub.Elevated) is null)
             Hub.Notify(L.T("به‌روزرسانی", "Update"), L.T("نصب شروع شد؛ شب‌پا یه لحظه بسته و دوباره باز می‌شه.", "Installing; Shabpa will close and reopen in a moment."));
+    }
+
+    private Button OfflineButton(string icon, string text, RoutedEventHandler click)
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        row.Children.Add(new Icon(icon, 16) { Margin = new Thickness(0, 0, 8, 0) });
+        row.Children.Add(new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center });
+        var b = new Button { Style = St("Btn"), Padding = new Thickness(16, 8, 16, 8), Margin = new Thickness(0, 0, 8, 8), Content = row };
+        b.Click += click;
+        return b;
+    }
+
+    private void Say(string text, bool bad)
+    {
+        if (bad) _offlineHint.Foreground = Res("Red"); else _offlineHint.ClearValue(TextBlock.ForegroundProperty);
+        _offlineHint.Text = text;
+    }
+
+    private void SaveMirror()
+    {
+        var text = _mirrorBox.Text.Trim();
+        if (text.Length > 0 && UpdateSources.NormalizeMirror(text) is null)
+        {
+            Say(L.T("آدرس آینه باید با https:// شروع بشه.", "The mirror address must start with https://."), true);
+            _mirrorBox.Text = Hub.Settings.ExtraMirrorUrl;
+            return;
+        }
+        if (text == Hub.Settings.ExtraMirrorUrl) return;
+        Hub.Settings.ExtraMirrorUrl = text;
+        Hub.Store.Save();
+    }
+
+    private void OnOpenDownloadPage(object sender, RoutedEventArgs e)
+    {
+        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Updater.DownloadPage) { UseShellExecute = true }); }
+        catch { /* no browser registered */ }
+    }
+
+    /// <summary>Picks ShabpaSetup.exe. A latest.json (+ .sig) next to it is verified; otherwise the checksum on the clipboard is.</summary>
+    private async void OnInstallFromFile(object sender, RoutedEventArgs e)
+    {
+        if (Hub.Demo) return;
+        string file;
+        using (var dialog = new System.Windows.Forms.OpenFileDialog { Filter = "ShabpaSetup|*.exe", CheckFileExists = true })
+        {
+            if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
+            file = dialog.FileName;
+        }
+        string? sha = null, error = null;
+        await Task.Run(() =>
+        {
+            try { sha = UpdateBundle.FromInstallerWithSiblingManifest(file, Updater.Current, UpdateKeys.PublicKeyBase64)?.Manifest.Sha256; }
+            catch (UpdateRejectedException ex) { error = ex.Friendly; }
+            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException) { error = L.T("فایل خونده نشد.", "The file could not be read."); }
+        });
+        if (error is not null) { Say(error, true); return; }
+        if (sha is null)
+        {
+            if (!ConfirmWindow.AskAlways(L.T("نصب از فایل", "Install from file"),
+                    L.T("کنار این فایل latest.json پیدا نشد. چک‌سام SHA-256 اعلام‌شده در shabpa.ir یا GitHub رو کپی کن (کلیپ‌بورد)، بعد «بررسی و نصب» رو بزن.",
+                        "No latest.json was found next to this file. Copy the SHA-256 published on shabpa.ir or GitHub to the clipboard, then press “Check and install”."),
+                    yes: L.T("بررسی و نصب", "Check and install")))
+                return;
+            string clip;
+            try { clip = System.Windows.Clipboard.GetText(); } catch { clip = ""; }
+            sha = UpdateBundle.NormalizeHash(clip);
+            if (sha is null) { Say(L.T("توی کلیپ‌بورد چک‌سام SHA-256 معتبری نبود.", "The clipboard has no valid SHA-256 checksum."), true); return; }
+        }
+        await InstallPicked(file, sha);
+    }
+
+    /// <summary>A .zip with ShabpaSetup.exe, latest.json and latest.json.sig (from a USB stick or Telegram).</summary>
+    private async void OnImportBundle(object sender, RoutedEventArgs e)
+    {
+        if (Hub.Demo) return;
+        string path;
+        using (var dialog = new System.Windows.Forms.OpenFileDialog { Filter = "Shabpa update bundle|*.zip", CheckFileExists = true })
+        {
+            if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
+            path = dialog.FileName;
+        }
+        UpdateBundle.Prepared? prepared = null;
+        string? error = null;
+        await Task.Run(() =>
+        {
+            try { prepared = UpdateBundle.Open(path, System.IO.Path.Combine(System.IO.Path.GetTempPath(), "Shabpa-bundle"), Updater.Current, UpdateKeys.PublicKeyBase64); }
+            catch (UpdateRejectedException ex) { error = ex.Friendly; }
+            catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or System.IO.InvalidDataException) { error = L.T("بسته خونده نشد.", "The bundle could not be read."); }
+        });
+        if (error is not null || prepared is null) { Say(error ?? "", true); return; }
+        await InstallPicked(prepared.InstallerPath, prepared.Manifest.Sha256);
+    }
+
+    private async Task InstallPicked(string file, string sha)
+    {
+        var problem = await Task.Run(() => Updater.InstallLocal(file, sha, Hub.Elevated));
+        if (problem is not null) { Say(problem, true); return; }
+        Hub.Notify(L.T("به‌روزرسانی", "Update"), L.T("نصب شروع شد؛ شب‌پا یه لحظه بسته و دوباره باز می‌شه.", "Installing; Shabpa will close and reopen in a moment."));
     }
 
     private void OnOpenReleases(object sender, RoutedEventArgs e)

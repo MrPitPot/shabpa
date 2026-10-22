@@ -101,7 +101,7 @@ public sealed class Hub
         Telemetry.LogWhileGameAlive = Settings.GameLog && !demo;
         Sensors.InteractiveCheck = () => WindowShown || Telemetry.HasDemand;
         GameLog = new GameLogStore(Store.Folder, readOnly: store.ReadOnly || demo);
-        Updater = new Updater(() => Settings);
+        Updater = new Updater(() => Settings) { Persist = () => Store.Save() };
         if (Settings.Support.DeviceId.Length != 32) Settings.Support.DeviceId = Guid.NewGuid().ToString("N");
         Support = new SupportClient(() => Settings.Support, () => Settings.ProxyUrl);
         Bot = new BotLink(() => Settings, Store.Save, new BotHost

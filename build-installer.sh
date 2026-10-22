@@ -15,5 +15,7 @@ mkdir -p installer
 cp src/Setup/bin/Release/net472/ShabpaSetup.exe installer/ShabpaSetup.exe
 # Published next to the installer so anyone can check the download is the original file.
 (cd installer && sha256sum ShabpaSetup.exe > ShabpaSetup.exe.sha256)
+# Signed update manifest for the mirrors (GitHub, shabpa.ir, dl.shabpa.ir). Without SHABPA_SIGN_KEY it is left unsigned.
+bash tools/update/make-manifest.sh installer/ShabpaSetup.exe "$VERSION" installer
 ls -la installer/
 cat installer/ShabpaSetup.exe.sha256

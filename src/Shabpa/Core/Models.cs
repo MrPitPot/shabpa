@@ -144,6 +144,10 @@ public sealed class Settings
     public bool AutoUpdateCheck { get; set; } = true;
     /// <summary>The newest version the user was already told about, so each release is announced once.</summary>
     public string AnnouncedVersion { get; set; } = "";
+    /// <summary>Advanced: an extra update mirror (https address of a folder holding latest.json), tried after the built-in ones.</summary>
+    public string ExtraMirrorUrl { get; set; } = "";
+    /// <summary>Id of the update source that worked last; it is tried first next time.</summary>
+    public string LastUpdateSource { get; set; } = "";
     /// <summary>The guided tour: "" (undecided), "pending", "offered", "done", "skipped" or "declined" (see Tour/TourState.cs).</summary>
     public string TourStatus { get; set; } = "";
 }
