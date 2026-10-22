@@ -19,6 +19,7 @@ public class SliderDragTests
             try
             {
                 // A private dictionary, so no Application is created on this thread (other tests share Application.Current).
+                _ = Application.Current ?? new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown }; // registers the pack:// scheme
                 var res = new ResourceDictionary();
                 res.MergedDictionaries.Add(Ui.Resources(Palette.Find("night")));
                 res.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("pack://application:,,,/Shabpa;component/Theme.xaml", UriKind.Absolute) });

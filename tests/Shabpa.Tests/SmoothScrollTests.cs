@@ -81,10 +81,12 @@ public class SmoothScrollTests
     private static void Sta(Action test)
     {
         Exception? error = null;
+        Motion.TestOverride = true; // the CI runner has no desktop animations
         var thread = new Thread(() => { try { test(); } catch (Exception ex) { error = ex; } });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         thread.Join();
+        Motion.TestOverride = null;
         if (error is not null) throw new Exception("STA test failed", error);
     }
 
