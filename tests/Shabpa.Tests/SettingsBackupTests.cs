@@ -88,6 +88,19 @@ public class SettingsBackupTests
     }
 
     [Fact]
+    public void Name_and_birthday_never_travel_in_a_settings_file()
+    {
+        var state = new AppState();
+        state.Settings.Birthday = new BirthdaySettings { Name = "Ali", Month = 7, Day = 26 };
+        var json = SettingsBackup.Export(state, false, false, new DateTime(2026, 10, 22));
+        Assert.DoesNotContain("Ali", json);
+        var pack = SettingsBackup.Read(json)!;
+        pack.Settings.Birthday = new BirthdaySettings { Name = "Other", Month = 1, Day = 1 };
+        SettingsBackup.Apply(pack, state);
+        Assert.Equal("Ali", state.Settings.Birthday.Name);
+    }
+
+    [Fact]
     public void Damaged_dns_notes_in_a_backup_are_cleaned()
     {
         var pack = new SettingsPack();

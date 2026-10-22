@@ -101,6 +101,9 @@ public static class Birthday
     ];
 
     // ---- the clock (with a test aid) ------------------------------------------------------------------------
+#if DEBUG || SHABPA_TESTHOOKS
+    private static TimeSpan? _offset;
+#endif
     /// <summary>The current local time. Debug builds and builds with SHABPA_TESTHOOKS honour SHABPA_FAKE_TODAY
     /// ("yyyy-MM-dd" keeps the real time of day, "yyyy-MM-ddTHH:mm:ss" sets the clock); everywhere else this is DateTime.Now.</summary>
     public static DateTime Now()

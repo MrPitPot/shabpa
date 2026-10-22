@@ -151,6 +151,8 @@ public sealed class GameLogPage : PageBase
         }
         card.Child = _list;
         var block = new StackPanel();
+        // the live card outlives a rebuild (the list is rebuilt on every change): take it out of the old block first
+        if (_live.Parent is Panel old) old.Children.Remove(_live);
         block.Children.Add(_live);
         block.Children.Add(new TextBlock { Text = L.T("بازی‌ها", "Games"), Style = St("Section"), Margin = new Thickness(0, 6, 0, 8) });
         block.Children.Add(card);

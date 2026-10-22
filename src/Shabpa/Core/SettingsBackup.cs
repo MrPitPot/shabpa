@@ -42,6 +42,7 @@ public static class SettingsBackup
         s.Support.DeviceId = "";
         s.Support.AdminKeyProtected = "";
         s.WindowPlacement = "";
+        s.Birthday = new(); // a name and a birthday are personal: a shared settings file does not carry them
     }
 
     private static Settings Copy(Settings s) =>
@@ -93,6 +94,7 @@ public static class SettingsBackup
         incoming.Support.DeviceId = keep.Support.DeviceId;
         incoming.Support.AdminKeyProtected = keep.Support.AdminKeyProtected;
         incoming.WindowPlacement = keep.WindowPlacement;
+        incoming.Birthday = keep.Birthday;
         // values that would be unsafe or senseless are brought back into range
         incoming.CountdownSeconds = Math.Clamp(incoming.CountdownSeconds, 5, 600);
         incoming.Comfort.DimLevel = Math.Clamp(incoming.Comfort.DimLevel, 0.05, 0.92);
