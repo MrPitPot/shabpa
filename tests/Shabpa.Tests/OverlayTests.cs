@@ -188,3 +188,46 @@ public class OverlayPlacementTests
         Assert.Equal(new PxBox(-1920, 880, 300, 200), OverlayPlacement.Clamp(new PxBox(-2100, 1000, 300, 200), left));
     }
 }
+
+public class OverlayDragStickTests
+{
+    private static readonly PxBox Screen = new(0, 0, 1920, 1080);
+
+    [Fact]
+    public void Snapping_with_no_margin_lands_exactly_on_the_corner_and_edges()
+    {
+        var r = OverlayPlacement.Snap(new PxBox(9, 14, 200, 100), Screen, 36, 0);
+        Assert.Equal("tl", r.Zone);
+        Assert.Equal(new PxBox(0, 0, 200, 100), r.Box);
+
+        r = OverlayPlacement.Snap(new PxBox(1700, 970, 200, 100), Screen, 36, 0);
+        Assert.Equal("br", r.Zone);
+        Assert.Equal(1920, r.Box.Right);
+        Assert.Equal(1080, r.Box.Bottom);
+
+        r = OverlayPlacement.Snap(new PxBox(1700, 400, 200, 100), Screen, 36, 0);
+        Assert.Null(r.Zone);
+        Assert.Equal(1920, r.Box.Right);
+        Assert.Equal(400, r.Box.Y);
+    }
+
+    [Fact]
+    public void Snapping_twice_changes_nothing_so_a_replacement_does_not_tick()
+    {
+        var first = OverlayPlacement.Snap(new PxBox(1699, 971, 200, 100), Screen, 36, 0);
+        var second = OverlayPlacement.Snap(first.Box, Screen, 36, 0);
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public void Placement_is_left_to_the_mouse_for_as_long_as_a_drag_runs()
+    {
+        Assert.False(Shabpa.OverlayWin.Dragging);
+        var during = false;
+        Shabpa.OverlayWin.Drag(() => during = Shabpa.OverlayWin.Dragging);
+        Assert.True(during);
+        Assert.False(Shabpa.OverlayWin.Dragging);
+        Assert.Throws<InvalidOperationException>(() => Shabpa.OverlayWin.Drag(() => throw new InvalidOperationException()));
+        Assert.False(Shabpa.OverlayWin.Dragging);
+    }
+}
