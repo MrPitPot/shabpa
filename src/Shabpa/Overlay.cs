@@ -443,8 +443,8 @@ public sealed class OverlayWindow : Window
         hub.Telemetry.Updated += sample => Dispatcher.BeginInvoke(DispatcherPriority.Background, () => Render(sample));
         hub.Second += Evaluate;
         SizeChanged += (_, _) => Place();
-        MouseLeftButtonDown += (_, _) => { if (_moving) DragMove(); };
-        MouseLeftButtonUp += (_, _) => { if (_moving) SavePosition(); };
+        // DragMove runs until the button is released (the mouse-up is swallowed by it), so the spot is saved right after it returns
+        MouseLeftButtonDown += (_, _) => { if (!_moving) return; OverlayWin.Drag(DragMove); SavePosition(); };
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -629,7 +629,8 @@ public sealed class OverlayWindow : Window
     /// pixels with the scale of the monitor it lands on, and no block is ever left partly outside its monitor.</summary>
     private void Place()
     {
-        if (!IsVisible || _handle == IntPtr.Zero) return;
+        // while a block is being dragged the mouse owns its position: putting it back to the saved spot on every sensor tick made it jump
+        if (!IsVisible || _handle == IntPtr.Zero || OverlayWin.Dragging) return;
         var o = _hub.Settings.Overlay.WithProfile(_game);
         var foreground = Native.GetForegroundWindow();
         var screen = foreground != IntPtr.Zero ? WF.Screen.FromHandle(foreground) : WF.Screen.PrimaryScreen ?? WF.Screen.AllScreens[0];
@@ -676,7 +677,8 @@ public sealed class OverlayWindow : Window
         foreach (var (group, block) in _blocks.OrderBy(b => o.OrderOf(b.Key)))
         {
             var place = o.PlaceOf(group);
-            Put(block, place.Anchor, place.X, place.Y, 20 * scale, 20 * scale);
+            var flush = place.X < 0;
+            Put(block, place.Anchor, place.X, place.Y, flush ? 0 : 20 * scale, flush ? 0 : 20 * scale);
         }
     }
 
@@ -687,7 +689,7 @@ public sealed class OverlayWindow : Window
         var place = o.Places.FirstOrDefault(p => p.Group == group);
         if (place is null) o.Places.Add(place = new GroupPlace { Group = group });
         var (snapped, zone) = SnapToMonitor(box);
-        if (zone is not null) place.Anchor = zone;
+        if (zone is not null) (place.Anchor, place.X, place.Y) = (zone, -1, -1); // -1: flush against the corner
         else (place.Anchor, place.X, place.Y) = ("free", snapped.X, snapped.Y);
         _hub.Store.Save();
         _hub.OverlayChanged();
@@ -699,7 +701,7 @@ public sealed class OverlayWindow : Window
     {
         var screen = WF.Screen.FromRectangle(new System.Drawing.Rectangle(box.X, box.Y, box.W, box.H));
         var scale = OverlayWin.ScaleOf(screen);
-        var result = OverlayPlacement.Snap(box, OverlayWin.Box(screen.Bounds), (int)Math.Round(36 * scale), (int)Math.Round(16 * scale));
+        var result = OverlayPlacement.Snap(box, OverlayWin.Box(screen.Bounds), (int)Math.Round(36 * scale), 0);
         return (result.Box, result.Zone);
     }
 
@@ -727,7 +729,7 @@ public sealed class OverlayWindow : Window
             else { o.Anchor = anchor; (o.X, o.Y) = (x, y); }
         }
         // a corner keeps the same distance from it at any size (offsets are in 96-dpi pixels); anywhere else is a free spot
-        if (zone is not null) Store(zone, 16, 16);
+        if (zone is not null) Store(zone, 0, 0);
         else Store("free", snapped.X, snapped.Y);
         _hub.Store.Save();
         _hub.OverlayChanged();
@@ -782,10 +784,10 @@ public sealed class OverlayBlockWindow : Window
         SnapsToDevicePixels = true;
         Title = "Shabpa overlay block";
         SizeChanged += (_, _) => placed();
-        MouseLeftButtonDown += (_, _) => { if (_moving) DragMove(); };
-        MouseLeftButtonUp += (_, _) =>
+        MouseLeftButtonDown += (_, _) =>
         {
             if (!_moving) return;
+            OverlayWin.Drag(DragMove);
             if (OverlayWin.Rect(new WindowInteropHelper(this).Handle, out var box)) moved(_group, box);
         };
     }
@@ -825,6 +827,16 @@ internal static class OverlayWin
     [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
     [DllImport("user32.dll")] private static extern IntPtr MonitorFromPoint(Pt point, uint flags);
     [DllImport("shcore.dll")] private static extern int GetDpiForMonitor(IntPtr monitor, int type, out uint dpiX, out uint dpiY);
+
+    /// <summary>True while the user holds an overlay window with the mouse (DragMove runs its own loop).</summary>
+    public static bool Dragging { get; private set; }
+
+    public static void Drag(Action dragMove)
+    {
+        Dragging = true;
+        try { dragMove(); }
+        finally { Dragging = false; }
+    }
 
     private const uint NoSize = 0x1, NoMove = 0x2, NoZOrder = 0x4, NoActivate = 0x10;
     private static readonly IntPtr Topmost = new(-1);
