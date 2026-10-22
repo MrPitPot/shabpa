@@ -38,7 +38,7 @@ public static class UpdateKeys
 {
     /// <summary>Base64 of the DER SubjectPublicKeyInfo of the ECDSA P-256 release key.
     /// Empty until the owner generates the key; while empty every mirror manifest is rejected (fails closed).</summary>
-    public const string PublicKeyBase64 = "";
+    public const string PublicKeyBase64 = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEX7komdlZluBsvNByFfETYIEDu7oIw+m8Rb7fW3MKAdYogM9uFBRak2ThzXIPfZ0Lq0yghItAAz62y/IzGxlexw==";
 }
 
 public static class UpdateManifestReader
