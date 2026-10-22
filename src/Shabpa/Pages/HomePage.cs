@@ -87,13 +87,13 @@ public sealed class HomePage : PageBase
         SeedDemoHistory();
 
         IsVisibleChanged += (_, _) => OnVisible();
-        Hub.MemoryCleaned += (result, cache) =>
+        While<Action<MemoryResult, bool>>(h => Hub.MemoryCleaned += h, h => Hub.MemoryCleaned -= h, (result, cache) =>
         {
             if (_ramCard is not null) { _ramCard.IsEnabled = true; _ramCard.Opacity = 1; }
             if (cache) return;
             _ramNote = L.T($"{Fa.Bytes(result.Freed)} رم آزاد شد.", $"{Fa.Bytes(result.Freed)} of RAM freed.");
             Refresh();
-        };
+        });
 
         // When the machine last came on: boot or resume, whichever is later.
         Task.Run(() =>

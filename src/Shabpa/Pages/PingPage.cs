@@ -111,7 +111,7 @@ public sealed class PingPage : PageBase
             UpdateApps(true);
         });
         foreach (var chip in _sortChips.Children.OfType<FrameworkElement>()) chip.Margin = new Thickness(0);
-        Hub.NetTick += () => { if (IsVisible) UpdateApps(false); };
+        While<Action>(h => Hub.NetTick += h, h => Hub.NetTick -= h, () => { if (IsVisible) UpdateApps(false); });
     }
 
     // ---- layout ----------------------------------------------------------------------------------

@@ -66,10 +66,10 @@ public sealed class ProfileListPage : PageBase
         root.Children.Add(_editor);
         root.Children.Add(_list);
         Content = root;
-        Hub.ProfilesChanged += () => Dispatcher.BeginInvoke(() =>
+        While<Action>(h => Hub.ProfilesChanged += h, h => Hub.ProfilesChanged -= h, () => Dispatcher.BeginInvoke(() =>
         {
             if (_draft is null) RefreshList();
-        });
+        }));
     }
 
     public override void Refresh()
@@ -691,10 +691,10 @@ public sealed class RunHistoryPage : PageBase
         _list.Margin = new Thickness(0, 8, 0, 0);
         body.Children.Add(_list);
         Content = card;
-        Hub.ProfilesChanged += () => Dispatcher.BeginInvoke(() =>
+        While<Action>(h => Hub.ProfilesChanged += h, h => Hub.ProfilesChanged -= h, () => Dispatcher.BeginInvoke(() =>
         {
             if (IsVisible) Refresh();
-        });
+        }));
     }
 
     public override void Refresh()

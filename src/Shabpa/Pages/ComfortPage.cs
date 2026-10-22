@@ -197,7 +197,7 @@ public sealed class ComfortPage : PageBase
         _gamePower.Click += (_, _) => Edit(s => s.GameModePower = _gamePower.IsChecked == true);
         _gameRam.Click += (_, _) => Edit(s => s.GameModeRam = _gameRam.IsChecked == true);
         _gameQuiet.Click += (_, _) => Edit(s => s.GameModeQuiet = _gameQuiet.IsChecked == true);
-        Hub.ComfortUpdated += () => Dispatcher.BeginInvoke(Refresh);
+        While<Action>(h => Hub.ComfortUpdated += h, h => Hub.ComfortUpdated -= h, () => Dispatcher.BeginInvoke(Refresh));
     }
 
     /// <summary>The ready-made presets: apply with one click, edit Kelvin and darkness, or put one back to its default.</summary>

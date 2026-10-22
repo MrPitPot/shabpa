@@ -53,7 +53,9 @@ public sealed class RemotePage : PageBase
         root.Add(BuildCapabilities(), 2, 8, 4, 4);
         Content = root;
 
-        Hub.Bot.Changed += () => Dispatcher.BeginInvoke(Refresh);
+        // hooked only while in the tree: a released page must not stay subscribed to the long-lived link
+        Loaded += (_, _) => { Hub.Bot.Changed -= OnBotChanged; Hub.Bot.Changed += OnBotChanged; Refresh(); };
+        Unloaded += (_, _) => Hub.Bot.Changed -= OnBotChanged;
         // keeps the "code is valid for m:ss" line current
         _ticker.Tick += (_, _) => { if (IsVisible) UpdateCodeHint(); };
         _ticker.Start();
@@ -227,6 +229,8 @@ public sealed class RemotePage : PageBase
         _codeHint.Text = L.T($"این کد فقط یک بار و تا {Fa.Digits(time)} دقیقه‌ی دیگه کار می‌کنه. هر کس این کد رو داشته باشه می‌تونه این سیستم رو کنترل کنه، پس فقط خودت بفرستش.",
             $"The code works once, for the next {time}. Whoever has it can control this PC, so send it yourself only.");
     }
+
+    private void OnBotChanged() => Dispatcher.BeginInvoke(Refresh);
 
     public override void Refresh()
     {

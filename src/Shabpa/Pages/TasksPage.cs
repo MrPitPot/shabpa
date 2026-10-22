@@ -177,10 +177,10 @@ public sealed class TodoPage : PageBase
         Content = root;
         CMo.CascadeOnLoad(this, root);
 
-        Hub.TasksChanged += () => Dispatcher.BeginInvoke(() =>
+        While<Action>(h => Hub.TasksChanged += h, h => Hub.TasksChanged -= h, () => Dispatcher.BeginInvoke(() =>
         {
             if (IsVisible) RefreshList();
-        });
+        }));
         ResetForm();
     }
 
@@ -647,7 +647,7 @@ public sealed class FocusPage : PageBase
         Content = _root;
         _recentRows = new CMo.Memo(_recent);
         CMo.CascadeOnLoad(this, _root);
-        Hub.TasksChanged += () => Dispatcher.BeginInvoke(Update);
+        While<Action>(h => Hub.TasksChanged += h, h => Hub.TasksChanged -= h, () => Dispatcher.BeginInvoke(Update));
     }
 
     private static Border MiniStat(TextBlock value, string caption, string tint)
@@ -805,10 +805,10 @@ public sealed class WeeklyReportPage : PageBase
             Refresh();
             _entering = false;
         };
-        Hub.TasksChanged += () =>
+        While<Action>(h => Hub.TasksChanged += h, h => Hub.TasksChanged -= h, () =>
         {
             if (IsVisible) Dispatcher.BeginInvoke(Refresh);
-        };
+        });
     }
 
     private static void Put(StatCard card, int value, string unit) => CMo.CountCard(card, value, unit);

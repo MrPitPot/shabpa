@@ -10,6 +10,13 @@ namespace Shabpa.Pages;
 /// <summary>Common base for the pages hosted by <see cref="MainWindow"/>, plus small UI builders.</summary>
 public class PageBase : UserControl
 {
+    /// <summary>Subscribes to a long-lived (hub) event only while the page is in the visual tree; released pages are rebuilt later, so a plain += would leak the old page and keep refreshing it.</summary>
+    protected void While<T>(Action<T> add, Action<T> remove, T handler) where T : Delegate
+    {
+        Loaded += (_, _) => { remove(handler); add(handler); };
+        Unloaded += (_, _) => remove(handler);
+    }
+
     public virtual string PageTitle => "";
     public virtual string PageSubtitle => "";
     /// <summary>Optional element shown at the far end of the page header (status badge, primary action). See PORTING-GUIDE.md.</summary>

@@ -391,7 +391,7 @@ public sealed class OverlayPage : PageBase
         _toggleKey.Changed += value => Change(o => o.ToggleKey = value);
         _moveKey.Changed += value => Change(o => o.MoveKey = value);
 
-        Hub.OverlayMoving += _ => Dispatcher.BeginInvoke(UpdateMoveButton);
+        While<Action<bool>>(h => Hub.OverlayMoving += h, h => Hub.OverlayMoving -= h, _ => Dispatcher.BeginInvoke(UpdateMoveButton));
         IsVisibleChanged += (_, _) => { if (IsVisible) Refresh(); };
     }
 

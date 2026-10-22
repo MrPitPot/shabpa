@@ -92,7 +92,7 @@ public sealed class MemoryPage : PageBase
         Content = _root;
         SizeChanged += (_, e) => ApplyLayout(e.NewSize.Width > 900);
         ApplyLayout(true);
-        Hub.MemoryCleaned += OnCleaned;
+        While<Action<MemoryResult, bool>>(h => Hub.MemoryCleaned += h, h => Hub.MemoryCleaned -= h, OnCleaned);
     }
 
     private static GlassCard ActionCard(string icon, string hue, string title, UIElement body, Button button)

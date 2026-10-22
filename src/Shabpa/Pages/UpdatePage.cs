@@ -109,11 +109,14 @@ public sealed class UpdatePage : PageBase
         Content = root;
         CMo.CascadeOnLoad(this, root);
 
-        Updater.Changed += () => Dispatcher.BeginInvoke(Refresh);
+        Loaded += (_, _) => { Updater.Changed -= OnUpdaterChanged; Updater.Changed += OnUpdaterChanged; Refresh(); };
+        Unloaded += (_, _) => Updater.Changed -= OnUpdaterChanged;
         Refresh();
     }
 
     private static string Version(Version v) => Fa.Digits(v.Build == 0 ? $"{v.Major}.{v.Minor}" : v.ToString(3)).Replace('.', L.En ? '.' : '٫');
+
+    private void OnUpdaterChanged() => Dispatcher.BeginInvoke(Refresh);
 
     public override void Refresh()
     {

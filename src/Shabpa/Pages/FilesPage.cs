@@ -608,7 +608,7 @@ public sealed class BackupPage : PageBase
         ListUi.Place(card, 1, 0, 12);
         Content = _root;
 
-        Hub.BackupsChanged += () => Dispatcher.BeginInvoke(RefreshJobs);
+        While<Action>(h => Hub.BackupsChanged += h, h => Hub.BackupsChanged -= h, () => Dispatcher.BeginInvoke(RefreshJobs));
         ShowSources();
     }
 
