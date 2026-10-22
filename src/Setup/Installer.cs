@@ -103,7 +103,7 @@ public static class Installer
             while (DateTime.UtcNow < deadline && Process.GetProcessesByName("Shabpa").Length > 0) Thread.Sleep(200);
             foreach (var process in Process.GetProcessesByName("Shabpa"))
             {
-                try { SetupLog.Warn("killing Shabpa pid " + process.Id); process.Kill(); process.WaitForExit(3000); }
+                try { SetupLog.Warn("killing Shabpa pid " + process.Id); MarkRunFlag(null, process.Id); process.Kill(); process.WaitForExit(3000); }
                 catch { /* already gone */ }
                 finally { process.Dispose(); }
             }
@@ -113,6 +113,29 @@ public static class Installer
             // Never let "could not look at the process list" stop an install.
             SetupLog.Warn("stop running app failed (continuing): " + ex.Message);
         }
+    }
+
+    /// <summary>Before a copy that did not quit is killed: its running.flag gets the exit reason "installer", so the next start of Shabpa
+    /// logs "ended by the installer" instead of "ended unexpectedly". Only the flag of that very process is touched. The flag is JSON
+    /// written by the app; the installer has no JSON library, so the one field is edited as text.</summary>
+    public static bool MarkRunFlag(string? dataDir, int pid)
+    {
+        try
+        {
+            var data = dataDir ?? Environment.GetEnvironmentVariable("SHABPA_DATA") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Shabpa");
+            var file = Path.Combine(data, "running.flag");
+            if (!File.Exists(file)) return false;
+            var text = File.ReadAllText(file);
+            if (!System.Text.RegularExpressions.Regex.IsMatch(text, "\"Pid\"\\s*:\\s*" + pid + "\\b")) return false;
+            const string field = "\"Exit\":\"installer\"";
+            const string existing = "\"Exit\"\\s*:\\s*\"[^\"]*\"";
+            var edited = System.Text.RegularExpressions.Regex.IsMatch(text, existing)
+                ? System.Text.RegularExpressions.Regex.Replace(text, existing, field)
+                : text.TrimEnd().TrimEnd('}') + "," + field + "}";
+            File.WriteAllText(file, edited);
+            return true;
+        }
+        catch { return false; }
     }
 
     /// <summary>Writes the files, the uninstall entry and the shortcuts. <paramref name="progress"/> gets 0..1.

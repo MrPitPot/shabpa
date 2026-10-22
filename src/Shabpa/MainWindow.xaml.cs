@@ -27,6 +27,7 @@ public partial class MainWindow : Window
 
     /// <summary>The name of the page that is open, for the stall log.</summary>
     public string CurrentPage => _current?.GetType().Name ?? "";
+    internal PageBase? CurrentPageObject => _current;
 
     private FrameworkElement? FirstBlock =>
         Host.Content is ContentControl { Content: Panel panel } ? panel.Children.OfType<FrameworkElement>().FirstOrDefault() : Host.Content as FrameworkElement;
@@ -76,7 +77,7 @@ public partial class MainWindow : Window
         // Nobody sees a hidden window, so it is not redrawn every second; showing it again refreshes everything.
         hub.OpenPage += Navigate;
         hub.Changed += OnHubChanged;
-        hub.Tick += s => { if (!Shown || _inTick) return; _inTick = true; try { StackGauge.Sample("hub.tick"); PageBase.SafeTick(_current, s); UpdateSide(); } finally { _inTick = false; } };
+        hub.Tick += s => { if (!Shown || _inTick) return; _inTick = true; var t0 = System.Diagnostics.Stopwatch.GetTimestamp(); try { StackGauge.Sample("hub.tick"); PageBase.SafeTick(_current, s); UpdateSide(); } finally { _inTick = false; PageTiming.Record("hub.tick (page + side)", System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds); } };
         hub.Second += () => { if (Shown) { PageBase.SafeSecond(_current); UpdateSide(); } };
         hub.BirthdayChanged += OnBirthdayChanged;
         hub.BirthdayGreet += () => ShowBirthdayGreeting();
@@ -313,7 +314,9 @@ public partial class MainWindow : Window
     private PageBase Page(string key)
     {
         if (_built.TryGetValue(key, out var page)) return page;
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
         page = _pages[key].make();
+        PageTiming.Record("build:" + page.GetType().Name, System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         page.HeaderChanged += () => { if (ReferenceEquals(page, _current)) UpdateHeader(); };
         _built[key] = page;
         return page;
@@ -354,6 +357,12 @@ public partial class MainWindow : Window
         _tour?.PageOpened(key);
         PlacePill(true);
         void Swap()
+        {
+            var swapStart = System.Diagnostics.Stopwatch.GetTimestamp();
+            try { SwapNow(); }
+            finally { PageTiming.Record("swap:" + page.GetType().Name, System.Diagnostics.Stopwatch.GetElapsedTime(swapStart).TotalMilliseconds); }
+        }
+        void SwapNow()
         {
             StackGauge.Sample("nav.swap");
             UpdateHeader();

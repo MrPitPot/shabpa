@@ -29,7 +29,16 @@ public static class RunMarker
         public int Visuals { get; set; }
         /// <summary>How many page or tab switches this run has made.</summary>
         public int Switches { get; set; }
+        /// <summary>Why the run ended when it was neither the normal exit nor a crash: <see cref="ExitSession"/> (Windows was shutting
+        /// down or the person logged off) or <see cref="ExitInstaller"/> (the installer stopped a copy that did not quit in time). Empty while running.</summary>
+        public string Exit { get; set; } = "";
     }
+
+    public const string ExitSession = "windows-session";
+    public const string ExitInstaller = "installer";
+
+    private static DateTime _exitAt;
+    internal static TimeSpan VetoGrace { get; set; } = TimeSpan.FromSeconds(30);
 
     private static string? _path;
     private static Mark _mark = new();
@@ -44,6 +53,16 @@ public static class RunMarker
         if (previous.Pid != 0 && previous.Pid != Environment.ProcessId && processAlive(previous.Pid)) return null;
         var last = previous.Heartbeat == default ? previous.Started : previous.Heartbeat;
         var page = previous.Page.Length > 0 ? previous.Page : "?";
+        if (previous.Exit.Length > 0)
+        {
+            var why = previous.Exit switch
+            {
+                ExitSession => "Windows shutting down or the person logging off",
+                ExitInstaller => "the installer, because it did not quit in time",
+                _ => previous.Exit,
+            };
+            return $"previous run was ended by {why}: version {previous.Version}, started {previous.Started:yyyy-MM-dd HH:mm:ss}, last seen {last:yyyy-MM-dd HH:mm:ss} on page {page} (not a crash)";
+        }
         return $"previous run ended unexpectedly: version {previous.Version}, started {previous.Started:yyyy-MM-dd HH:mm:ss}, "
                + $"last seen {last:yyyy-MM-dd HH:mm:ss} on page {page}{Navigation(previous)} (no clean exit; a crash, a freeze that was closed by force, or a power cut)";
     }
@@ -82,6 +101,8 @@ public static class RunMarker
             if (_path is null) return;
             try { _mark.Page = _page() ?? ""; } catch { /* the page name is optional */ }
             _mark.Heartbeat = DateTime.Now;
+            // still beating well after a "Windows is ending the session" note: another program vetoed it and the run goes on
+            if (_mark.Exit.Length > 0 && DateTime.Now - _exitAt > VetoGrace) _mark.Exit = "";
             Write();
         }
     }
@@ -129,7 +150,21 @@ public static class RunMarker
         }
     }
 
-    /// <summary>The clean exit: the flag goes away.</summary>
+    /// <summary>The run is being ended from outside in an orderly way (Windows shutting down, a logoff): the flag stays, with the reason, so
+    /// the next start does not report a crash. Written at once; the process may be gone a moment later.</summary>
+    public static void NoteExit(string reason)
+    {
+        lock (Gate)
+        {
+            if (_path is null) return;
+            _mark.Exit = reason;
+            _exitAt = DateTime.Now;
+            Write();
+        }
+    }
+
+    /// <summary>The clean exit: the flag goes away. It is only removed when it is still this run's own: a restart hands over to a new copy
+    /// that may already have written its flag while this one finishes closing.</summary>
     public static void End()
     {
         lock (Gate)
@@ -139,7 +174,18 @@ public static class RunMarker
             _pending?.Dispose();
             _pending = null;
             if (_path is null) return;
-            try { File.Delete(_path); } catch { /* best effort */ }
+            try
+            {
+                var mine = true;
+                try
+                {
+                    if (File.Exists(_path) && JsonSerializer.Deserialize<Mark>(File.ReadAllText(_path)) is { } onDisk && onDisk.Pid != 0)
+                        mine = onDisk.Pid == Environment.ProcessId;
+                }
+                catch { /* unreadable: it is ours to remove */ }
+                if (mine) File.Delete(_path);
+            }
+            catch { /* best effort */ }
             _path = null;
         }
     }

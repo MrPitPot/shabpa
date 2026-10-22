@@ -1065,9 +1065,9 @@ public sealed partial class Hub
         return changes;
     }
 
-    public void AcceptStartup()
+    public void AcceptStartup(List<StartupItem>? read = null)
     {
-        State.StartupBaseline = Health.Startup(new WindowsRegistryProbe(), Health.StartupFolders()).ToDictionary(i => i.Key, i => i.Command);
+        State.StartupBaseline = (read ?? Health.Startup(new WindowsRegistryProbe(), Health.StartupFolders())).ToDictionary(i => i.Key, i => i.Command);
         Store.Save();
     }
 

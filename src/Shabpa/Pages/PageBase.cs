@@ -37,6 +37,7 @@ public class PageBase : UserControl
     internal static bool Safe(PageBase? page, string step, Action work)
     {
         if (page is null) return true;
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
         try
         {
             work();
@@ -55,6 +56,10 @@ public class PageBase : UserControl
                 }
             }
             return false;
+        }
+        finally
+        {
+            PageTiming.Record(page.GetType().Name + "." + step, System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         }
     }
 

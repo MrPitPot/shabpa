@@ -367,26 +367,45 @@ public sealed class SecurityPage : PageBase
     {
         if (_busy) return;
         _busy = true;
-        // the startup comparison touches saved state, so it is done here on the UI thread (a few registry reads)
-        List<StartupChange> changes;
-        try { changes = Hub.CheckStartup(announce: false); }
-        catch (Exception ex)
-        {
-            Log.Write($"startup compare: {ex.Message}");
-            changes = [];
-        }
+        // Everything that reads the registry, the startup folders or the service manager runs on a worker (measured on the window thread
+        // it was tens of milliseconds on a quiet PC and seconds on one with a busy disk or antivirus); only the comparison with the saved
+        // baseline, which touches saved state, comes back to the window thread.
         _ = Task.Run(() =>
         {
-            var reg = new WindowsRegistryProbe();
-            var security = Health.Security(reg, Health.ServiceStateNow, Hub.Elevated, Health.AntivirusNow());
-            var startup = Health.Startup(reg, Health.StartupFolders());
-            Dispatcher.BeginInvoke(() =>
+            try
             {
-                _busy = false;
-                ShowSecurity(security);
-                ShowStartup(startup, changes);
-            });
+                var (security, startup) = (Reader ?? ReadNow)();
+                Dispatcher.BeginInvoke(() =>
+                {
+                    _busy = false;
+                    List<StartupChange> changes;
+                    try { changes = Hub.CheckStartup(announce: false, startup); }
+                    catch (Exception ex)
+                    {
+                        Log.Write($"startup compare: {ex.Message}");
+                        changes = [];
+                    }
+                    SafeShow(() => ShowSecurity(security));
+                    SafeShow(() => ShowStartup(startup, changes));
+                });
+            }
+            catch (Exception ex)
+            {
+                Log.Write($"security read: {ex.GetType().Name}: {ex.Message}");
+                try { Dispatcher.BeginInvoke(() => _busy = false); } catch { /* closing */ }
+            }
         });
+    }
+
+    private void SafeShow(Action show) => Safe(this, "Show", show);
+
+    /// <summary>Test aid: replaces the slow read (registry, services, startup folders) that runs on a worker.</summary>
+    internal static Func<(List<HealthCheck> security, List<StartupItem> startup)>? Reader { get; set; }
+
+    private (List<HealthCheck>, List<StartupItem>) ReadNow()
+    {
+        var reg = new WindowsRegistryProbe();
+        return (Health.Security(reg, Health.ServiceStateNow, Hub.Elevated, Health.AntivirusNow()), Health.Startup(reg, Health.StartupFolders()));
     }
 
     private List<HealthCheck> _lastSecurity = [];
@@ -423,7 +442,8 @@ public sealed class SecurityPage : PageBase
             });
             var accept = ListUi.Btn("chk", L.T("می‌شناسمشون؛ فهرست رو بپذیر", "I know them; accept this list"), "Btn", () =>
             {
-                Hub.AcceptStartup();
+                var shown = items; // the list on screen is the one that gets accepted: no second read on the window thread
+                Hub.AcceptStartup(shown);
                 Hub.State.StartupAnnounced.Clear();
                 Load();
             });

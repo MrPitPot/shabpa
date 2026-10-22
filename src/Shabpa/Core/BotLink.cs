@@ -49,6 +49,8 @@ public sealed class BotLink : IDisposable
     public const string BotUsername = "ShabPa_Bot";
 
     internal TimeSpan PollEvery { get; init; } = TimeSpan.FromSeconds(3);
+    /// <summary>How long to wait after the n-th failure in a row (replaceable so tests do not wait minutes).</summary>
+    internal Func<int, TimeSpan> RetryWait { get; init; } = BotBackoff.Wait;
 
     private readonly Func<Settings> _settings;
     private readonly Action _save;
@@ -235,9 +237,9 @@ public sealed class BotLink : IDisposable
             catch (Exception ex)
             {
                 failures++;
-                if (backoff.ShouldLog(ex.GetType().Name, DateTime.UtcNow)) Log.Write($"bot link: {ex.GetType().Name}: {ex.Message}");
-                if (failures >= 2) Set(BotState.Error, L.T("به سرور شب‌پا وصل نشد. اینترنت یا پروکسی رو چک کن؛ خودم دوباره تلاش می‌کنم.", "Could not reach the Shabpa server. Check the internet or proxy; I will keep retrying."));
-                try { await Task.Delay(BotBackoff.Wait(failures), ct); }
+                if (backoff.ShouldLog(BotBackoff.Kind(ex), DateTime.UtcNow)) Log.Write($"bot link: {ex.GetType().Name}: {ex.Message}");
+                if (failures >= 2 && State != BotState.Error) Set(BotState.Error, L.T("به سرور شب‌پا وصل نشد. اینترنت یا پروکسی رو چک کن؛ خودم دوباره تلاش می‌کنم.", "Could not reach the Shabpa server. Check the internet or proxy; I will keep retrying."));
+                try { await Task.Delay(RetryWait(failures), ct); }
                 catch (OperationCanceledException) { return; }
                 continue;
             }
@@ -415,19 +417,28 @@ public sealed class BotLink : IDisposable
 }
 
 /// <summary>How the link behaves while the server cannot be reached: waits 5, 10, 20 ... up to 300 seconds between tries, and writes
-/// one log line per kind of failure (again only after half an hour or when the kind changes), not one per try.</summary>
+/// one log line per kind of failure (again only after half an hour, each kind on its own clock), not one per try.</summary>
 internal sealed class BotBackoff
 {
     public static TimeSpan Wait(int failures) => TimeSpan.FromSeconds(Math.Min(300, 5 * Math.Pow(2, Math.Clamp(failures - 1, 0, 6))));
 
-    private string _kind = "";
-    private DateTime _at = DateTime.MinValue;
+    private readonly Dictionary<string, DateTime> _at = [];
 
+    /// <summary>The kind of a failure for logging: the exception type, and for a network failure what the socket said (a name that
+    /// cannot be resolved is a different story from a refused connection).</summary>
+    public static string Kind(Exception ex)
+    {
+        var inner = ex.InnerException;
+        while (inner is not null and not System.Net.Sockets.SocketException) inner = inner.InnerException;
+        return inner is System.Net.Sockets.SocketException socket ? $"{ex.GetType().Name}/{socket.SocketErrorCode}" : ex.GetType().Name;
+    }
+
+    /// <summary>True the first time a kind is seen and again after half an hour; each kind has its own clock, so two kinds that
+    /// take turns (a DNS failure, then a timeout, then the DNS failure again) do not log on every change.</summary>
     public bool ShouldLog(string kind, DateTime now)
     {
-        if (kind == _kind && now - _at < TimeSpan.FromMinutes(30)) return false;
-        _kind = kind;
-        _at = now;
+        if (_at.TryGetValue(kind, out var last) && now - last < TimeSpan.FromMinutes(30)) return false;
+        _at[kind] = now;
         return true;
     }
 }

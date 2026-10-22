@@ -486,6 +486,7 @@ public partial class App : Application
             else if (Value(e.Args, "--overlay-stable-test") is { } stableReport) _ = Pages.OverlayStableProbe.Run(stableReport);
 #endif
             else if (Value(e.Args, "--nav-stress") is { } navReport) _ = Pages.NavStressProbe.Run(_window, navReport, int.TryParse(Value(e.Args, "--rounds"), out var navRounds) ? navRounds : 1000);
+            else if (Value(e.Args, "--page-timing") is { } timingReport) _ = Pages.PageTimingProbe.Run(_window, timingReport, int.TryParse(Value(e.Args, "--seconds"), out var timingSeconds) ? timingSeconds : 6);
             else if (Value(e.Args, "--tick-test") is { } tickReport) _ = Pages.TickProbe.Run(_window, tickReport, shots, Save);
             else if (Value(e.Args, "--motion-audit") is { } auditReport) _ = Pages.MotionAudit.Run(_window, auditReport, shots, Save);
             else if (!args.Contains("--interactive")) _ = CaptureAll(shots, Value(e.Args, "--only"));
@@ -561,11 +562,23 @@ public partial class App : Application
 
     public void Quit()
     {
-        if (_window is { IsVisible: true }) _window.SavePlacement();
-        _tray?.Dispose();
-        _window?.Hide();
-        Hub.I.Shutdown();
-        try { _mutex?.ReleaseMutex(); } catch { /* not owned */ }
+        try
+        {
+            if (_window is { IsVisible: true }) _window.SavePlacement();
+            _tray?.Dispose();
+            _window?.Hide();
+            Hub.I.Shutdown();
+        }
+        catch (Exception ex)
+        {
+            // a step of the goodbye failed: the exit still happens, and it is still a clean one (not "previous run ended unexpectedly")
+            Log.Write($"quit: {ex.GetType().Name}: {ex.Message}");
+        }
+        finally
+        {
+            try { _mutex?.ReleaseMutex(); } catch { /* not owned */ }
+            Core.RunMarker.End();
+        }
         Shutdown();
     }
 
@@ -682,6 +695,12 @@ public partial class App : Application
     {
         Hub.I?.Store.Save();
         base.OnSessionEnding(e);
+        // Windows may kill the process right after this without ever calling OnExit: the run flag keeps the reason
+        if (!e.Cancel)
+        {
+            Core.RunMarker.NoteExit(Core.RunMarker.ExitSession);
+            Log.Write($"session ending ({e.ReasonSessionEnding})");
+        }
     }
 
     // ---- self-screenshots: lets the UI be reviewed without touching the real desktop ---------

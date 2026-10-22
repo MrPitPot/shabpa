@@ -101,16 +101,17 @@ public sealed class SpacePage : PageBase
         });
         other.Margin = new Thickness(0, 0, 8, 8);
         _quick.Children.Add(other);
-        foreach (var drive in DriveInfo.GetDrives().Where(d => d.DriveType == DriveType.Fixed && d.IsReady))
+        // IsReady asks the drive itself: a disk that has gone to sleep takes seconds to answer, so the list is read on a worker and the
+        // buttons are added when it is known (the folder shortcuts above are there at once)
+        _ = Task.Run(() =>
         {
-            var p = drive.RootDirectory.FullName;
-            var b = ListUi.Btn("mon", L.T("درایو", "Drive"), "Btn", () => Scan(p));
-            // the letter and its colon are their own left-to-right run, so the colon cannot jump to the wrong side in Persian
-            if (b.Content is StackPanel driveRow)
-                driveRow.Children.Add(new TextBlock { Text = drive.Name.TrimEnd((char)92), FlowDirection = FlowDirection.LeftToRight, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) });
-            b.Margin = new Thickness(0, 0, 8, 8);
-            _quick.Children.Add(b);
-        }
+            try
+            {
+                var drives = (DriveReader ?? ReadDrives)();
+                Dispatcher.BeginInvoke(() => AddDrives(drives));
+            }
+            catch (Exception ex) { Log.Write($"drive list: {ex.GetType().Name}: {ex.Message}"); }
+        });
         body.Children.Add(_quick);
         var row = new StackPanel { Orientation = Orientation.Horizontal };
         _cancel.Click += (_, _) => _cts?.Cancel();
@@ -165,6 +166,28 @@ public sealed class SpacePage : PageBase
         {
             _seeded = true;
             Show(GroupDemo.Space());
+        }
+    }
+
+    /// <summary>Test aid: replaces the drive list read.</summary>
+    internal static Func<List<(string root, string name)>>? DriveReader { get; set; }
+
+    private static List<(string root, string name)> ReadDrives() =>
+        DriveInfo.GetDrives().Where(d => d.DriveType == DriveType.Fixed && d.IsReady).Select(d => (root: d.RootDirectory.FullName, name: d.Name)).ToList();
+
+    internal int QuickButtons => _quick.Children.Count;
+
+    private void AddDrives(List<(string root, string name)> drives)
+    {
+        foreach (var (root, name) in drives)
+        {
+            var p = root;
+            var b = ListUi.Btn("mon", L.T("درایو", "Drive"), "Btn", () => Scan(p));
+            // the letter and its colon are their own left-to-right run, so the colon cannot jump to the wrong side in Persian
+            if (b.Content is StackPanel driveRow)
+                driveRow.Children.Add(new TextBlock { Text = name.TrimEnd((char)92), FlowDirection = FlowDirection.LeftToRight, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0) });
+            b.Margin = new Thickness(0, 0, 8, 8);
+            _quick.Children.Add(b);
         }
     }
 
