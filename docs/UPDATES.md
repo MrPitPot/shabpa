@@ -71,3 +71,17 @@ The Updates page shows the failure and three buttons: **Open download page** (sh
 `Core/UpdateManifest.cs` (parse, signature, key) | `Core/UpdateSources.cs` (source order, timeouts, selection)
 | `Core/UpdateDownload.cs` (resumable download, per-address fallback) | `Core/UpdateBundle.cs` (offline import)
 | `Core/Updater.cs` (state and installer launch) | tests: `UpdateMirrorTests.cs` (fake HTTP handler).
+
+
+## ArvanCloud bucket (automatic upload)
+
+The bucket `shabpa-dl` (Object Storage, Tehran) serves `https://shabpa-dl.s3.ir-central1.arvanstorage.ir/update/`.
+To upload without the panel, create an access key limited to this bucket (panel: Object Storage -> access management)
+and keep it only in your user environment, never in the repo or in chat:
+
+    setx ARVAN_ACCESS_KEY "<access key>"
+    setx ARVAN_SECRET_KEY "<secret key>"
+
+(open a new terminal afterwards). Then `tools/update/publish-mirrors.sh --go` also uploads the installer and the signed
+manifest to the bucket; each file is read back over public HTTPS and compared before the next one is sent.
+`python tools/update/s3put.py --selftest` checks the signing code against the AWS documentation example.

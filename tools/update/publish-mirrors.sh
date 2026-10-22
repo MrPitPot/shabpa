@@ -5,6 +5,7 @@
 # Targets (all optional, from the environment):
 #   SHABPA_SITE_DIR   checkout of the website repo; files go to $SHABPA_SITE_DIR/public/update/  (then run `npx wrangler deploy` there)
 #   SHABPA_DL_TARGET  scp/rsync destination of the domestic host, e.g. user@dl.example.ir:/var/www/dl/update/
+#   ARVAN_ACCESS_KEY + ARVAN_SECRET_KEY  uploads to the ArvanCloud bucket shabpa-dl/update/ (installer first, then manifest, each verified publicly)
 #   SHABPA_GH_TAG     GitHub release tag (e.g. v3.10.1): uploads latest.json and latest.json.sig with `gh release upload --clobber`
 # Always upload the installer BEFORE the manifest, so no mirror ever announces a file it does not have yet.
 set -euo pipefail
@@ -24,6 +25,11 @@ fi
 if [ -n "${SHABPA_DL_TARGET:-}" ]; then
   run scp "$dir/ShabpaSetup.exe" "$SHABPA_DL_TARGET"
   run scp "$dir/latest.json" "$dir/latest.json.sig" "$SHABPA_DL_TARGET"
+fi
+if [ -n "${ARVAN_ACCESS_KEY:-}" ] && [ -n "${ARVAN_SECRET_KEY:-}" ]; then
+  here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  run python -I "$here/s3put.py" update/ "$dir/ShabpaSetup.exe"
+  run python -I "$here/s3put.py" update/ "$dir/latest.json" "$dir/latest.json.sig"
 fi
 if [ -n "${SHABPA_GH_TAG:-}" ]; then
   run gh release upload "$SHABPA_GH_TAG" "$dir/latest.json" "$dir/latest.json.sig" --clobber
