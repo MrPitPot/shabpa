@@ -379,7 +379,11 @@ public sealed class OverlayPage : PageBase
             Hub.Settings.Overlay.Mode, v => Change(o => o.Mode = v, pop: true));
         Chips(_layoutChips, OverlayLayouts.All.Select(l => (l.key, L.T(l.fa, l.en))), Hub.Settings.Overlay.Layout, v => Change(o => o.Layout = v, pop: true));
         Chips(_lookChips, OverlayLook.All.Select(l => (l.Key, l.Name)), Hub.Settings.Overlay.Look, v => Change(o => o.Look = v, pop: true));
-        _anchorPicker.Picked += v => { UpdateAnchorName(); Change(o => o.Anchor = v, pop: true); };
+        _anchorPicker.Picked += v => { UpdateAnchorName(); Change(o => { (o.X, o.Y) = OverlayPlacement.OffsetsForNewAnchor(o.Anchor, o.X, o.Y); o.Anchor = v; }, pop: true);
+            _loading = true; // the margin sliders follow the reset margins
+            (_offsetX.Value, _offsetY.Value) = (Hub.Settings.Overlay.X, Hub.Settings.Overlay.Y);
+            _loading = false;
+        };
 
         scale.slider.ValueChanged += (_, _) => Change(o => o.Scale = scale.slider.Value);
         opacity.slider.ValueChanged += (_, _) => Change(o => o.BackOpacity = opacity.slider.Value);
@@ -627,8 +631,8 @@ public sealed class OverlayPage : PageBase
         var metrics = all.OrderBy(m => o.OrderOf(GroupOf(m))).Where(m => o.PlaceOf(GroupOf(m)).Anchor == "main").ToList();
         var element = OverlayRenderer.Build(o, metrics, _fakeHistory);
         var host = new Grid { Margin = new Thickness(14) };
-        element.HorizontalAlignment = o.Anchor switch { "tr" or "br" => HorizontalAlignment.Right, "tc" or "bc" => HorizontalAlignment.Center, _ => HorizontalAlignment.Left };
-        element.VerticalAlignment = o.Anchor is "bl" or "br" or "bc" ? VerticalAlignment.Bottom : VerticalAlignment.Top;
+        element.HorizontalAlignment = OverlayZone.SideOf(o.Anchor) switch { ZoneSide.Right => HorizontalAlignment.Right, ZoneSide.Centre => HorizontalAlignment.Center, _ => HorizontalAlignment.Left };
+        element.VerticalAlignment = OverlayZone.IsBottom(o.Anchor) ? VerticalAlignment.Bottom : VerticalAlignment.Top;
         host.Children.Add(element);
         _previewHost.Child = host;
         if (pop) Motion.Pop(element);

@@ -19,18 +19,46 @@ public static class OverlayPlacement
         return box with { X = x, Y = y };
     }
 
+    /// <summary>The usual distance from a screen edge, in 96-dpi pixels.</summary>
+    public const int DefaultOffset = 24;
+
+    /// <summary>A margin from an edge that can never carry the box past the middle of the free space, so a left zone stays left and a right
+    /// zone stays right whatever stale number is stored (for example the screen position of an earlier free drag).</summary>
+    public static int SafeOffset(double offset, int free)
+    {
+        if (double.IsNaN(offset) || offset < 0) return 0;
+        var most = Math.Max(0, free) / 2;
+        return (int)Math.Min(Math.Round(offset), most);
+    }
+
+    /// <summary>The margins to keep when the user picks another zone: a free spot stores screen coordinates in X/Y, which mean nothing
+    /// as margins from a corner, so they go back to the usual margin.</summary>
+    public static (double x, double y) OffsetsForNewAnchor(string oldAnchor, double x, double y, double largest = 600) =>
+        oldAnchor == "free" || double.IsNaN(x) || double.IsNaN(y) || x < 0 || y < 0 || x > largest || y > largest ? (DefaultOffset, DefaultOffset) : (x, y);
+
     /// <summary>The top-left of a box of the given size at a screen zone ("tl", "tc", "tr", "bl", "bc", "br"), <paramref name="offX"/> from the side
-    /// and <paramref name="offY"/> from the top or bottom.</summary>
+    /// and <paramref name="offY"/> from the top or bottom. Left and right are screen directions in pixels: nothing here knows about
+    /// the language or the flow direction of the app.</summary>
     public static (int x, int y) AtZone(string zone, int w, int h, PxBox area, int offX, int offY)
     {
-        var x = zone switch
+        offX = SafeOffset(offX, area.W - w);
+        var x = OverlayZone.SideOf(zone) switch
         {
-            "tr" or "br" => area.Right - w - offX,
-            "tc" or "bc" => area.X + (area.W - w) / 2,
+            ZoneSide.Right => area.Right - w - offX,
+            ZoneSide.Centre => area.X + (area.W - w) / 2,
             _ => area.X + offX,
         };
-        var y = zone is "bl" or "br" or "bc" ? area.Bottom - h - offY : area.Y + offY;
+        var y = OverlayZone.IsBottom(zone) ? area.Bottom - h - offY : area.Y + offY;
         return (x, y);
+    }
+
+    /// <summary>The zone a box visibly sits in on its monitor: by its centre, in thirds across and halves down.</summary>
+    public static string ZoneAt(PxBox box, PxBox area)
+    {
+        var cx = box.X + box.W / 2.0 - area.X;
+        var cy = box.Y + box.H / 2.0 - area.Y;
+        var side = cx < area.W / 3.0 ? ZoneSide.Left : cx < area.W * 2 / 3.0 ? ZoneSide.Centre : ZoneSide.Right;
+        return OverlayZone.Key(side, cy >= area.H / 2.0);
     }
 
     /// <summary>The result of letting the overlay go: where it ends up, and the zone it snapped into if it landed in a corner or on the

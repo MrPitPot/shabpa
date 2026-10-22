@@ -128,21 +128,48 @@ public static class OverlayRenderer
         return block;
     }
 
-    /// <summary>The number at the full size and its unit (%, °C, MHz...) a little smaller next to it, as MSI Afterburner does.</summary>
+    /// <summary>The number at the full size and its unit (%, °C, MHz...) a little smaller next to it, as MSI Afterburner does.
+    /// It sits in a slot of fixed width (right-aligned), so a changing value never changes the size of the overlay.</summary>
     private static TextBlock Reading(MetricView m, double size, Color color, FontFamily font, bool shadow)
     {
         var block = Text(m.HasValue ? m.Value : "—", size, color, font, FontWeights.Bold, shadow);
-        if (!m.HasValue) return block;
-        var unit = UnitText(m);
-        if (unit.Length > 0) block.Inlines.Add(new System.Windows.Documents.Run(unit) { FontSize = Math.Round(size * UnitScale, 1), FontWeight = FontWeights.SemiBold });
+        if (m.HasValue)
+        {
+            var unit = UnitText(m);
+            if (unit.Length > 0) block.Inlines.Add(new System.Windows.Documents.Run(unit) { FontSize = Math.Round(size * UnitScale, 1), FontWeight = FontWeights.SemiBold });
+        }
+        block.Width = SlotWidth(m, size, font);
+        block.TextAlignment = TextAlignment.Right;
+        block.TextTrimming = TextTrimming.CharacterEllipsis;
+        block.TextWrapping = TextWrapping.NoWrap;
         return block;
     }
+
+    private static readonly Dictionary<(string key, string unit, double size), double> SlotCache = [];
+
+    /// <summary>The width of the widest text this reading can show: its digit pattern in the widest digit, plus its widest unit,
+    /// and never less than the words that stand in for a missing value.</summary>
+    internal static double SlotWidth(MetricView m, double size, FontFamily font)
+    {
+        var unitRaw = OverlaySlots.UnitPattern(m.Key, OverlayMetrics.Find(m.Key)?.Unit ?? m.Unit);
+        if (SlotCache.TryGetValue((m.Key, unitRaw, size), out var known)) return known;
+        var digit = WidestDigit(font, FontWeights.Bold, size);
+        var number = OverlaySlots.NumberPattern(m.Key).Replace(OverlaySlots.Digit, digit);
+        var unit = UnitText(unitRaw);
+        var width = Measure(number, font, FontWeights.Bold, size) + (unit.Length > 0 ? Measure(unit, font, FontWeights.SemiBold, Math.Round(size * UnitScale, 1)) : 0);
+        width = Math.Max(width, Math.Max(Measure("ADMIN", font, FontWeights.Bold, size), Measure("—", font, FontWeights.Bold, size)));
+        return SlotCache[(m.Key, unitRaw, size)] = Math.Ceiling(width) + 1;
+    }
+
+    private static char WidestDigit(FontFamily font, FontWeight weight, double size) =>
+        "0123456789".MaxBy(d => Measure(d.ToString(), font, weight, size));
 
     internal const double UnitScale = 0.72;
 
     /// <summary>What follows the number: "%" and "°C" stick to it, other units are set apart by a space.</summary>
-    internal static string UnitText(MetricView m) =>
-        m.Unit.Length == 0 ? "" : m.Unit is "%" or "°C" ? m.Unit : " " + m.Unit;
+    internal static string UnitText(MetricView m) => UnitText(m.Unit);
+
+    internal static string UnitText(string unit) => unit.Length == 0 ? "" : unit is "%" or "°C" ? unit : " " + unit;
 
     private static string Display(MetricView m) => m.Unit.Length > 0 && m.HasValue && !m.Unit.StartsWith('/') ? $"{m.Value}{(m.Unit is "%" or "°C" ? m.Unit : " " + m.Unit)}" : m.HasValue ? $"{m.Value} {m.Unit}".Trim() : "—";
 
@@ -275,7 +302,8 @@ public static class OverlayRenderer
 
     private static FrameworkElement Rings(OverlaySettings o, Skin c, FontFamily font, IReadOnlyList<MetricView> metrics)
     {
-        var rings = metrics.Where(m => m.Fraction is not null && m.Key is "gpu" or "cpu" or "ram" or "vram" or "gputemp" or "hotspot" or "fps" or "gpufan").ToList();
+        // chosen by key, never by whether a value is there right now: a reading that drops out for a moment must not change the layout
+        var rings = metrics.Where(m => m.Key is "gpu" or "cpu" or "ram" or "vram" or "gputemp" or "hotspot" or "fps" or "gpufan").ToList();
         var rest = metrics.Except(rings).ToList();
         var root = new StackPanel();
         // many gauges wrap into balanced rows (7 become 4 + 3) instead of one endless strip
@@ -375,7 +403,12 @@ public static class OverlayRenderer
         var root = new StackPanel { MinWidth = 190 };
         var fps = metrics.FirstOrDefault(m => m.Key == "fps");
         if (fps is not null)
-            root.Children.Add(Text($"{Display(fps)} FPS".Replace(" FPS FPS", " FPS"), 25, ValueColor(o, c, fps), font, FontWeights.Bold, o.Shadow));
+            {
+                var line = Text($"{Display(fps)} FPS".Replace(" FPS FPS", " FPS"), 25, ValueColor(o, c, fps), font, FontWeights.Bold, o.Shadow);
+                line.Width = Math.Max(Measure(OverlaySlots.NumberPattern("fps").Replace(OverlaySlots.Digit, WidestDigit(font, FontWeights.Bold, 25)) + " FPS", font, FontWeights.Bold, 25), Measure("ADMIN FPS", font, FontWeights.Bold, 25)) + 2;
+                line.TextTrimming = TextTrimming.CharacterEllipsis;
+                root.Children.Add(line);
+            }
 
         var samples = history ?? [];
         var values = samples.Select(s => s.Fps).TakeLast(60).ToList();
@@ -400,6 +433,8 @@ public sealed class OverlayWindow : Window
 {
     private const int GwlExStyle = -20;
     private const int WsExTransparent = 0x20, WsExToolWindow = 0x80, WsExNoActivate = 0x08000000, WsExLayered = 0x80000;
+    /// <summary>The overlay is a picture of the screen: it is never mirrored, so left is left even on a right-to-left Windows.</summary>
+    private const int WsExLayoutRtl = 0x400000, WsExNoInheritLayout = 0x100000;
 
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
     private static extern IntPtr GetWindowLongPtr(IntPtr hwnd, int index);
@@ -415,6 +450,7 @@ public sealed class OverlayWindow : Window
 
     private readonly Hub _hub;
     private readonly ContentControl _host = new();
+    private readonly OverlaySizeLock _size = new();
     private IntPtr _handle;
     private bool _moving;
     private bool _userHidden;
@@ -435,7 +471,7 @@ public sealed class OverlayWindow : Window
         ShowActivated = false;
         Topmost = true;
         Focusable = false;
-        SizeToContent = SizeToContent.WidthAndHeight;
+        OverlaySizeLock.Prepare(this);
         Content = _host;
         SnapsToDevicePixels = true;
         Title = "Shabpa overlay";
@@ -452,7 +488,7 @@ public sealed class OverlayWindow : Window
         base.OnSourceInitialized(e);
         _handle = new WindowInteropHelper(this).Handle;
         var style = GetWindowLongPtr(_handle, GwlExStyle).ToInt64();
-        style |= WsExToolWindow | WsExNoActivate | WsExLayered | WsExTransparent;
+        style = (style | WsExToolWindow | WsExNoActivate | WsExLayered | WsExTransparent | WsExNoInheritLayout) & ~WsExLayoutRtl;
         SetWindowLongPtr(_handle, GwlExStyle, (IntPtr)style);
         HwndSource.FromHwnd(_handle)?.AddHook(WndProc);
         RegisterHotkeys();
@@ -506,6 +542,9 @@ public sealed class OverlayWindow : Window
     /// <summary>Show or hide according to the mode and what is running; also (re)applies settings.</summary>
     public void Evaluate()
     {
+#if DEBUG || SHABPA_TESTHOOKS
+        if (ProbeOnly) return;
+#endif
         var o = _hub.Settings.Overlay;
         RegisterHotkeys();
         var want = !_userHidden && (o.Mode == OverlayMode.Always || (o.Mode == OverlayMode.InGame && _hub.Snapshot.GameRunning) || _moving);
@@ -587,6 +626,9 @@ public sealed class OverlayWindow : Window
 
     private void Render(TelemetrySample sample)
     {
+#if DEBUG || SHABPA_TESTHOOKS
+        if (ProbeOnly) return;
+#endif
         if (!IsVisible) return;
         _game = sample.InGame ? sample.Game : "";
         var o = _hub.Settings.Overlay.WithProfile(_game);
@@ -600,7 +642,7 @@ public sealed class OverlayWindow : Window
         string GroupOf(MetricView m) => OverlayMetrics.Find(m.Key)?.Group ?? "general";
         metrics = [.. metrics.OrderBy(m => o.OrderOf(GroupOf(m)))]; // stable: readings keep their order inside a group
         var together = metrics.Where(m => o.PlaceOf(GroupOf(m)).Anchor == "main").ToList();
-        _host.Content = together.Count > 0 ? OverlayRenderer.Build(o, together, history) : null;
+        _size.Apply(this, _host, together.Count > 0 ? OverlayRenderer.Build(o, together, history) : null, OverlaySlots.Signature(o, together.Select(m => m.Key), L.En));
 
         // Groups placed on their own each get a small window of their own.
         var apart = metrics.Except(together).GroupBy(GroupOf).ToList();
@@ -636,6 +678,9 @@ public sealed class OverlayWindow : Window
         var screen = foreground != IntPtr.Zero ? WF.Screen.FromHandle(foreground) : WF.Screen.PrimaryScreen ?? WF.Screen.AllScreens[0];
         var area = OverlayWin.Box(screen.Bounds);
         var scale = OverlayWin.ScaleOf(screen);
+#if DEBUG || SHABPA_TESTHOOKS
+        if (ProbeArea is { } fake) (area, scale) = (fake, ProbeScale);
+#endif
         var gap = (int)Math.Round(8 * scale);
         var next = new Dictionary<string, int>();
         var placed = new List<PxBox>();
@@ -655,7 +700,7 @@ public sealed class OverlayWindow : Window
             }
             else
             {
-                var edge = next.TryGetValue(anchor, out var used) ? used : (int)Math.Round(offsetY);
+                var edge = next.TryGetValue(anchor, out var used) ? used : OverlayPlacement.SafeOffset(offsetY, area.H - height);
                 (left, top) = OverlayPlacement.AtZone(anchor, width, height, area, (int)Math.Round(offsetX), edge);
                 var bottom = anchor is "bl" or "br" or "bc";
                 // never sit on top of a block that is already placed (for example the main block, which may have been
@@ -738,6 +783,20 @@ public sealed class OverlayWindow : Window
 
     public bool MoveMode => _moving;
 
+#if DEBUG || SHABPA_TESTHOOKS
+    /// <summary>Test aid: pretend the monitor is this off-screen rectangle (scale <see cref="ProbeScale"/>), so placement can be watched without a window on screen.</summary>
+    internal bool ProbeOnly { get; set; }
+    internal PxBox? ProbeArea { get; set; }
+    internal double ProbeScale { get; set; } = 1;
+
+    /// <summary>Test aid: draws the given readings exactly like a sensor tick would, and places the window.</summary>
+    internal void ProbeRender(OverlaySettings o, IReadOnlyList<MetricView> metrics)
+    {
+        _size.Apply(this, _host, OverlayRenderer.Build(o, metrics, []), OverlaySlots.Signature(o, metrics.Select(m => m.Key), L.En));
+        Place();
+    }
+#endif
+
     protected override void OnClosed(EventArgs e)
     {
         if (_registered && _handle != IntPtr.Zero)
@@ -757,6 +816,8 @@ public sealed class OverlayBlockWindow : Window
 {
     private const int GwlExStyle = -20;
     private const int WsExTransparent = 0x20, WsExToolWindow = 0x80, WsExNoActivate = 0x08000000, WsExLayered = 0x80000;
+    /// <summary>The overlay is a picture of the screen: it is never mirrored, so left is left even on a right-to-left Windows.</summary>
+    private const int WsExLayoutRtl = 0x400000, WsExNoInheritLayout = 0x100000;
 
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
     private static extern IntPtr GetWindowLongPtr(IntPtr hwnd, int index);
@@ -765,6 +826,7 @@ public sealed class OverlayBlockWindow : Window
 
     private readonly string _group;
     private readonly ContentControl _host = new();
+    private readonly OverlaySizeLock _size = new();
     private IntPtr _handle;
     private bool _moving;
 
@@ -779,7 +841,7 @@ public sealed class OverlayBlockWindow : Window
         ShowActivated = false;
         Topmost = true;
         Focusable = false;
-        SizeToContent = SizeToContent.WidthAndHeight;
+        OverlaySizeLock.Prepare(this);
         Content = _host;
         SnapsToDevicePixels = true;
         Title = "Shabpa overlay block";
@@ -797,12 +859,12 @@ public sealed class OverlayBlockWindow : Window
         base.OnSourceInitialized(e);
         _handle = new WindowInteropHelper(this).Handle;
         var style = GetWindowLongPtr(_handle, GwlExStyle).ToInt64();
-        style |= (long)(uint)(WsExToolWindow | WsExNoActivate | WsExLayered | (_moving ? 0 : WsExTransparent));
+        style = (style | (long)(uint)(WsExToolWindow | WsExNoActivate | WsExLayered | WsExNoInheritLayout | (_moving ? 0 : WsExTransparent))) & ~(long)WsExLayoutRtl;
         SetWindowLongPtr(_handle, GwlExStyle, (IntPtr)style);
     }
 
     public void Update(OverlaySettings settings, IReadOnlyList<MetricView> metrics, IReadOnlyList<TelemetrySample> history) =>
-        _host.Content = OverlayRenderer.Build(settings, metrics, history);
+        _size.Apply(this, _host, OverlayRenderer.Build(settings, metrics, history), OverlaySlots.Signature(settings, metrics.Select(m => m.Key), L.En));
 
     public void SetMoveMode(bool on)
     {
@@ -812,6 +874,40 @@ public sealed class OverlayBlockWindow : Window
         style = on ? style & ~WsExTransparent : style | WsExTransparent;
         SetWindowLongPtr(_handle, GwlExStyle, (IntPtr)style);
         Cursor = on ? Cursors.SizeAll : Cursors.Arrow;
+    }
+}
+
+/// <summary>Keeps an overlay window at one size. The size is measured once per <see cref="OverlaySlots.Signature"/> (layout, scale, labels,
+/// the list of readings) and then fixed: a new reading only replaces the content, never the window. No SizeToContent runs per tick.</summary>
+internal sealed class OverlaySizeLock
+{
+    private string? _signature;
+
+    /// <summary>Before the first content arrives: manual sizing, a 1 px window, never mirrored.</summary>
+    public static void Prepare(Window window)
+    {
+        window.FlowDirection = FlowDirection.LeftToRight;
+        window.SizeToContent = SizeToContent.Manual;
+        window.Width = 1;
+        window.Height = 1;
+    }
+
+    /// <summary>Shows <paramref name="content"/>; measures and fixes the window size only when <paramref name="signature"/> is new.
+    /// Returns true when the size was (re)computed.</summary>
+    public bool Apply(Window window, ContentControl host, FrameworkElement? content, string signature)
+    {
+        host.Content = content;
+        if (signature == _signature) return false;
+        _signature = signature;
+        var (w, h) = (1.0, 1.0);
+        if (content is not null)
+        {
+            content.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            (w, h) = (Math.Max(1, Math.Ceiling(content.DesiredSize.Width)), Math.Max(1, Math.Ceiling(content.DesiredSize.Height)));
+        }
+        window.Width = w;
+        window.Height = h;
+        return true;
     }
 }
 
