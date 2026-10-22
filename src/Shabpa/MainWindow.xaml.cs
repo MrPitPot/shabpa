@@ -49,7 +49,12 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         FlowDirection = Ui.Flow;
-        if (Application.Current is { } app) MainWindowClaim.Adopt(app, this); // the lookups through Application.MainWindow must find this window
+        if (Application.Current is { } app)
+        {
+            // the night-dim cover is a window too and opens before this one: WPF would keep it as the "main window"
+            if (app.MainWindow is { } first && !ReferenceEquals(first, this)) Log.Write("main window: " + first.GetType().Name + " \"" + first.Title + "\" opened first; this window takes its place");
+            MainWindowClaim.Adopt(app, this);
+        }
         InitAssistantDock();
         _pages = new Dictionary<string, (RadioButton, Func<PageBase>)>
         {

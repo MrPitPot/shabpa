@@ -67,6 +67,20 @@ public static class BirthdayProbe
             Say($"preview click: greetingOpen={window.BirthdayOpen} applicationMainWindow={Application.Current.MainWindow?.GetType().Name} isSameAsWindow={ReferenceEquals(Application.Current.MainWindow, window)}");
             if (window.BirthdayOpen) save(window.CaptureRoot, Path.Combine(folder, $"preview-click-{tag}.png"));
             window.CloseBirthdayGreeting();
+            // the same click with motion ON, as in a real run: the card must really become visible
+            hub.Settings.Animations = true;
+            Say($"motion enabled for the animated preview: {Motion.Enabled}");
+            previewButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            foreach (var ms in new[] { 120, 400, 900 })
+            {
+                await Task.Delay(ms == 120 ? 120 : ms == 400 ? 280 : 500);
+                var shown = window.BirthdayCard;
+                Say($"animated preview at {ms} ms: open={window.BirthdayOpen} cardOpacity={shown?.Opacity:0.00} hostOpacity={(shown?.Parent as UIElement)?.Opacity:0.00} cardVisible={shown?.IsVisible} size={shown?.ActualWidth:0}x{shown?.ActualHeight:0}");
+                if (ms == 900) save(window.CaptureRoot, Path.Combine(folder, $"preview-animated-{tag}.png"));
+            }
+            window.CloseBirthdayGreeting();
+            hub.Settings.Animations = false;
+
 
             // the day arrives: motion on, so the circle reveal and the shower really run
             hub.Settings.Animations = true;
