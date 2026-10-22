@@ -106,6 +106,7 @@ public class UiWatchdogTests
         UiWatchdog.StackReader = id => { askedFor = id; return ["Fake.Page.Build", "Fake.Driver.Call"]; };
         try
         {
+            UiWatchdog.Rearm();
             var watchdog = new Thread(() => UiWatchdog.Run(dispatcher!, () => "TestPage", uiId, 20)) { IsBackground = true };
             watchdog.Start();
             Thread.Sleep(300); // a few answered pings first

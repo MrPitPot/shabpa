@@ -108,6 +108,16 @@ public static class RunMarker
         }
     }
 
+    /// <summary>The last navigation step and how long ago it happened, for the stall evidence line ("" when nothing was noted).</summary>
+    public static string LastStep()
+    {
+        lock (Gate)
+        {
+            if (_mark.Action.Length == 0) return "";
+            return $"{_mark.Action} {(int)(DateTime.Now - _mark.ActionAt).TotalSeconds} s ago";
+        }
+    }
+
     /// <summary>The size of the visual tree after the last switch (measured once the switch has settled).</summary>
     public static void NoteTree(int depth, int visuals)
     {

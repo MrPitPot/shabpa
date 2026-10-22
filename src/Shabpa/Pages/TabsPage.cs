@@ -156,9 +156,9 @@ public abstract class TabsPage : PageBase
         {
             if (ticket != _showTicket || !ReferenceEquals(_current, page)) return;   // another tab was chosen meanwhile
             StackGauge.Sample("tabs.show");
-            page.Refresh();
-            page.OnTick(Hub.Snapshot);
-            page.OnSecond();
+            SafeRefresh(page);
+            SafeTick(page, Hub.Snapshot);
+            SafeSecond(page);
             // a tab with several blocks: they rise one after another; otherwise the whole page does
             if (page.Content is Panel { Children.Count: > 1 }) Motion.Enter("", page);
             else Motion.Switch(page);
@@ -167,9 +167,9 @@ public abstract class TabsPage : PageBase
 
     private int _showTicket;
 
-    public override void Refresh() => Current.Refresh();
-    public override void OnTick(SensorSnapshot s) => Current.OnTick(s);
-    public override void OnSecond() => Current.OnSecond();
+    public override void Refresh() => SafeRefresh(Current);
+    public override void OnTick(SensorSnapshot s) => SafeTick(Current, s);
+    public override void OnSecond() => SafeSecond(Current);
 }
 
 /// <summary>«پایداری پینگ»: live traffic and limits, plus the usage history.</summary>

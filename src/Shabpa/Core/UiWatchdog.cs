@@ -77,7 +77,7 @@ public static class UiWatchdog
         if (_thread is not null) return;
         _stop = false;
         var uiThread = dispatcher.Thread.ManagedThreadId;
-        _thread = new Thread(() => Run(dispatcher, page, uiThread, 500)) { IsBackground = true, Name = "ui-watchdog", Priority = ThreadPriority.BelowNormal };
+        _thread = new Thread(() => Run(dispatcher, page, uiThread, 500)) { IsBackground = true, Name = "ui-watchdog", Priority = ThreadPriority.AboveNormal };
         _thread.Start();
     }
 
@@ -87,8 +87,13 @@ public static class UiWatchdog
         var lastLogged = DateTime.MinValue;
         while (!_stop)
         {
+            var slept = System.Diagnostics.Stopwatch.StartNew();
             Thread.Sleep(pauseMs);
+            // a watchdog that wakes up seconds late was paused itself: the whole process (a garbage collection, memory paging, the
+            // machine) and not only the window thread
+            var lateMs = Math.Max(0, slept.ElapsedMilliseconds - pauseMs);
             var sent = Environment.TickCount64;
+            var before = StallEvidence.Take();
             using var answered = new ManualResetEventSlim();
             long at = 0;
             try
@@ -121,12 +126,21 @@ public static class UiWatchdog
                 }
             }
             var delay = at - sent;
-            if (tracker.Announced)
+            var announced = tracker.Announced;
+            if (announced)
                 Log.Write($"ui stall: over after {delay} ms (page: {Where(page)})");
             else if (delay >= 700 && DateTime.Now - lastLogged > TimeSpan.FromSeconds(3))
             {
                 lastLogged = DateTime.Now;
                 Log.Write($"ui stall: {delay} ms (page: {Where(page)})");
+            }
+            if (delay >= 700 || lateMs >= 700)
+            {
+                // what can be said without a stack: garbage collections, CPU use, memory load, the last page step, and whether the
+                // watchdog itself was paused (then no stack could have been taken: the stall was over before it could look)
+                Log.Write("ui stall evidence: " + StallEvidence.Describe(before, StallEvidence.Take(), delay, lateMs, RunMarker.LastStep()));
+                if (delay >= StallTracker.StackAfterMs && !announced)
+                    Log.Write($"ui stall stack unavailable: the stall ended before the watchdog could look at it (it woke {lateMs} ms late itself)");
             }
             tracker.Reset();
         }
@@ -150,12 +164,17 @@ public static class UiWatchdog
             try
             {
                 var lines = reader(uiThread);
+                if (lines.Count == 1 && lines[0].StartsWith('('))
+                {
+                    Log.Write($"ui stall stack unavailable: {lines[0].Trim('(', ')')}");
+                    return;
+                }
                 Log.Write($"ui stall stack (window thread, {silentMs} ms into the stall, top {lines.Count}):" + Environment.NewLine
                           + string.Join(Environment.NewLine, lines.Select(l => "    at " + l)));
             }
             catch (Exception ex)
             {
-                Log.Write($"ui stall stack failed: {ex.GetType().Name}");
+                Log.Write($"ui stall stack unavailable: {ex.GetType().Name}: {(ex.Message.Length > 120 ? ex.Message[..120] : ex.Message)}");
             }
         }) { IsBackground = true, Name = "ui-stall-stack" };
         thread.Start();
@@ -164,4 +183,7 @@ public static class UiWatchdog
     internal static void WriteStackForTest(int uiThread, long silentMs) => WriteStack(uiThread, silentMs);
 
     public static void Stop() => _stop = true;
+
+    /// <summary>Test aid: lets <see cref="Run"/> be started again on a thread of the test after an earlier <see cref="Stop"/>.</summary>
+    internal static void Rearm() => _stop = false;
 }

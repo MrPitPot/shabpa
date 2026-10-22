@@ -498,6 +498,7 @@ public sealed class SecurityPage : PageBase
             // the tick is a drawn mark (never a text glyph, which the bidi algorithm may reorder), always left-short / right-long
             if (needsAdmin && admin && pill.Child is TextBlock pillText)
             {
+                pill.Child = null; // pillText is still the pill's child: it must be let go before it can join the new panel
                 pill.Child = new StackPanel { Orientation = Orientation.Horizontal, Children = { new Icon("chk", 12, Res("Green"), 2.2) { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 5, 0) }, pillText } };
             }
             _permissions.Children.Add(_permMemo.Item(en + admin, ListUi.Item(needsAdmin ? "lock" : "chk", needsAdmin ? (admin ? "HueB" : "HueC") : "HueA", L.T(fa, en), L.T(whyFa, whyEn), pill, first)));

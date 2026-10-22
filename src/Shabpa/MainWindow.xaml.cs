@@ -76,8 +76,8 @@ public partial class MainWindow : Window
         // Nobody sees a hidden window, so it is not redrawn every second; showing it again refreshes everything.
         hub.OpenPage += Navigate;
         hub.Changed += OnHubChanged;
-        hub.Tick += s => { if (!Shown || _inTick) return; _inTick = true; try { StackGauge.Sample("hub.tick"); _current?.OnTick(s); UpdateSide(); } finally { _inTick = false; } };
-        hub.Second += () => { if (Shown) { _current?.OnSecond(); UpdateSide(); } };
+        hub.Tick += s => { if (!Shown || _inTick) return; _inTick = true; try { StackGauge.Sample("hub.tick"); PageBase.SafeTick(_current, s); UpdateSide(); } finally { _inTick = false; } };
+        hub.Second += () => { if (Shown) { PageBase.SafeSecond(_current); UpdateSide(); } };
         hub.BirthdayChanged += OnBirthdayChanged;
         hub.BirthdayGreet += () => ShowBirthdayGreeting();
         UpdateBirthdayDecor();
@@ -278,7 +278,7 @@ public partial class MainWindow : Window
             {
                 _refreshAgain = false;
                 StackGauge.Sample("hub.changed");
-                _current?.Refresh();
+                PageBase.SafeRefresh(_current);
                 UpdateSide();
                 if (!_refreshAgain) break;
             }
@@ -299,8 +299,8 @@ public partial class MainWindow : Window
             _release.Stop();
             _releases = 0;
             _release.Interval = ReleaseFirst;
-            _current?.Refresh();
-            if (_current is not null) _current.OnTick(Hub.I.Snapshot);
+            PageBase.SafeRefresh(_current);
+            PageBase.SafeTick(_current, Hub.I.Snapshot);
             UpdateSide();
         }
         else if (!_release.IsEnabled) _release.Start();
@@ -359,9 +359,9 @@ public partial class MainWindow : Window
             UpdateHeader();
             Host.Content = page;
             Scroller.ScrollToTop();
-            page.Refresh();
-            page.OnTick(Hub.I.Snapshot);
-            page.OnSecond();
+            PageBase.SafeRefresh(page);
+            PageBase.SafeTick(page, Hub.I.Snapshot);
+            PageBase.SafeSecond(page);
             Motion.Header(HeaderGrid);
             Motion.Enter(key, page, 1);
             _life?.PageChanged();

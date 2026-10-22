@@ -32,7 +32,7 @@ public partial class MainWindow
     private void OnBirthdayChanged()
     {
         ApplyBirthdayLook();
-        if (Shown) _current?.Refresh(); // the home page changes its greeting line
+        if (Shown) Pages.PageBase.SafeRefresh(_current); // the home page changes its greeting line
     }
 
     private void UpdateBirthdayDecor()

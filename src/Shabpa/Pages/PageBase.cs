@@ -30,6 +30,38 @@ public class PageBase : UserControl
     public virtual void OnTick(SensorSnapshot s) { }
     public virtual void OnSecond() { }
 
+    private static readonly Dictionary<string, DateTime> LoggedAt = [];
+
+    /// <summary>Runs one of a page's update steps (Refresh, OnTick, OnSecond) so that a bad rebuild is logged (once a minute per page and
+    /// step) and swallowed instead of reaching the dispatcher and, from there, the window.</summary>
+    internal static bool Safe(PageBase? page, string step, Action work)
+    {
+        if (page is null) return true;
+        try
+        {
+            work();
+            return true;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            var key = page.GetType().Name + "." + step;
+            var now = DateTime.UtcNow;
+            lock (LoggedAt)
+            {
+                if (!LoggedAt.TryGetValue(key, out var last) || now - last > TimeSpan.FromMinutes(1))
+                {
+                    LoggedAt[key] = now;
+                    Log.Write($"page {key} failed: {ex.GetType().Name}: {ex.Message} | {ex.StackTrace}");
+                }
+            }
+            return false;
+        }
+    }
+
+    internal static bool SafeRefresh(PageBase? page) => Safe(page, "Refresh", () => page!.Refresh());
+    internal static bool SafeTick(PageBase? page, SensorSnapshot s) => Safe(page, "OnTick", () => page!.OnTick(s));
+    internal static bool SafeSecond(PageBase? page) => Safe(page, "OnSecond", () => page!.OnSecond());
+
     protected static Hub Hub => Hub.I;
     protected static FlowDirection Flow => Ui.Flow;
 

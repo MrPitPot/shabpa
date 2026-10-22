@@ -6,7 +6,10 @@ namespace Shabpa.Core;
 
 public static class Elevation
 {
-    public static bool IsElevated { get; } = Check();
+    private static readonly bool Real = Check();
+    /// <summary>Test aid: pretend to be (not) elevated so both layouts of the permission pages can be built.</summary>
+    public static bool? TestOverride { get; set; }
+    public static bool IsElevated => TestOverride ?? Real;
 
     private static bool Check()
     {
