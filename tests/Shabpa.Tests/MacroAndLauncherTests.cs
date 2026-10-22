@@ -317,6 +317,17 @@ public sealed class GlassTests
     }
 
     [Fact]
+    public void The_glass_slider_still_works_when_the_veil_brush_has_been_made_read_only()
+    {
+        var dictionary = Ui.Resources(Palette.Find("midnight"), "mica", 0);
+        ((System.Windows.Media.SolidColorBrush)dictionary["MicaVeil"]).Freeze(); // what painting the window can do to it
+        var ex = Record.Exception(() => Ui.SetGlassLevel(1));
+        Assert.Null(ex);
+        Assert.Equal(1, Ui.GlassLevel);
+        Ui.Resources(Palette.Find(null), "off", 0);
+    }
+
+    [Fact]
     public void Glass_depth_tokens_exist_for_every_theme_and_keep_the_design_numbers_for_night_and_white()
     {
         foreach (var palette in Palette.All)

@@ -46,7 +46,12 @@ public static class Ui
     public static void SetGlassLevel(double level)
     {
         GlassLevel = Math.Clamp(level, 0, 1);
-        if (IsGlass && _veil is not null) _veil.Color = VeilColor(Theme);
+        if (!IsGlass || _veil is null) return;
+        var colour = VeilColor(Theme);
+        if (!_veil.IsFrozen) { _veil.Color = colour; return; }
+        // once the window has painted with it, WPF may have made the brush read-only: put a fresh one in the dictionary instead
+        _veil = new SolidColorBrush(colour);
+        if (_active is not null) _active["MicaVeil"] = _veil;
     }
 
     /// <summary>Switches between the Mica and Acrylic materials right now (going to or from "off" needs a restart).</summary>
