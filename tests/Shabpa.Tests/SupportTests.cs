@@ -4,6 +4,16 @@ namespace Shabpa.Tests;
 
 public class SupportTests
 {
+    [Fact]
+    public void The_owner_card_is_hidden_from_everyone_else_and_the_server_address_is_built_in()
+    {
+        Assert.False(Shabpa.Pages.SupportPage.OwnerVisible(false, null));
+        Assert.False(Shabpa.Pages.SupportPage.OwnerVisible(false, "0"));
+        Assert.True(Shabpa.Pages.SupportPage.OwnerVisible(true, null));
+        Assert.True(Shabpa.Pages.SupportPage.OwnerVisible(false, "1"));
+        Assert.True(SupportClient.IsValidEndpoint(SupportClient.DefaultEndpoint));
+    }
+
     [Theory]
     [InlineData("https://shabpa-support.example.workers.dev", true)]
     [InlineData("http://shabpa-support.example.workers.dev", false)]
@@ -44,11 +54,12 @@ public class SupportTests
     }
 
     [Fact]
-    public void Without_an_address_the_server_route_is_off_and_nobody_is_admin()
+    public void The_built_in_address_makes_the_server_route_available_but_nobody_is_admin_without_a_key()
     {
         var settings = new SupportSettings();
         var client = new SupportClient(() => settings, () => "");
-        Assert.False(client.Available);
+        Assert.True(client.Available);
+        Assert.Equal(SupportClient.DefaultEndpoint, client.Endpoint);
         Assert.False(client.IsAdmin);
         settings.Endpoint = "https://x.example.workers.dev/";
         Assert.True(client.Available);

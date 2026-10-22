@@ -124,8 +124,8 @@ public static class GitHubIssue
 /// <summary>Talks to the owner's support server (see server/support-worker). Disabled until an address is set.</summary>
 public sealed class SupportClient
 {
-    /// <summary>The address of the owner's server; empty until it is deployed and this constant (or the setting) is filled in.</summary>
-    public const string DefaultEndpoint = "";
+    /// <summary>The address of the owner's support server, built in so nobody has to type it (the setting can override it).</summary>
+    public const string DefaultEndpoint = "https://shabpa-support.amber-garden-174c.workers.dev";
 
     private static readonly JsonSerializerOptions Json = new() { PropertyNameCaseInsensitive = true };
 

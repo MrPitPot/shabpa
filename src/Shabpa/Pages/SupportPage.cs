@@ -143,6 +143,7 @@ public sealed class SupportPage : PageBase
         adminBody.Children.Add(_all);
         FilterChips(_allFilter, _allFilterKey, v => { _allFilterKey = v; ShowAll(); });
         _adminCard = admin;
+        _adminCard.Visibility = OwnerVisible(Client.IsAdmin, Environment.GetEnvironmentVariable("SHABPA_OWNER")) ? Visibility.Visible : Visibility.Collapsed;
 
         foreach (var block in new[] { _ticketCard, _mineCard, _adminCard })
         {
@@ -208,8 +209,11 @@ public sealed class SupportPage : PageBase
             : "";
     }
 
-    public override void Refresh()
-    {
+    /// <summary>The owner card is for the project owner only: it shows on a PC that is already signed in as admin, or when
+    /// the environment variable SHABPA_OWNER=1 is set (how the owner opens it the first time). Everyone else never sees it.</summary>
+    public static bool OwnerVisible(bool signedInAsAdmin, string? ownerVariable) => signedInAsAdmin || ownerVariable == "1";
+
+    public override void Refresh()    {
         var s = Hub.Settings.Support;
         if (_contact.Text.Length == 0) _contact.Text = s.Contact;
         _endpoint.Text = s.Endpoint;
