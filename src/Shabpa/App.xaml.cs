@@ -396,6 +396,8 @@ public partial class App : Application
         // windows are cheap to draw either way.
         if (settings.LowMemory || settings.SoftwareRender) System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
         L.En = (Value(e.Args, "--lang") ?? settings.Language) == "en";
+        // Windows 10 (and early Windows 11) cannot do the glass backdrop well: whoever picked it goes back to the normal theme
+        if (!Ui.GlassSupported() && settings.Glass != "off") { settings.Glass = "off"; if (!dryRun) store.Save(); }
         Resources.MergedDictionaries.Add(Ui.Resources(Palette.Find(Value(e.Args, "--theme") ?? settings.Theme), settings.LowMemory ? "off" : Value(e.Args, "--glass") ?? settings.Glass, settings.GlassLevel));
         Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/Shabpa;component/Theme.xaml", UriKind.Relative) });
 
