@@ -716,7 +716,7 @@ public partial class App : Application
             {
                 M("fps", "FPS", "156", "", 0.8), M("gpu", "GPU", "64", "%", 0.64), M("hotspot", "HOT", "84", "°C", 0.84, 1), M("gputemp", "GPU", "96", "°C", 0.96, 2),
                 M("gpufan", "FAN", "46", "%", 0.46), M("vram", "VRAM", "9.2", "GB", 0.58), M("cpu", "CPU", "32", "%", 0.32),
-                M("ram", "RAM", "100", "%", 1.0, 2), M("cputemp", "SYS", "1.4k", "", 0.3), M("frame", "FT", "8.3", "ms", null), M("ping", "PING", "23", "ms", null),
+                M("ram", "RAM", "100", "%", 1.0, 2), M("cputemp", "CPU", "1.4k", "", 0.3), M("frame", "FT", "8.3", "ms", null), M("ping", "PING", "23", "ms", null),
                 M("low1", "1%", "118", "", 0.6), M("gpupower", "PWR", "1234", "W", 0.5),
             };
             var persian = all.Take(7).Select(m => m with { Value = Fa.Digits(m.Value) }).ToList();
