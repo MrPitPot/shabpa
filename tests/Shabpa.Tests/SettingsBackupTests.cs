@@ -88,6 +88,17 @@ public class SettingsBackupTests
     }
 
     [Fact]
+    public void Damaged_dns_notes_in_a_backup_are_cleaned()
+    {
+        var pack = new SettingsPack();
+        pack.Settings.DnsNotes = new Dictionary<string, string> { ["a/b"] = new string('x', 500), ["c/d"] = null!, [""] = "no key" };
+        var state = new AppState();
+        SettingsBackup.Apply(pack, state);
+        Assert.Equal(["a/b"], state.Settings.DnsNotes.Keys);
+        Assert.Equal(140, state.Settings.DnsNotes["a/b"].Length);
+    }
+
+    [Fact]
     public void A_profile_with_an_unknown_action_is_cleaned_on_import()
     {
         var pack = new SettingsPack

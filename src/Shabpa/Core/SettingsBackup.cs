@@ -98,6 +98,9 @@ public static class SettingsBackup
         incoming.Comfort.DimLevel = Math.Clamp(incoming.Comfort.DimLevel, 0.05, 0.92);
         incoming.Comfort.DimKelvin = Math.Clamp(incoming.Comfort.DimKelvin, ComfortPresets.MinKelvin, ComfortPresets.MaxKelvin);
         incoming.Comfort.Presets ??= [];
+        // notes from a hand-edited or damaged file: no nulls, a sane count and length
+        incoming.DnsNotes = (incoming.DnsNotes ?? []).Where(kv => !string.IsNullOrWhiteSpace(kv.Key) && kv.Value is not null).Take(200)
+            .ToDictionary(kv => kv.Key, kv => kv.Value.Length > 140 ? kv.Value[..140] : kv.Value);
         state.Settings = incoming;
 
         var profiles = 0;

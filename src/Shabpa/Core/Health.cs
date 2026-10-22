@@ -291,8 +291,9 @@ public static class Health
     {
         var found = new List<AvProduct>();
         foreach (var name in processNames)
+            // short names must match the whole program name ("avp" must not match "navpane")
             foreach (var (needle, product) in KnownAv)
-                if (name.Contains(needle, StringComparison.OrdinalIgnoreCase) && found.All(f => f.Name != product))
+                if ((needle.Length <= 4 ? name.Equals(needle, StringComparison.OrdinalIgnoreCase) : name.Contains(needle, StringComparison.OrdinalIgnoreCase)) && found.All(f => f.Name != product))
                     found.Add(new AvProduct(product, true, true));
         return found;
     }

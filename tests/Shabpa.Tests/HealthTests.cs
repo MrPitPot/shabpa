@@ -52,6 +52,8 @@ public class HealthChecksTests
         var found = Health.DetectByProcess(["explorer", "SheedAntivirusService", "SheedScannerService", "chrome"]);
         Assert.Equal(["Sheed"], found.Select(f => f.Name));
         Assert.Empty(Health.DetectByProcess(["explorer", "chrome"]));
+        Assert.Empty(Health.DetectByProcess(["navpane", "wsctrl", "legui"]));
+        Assert.Equal(["Kaspersky"], Health.DetectByProcess(["avp"]).Select(f => f.Name));
         // Defender in "passive" state (0x62100 while another antivirus runs) is not "on"
         Assert.False(Health.DecodeAv("Windows Defender", 0x62100).Enabled);
         var checks = Health.Security(new FakeRegistry(), _ => null, false, [Health.DecodeAv("Windows Defender", 0x62100), .. found]);

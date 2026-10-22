@@ -4,6 +4,34 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [3.7.0] - 2026-10-22
+
+### Added
+- **Overlay** - bigger values, a full colour picker for custom colours (no hex codes to type), snap to screen corners and edges, and a monitor refresh-rate item.
+- **DNS** - a note for every DNS (what worked for which game), shown beside the ping with a speech-bubble view for long notes.
+- **Night light** - ready-made presets (Work, Reading, Movie, Night, Warm, Cool), each editable with a reset to default; the page is renamed "Night light & rest".
+- **Playtime** - a live "game running" card with current usage and its effect on the system; the session list fits its content.
+- **Health** - an "ignore" button for every warning, and third-party antivirus programs are recognised.
+- **Support** - better ticket categories and cards, status filters, close and delete.
+- **Scheduled downloads** - an optional end time.
+- **Quick actions** - the most-used pages appear automatically (counted on this PC only).
+- **Microphone noise filter** - official VB-Cable download links and install steps.
+- Cleaner, better-organised game summary message in Telegram.
+
+### Changed
+- Cards now have a clean, even border in every theme.
+- The glass theme is available on Windows 11 22H2 and newer; it is switched off with a note on Windows 10.
+- The CPU temperature in the overlay is labelled "CPU".
+- The desktop FPS reading shows the frames Windows really draws.
+
+### Fixed
+- Low-contrast text in several themes (green in particular), caused by a colour-mixing overflow.
+- DNS table columns were misaligned, and the delete icon broke the table.
+- The hourly weather strip did not scroll with the mouse wheel; the search box was too big.
+- The overlay could end up partly off-screen after a size change.
+- Health no longer reports "restart needed" after the restart has happened.
+- Possible UI stall when switching tabs quickly; the tab highlight is re-aligned if it is ever left behind.
+
 ## [3.6.0] - 2026-10-17
 
 ### Added
