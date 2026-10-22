@@ -116,7 +116,7 @@
                             <RadioButton Style="{StaticResource Nav}" Tag="home" Content="{s:Tr 'خانه', 'Home'}" x:Name="NavHome" Checked="OnNav"/>
                             <TextBlock Text="{s:Tr 'سیستم و برق', 'System &amp; power'}" Style="{StaticResource NavGroup}"/>
                             <RadioButton Style="{StaticResource Nav}" Tag="cpu" Content="{s:Tr 'کنترل سیستم', 'System control'}" x:Name="NavSystem" Checked="OnNav"/>
-                            <RadioButton Style="{StaticResource Nav}" Tag="sun" Content="{s:Tr 'آسایش و استراحت', 'Comfort &amp; rest'}" x:Name="NavComfort" Checked="OnNav"/>
+                            <RadioButton Style="{StaticResource Nav}" Tag="sun" Content="{s:Tr 'نور شب و استراحت', 'Night light &amp; rest'}" x:Name="NavComfort" Checked="OnNav"/>
                             <RadioButton Style="{StaticResource Nav}" Tag="user" Content="{s:Tr 'پروفایل‌ها', 'Profiles'}" x:Name="NavProfiles" Checked="OnNav"/>
                             <TextBlock Text="{s:Tr 'بازی و شبکه', 'Gaming &amp; network'}" Style="{StaticResource NavGroup}"/>
                             <RadioButton Style="{StaticResource Nav}" Tag="mon" Content="{s:Tr 'اورلی بازی', 'Game overlay'}" x:Name="NavGaming" Checked="OnNav"/>

@@ -155,6 +155,8 @@ public sealed class AppState
     public List<DownloadPlan> DownloadPlans { get; set; } = [];
     /// <summary>Clicks the person taught for a launcher (one per launcher).</summary>
     public List<LauncherMacro> Macros { get; set; } = [];
+    /// <summary>How often each page was opened (local only, never sent): the most used ones appear under the quick actions.</summary>
+    public Dictionary<string, int> PageVisits { get; set; } = [];
     /// <summary>The last games played, newest last (at most 60).</summary>
     public List<GameLogEntry> GameHistory { get; set; } = [];
     /// <summary>The to-do list (phase A). Local only.</summary>
