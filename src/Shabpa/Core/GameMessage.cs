@@ -52,8 +52,8 @@ public static class GameMessage
         if (r.DownBytes + r.UpBytes > 1_000_000)
             list.Add(new("📶", L.T("اینترنت", "Internet"),
             [
-                L.T($"دانلود: {Fa.Bytes(r.DownBytes)}", $"Download: {Fa.Bytes(r.DownBytes)}"),
-                L.T($"آپلود: {Fa.Bytes(r.UpBytes)}", $"Upload: {Fa.Bytes(r.UpBytes)}") + (r.NetApprox ? L.T(" (کل سیستم)", " (whole PC)") : ""),
+                L.T($"↓ دانلود: {Fa.Bytes(r.DownBytes)}", $"↓ Download: {Fa.Bytes(r.DownBytes)}"),
+                L.T($"↑ آپلود: {Fa.Bytes(r.UpBytes)}", $"↑ Upload: {Fa.Bytes(r.UpBytes)}") + (r.NetApprox ? L.T(" (کل سیستم)", " (whole PC)") : ""),
             ]));
         return list;
     }
