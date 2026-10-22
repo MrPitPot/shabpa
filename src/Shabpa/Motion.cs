@@ -13,8 +13,11 @@ namespace Shabpa;
 /// settled page costs nothing. Everything honours <see cref="Enabled"/>.</summary>
 public static class Motion
 {
+    /// <summary>Tests only: a headless runner reports animations as off; this pins the answer.</summary>
+    public static bool? TestOverride;
+
     /// <summary>The user's choice in Settings, low-memory mode, and Windows' own "animation effects" switch.</summary>
-    public static bool Enabled => Hub.I?.Settings is not ({ Animations: false } or { LowMemory: true }) && SystemParameters.ClientAreaAnimation;
+    public static bool Enabled => TestOverride ?? (Hub.I?.Settings is not ({ Animations: false } or { LowMemory: true }) && SystemParameters.ClientAreaAnimation);
 
     /// <summary>Kept for callers that still ask which entrance a tab uses: every tab uses the same one now.</summary>
     public enum Style { Rise }
