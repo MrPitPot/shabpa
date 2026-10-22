@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -48,9 +48,9 @@ public sealed class BirthdaySettingsConverter : JsonConverter<BirthdaySettings>
                 case "name" when v.ValueKind == JsonValueKind.String: b.Name = Birthday.CleanName(v.GetString()); break;
                 case "jalali" when v.ValueKind is JsonValueKind.True or JsonValueKind.False: b.Jalali = v.GetBoolean(); break;
                 case "theme" when v.ValueKind is JsonValueKind.True or JsonValueKind.False: b.Theme = v.GetBoolean(); break;
-                case "month" when v.TryGetInt32(out var m): b.Month = m; break;
-                case "day" when v.TryGetInt32(out var d): b.Day = d; break;
-                case "year" when v.TryGetInt32(out var y): b.Year = y; break;
+                case "month" when v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var m): b.Month = m; break;
+                case "day" when v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var d): b.Day = d; break;
+                case "year" when v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var y): b.Year = y; break;
                 case "lastgreeted" when v.ValueKind == JsonValueKind.String: b.LastGreeted = Birthday.CleanKey(v.GetString()); break;
                 case "lastballoon" when v.ValueKind == JsonValueKind.String: b.LastBalloon = Birthday.CleanKey(v.GetString()); break;
             }
@@ -101,9 +101,6 @@ public static class Birthday
     ];
 
     // ---- the clock (with a test aid) ------------------------------------------------------------------------
-
-    private static TimeSpan? _offset;
-
     /// <summary>The current local time. Debug builds and builds with SHABPA_TESTHOOKS honour SHABPA_FAKE_TODAY
     /// ("yyyy-MM-dd" keeps the real time of day, "yyyy-MM-ddTHH:mm:ss" sets the clock); everywhere else this is DateTime.Now.</summary>
     public static DateTime Now()
