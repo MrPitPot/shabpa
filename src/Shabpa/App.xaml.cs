@@ -1000,6 +1000,94 @@ public partial class App : Application
             var sheet = new System.Windows.Controls.Border { Child = row };
             sheet.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "Bg");
             SaveSheet(sheet, Path.Combine(folder, "6-moods.png"));
+
+            // every pose of the sheet, wrapped in rows of eight
+            var grid = new System.Windows.Controls.StackPanel { Margin = new Thickness(12) };
+            var moods = Enum.GetValues<Core.BidarMood>();
+            for (var start = 0; start < moods.Length; start += 8)
+            {
+                var line = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
+                foreach (var mood in moods.Skip(start).Take(8))
+                {
+                    var cell = new System.Windows.Controls.StackPanel { Margin = new Thickness(2) };
+                    var owl = new Kit.BidarOwl { Width = 90, Height = 108 };
+                    owl.SetMood(mood);
+                    cell.Children.Add(owl);
+                    var name = new System.Windows.Controls.TextBlock { Text = mood.ToString(), FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center };
+                    name.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Muted");
+                    cell.Children.Add(name);
+                    line.Children.Add(cell);
+                }
+                grid.Children.Add(line);
+            }
+            var poses = new System.Windows.Controls.Border { Child = grid };
+            poses.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "Bg");
+            SaveSheet(poses, Path.Combine(folder, "7-poses.png"));
+
+            // one flight drawn as a ghost trail: the owl at 12 moments of the same flight (frames come from the same maths the app uses)
+            var area = new Core.Box(0, 0, 760, 300);
+            var plan = Core.FlightPlanner.Plan(new Core.Pt(30, 220), new Core.Pt(680, 30), 50, 60, area, [], new Random(3))!;
+            var stage = new System.Windows.Controls.Canvas { Width = area.W, Height = area.H };
+            stage.SetResourceReference(System.Windows.Controls.Panel.BackgroundProperty, "Bg");
+            var total = Core.FlightMotion.Total(plan);
+            for (var i = 0; i <= 11; i++)
+            {
+                var frame = Core.FlightMotion.Frame(plan, total * i / 11.0 * 0.999);
+                var ghost = new Kit.BidarOwl { Width = 50, Height = 60, Opacity = 0.35 + 0.65 * i / 11.0 };
+                ghost.SetMood(Core.BidarMood.Fly);
+                ghost.ApplyFlight(frame);
+                System.Windows.Controls.Canvas.SetLeft(ghost, frame.Pos.X);
+                System.Windows.Controls.Canvas.SetTop(ghost, frame.Pos.Y);
+                stage.Children.Add(ghost);
+            }
+            SaveSheet(stage, Path.Combine(folder, "8-flight-trail.png"));
+
+            // idle acts caught at their strongest moment: hat fidget, peek, wing wave, stretch, spin, yawn
+            var actRow = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, Margin = new Thickness(12) };
+            void Act(string title, Action<Kit.BidarOwl> pose)
+            {
+                var cell = new System.Windows.Controls.StackPanel { Margin = new Thickness(6) };
+                var owl = new Kit.BidarOwl { Width = 100, Height = 120 };
+                pose(owl);
+                cell.Children.Add(owl);
+                var caption = new System.Windows.Controls.TextBlock { Text = title, FontSize = 11, HorizontalAlignment = HorizontalAlignment.Center };
+                caption.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "Muted");
+                cell.Children.Add(caption);
+                actRow.Children.Add(cell);
+            }
+            Act("hat fidget", o => { o.WingR = 150; o.HatLift = -5; o.HatTilt = 12; });
+            Act("peek", o => { o.Slide = 14; o.Tilt = 14; o.LookX = -3.2; });
+            Act("wave", o => { o.SetMood(Core.BidarMood.Hello); o.WingR = 125; });
+            Act("lantern low", o => o.Glow = 0.3);
+            Act("spin 120", o => { o.Spin = 120; o.SetMood(Core.BidarMood.Love); });
+            Act("curious", o => { o.Tilt = 11; o.LookX = 3.2; o.SetMood(Core.BidarMood.Surprised); o.Tilt = 11; });
+            var acts = new System.Windows.Controls.Border { Child = actRow };
+            acts.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "Bg");
+            SaveSheet(acts, Path.Combine(folder, "9-acts.png"));
+
+            // the real window: the corner owl in mid-flight over a real page
+            _window.Navigate("home");
+            await Task.Delay(700);
+            var life = _window.LifeForProbe!;
+            if (life.FlyNow())
+            {
+                life.Seek(Core.FlightMotion.Crouch + life.Plan!.Seconds * 0.45);
+                Save(_window.CaptureRoot, Path.Combine(folder, "10-midflight.png"));
+                life.LandNow();
+                Save(_window.CaptureRoot, Path.Combine(folder, "11-landed.png"));
+            }
+            else
+            {
+                var (noGo, area2) = _window.NoGoForProbe();
+                var lines = new List<string> { $"no flight. area {area2} nogo {noGo.Count} rest {life.Rest}" };
+                foreach (var p in Core.Perches.Candidates(area2, 50, 60, false))
+                {
+                    var clear = Core.Perches.IsClear(p, 50, 60, area2, noGo);
+                    var plan2 = clear ? Core.FlightPlanner.Plan(life.Rest, p, 50, 60, area2, noGo, new Random(1)) : null;
+                    lines.Add($"{p} clear={clear} plan={plan2 is not null}");
+                }
+                File.WriteAllLines(Path.Combine(folder, "10-no-flight.txt"), lines);
+            }
         }
         catch (Exception ex)
         {

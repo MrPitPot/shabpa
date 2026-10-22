@@ -1,3 +1,4 @@
+using System.Windows;
 using Shabpa.Core;
 
 namespace Shabpa;
@@ -10,6 +11,22 @@ public sealed partial class Hub
 
     /// <summary>Raised when the Bidar corner owl is switched on or off in Settings.</summary>
     public event Action? AssistantDockChanged;
+
+    /// <summary>Things Bidar reacts to (a finished download, an error, a countdown). The window decides whether he is free to.</summary>
+    public event Action<BidarCue>? BidarCued;
+
+    public void CueBidar(BidarCue cue)
+    {
+        if (Application.Current?.Dispatcher is { } d && !d.CheckAccess()) { d.BeginInvoke(() => BidarCued?.Invoke(cue)); return; }
+        BidarCued?.Invoke(cue);
+    }
+
+    public void SetBidarIdleLife(bool on)
+    {
+        Settings.BidarIdleLife = on;
+        Store.Save();
+        AssistantDockChanged?.Invoke();
+    }
 
     public void SetAssistantDock(bool on)
     {

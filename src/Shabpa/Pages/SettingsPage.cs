@@ -37,6 +37,7 @@ public sealed class SettingsPage : PageBase
     private readonly TextBox RecorderBox = new();
     private readonly HotkeyBox AssistantKeyBox = new();
     private readonly Switch AssistantDockCheck = new();
+    private readonly Switch BidarLifeCheck = new();
     private readonly Switch BackupProfiles = new() { IsChecked = true }, BackupTasks = new();
     private readonly TextBlock BackupHint = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
     private readonly StackPanel NoticeList = new() { Margin = new Thickness(0, 6, 0, 0) };
@@ -144,6 +145,10 @@ public sealed class SettingsPage : PageBase
             L.T("یه جغد کوچولو تو گوشه‌ی همه‌ی صفحه‌هاست؛ کلیکش می‌کنی، فرمان متنی باز می‌شه. خاموشش کنی، کلید میانبر و منوی کنار ساعت هنوز کار می‌کنن.",
                 "A small owl sits in the corner of every page; click it to type a command. Turn it off and the shortcut and the tray menu still work.")));
         AssistantDockCheck.Click += (_, _) => Hub.SetAssistantDock(AssistantDockCheck.IsChecked == true);
+        behaviourBody.Children.Add(SwitchRow(BidarLifeCheck, L.T("زندگی و پرواز جغد", "Idle life & flights"),
+            L.T("جغد خودش نفس می‌کشه، پلک می‌زنه، اطراف رو نگاه می‌کنه، چرت می‌زنه، به اتفاق‌های برنامه واکنش نشون می‌ده و گاهی به یه گوشه‌ی خالی دیگه پرواز می‌کنه. وسط بازی، تایپ یا وقتی پنجره پنهونه ساکت می‌مونه؛ با «رم کمتر» یا خاموش بودن انیمیشن‌ها کاملاً ثابته.",
+                "The owl breathes, blinks, looks around, dozes, reacts to what happens in the app and now and then flies to another free corner. He stays still while you type, during a game or when the window is hidden, and is fully static with “use less RAM” or animations off.")));
+        BidarLifeCheck.Click += (_, _) => Hub.SetBidarIdleLife(BidarLifeCheck.IsChecked == true);
         AssistantKeyBox.Changed += v =>
         {
             Hub.Settings.AssistantKey = v;
@@ -364,6 +369,7 @@ public sealed class SettingsPage : PageBase
         ConfirmCheck.IsChecked = Hub.Settings.ConfirmActions;
         AssistantKeyBox.Set(Hub.Settings.AssistantKey);
         AssistantDockCheck.IsChecked = Hub.Settings.ShowAssistantDock;
+        BidarLifeCheck.IsChecked = Hub.Settings.BidarIdleLife;
         ReportCheck.IsChecked = Hub.Settings.GameReports;
         GameLogCheck.IsChecked = Hub.Settings.GameLog;
         RefreshNotices();

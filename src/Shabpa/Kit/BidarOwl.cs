@@ -14,7 +14,7 @@ namespace Shabpa.Kit;
 /// Animation uses the render thread's clock and ends when the pose is reached, so a settled owl costs nothing;
 /// the only timers are one-shot (the next blink, the nap) and run only while <see cref="IdleLife"/> is on and the owl is shown.
 /// With <see cref="Motion.Enabled"/> off every change is instant.</summary>
-public sealed class BidarOwl : Decorator
+public sealed partial class BidarOwl : Decorator
 {
     // character colours from the model sheet
     private static readonly Brush Body = B("#3d3b94"), Dark = B("#2a2766"), Belly = B("#5652b8"), WingLine = B("#7d7ae0"), Face = B("#ffe2a0"),
@@ -37,7 +37,8 @@ public sealed class BidarOwl : Decorator
     // ---- animatable numbers (every change redraws the transforms once; no loops of our own) --------------------------------
     public static readonly DependencyProperty WingLProperty = Num(nameof(WingL), 14), WingRProperty = Num(nameof(WingR), 14), TiltProperty = Num(nameof(Tilt), 0),
         SquashProperty = Num(nameof(Squash), 1), LiftProperty = Num(nameof(Lift), 0), BeakProperty = Num(nameof(Beak), 0), BlinkProperty = Num(nameof(Blink), 0),
-        LookXProperty = Num(nameof(LookX), 0), LookYProperty = Num(nameof(LookY), 0), BlushProperty = Num(nameof(Blush), 0.45), LidsProperty = Num(nameof(Lids), 0), GlowProperty = Num(nameof(Glow), 0.8);
+        LookXProperty = Num(nameof(LookX), 0), LookYProperty = Num(nameof(LookY), 0), BlushProperty = Num(nameof(Blush), 0.45), LidsProperty = Num(nameof(Lids), 0), GlowProperty = Num(nameof(Glow), 0.8),
+        HatLiftProperty = Num(nameof(HatLift), 0), HatTiltProperty = Num(nameof(HatTilt), 0), SlideProperty = Num(nameof(Slide), 0), SpinProperty = Num(nameof(Spin), 0);
 
     private static DependencyProperty Num(string name, double def) =>
         DependencyProperty.Register(name, typeof(double), typeof(BidarOwl), new PropertyMetadata(def, (d, _) => ((BidarOwl)d).Apply()));
@@ -54,11 +55,22 @@ public sealed class BidarOwl : Decorator
     public double Blush { get => (double)GetValue(BlushProperty); set => SetValue(BlushProperty, value); }
     public double Lids { get => (double)GetValue(LidsProperty); set => SetValue(LidsProperty, value); }
     public double Glow { get => (double)GetValue(GlowProperty); set => SetValue(GlowProperty, value); }
+    /// <summary>The hat lifts (negative = up, in rig units) and tilts (degrees) for the hat-tip and the fidget.</summary>
+    public double HatLift { get => (double)GetValue(HatLiftProperty); set => SetValue(HatLiftProperty, value); }
+    public double HatTilt { get => (double)GetValue(HatTiltProperty); set => SetValue(HatTiltProperty, value); }
+    /// <summary>Sideways shift of the body inside the owl (rig units): the peek from the edge.</summary>
+    public double Slide { get => (double)GetValue(SlideProperty); set => SetValue(SlideProperty, value); }
+    /// <summary>A turn of the whole body in degrees (the easter-egg spin).</summary>
+    public double Spin { get => (double)GetValue(SpinProperty); set => SetValue(SpinProperty, value); }
 
     // ---- parts ------------------------------------------------------------------------------------------------------------------
     private readonly Canvas _art = new() { Width = 100, Height = 120, Background = Brushes.Transparent };
     private readonly ScaleTransform _squash = new(1, 1, 50, 112);
     private readonly TranslateTransform _lift = new();
+    private readonly RotateTransform _spin = new(0, 50, 70);
+    private readonly TranslateTransform _hatMove = new();
+    private readonly RotateTransform _hatTilt = new(0, 50, 40);
+    private readonly Dictionary<string, Path> _props = [];
     private readonly RotateTransform _wingL = new(14, 0, 0), _wingR = new(-14, 0, 0), _head = new(0, 50, 60);
     private readonly TranslateTransform _lowerBeak = new();
     private readonly Path _mouth, _lantern;
@@ -79,6 +91,9 @@ public sealed class BidarOwl : Decorator
 
     /// <summary>Raised when the person clicks the owl, after it has reacted.</summary>
     public event Action? Clicked;
+
+    /// <summary>Raised at the very start of a click, before the owl reacts (a flight lands first).</summary>
+    public event Action? PreClick;
 
     public BidarMood Mood => _mood;
 
@@ -141,7 +156,7 @@ public sealed class BidarOwl : Decorator
         Canvas.SetTop(_shadow, 108);
         _art.Children.Add(_shadow);
 
-        var root = new Canvas { Width = 100, Height = 120, RenderTransform = new TransformGroup { Children = { _squash, _lift } } };
+        var root = new Canvas { Width = 100, Height = 120, RenderTransform = new TransformGroup { Children = { _squash, _lift, _spin } } };
 
         // feet
         foreach (var x in new[] { 33.0, 55.0 })
@@ -189,11 +204,14 @@ public sealed class BidarOwl : Decorator
 
         // head: hat, two face discs, eyes, beak, cheeks
         var head = new Canvas { Width = 100, Height = 120, RenderTransform = _head };
-        head.Children.Add(new Path { Data = G("M22,42 C20,10 80,10 78,42 Z"), Fill = Dark });
+        // the hat is its own group so it can lift and tilt (hat-tip, fidget)
+        var hat = new Canvas { Width = 100, Height = 120, RenderTransform = new TransformGroup { Children = { _hatTilt, _hatMove } } };
+        hat.Children.Add(new Path { Data = G("M22,42 C20,10 80,10 78,42 Z"), Fill = Dark });
         var moon = new Path { Data = new CombinedGeometry(GeometryCombineMode.Exclude, new EllipseGeometry(new Point(44, 28), 6.2, 6.2), new EllipseGeometry(new Point(47.2, 26), 5.6, 5.6)), Fill = Gold };
         moon.Data.Freeze();
-        head.Children.Add(moon);
-        head.Children.Add(new Border { Width = 66, Height = 7, CornerRadius = new CornerRadius(3.5), Background = Brim, Margin = new Thickness(17, 38, 0, 0) });
+        hat.Children.Add(moon);
+        hat.Children.Add(new Border { Width = 66, Height = 7, CornerRadius = new CornerRadius(3.5), Background = Brim, Margin = new Thickness(17, 38, 0, 0) });
+        head.Children.Add(hat);
         _cheekL = new Ellipse { Width = 9, Height = 6, Fill = Cheek };
         _cheekR = new Ellipse { Width = 9, Height = 6, Fill = Cheek };
         Canvas.SetLeft(_cheekL, 22);
@@ -217,6 +235,7 @@ public sealed class BidarOwl : Decorator
         _fxHeart = new Path { Data = G("M0,4 C-8,-2 -6,-9 -2.6,-9 C-1,-9 0,-8 0,-6.5 C0,-8 1,-9 2.6,-9 C6,-9 8,-2 0,4 Z"), Fill = B("#ff5d86"), Visibility = Visibility.Collapsed };
         _fxStar = new Path { Data = G("M0,-6 L1.6,-1.6 L6,0 L1.6,1.6 L0,6 L-1.6,1.6 L-6,0 L-1.6,-1.6 Z M10,-9 L11,-6.6 L13.4,-6 L11,-5 L10,-2.6 L9,-5 L6.6,-6 L9,-6.6 Z"), Fill = Star, Visibility = Visibility.Collapsed };
         _fx.RenderTransform = _fxMove;
+        BuildProps();
         _fx.Children.Add(_fxHeart);
         _fx.Children.Add(_fxStar);
         _fx.Children.Add(_fxText);
@@ -251,6 +270,7 @@ public sealed class BidarOwl : Decorator
     /// <summary>The reaction to a click: a mood from the cycle plus a squash-and-bounce; a nap ends first.</summary>
     public void React()
     {
+        PreClick?.Invoke();
         var mood = _logic.Click(DateTime.Now);
         SetMood(mood);
         Bounce(mood == BidarMood.Dizzy);
@@ -404,12 +424,13 @@ public sealed class BidarOwl : Decorator
         _fxHeart.Visibility = fx == "heart" ? Visibility.Visible : Visibility.Collapsed;
         _fxStar.Visibility = fx is "star" or "stars" ? Visibility.Visible : Visibility.Collapsed;
         _fxText.Visibility = fx is "z" or "?" or "!" ? Visibility.Visible : Visibility.Collapsed;
+        foreach (var prop in _props) prop.Value.Visibility = prop.Key == fx ? Visibility.Visible : Visibility.Collapsed;
         if (fx is "z" or "?" or "!") _fxText.Text = fx;
         _fx.BeginAnimation(OpacityProperty, null);
         _fxMove.BeginAnimation(TranslateTransform.YProperty, null);
         if (fx is null) { _fx.Opacity = 0; return; }
         _fx.Opacity = 1;
-        if (!Motion.Enabled || fx == "z") return; // "z" stays while asleep
+        if (!Motion.Enabled || fx == "z" || _props.ContainsKey(fx)) return; // "z" stays while asleep, a prop while the pose is held
         _fxMove.Y = 0;
         _fxMove.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(6, -4, TimeSpan.FromMilliseconds(700)) { EasingFunction = new BackEase { EasingMode = EasingMode.EaseOut }, FillBehavior = FillBehavior.Stop });
         _fx.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(500)) { BeginTime = TimeSpan.FromMilliseconds(1300), FillBehavior = FillBehavior.HoldEnd });
@@ -424,7 +445,11 @@ public sealed class BidarOwl : Decorator
         _squash.ScaleX = 1 + (1 - Squash) * 0.5;
         _squash.ScaleY = Squash;
         _lift.Y = Lift;
-        _shadow.Opacity = 0.9 - Math.Max(0, -Lift) * 0.02;
+        _lift.X = Slide;
+        _spin.Angle = Spin;
+        _hatMove.Y = HatLift;
+        _hatTilt.Angle = HatTilt;
+        _shadow.Opacity = _airborne ? 0 : 0.9 - Math.Max(0, -Lift) * 0.02;
         _lowerBeak.Y = Beak * 2.6;
         _mouth.Opacity = Beak > 0.05 ? 0.9 : 0;
         _cheekL.Opacity = _cheekR.Opacity = Math.Clamp(Blush, 0, 1) * 0.75;

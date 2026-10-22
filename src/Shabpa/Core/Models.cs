@@ -150,6 +150,8 @@ public sealed class Settings
     public string AssistantKey { get; set; } = "Ctrl+Alt+Space";
     /// <summary>The small Bidar owl docked in the corner of the main window (a click opens the command box).</summary>
     public bool ShowAssistantDock { get; set; } = true;
+    /// <summary>Bidar lives on his own: breathes, blinks, looks about, dozes, reacts to the app and sometimes flies to another free corner.</summary>
+    public bool BidarIdleLife { get; set; } = true;
 }
 
 public sealed class AppState

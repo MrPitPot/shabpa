@@ -17,6 +17,9 @@ public partial class MainWindow
     private AssistantPanel? _assistant;
     private ScaleTransform? _popupScale;
     private bool _popupOpen;
+    private Canvas? _stage;
+    private BidarLife? _life;
+    private DateTime _lastInput = DateTime.MinValue;
 
     private void InitAssistantDock()
     {
@@ -35,13 +38,27 @@ public partial class MainWindow
             _dock.LookAt(p.X - _dock.ActualWidth / 2, p.Y - _dock.ActualHeight / 2);
         };
         _dock.MouseLeave += (_, _) => _dock.LookAt(0, 0);
-        // the owl's own corner: the end side of the page (the left in Persian), clear of the scroll bar
-        _dock.HorizontalAlignment = HorizontalAlignment.Right;
-        _dock.VerticalAlignment = VerticalAlignment.Bottom;
-        _dock.Margin = new Thickness(0, 0, 26, 12);
-        BidarLayer.Children.Add(_dock);
+        // the owl lives on a plain left-to-right canvas laid over the page, so his resting places and flights are in visible pixels
+        _stage = new Canvas { FlowDirection = FlowDirection.LeftToRight };
+        _stage.Children.Add(_dock);
+        BidarLayer.Children.Add(_stage);
+        var life = new BidarLife(_dock, _stage, HostContext, ScanNoGo, () => FlowDirection == FlowDirection.RightToLeft, PollCues);
+        _life = life;
+        _dock.Loaded += (_, _) => life.Start();
+        _dock.Unloaded += (_, _) => life.Stop();
+        Hub.I.BidarCued += life.Cue;
+        PreviewKeyDown += (_, _) => TouchInput();
+        PreviewMouseDown += (_, _) => TouchInput();
+        PreviewMouseWheel += (_, _) => TouchInput();
+        PreviewMouseMove += (_, e) => _life?.OnCursor(e.GetPosition(_stage));
+        Scroller.ScrollChanged += (_, e) => { if (e.VerticalChange != 0) _life?.PageChanged(); };
         Hub.I.AssistantDockChanged += OnDockSetting;
-        Closed += (_, _) => Hub.I.AssistantDockChanged -= OnDockSetting;
+        Closed += (_, _) =>
+        {
+            Hub.I.AssistantDockChanged -= OnDockSetting;
+            Hub.I.BidarCued -= life.Cue;
+            life.Dispose();
+        };
         OnDockSetting();
     }
 
@@ -50,6 +67,7 @@ public partial class MainWindow
         var show = Hub.I.Settings.ShowAssistantDock;
         if (_dock is not null) _dock.Visibility = show && !_popupOpen ? Visibility.Visible : Visibility.Collapsed;
         if (!show && _popupOpen) CloseAssistant();
+        if (!(show && Hub.I.Settings.BidarIdleLife)) _life?.GoHome(); // life switched off: he returns to his corner and stays still
     }
 
     private void BuildPopup()
@@ -59,6 +77,13 @@ public partial class MainWindow
         _assistant.Mood += m => _big.SetMood(m);
         _assistant.Spoke += () => _big.Talk();
         _assistant.Activity += _big.Touch;
+        _big.Clicked += () =>
+        {
+            // seven gentle clicks in a row: the easter egg, a happy spin
+            if (_life?.RegisterClick() != true) return;
+            _big.SetMood(BidarMood.Love);
+            _big.SpinAround();
+        };
 
         var title = new TextBlock { Text = L.T("چی کار کنم؟", "What should I do?"), FontSize = 16, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center };
         title.SetResourceReference(TextBlock.ForegroundProperty, "Text");
@@ -158,7 +183,34 @@ public partial class MainWindow
         _popup.BeginAnimation(OpacityProperty, fade);
     }
 
+    // ---- what the owl's life needs to know about the window ----
+
+    private void TouchInput()
+    {
+        _lastInput = DateTime.Now;
+        _life?.NoteActivity();
+    }
+
+    private BrainContext HostContext() => new()
+    {
+        LifeEnabled = Hub.I.Settings.ShowAssistantDock && Hub.I.Settings.BidarIdleLife,
+        MotionOn = Motion.Enabled,
+        LowMemory = Hub.I.Settings.LowMemory,
+        GameRunning = Hub.I.Snapshot.GameRunning,
+        WindowVisible = IsVisible && WindowState != WindowState.Minimized,
+        WindowActive = IsActive,
+        UserBusy = (DateTime.Now - _lastInput).TotalSeconds < 3.5,
+        PopupOpen = _popupOpen,
+    };
+
+    private IReadOnlyList<Box> ScanNoGo() => NoGoScanner.Collect(Scroller, _stage!, new Box(0, 0, _stage!.ActualWidth, _stage.ActualHeight));
+
+    private BidarCue? PollCues() =>
+        BidarCues.Next(Hub.I.Ping.Samples, Hub.I.Queue.Items.Select(c => c.DueAt), DateTime.Now);
+
     // ---- screenshot probe helpers ----
     internal AssistantPanel? AssistantPanelForProbe => _assistant;
     internal BidarOwl? BigOwlForProbe => _big;
+    internal BidarLife? LifeForProbe => _life;
+    internal (IReadOnlyList<Box> NoGo, Box Area) NoGoForProbe() => (ScanNoGo(), new Box(0, 0, _stage!.ActualWidth, _stage.ActualHeight));
 }

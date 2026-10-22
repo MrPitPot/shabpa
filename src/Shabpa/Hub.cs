@@ -1389,6 +1389,7 @@ public sealed partial class Hub
                         L.T($"{Fa.Digits(plan.GiveUpMinutes.ToString())} دقیقه بعد از باز شدن «{plan.LauncherName}» هیچ دانلودی شروع نشد؛ سیستم خاموش نمی‌شه.",
                             $"No download started within {plan.GiveUpMinutes} minutes of opening “{plan.LauncherName}”; the PC will not be shut down."));
                 }
+                if (finishedOrCancelled && !neverStarted && plan.StartedAt is not null) CueBidar(BidarCue.DownloadDone);
                 if (finishedOrCancelled || neverStarted) EndPlan(plan, now);
             }
         }
@@ -1407,6 +1408,7 @@ public sealed partial class Hub
         if (_countdown is not null) return false;
 
         var window = new CountdownWindow(action, reason, seconds);
+        CueBidar(BidarCue.ShutdownSoon);
         _countdown = window;
         _countdownOrigin = origin;
         window.Closed += (_, _) =>
@@ -1612,7 +1614,7 @@ public sealed partial class Hub
         {
             Changed?.Invoke();
         }
-        if (error is not null) Notify(L.T("انجام نشد", "Failed"), error);
+        if (error is not null) { Notify(L.T("انجام نشد", "Failed"), error); CueBidar(BidarCue.Error); }
         else if (DryRun) Notify(L.T("حالت آزمایشی", "Test mode"), L.T($"«{Fa.ActionName(action)}» فقط شبیه‌سازی شد.", $"“{Fa.ActionName(action)}” was only simulated."));
     }
 

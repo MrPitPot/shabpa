@@ -361,6 +361,7 @@ public partial class MainWindow : Window
             page.OnSecond();
             Motion.Header(HeaderGrid);
             Motion.Enter(key, page, 1);
+            _life?.PageChanged();
             if (Hub.I.Settings.LowMemory)
             {
                 _release.Stop();
