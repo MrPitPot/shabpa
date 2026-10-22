@@ -212,11 +212,11 @@ public sealed class HomePage : PageBase
         choices.Children.Add(delays);
         info.Children.Add(choices);
 
-        var buttons = new WrapPanel();
-        var confirm = new Button { Style = St("BtnPrimary"), Padding = new Thickness(22, 0, 22, 0), Height = 42, Margin = new Thickness(0, 0, 8, 0) };
+        var buttons = new WrapPanel { Margin = new Thickness(-7, 0, -7, 0) }; // each button carries 7 px per side (margins are physical, so this holds in RTL too)
+        var confirm = new Button { Style = St("BtnPrimary"), Padding = new Thickness(22, 0, 22, 0), Height = 42, Margin = new Thickness(7, 0, 7, 8) };
         confirm.Content = ButtonContent("pw", L.T("تأیید و زمان‌بندی", "Confirm & schedule"));
         confirm.Click += (_, _) => Schedule(_delayMinutes);
-        var change = new Button { Style = St("Btn"), Padding = new Thickness(22, 0, 22, 0), Height = 42 };
+        var change = new Button { Style = St("Btn"), Padding = new Thickness(22, 0, 22, 0), Height = 42, Margin = new Thickness(7, 0, 7, 8) };
         change.Content = L.T("تغییر زمان", "Change time");
         change.Click += (_, _) => (Application.Current.MainWindow as MainWindow)?.Navigate("system");
         buttons.Children.Add(confirm);

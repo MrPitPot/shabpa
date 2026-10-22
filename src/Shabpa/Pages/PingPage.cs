@@ -162,13 +162,16 @@ public sealed class PingPage : PageBase
         right.Children.Add(chart);
         var target = new Grid { Margin = new Thickness(0, 8, 0, 0) };
         target.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        target.ColumnDefinitions.Add(new ColumnDefinition());
         target.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        target.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        target.ColumnDefinitions.Add(new ColumnDefinition());
         target.Children.Add(new TextBlock { Text = L.T("مقصد پینگ", "Ping target"), Style = St("Label"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) });
         _hostBox.ToolTip = L.T("آی‌پی یا آدرس سرور بازی‌ات رو بذار تا عدد واقعی همون سرور رو ببینی.", "Enter the IP or address of your game server to see the real figure for it.");
+        _hostBox.Width = 240; // a host or an IP is short; a full-width box looked lost
+        _hostBox.MaxLength = 253;
         Grid.SetColumn(_hostBox, 1);
         target.Children.Add(_hostBox);
-        var save = new Button { Style = St("Btn"), Content = L.T("ذخیره", "Save"), Padding = new Thickness(16, 7, 16, 7), Margin = new Thickness(8, 0, 0, 0) };
+        var save = new Button { Style = St("Btn"), Content = L.T("ذخیره", "Save"), Padding = new Thickness(16, 7, 16, 7), Margin = new Thickness(10, 0, 10, 0) };
         save.Click += OnSaveHost;
         Grid.SetColumn(save, 2);
         target.Children.Add(save);
