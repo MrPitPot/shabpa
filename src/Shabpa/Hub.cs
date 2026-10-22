@@ -505,25 +505,7 @@ public sealed class Hub
     }
 
     /// <summary>The summary shown when a game ends: time, internet, temperatures and peak load.</summary>
-    public static string DescribeSession(FinishedSession f)
-    {
-        var r = f.Record;
-        var lines = new List<string> { L.T($"🎮 {f.Name} · {Fa.Duration(r.Length)}", $"🎮 {f.Name} · {Fa.Duration(r.Length)}") };
-        if (r.DownBytes + r.UpBytes > 1_000_000)
-            lines.Add(L.T($"اینترنت بازی: ↓{Fa.Bytes(r.DownBytes)} ↑{Fa.Bytes(r.UpBytes)}" + (r.NetApprox ? " (کل سیستم)" : ""),
-                $"Internet: ↓{Fa.Bytes(r.DownBytes)} ↑{Fa.Bytes(r.UpBytes)}" + (r.NetApprox ? " (whole PC)" : "")));
-        var temps = new List<string>();
-        if (r.Stat(GameMetric.GpuTemp) is { } g) temps.Add(L.T($"گرافیک {Fa.N(g.Avg, 0)}° (تا {Fa.N(g.Max, 0)}°)", $"GPU {Fa.N(g.Avg, 0)}° (up to {Fa.N(g.Max, 0)}°)"));
-        if (r.Stat(GameMetric.CpuTemp) is { } c) temps.Add(L.T($"پردازنده {Fa.N(c.Avg, 0)}° (تا {Fa.N(c.Max, 0)}°)", $"CPU {Fa.N(c.Avg, 0)}° (up to {Fa.N(c.Max, 0)}°)"));
-        if (temps.Count > 0) lines.Add(L.T("دما: ", "Temperature: ") + string.Join(L.Comma, temps));
-        var load = new List<string>();
-        if (r.Stat(GameMetric.GpuLoad) is { } gl) load.Add(L.T($"گرافیک تا {Fa.N(gl.Max, 0)}٪", $"GPU up to {Fa.N(gl.Max, 0)}%"));
-        if (r.Stat(GameMetric.CpuLoad) is { } cl) load.Add(L.T($"پردازنده تا {Fa.N(cl.Max, 0)}٪", $"CPU up to {Fa.N(cl.Max, 0)}%"));
-        if (r.Stat(GameMetric.Ram) is { } rm) load.Add(L.T($"رم تا {Fa.N(rm.Max, 0)}٪", $"RAM up to {Fa.N(rm.Max, 0)}%"));
-        if (load.Count > 0) lines.Add(L.T("بیشترین مصرف: ", "Peak use: ") + string.Join(L.Comma, load));
-        if (r.Stat(GameMetric.Fps) is { } f2) lines.Add(L.T($"فریم بر ثانیه: میانگین {Fa.N(f2.Avg, 0)}", $"FPS: average {Fa.N(f2.Avg, 0)}"));
-        return string.Join('\n', lines);
-    }
+    public static string DescribeSession(FinishedSession f) => GameMessage.Plain(f);
 
     private void AnnounceSession(FinishedSession f)
     {
@@ -538,9 +520,9 @@ public sealed class Hub
         Store.Save();
         ComfortUpdated?.Invoke();
         if (!Settings.GameReports) return;
-        var text = DescribeSession(f);
+        var text = GameMessage.Plain(f);
         Notify(L.T("گزارش بازی", "Game report"), text, "playtime:" + f.Key);
-        Bot.Notify("game", text);
+        Bot.Notify("game", text, html: GameMessage.Html(f));
     }
 
     /// <summary>The page the last notice leads to when clicked ("playtime:csgo2"), or null.</summary>
@@ -1086,6 +1068,7 @@ public sealed class Hub
             plan.StartAt = Schedule.Next(plan.StartAt.Hour, plan.StartAt.Minute, plan.RepeatDays, now);
             plan.State = PlanState.Waiting;
             plan.StartedAt = null;
+            plan.EndAt = null;
         }
         else State.DownloadPlans.Remove(plan);
         Store.Save();
@@ -1283,6 +1266,7 @@ public sealed class Hub
                 }
                 plan.State = PlanState.Running;
                 plan.StartedAt = now;
+                plan.EndAt = DownloadPlan.EndAfter(plan.StartAt, plan.EndMinute);
                 ActivateRule(new Rule
                 {
                     Kind = RuleKind.Network, Upload = false, WaitForStart = true,
@@ -1299,6 +1283,20 @@ public sealed class Hub
                 var finishedOrCancelled = State.ActiveRule is null;
                 var neverStarted = !finishedOrCancelled && Engine.Status.State == RuleState.Waiting
                                    && plan.StartedAt is { } started && now - started > TimeSpan.FromMinutes(plan.GiveUpMinutes);
+                if (!finishedOrCancelled && plan.EndAt is { } windowEnd && now >= windowEnd)
+                {
+                    // the download window is over and the download is still going
+                    DeactivateRule();
+                    var act = plan.ActAtEnd && !plan.OpenOnly;
+                    Notify(L.T("وقت دانلود تموم شد", "Download time is over"),
+                        act ? L.T($"ساعت پایان «{plan.LauncherName}» رسید و دانلود هنوز تمومه نشده؛ «{Fa.ActionName(plan.Action)}» انجام می‌شه.",
+                                  $"The end time for “{plan.LauncherName}” came and the download is not done; “{Fa.ActionName(plan.Action)}” runs now.")
+                            : L.T($"ساعت پایان «{plan.LauncherName}» رسید و دانلود هنوز تمومه نشده؛ دیگه منتظرش نمی‌مونم و سیستم خاموش نمی‌شه.",
+                                  $"The end time for “{plan.LauncherName}” came and the download is not done; I stop waiting and the PC will not be switched off."));
+                    EndPlan(plan, now);
+                    if (act) RequestAction(plan.Action, L.T("پایان زمان دانلود", "Download window ended"), Settings.CountdownSeconds, "plan");
+                    continue;
+                }
                 if (neverStarted)
                 {
                     DeactivateRule();

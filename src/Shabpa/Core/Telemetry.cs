@@ -24,6 +24,8 @@ public sealed record TelemetrySample
     public double Low1Fps { get; init; }
     public double FrameMs { get; init; }
     public string FpsProcess { get; init; } = "";
+    /// <summary>Refresh rate of the monitor the program in front is on (Hz), 0 if unknown.</summary>
+    public int RefreshHz { get; init; }
     public double? PingMs { get; init; }
     public double DownMbps { get; init; }
     public double UpMbps { get; init; }
@@ -274,6 +276,7 @@ public sealed class Telemetry : IDisposable
             Low1Fps = low,
             FrameMs = frameMs,
             FpsProcess = fpsProcess,
+            RefreshHz = _background ? 0 : _refreshHz,
             PingMs = lastPing,
             DownMbps = sensors.DownMbps,
             UpMbps = sensors.UpMbps,
@@ -344,8 +347,17 @@ public sealed class Telemetry : IDisposable
 
     // ---- frame rate ---------------------------------------------------------------------------
 
+    private readonly DisplayRate _display = new();
+    private int _refreshHz;
+
+    /// <summary>The frame rate to show. A game (or any program drawing in front): its own presents, from the graphics trace.
+    /// With only the desktop in front: how many frames Windows' compositor (DWM) really produced per second.
+    /// The monitor's refresh rate is kept apart in <see cref="_refreshHz"/>.</summary>
     private (double fps, double low, double frameMs, string process) ReadFrames()
     {
+        var window = Native.GetForegroundWindow();
+        _refreshHz = DisplayRate.MonitorHz(window);
+        var compose = _display.ComposeFps();
         if (_fps is null && DateTime.Now >= _fpsRetry)
         {
             _fps = FpsMeter.TryStart(out var error);
@@ -356,14 +368,16 @@ public sealed class Telemetry : IDisposable
 
         try
         {
-            Native.GetWindowThreadProcessId(Native.GetForegroundWindow(), out var foreground);
+            Native.GetWindowThreadProcessId(window, out var foreground);
             var pid = (int)foreground;
-            var stats = pid == 0 ? FrameStats.None : _fps.Stats(pid);
+            // the desktop, taskbar or Shabpa itself in front: their few presents are not "the frame rate" of anything
+            var stats = pid == 0 || IsShell(pid) ? FrameStats.None : _fps.Stats(pid);
             if (stats.Frames < 5)
             {
                 // The window in front is not what is drawing (a launcher in front of the game, a second monitor, the
                 // desktop itself): take the busiest program that is not part of Windows' own shell.
-                if (_fps.Busiest(p => !IsShell(p)) is not { } busy) return (0, 0, 0, "");
+                if (_fps.Busiest(p => !IsShell(p)) is not { } busy)
+                    return compose > 0 ? (compose, 0, 1000 / compose, "dwm") : (0, 0, 0, "");
                 (pid, stats) = busy;
             }
             return (stats.Fps, stats.OnePercentLowFps, stats.AverageFrameMs, NameOf(pid));

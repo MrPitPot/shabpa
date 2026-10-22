@@ -265,7 +265,7 @@ public sealed class ProfileListPage : PageBase
             };
             chips.Children.Add(b);
         }
-        Add(ActionKinds.Dim, L.T("کم‌نور کردن صفحه", "Dim screen"), new ProfileAction { Kind = ActionKinds.Dim, Value = 50, Value2 = 1 });
+        Add(ActionKinds.Dim, L.T("نور شب (کم‌نور کردن صفحه)", "Night light (dim the screen)"), new ProfileAction { Kind = ActionKinds.Dim, Value = 50, Value2 = 1 });
         Add(ActionKinds.Volume, L.T("صدا", "Volume"), new ProfileAction { Kind = ActionKinds.Volume, Value = 30 });
         Add(ActionKinds.Focus, L.T("تمرکز", "Focus timer"), new ProfileAction { Kind = ActionKinds.Focus, Value = 25 });
         Add(ActionKinds.Breaks, L.T("یادآور استراحت", "Break reminders"), new ProfileAction { Kind = ActionKinds.Breaks, Value = 1 });

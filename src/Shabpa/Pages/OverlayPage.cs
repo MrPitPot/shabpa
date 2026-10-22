@@ -80,7 +80,7 @@ public sealed class OverlayPage : PageBase
     private AnchorPicker _anchorPicker = null!;
     private readonly TextBlock _anchorName = new();
     private readonly StackPanel _custom = new();
-    private readonly TextBox _accentBox = Input(), _textBox = Input(), _backBox = Input();
+    private readonly OverlayColorField _accentBox = new(), _textBox = new(), _backBox = new();
     private readonly HotkeyBox _toggleKey = new(), _moveKey = new();
     private readonly TextBlock _keyNote = new();
     private readonly Border _adminBanner = new();
@@ -102,12 +102,6 @@ public sealed class OverlayPage : PageBase
 
     public override string PageTitle => L.T("اورلی بازی", "Game overlay");
     public override string PageSubtitle => L.T("اطلاعات سیستم روی بازی، با ظاهر و رنگ دلخواه.", "Live system stats over your game, looking the way you want.");
-
-    private static TextBox Input() => new()
-    {
-        Style = (Style)Application.Current.Resources["Input"], FlowDirection = FlowDirection.LeftToRight, Width = 110, FontFamily = new FontFamily("Consolas"),
-        Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 0, 8, 0),
-    };
 
     public OverlayPage()
     {
@@ -157,7 +151,7 @@ public sealed class OverlayPage : PageBase
         var (lookCard, look) = Ui2.Card(L.T("رنگ و تم", "Colours"));
         look.Children.Add(Ui2.Label("", 0, 4));
         look.Children.Add(_lookChips);
-        _custom.Children.Add(Ui2.Label(L.T("رنگ‌ها را به شکل ۶ رقم هگز بنویس (مثلاً 3EE6A0):", "Enter colours as 6 hex digits (for example 3EE6A0):")));
+        _custom.Children.Add(Ui2.Label(L.T("روی هر رنگ کلیک کن و از طیف رنگ، اشباع و روشنی انتخابش کن؛ اورلی همان لحظه عوض می‌شه.", "Click a colour and pick it from the spectrum, saturation and brightness; the overlay follows live.")));
         var customRow = new WrapPanel();
         customRow.Children.Add(GroupB.Field(L.T("رنگ اصلی", "Accent"), _accentBox));
         customRow.Children.Add(GroupB.Field(L.T("رنگ متن", "Text"), _textBox));
@@ -284,6 +278,11 @@ public sealed class OverlayPage : PageBase
                         "This cannot be read without administrator rights; the overlay shows “ADMIN” instead. Run Shabpa as administrator.");
                     box.Content = def.Label + L.T(" (نیاز به ادمین)", " (needs admin)");
                 }
+                if (def.Key == "fps" && box.ToolTip is null)
+                    box.ToolTip = L.T("بازی یا برنامه‌ای که جلوته: تعداد فریم‌هایی که واقعاً نشون می‌ده (از رویدادهای گرافیک ویندوز). روی دسکتاپ: تعداد فریم‌هایی که کامپوزیتور ویندوز (DWM) در ثانیه ساخته؛ دسکتاپ ساکن کمتر از نرخ مانیتوره، چون DWM فقط وقتی چیزی عوض شه فریم می‌سازه.",
+                        "A game or program in front: the frames it really presents (from Windows graphics events). On the desktop: the frames per second Windows' compositor (DWM) produced; a still desktop is below the monitor rate because DWM only composes when something changes.");
+                else if (def.Key == "hz")
+                    box.ToolTip = L.T("نرخ تازه‌سازی فعلی مانیتوری که پنجرهٔ جلو روشه (مثلاً ۱۶۵ هرتز).", "Current refresh rate of the monitor the window in front is on (for example 165 Hz).");
                 box.Click += OnItem;
                 _items[def.Key] = box;
                 wrap.Children.Add(box);
@@ -383,9 +382,9 @@ public sealed class OverlayPage : PageBase
         opacity.slider.ValueChanged += (_, _) => Change(o => o.BackOpacity = opacity.slider.Value);
         offsetX.slider.ValueChanged += (_, _) => Change(o => o.X = offsetX.slider.Value);
         offsetY.slider.ValueChanged += (_, _) => Change(o => o.Y = offsetY.slider.Value);
-        _accentBox.TextChanged += (_, _) => ColourBox(_accentBox, (o, v) => o.CustomAccent = v);
-        _textBox.TextChanged += (_, _) => ColourBox(_textBox, (o, v) => o.CustomText = v);
-        _backBox.TextChanged += (_, _) => ColourBox(_backBox, (o, v) => o.CustomBack = v);
+        _accentBox.Picked += v => Change(o => o.CustomAccent = v);
+        _textBox.Picked += v => Change(o => o.CustomText = v);
+        _backBox.Picked += v => Change(o => o.CustomBack = v);
         _toggleKey.Changed += value => Change(o => o.ToggleKey = value);
         _moveKey.Changed += value => Change(o => o.MoveKey = value);
 
@@ -409,13 +408,6 @@ public sealed class OverlayPage : PageBase
         UpdateVisibility();
         _save.Stop();
         _save.Start();
-    }
-
-    private void ColourBox(TextBox box, Action<OverlaySettings, string> set)
-    {
-        var text = box.Text.Trim().TrimStart('#').ToUpperInvariant();
-        box.Foreground = OverlayLook.IsHex(text) || text.Length == 0 ? Res("Text") : Res("Red");
-        if (OverlayLook.IsHex(text)) Change(o => set(o, text));
     }
 
     private void OnOption(object sender, RoutedEventArgs e) => Change(o =>
@@ -550,9 +542,9 @@ public sealed class OverlayPage : PageBase
         _shadow.IsChecked = o.Shadow;
         _rounded.IsChecked = o.Rounded;
         foreach (var (key, box) in _items) box.IsChecked = o.Items.Contains(key);
-        _accentBox.Text = o.CustomAccent;
-        _textBox.Text = o.CustomText;
-        _backBox.Text = o.CustomBack;
+        _accentBox.Set(o.CustomAccent);
+        _textBox.Set(o.CustomText);
+        _backBox.Set(o.CustomBack);
         _toggleKey.Set(o.ToggleKey);
         _moveKey.Set(o.MoveKey);
         _anchorPicker.Pick(o.Anchor, raise: false);

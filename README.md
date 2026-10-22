@@ -32,7 +32,7 @@ your data on your PC, and speaks Persian and English with 21 colour themes.
 | **Profiles** | One-click profiles (study, work, rest, night) with time or game triggers, run history and undo. |
 | **Gaming** | In-game overlay (FPS, 1 % low, GPU, CPU, RAM, ping) in six layouts, per-game profiles, game reports, game mode. Nothing is injected into games. |
 | **Network** | Live ping, per-app traffic, per-app speed caps or blocking, automatic in-game protection, usage history and a monthly allowance, DNS switcher. |
-| **Comfort** | Screen dimmer below the monitor's minimum, break reminders, sleep mode, microphone level and noise test. |
+| **Night light & rest** | Night light with editable Kelvin presets, screen dimmer below the monitor's minimum, break reminders, sleep mode, microphone level and noise test. |
 | **Weather** | City search, hourly and 8-day forecast, animated sky. |
 | **Remote** | Control from Telegram through `@ShabPa_Bot` with a one-time code. |
 

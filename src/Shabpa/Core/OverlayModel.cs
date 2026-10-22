@@ -110,6 +110,7 @@ public static class OverlayMetrics
         // general
         new("fps", "نمایش FPS", "FPS", "general", "", true),
         new("frame", "زمان فریم", "Frame time", "general", "ms"),
+        new("hz", "نرخ تازه‌سازی مانیتور", "Monitor refresh rate", "general", "Hz"),
         new("low1", "Low ۱٪", "1% low", "general", "", true),
         new("fpsgraph", "نمودار FPS", "FPS graph", "general", ""),
         new("clock", "ساعت", "Clock", "time", ""),
@@ -195,7 +196,7 @@ public static class OverlayMetrics
     /// <summary>The short English caption drawn on the overlay itself, like other overlay tools do.</summary>
     public static string Abbrev(string key) => key switch
     {
-        "fps" => "FPS", "low1" => "1% LOW", "frame" => "FRAME", "fpsgraph" => "FPS", "clock" => "TIME", "gametime" => "PLAYED",
+        "fps" => "FPS", "low1" => "1% LOW", "frame" => "FRAME", "hz" => "HZ", "fpsgraph" => "FPS", "clock" => "TIME", "gametime" => "PLAYED",
         "gpu" => "GPU LOAD", "gputemp" => "GPU TEMP", "hotspot" => "GPU HOT", "memtemp" => "VRAM TEMP", "gpupower" => "GPU PWR",
         "gpuvolt" => "GPU VOLT", "gpufan" => "GPU FAN", "gpufanrpm" => "GPU RPM", "gpuclock" => "GPU CLK", "memclock" => "VRAM CLK",
         "vram" => "VRAM", "cpu" => "CPU LOAD", "cputemp" => "CPU TEMP", "cpuwatts" => "CPU PWR", "cpufreq" => "CPU CLK",
@@ -219,6 +220,7 @@ public static class OverlayMetrics
             "fps" => Make(s.Fps > 0 ? s.Fps : null, 0, 240),
             "low1" => Make(s.Low1Fps > 0 ? s.Low1Fps : null, 0, 240),
             "frame" => Make(s.FrameMs > 0 ? s.FrameMs : null, 1, 50),
+            "hz" => Make(s.RefreshHz > 0 ? s.RefreshHz : null, 0, 360),
             "gpu" => Make(g.LoadPercent, 0, 100),
             "gputemp" => Make(g.TempC, 0, 110),
             "hotspot" => Make(g.HotspotC, 0, 110),
@@ -281,6 +283,7 @@ public static class OverlayMetrics
             },
             Fps = 164 + 8 * wobble,
             Low1Fps = 121,
+            RefreshHz = 165,
             FrameMs = 6.1,
             FpsProcess = "cs2",
             PingMs = 24 + 3 * wobble,
@@ -327,4 +330,54 @@ public static class OverlayLayouts
         ("rings", "حلقه‌ای", "Rings"),
         ("graph", "نمودار", "Graph"),
     ];
+}
+
+/// <summary>Colour maths for the overlay's own colour picker: hue / saturation / value to "RRGGBB" and back.</summary>
+public static class ColorMath
+{
+    /// <summary>Hue 0..360, saturation and value 0..1.</summary>
+    public static (byte r, byte g, byte b) FromHsv(double h, double s, double v)
+    {
+        h = ((h % 360) + 360) % 360;
+        s = Math.Clamp(s, 0, 1);
+        v = Math.Clamp(v, 0, 1);
+        var c = v * s;
+        var x = c * (1 - Math.Abs(h / 60 % 2 - 1));
+        var m = v - c;
+        var (r, g, b) = (int)(h / 60) switch
+        {
+            0 => (c, x, 0.0),
+            1 => (x, c, 0.0),
+            2 => (0.0, c, x),
+            3 => (0.0, x, c),
+            4 => (x, 0.0, c),
+            _ => (c, 0.0, x),
+        };
+        return ((byte)Math.Round((r + m) * 255), (byte)Math.Round((g + m) * 255), (byte)Math.Round((b + m) * 255));
+    }
+
+    public static (double h, double s, double v) ToHsv(byte r, byte g, byte b)
+    {
+        double R = r / 255.0, G = g / 255.0, B = b / 255.0;
+        var max = Math.Max(R, Math.Max(G, B));
+        var min = Math.Min(R, Math.Min(G, B));
+        var d = max - min;
+        double h;
+        if (d == 0) h = 0;
+        else if (max == R) h = 60 * (((G - B) / d % 6 + 6) % 6);
+        else if (max == G) h = 60 * ((B - R) / d + 2);
+        else h = 60 * ((R - G) / d + 4);
+        return (h, max == 0 ? 0 : d / max, max);
+    }
+
+    public static string ToHex(byte r, byte g, byte b) => $"{r:X2}{g:X2}{b:X2}";
+
+    public static bool TryParse(string? hex, out (byte r, byte g, byte b) rgb)
+    {
+        rgb = default;
+        var text = hex?.Trim().TrimStart('#') ?? "";
+        if (!OverlayLook.IsHex(text)) return false;
+        rgb = (Convert.ToByte(text[..2], 16), Convert.ToByte(text[2..4], 16), Convert.ToByte(text[4..6], 16));
+        return true;
+    }
 }

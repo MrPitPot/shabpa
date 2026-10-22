@@ -20,6 +20,8 @@ public sealed class GameLogPage : PageBase
     private readonly StatCard _top = new(L.T("پربازی‌ترین", "Most played"), "star", "HueC");
     private readonly StatCard _net = new(L.T("اینترنت مصرفی", "Internet used"), "net", "HueD");
     private StackPanel _list = new();
+    private LiveGameCard? _liveCard;
+    private LiveGameCard _live => _liveCard ??= new LiveGameCard(Hub);
     private StackPanel _sessions = new();
     private readonly GlassCard _detail = new() { Padding = new Thickness(22, 20, 22, 20) };
     private readonly Button _back;
@@ -56,10 +58,11 @@ public sealed class GameLogPage : PageBase
         Loaded += (_, _) =>
         {
             if (!_hooked) { _hooked = true; Hub.GameLog.Changed += OnLogChanged; }
+            _live.Start();
             _animateBars = true;
             Build(true);
         };
-        Unloaded += (_, _) => { if (_hooked) { _hooked = false; Hub.GameLog.Changed -= OnLogChanged; } };
+        Unloaded += (_, _) => { _live.Stop(); if (_hooked) { _hooked = false; Hub.GameLog.Changed -= OnLogChanged; } };
     }
 
     private void OnLogChanged() => Dispatcher.BeginInvoke(() => { if (IsLoaded) Build(false); });
@@ -148,6 +151,7 @@ public sealed class GameLogPage : PageBase
         }
         card.Child = _list;
         var block = new StackPanel();
+        block.Children.Add(_live);
         block.Children.Add(new TextBlock { Text = L.T("بازی‌ها", "Games"), Style = St("Section"), Margin = new Thickness(0, 6, 0, 8) });
         block.Children.Add(card);
         block.Children.Add(new TextBlock
@@ -328,7 +332,7 @@ public sealed class GameLogPage : PageBase
         if (sessions.Count > SessionsShown)
             listBlock.Children.Add(new TextBlock { Text = L.T($"و {Fa.Digits((sessions.Count - SessionsShown).ToString())} نوبت قدیمی‌تر.", $"and {sessions.Count - SessionsShown} older sessions."), Style = St("Label"), Margin = new Thickness(10, 8, 8, 2) });
         listCard.Child = listBlock;
-        _root.Add(listCard, Blocks.At(3, 0, 5), Blocks.At(3, 0, 12));
+        _root.Add(listCard, Blocks.At(3, 0, 5), Blocks.At(3, 0, 12)).VerticalAlignment = VerticalAlignment.Top;
         _root.Add(_detail, Blocks.At(3, 5, 7), Blocks.At(4, 0, 12)).VerticalAlignment = VerticalAlignment.Top;
         DrawSessions(entry, sessions, now);
         DrawDetail(sessions.First(s => s.Id == _session), now, false);
@@ -521,5 +525,65 @@ public sealed class GameLogPage : PageBase
         }
         box.Child = stack;
         return box;
+    }
+}
+
+/// <summary>«بازی در حال اجرا»: while a game runs, its live CPU / GPU / RAM / temperatures / internet and what that means
+/// for the machine. Hidden when no game is running.</summary>
+internal sealed class LiveGameCard : GlassCard
+{
+    private readonly Shabpa.Hub Hub;
+    private readonly TextBlock _title = new() { FontWeight = FontWeights.SemiBold, FontSize = 16 };
+    private readonly TextBlock _numbers = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
+    private readonly TextBlock _impact = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
+    private readonly System.Windows.Threading.DispatcherTimer _timer = new() { Interval = TimeSpan.FromSeconds(2) };
+    private bool _acquired;
+
+    public LiveGameCard(Shabpa.Hub hub)
+    {
+        Hub = hub;
+        Padding = new Thickness(18, 14, 18, 14);
+        Margin = new Thickness(0, 0, 0, 14);
+        Visibility = Visibility.Collapsed;
+        var panel = new StackPanel();
+        panel.Children.Add(_title);
+        panel.Children.Add(_numbers);
+        panel.Children.Add(_impact);
+        Child = panel;
+        _timer.Tick += (_, _) => Refresh();
+    }
+
+    public void Start()
+    {
+        if (!Hub.Demo && !_acquired) { _acquired = true; Hub.Telemetry.Acquire(); }
+        _timer.Start();
+        Refresh();
+    }
+
+    public void Stop()
+    {
+        _timer.Stop();
+        if (_acquired) { _acquired = false; Hub.Telemetry.Release(); }
+    }
+
+    private void Refresh()
+    {
+        var s = Hub.Telemetry.Latest;
+        if (s.GameKey.Length == 0) { Visibility = Visibility.Collapsed; return; }
+        Visibility = Visibility.Visible;
+        FlowDirection = Ui.Flow;
+        _title.Text = "🎮 " + L.T("بازی در حال اجرا: ", "Now playing: ") + s.GameName + (s.GameTime > TimeSpan.Zero ? " · " + Fa.Duration(s.GameTime) : "");
+        var parts = new List<string> { L.T($"پردازنده {Fa.N(s.CpuLoad, 0)}٪", $"CPU {Fa.N(s.CpuLoad, 0)}%") };
+        if (s.GpuLoad is { } gl) parts.Add(L.T($"گرافیک {Fa.N(gl, 0)}٪", $"GPU {Fa.N(gl, 0)}%"));
+        parts.Add(L.T($"رم {Fa.N(s.RamPercent, 0)}٪", $"RAM {Fa.N(s.RamPercent, 0)}%"));
+        if (s.CpuTempC is { } ct) parts.Add(L.T($"دمای پردازنده {Fa.N(ct, 0)}°", $"CPU {Fa.N(ct, 0)}°C"));
+        if (s.Gpu.TempC is { } gt) parts.Add(L.T($"دمای گرافیک {Fa.N(gt, 0)}°", $"GPU {Fa.N(gt, 0)}°C"));
+        if (s.Fps > 0) parts.Add(L.T($"{Fa.N(s.Fps, 0)} فریم", $"{Fa.N(s.Fps, 0)} FPS"));
+        parts.Add($"↓{Fa.N(s.DownMbps, 1)} ↑{Fa.N(s.UpMbps, 1)} Mbps");
+        if (s.PingMs is { } p) parts.Add(L.T($"پینگ {Fa.N(p, 0)}", $"ping {Fa.N(p, 0)} ms"));
+        _numbers.Text = string.Join(L.En ? "  ·  " : "  ·  ", parts);
+        var level = GameImpact.Level(s.CpuLoad, s.GpuLoad, s.RamPercent, s.CpuTempC, s.Gpu.TempC);
+        _impact.Text = L.T("تأثیر روی سیستم: ", "Effect on the system: ") + GameImpact.Describe(s.CpuLoad, s.GpuLoad, s.RamPercent, s.CpuTempC, s.Gpu.TempC);
+        _impact.Foreground = level == 2 ? new SolidColorBrush(Color.FromRgb(0xEF, 0x5B, 0x5B)) : level == 1 ? new SolidColorBrush(Color.FromRgb(0xF2, 0xA5, 0x3A)) : (Brush)Application.Current.FindResource("Muted");
     }
 }

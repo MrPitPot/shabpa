@@ -73,6 +73,28 @@ public sealed class MicrophonePage : PageBase
         cableTip.TextWrapping = TextWrapping.Wrap;
         cableTip.Margin = new Thickness(0, 12, 0, 0);
         voice.Children.Add(cableTip);
+        voice.Children.Add(_cableHelp);
+        _cableHelp.Margin = new Thickness(0, 10, 0, 0);
+        _cableHelp.Children.Add(new TextBlock
+        {
+            Style = St("Label"), TextWrapping = TextWrapping.Wrap,
+            Text = L.T("VB-Cable برنامهٔ رایگان (donationware) شرکت VB-Audio است و لایسنسش بازتوزیع داخل برنامه‌های دیگه رو فقط با شرط‌های مشخص اجازه می‌ده؛ برای همین شب‌پا خودش دانلود یا نصبش نمی‌کنه. خودت از سایت رسمی بگیر:",
+                "VB-Cable is VB-Audio's donationware and its licence allows bundling only under set conditions, so Shabpa never downloads or installs it for you. Get it yourself from the official site:"),
+        });
+        var cableButtons = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
+        var official = new Button { Style = St("Btn"), Content = L.T("صفحهٔ رسمی VB-Cable", "VB-Cable official page"), Padding = new Thickness(14, 8, 14, 8), Margin = new Thickness(0, 0, 8, 6) };
+        official.Click += (_, _) => VbCable.Open(VbCable.OfficialPage);
+        var direct = new Button { Style = St("Btn"), Content = L.T("دانلود مستقیم (سایت رسمی، ۱٫۳ مگ)", "Direct download (official site, 1.3 MB)"), Padding = new Thickness(14, 8, 14, 8), Margin = new Thickness(0, 0, 8, 6) };
+        direct.Click += (_, _) => VbCable.Open(VbCable.DirectPackage);
+        cableButtons.Children.Add(official);
+        cableButtons.Children.Add(direct);
+        _cableHelp.Children.Add(cableButtons);
+        _cableHelp.Children.Add(new TextBlock
+        {
+            Style = St("Label"), TextWrapping = TextWrapping.Wrap,
+            Text = L.T("نصب: فایل زیپ رو کامل Extract کن، VBCABLE_Setup_x64.exe رو با «Run as administrator» اجرا کن و Install Driver رو بزن، بعد کامپیوتر رو ری‌استارت کن. بعد از اون «CABLE Input» تو لیست بالا پیدا می‌شه. اگه به سایت رسمی دسترسی نداری، نسخه‌ای که از سایت‌های معتبر مثل سافت۹۸ می‌گیری هم همونه، ولی حتماً بررسی کن نسخهٔ سالم باشه.",
+                "Install: extract the whole zip, run VBCABLE_Setup_x64.exe as administrator, press Install Driver, then restart the PC. “CABLE Input” will then show up in the list above. If the official site is unreachable, a copy from a trusted mirror such as Soft98 is the same package, but check it is the genuine one."),
+        });
 
         // ---- default microphone -------------------------------------------------------------------
         var micBody = new StackPanel();
@@ -260,12 +282,15 @@ public sealed class MicrophonePage : PageBase
         else if (!Hub.Voice.Running)
         {
             var cable = VoiceFilter.VirtualCable(_outputs);
+            _cableHelp.Visibility = cable is null ? Visibility.Visible : Visibility.Collapsed;
             _voiceNote.Text = cable is null
                 ? L.T("کابل صوتی مجازی پیدا نشد؛ فعلاً فقط می‌تونی صدای تمیزشده رو خودت بشنوی.", "No virtual audio cable found; for now you can only hear the cleaned sound yourself.")
                 : L.T($"«{cable.Name}» پیدا شد؛ برای فرستادن صدای تمیز به برنامه‌های دیگه، اون رو به‌عنوان مقصد انتخاب کن.", $"Found “{cable.Name}”; choose it as the destination to send the clean sound to other programs.");
         }
         _loading = false;
     }
+
+    private readonly StackPanel _cableHelp = new();
 
     private static void Launch(string file, string arguments)
     {

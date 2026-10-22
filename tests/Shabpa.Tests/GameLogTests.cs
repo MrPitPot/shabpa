@@ -250,3 +250,56 @@ public class GameLogTests
         Assert.Contains('↓', text);
     }
 }
+
+public class GameMessageTests
+{
+    private static FinishedSession Make(string name = "Elden Ring")
+    {
+        var rec = new GameSessionRecorder();
+        for (var s = 0; s <= 700; s++)
+            rec.Feed(new RecorderInput(new DateTime(2026, 10, 1, 20, 0, 0).AddSeconds(s), "k", name, 40, 80, 64, 71, 55, 1, 0.1, 90, s * 50_000, s * 5_000, true));
+        return rec.Feed(new RecorderInput(new DateTime(2026, 10, 1, 20, 0, 0).AddSeconds(701), "", "", 0, 0, null, null, 0, 0, 0, 0))!;
+    }
+
+    [Fact]
+    public void Html_has_bold_game_name_sections_and_bullets()
+    {
+        var html = GameMessage.Html(Make());
+        Assert.StartsWith("🎮 <b>Elden Ring</b>", html);
+        Assert.Contains("🌡", html);
+        Assert.Contains("📶", html);
+        Assert.Contains("  • ", html);
+        Assert.Equal(html.Split("<b>").Length, html.Split("</b>").Length);
+    }
+
+    [Fact]
+    public void Html_escapes_the_game_name()
+    {
+        var html = GameMessage.Html(Make("A<b>&Co"));
+        Assert.Contains("A&lt;b&gt;&amp;Co", html);
+        Assert.DoesNotContain("A<b>", html);
+    }
+
+    [Fact]
+    public void Plain_has_no_tags_and_html_is_cut_under_telegram_limit()
+    {
+        Assert.DoesNotContain("<b>", GameMessage.Plain(Make()));
+        var big = string.Join('\n', Enumerable.Repeat("line of text here", 600));
+        var cut = GameMessage.Fit(big);
+        Assert.True(cut.Length <= GameMessage.MaxLength);
+        Assert.EndsWith("…", cut);
+    }
+}
+
+public class GameImpactTests
+{
+    [Fact]
+    public void Level_follows_load_and_temperature()
+    {
+        Assert.Equal(0, Shabpa.Core.GameImpact.Level(30, 60, 50, 60, 65));
+        Assert.Equal(1, Shabpa.Core.GameImpact.Level(30, 95, 50, 60, 65));
+        Assert.Equal(2, Shabpa.Core.GameImpact.Level(30, 95, 50, 60, 88));
+        Assert.Equal(2, Shabpa.Core.GameImpact.Level(30, null, 95, null, null));
+        Assert.False(string.IsNullOrWhiteSpace(Shabpa.Core.GameImpact.Describe(30, 60, 50, 60, 65)));
+    }
+}

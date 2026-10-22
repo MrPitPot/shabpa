@@ -392,4 +392,20 @@ public sealed class DownloadPlan
     public bool UseMacro { get; set; } = true;
 
     public bool Repeats => RepeatDays.Count > 0;
+
+    /// <summary>Optional end of the download window as minutes after midnight; null = no end. The end is the first time of day
+    /// after the start, so a 23:00 start with a 06:00 end runs overnight.</summary>
+    public int? EndMinute { get; set; }
+    /// <summary>When the download is not finished at the end time, run the action then anyway (default: only stop waiting).</summary>
+    public bool ActAtEnd { get; set; }
+    /// <summary>The concrete end of the running plan (set when it starts).</summary>
+    public DateTime? EndAt { get; set; }
+
+    /// <summary>The first moment after <paramref name="start"/> whose time of day is <paramref name="endMinute"/>.</summary>
+    public static DateTime? EndAfter(DateTime start, int? endMinute)
+    {
+        if (endMinute is not { } m) return null;
+        var end = start.Date.AddMinutes(m);
+        return end <= start ? end.AddDays(1) : end;
+    }
 }

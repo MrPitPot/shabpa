@@ -141,7 +141,15 @@ public sealed class HomePage : PageBase
             Place(_today, 5, 0, 12);
         }
         // quick actions: five across, or three
-        var per = wide && fiveQuick ? 5 : 3; // five long Persian titles do not fit five across below ~1180 px
+        _quickPer = wide && fiveQuick ? 5 : 3; // five long Persian titles do not fit five across below ~1180 px
+        LayoutQuick();
+    }
+
+    private int _quickPer = 5;
+
+    private void LayoutQuick()
+    {
+        var per = _quickPer;
         _quickGrid.ColumnDefinitions.Clear();
         _quickGrid.RowDefinitions.Clear();
         for (var c = 0; c < per; c++) _quickGrid.ColumnDefinitions.Add(new ColumnDefinition());
@@ -281,6 +289,27 @@ public sealed class HomePage : PageBase
         return row;
     }
 
+    private int _fixedQuick;
+    private string _frequentKeys = "";
+
+    /// <summary>The most opened pages (counted locally, never sent) sit after the fixed quick actions.</summary>
+    private void SyncFrequent()
+    {
+        var top = PageUse.Top(Hub.State.PageVisits);
+        var keys = string.Join(',', top.Select(t => t.Key));
+        if (keys == _frequentKeys) return;
+        _frequentKeys = keys;
+        foreach (var old in _quickCards.Skip(_fixedQuick).ToList()) { _quickCards.Remove(old); _quickGrid.Children.Remove(old); }
+        foreach (var t in top)
+        {
+            var key = t.Key;
+            var card = new QuickCard(t.Icon, t.Hue, L.T(t.Fa, t.En), L.T("پراستفاده", "Often used"), () => (Application.Current.MainWindow as MainWindow)?.Navigate(key)) { Margin = new Thickness(8) };
+            _quickCards.Add(card);
+            _quickGrid.Children.Add(card);
+        }
+        LayoutQuick();
+    }
+
     // ---- quick actions --------------------------------------------------------------------------------
 
     private FrameworkElement BuildQuick()
@@ -301,6 +330,8 @@ public sealed class HomePage : PageBase
         Add(new QuickCard("clk", "HueA", L.T("وقتی بی‌استفاده موند", "When idle"), L.T("بعد از ۳۰ دقیقه", "After 30 minutes"), OnWhenIdle));
         Add(new QuickCard("mon", "HueE", L.T("اورلی بازی", "Game overlay"), L.T("نمایش و تنظیم", "Show and tune"), () => (Application.Current.MainWindow as MainWindow)?.Navigate("gaming")));
         panel.Children.Add(_quickGrid);
+        _fixedQuick = _quickCards.Count;
+        SyncFrequent();
         return panel;
     }
 
@@ -321,6 +352,7 @@ public sealed class HomePage : PageBase
 
     public override void Refresh()
     {
+        SyncFrequent();
         var now = DateTime.Now;
         UpdateTitles(now);
         RebuildPlan(now);

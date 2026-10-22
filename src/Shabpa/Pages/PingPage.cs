@@ -42,7 +42,7 @@ public sealed class PingPage : PageBase
     private string _pingTint = "";
 
     // hero
-    private readonly TextBlock _pingText = new() { FontSize = 44, FontWeight = FontWeights.Bold, Text = "—", Foreground = Res("Green"), LineHeight = 52, LineStackingStrategy = LineStackingStrategy.BlockLineHeight };
+    private readonly TextBlock _pingText = new() { FontSize = 34, FontWeight = FontWeights.Bold, Text = "—", Foreground = Res("Green"), LineHeight = 40, LineStackingStrategy = LineStackingStrategy.BlockLineHeight };
     private readonly TextBlock _baseText = new() { FontSize = 12, FontWeight = FontWeights.Medium, Foreground = Res("Muted") };
     private readonly TextBlock _jitterText = new() { FontSize = 12, FontWeight = FontWeights.Medium, Foreground = Res("Muted") };
     private readonly TextBlock _lossText = new() { FontSize = 12, FontWeight = FontWeights.Medium, Foreground = Res("Muted") };
@@ -135,14 +135,14 @@ public sealed class PingPage : PageBase
         inner.ColumnDefinitions.Add(new ColumnDefinition());
 
         // left: the number
-        var left = new StackPanel { MinWidth = 210, Margin = new Thickness(0, 0, 26, 0), VerticalAlignment = VerticalAlignment.Center };
+        var left = new StackPanel { MinWidth = 180, Margin = new Thickness(0, 0, 20, 0), VerticalAlignment = VerticalAlignment.Center };
         var head = new StackPanel { Orientation = Orientation.Horizontal };
         head.Children.Add(new IconBadge("net", "HueB", 30, 16, 10) { Margin = new Thickness(0, 0, 10, 0) });
         head.Children.Add(new TextBlock { Text = L.T("پینگ همین لحظه", "Ping right now"), Style = St("Label"), FontWeight = FontWeights.Medium, VerticalAlignment = VerticalAlignment.Center });
         left.Children.Add(head);
-        var value = new StackPanel { Orientation = Orientation.Horizontal, FlowDirection = FlowDirection.LeftToRight, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 10) };
+        var value = new StackPanel { Orientation = Orientation.Horizontal, FlowDirection = FlowDirection.LeftToRight, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 4, 0, 6) };
         value.Children.Add(_pingText);
-        value.Children.Add(new TextBlock { Text = "ms", FontSize = 15, FontWeight = FontWeights.Medium, Foreground = Res("Muted"), VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(8, 0, 0, 9) });
+        value.Children.Add(new TextBlock { Text = "ms", FontSize = 13, FontWeight = FontWeights.Medium, Foreground = Res("Muted"), VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(6, 0, 0, 6) });
         left.Children.Add(value);
         var pills = new WrapPanel();
         pills.Children.Add(Stat(_baseText, L.T("میانه‌ی دو دقیقه‌ی اخیر؛ عدد عادی خط تو", "Median of the last two minutes: what is normal for your line")));
@@ -158,9 +158,9 @@ public sealed class PingPage : PageBase
         Grid.SetColumn(right, 1);
         // Fixed height: the line is scaled into the box, so a spike can never stretch the page.
         _sparkHost.Children.Add(_spark);
-        var chart = new Border { Style = St("Card"), Padding = new Thickness(12), Height = 100, ClipToBounds = true, FlowDirection = FlowDirection.LeftToRight, Child = _sparkHost };
+        var chart = new Border { Style = St("Card"), Padding = new Thickness(8), Height = 60, ClipToBounds = true, FlowDirection = FlowDirection.LeftToRight, Child = _sparkHost };
         right.Children.Add(chart);
-        var target = new Grid { Margin = new Thickness(0, 12, 0, 0) };
+        var target = new Grid { Margin = new Thickness(0, 8, 0, 0) };
         target.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         target.ColumnDefinitions.Add(new ColumnDefinition());
         target.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -176,7 +176,7 @@ public sealed class PingPage : PageBase
         right.Children.Add(target);
         inner.Children.Add(right);
 
-        return new GlassCard { Padding = new Thickness(26, 22, 26, 22), Child = inner };
+        return new GlassCard { Padding = new Thickness(20, 14, 20, 14), Child = inner };
     }
 
     private FrameworkElement BuildGuard()

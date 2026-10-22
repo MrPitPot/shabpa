@@ -66,6 +66,16 @@ public sealed class SettingsPage : PageBase
         glassRow.ToolTip = L.T("پس‌زمینه‌ی پنجره نیمه‌شفاف می‌شه و رنگ میز کار یا عکس پس‌زمینه کم‌رنگ از زیرش پیداست. در حالت «رم کمتر» خاموشه.", "The window background turns translucent and your wallpaper shows faintly through. Off in “Use less RAM” mode.");
         glassRow.Background = Res("Transparent");
         lookBody.Children.Add(glassRow);
+        if (!Ui.GlassSupported())
+        {
+            GlassChips.IsEnabled = false;
+            GlassChips.Opacity = 0.5;
+            lookBody.Children.Add(new TextBlock
+            {
+                Text = L.T("روی ویندوز ۱۰ و نسخه‌های قدیمی‌تر از ویندوز ۱۱ (۲۲H2) پشتیبانی نمی‌شود.", "Not supported on Windows 10 or Windows 11 before 22H2."),
+                Foreground = Res("Muted"), FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 6),
+            });
+        }
         Chips(GlassChips, [("off", L.T("خاموش", "Off")), ("mica", L.T("میکا (نرم)", "Mica (soft)")), ("acrylic", L.T("آکریلیک (شیشه‌ای)", "Acrylic (frosted)"))], Ui.CleanGlass(s.Glass), glass =>
         {
             if (glass == Ui.CleanGlass(s.Glass)) return;

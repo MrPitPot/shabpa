@@ -114,15 +114,15 @@ public sealed class DimController : IDisposable
             _screensStale = false;
             _screens = string.Join(';', WF.Screen.AllScreens.Select(s => s.Bounds.ToString()));
         }
-        if (_windows.Count > 0 && Math.Abs(level - _level) < 0.0005 && S.DimWarm == _warm && _screens == _shapeScreens) return;
-        var shape = $"{level:0.000}|{S.DimWarm}|{_screens}";
+        if (_windows.Count > 0 && Math.Abs(level - _level) < 0.0005 && S.DimWarm == _warm && S.DimKelvin == _kelvin && _screens == _shapeScreens) return;
+        var shape = $"{level:0.000}|{S.DimWarm}|{S.DimKelvin}|{_screens}";
         if (shape == _shape && _windows.Count > 0) return;
         Close(); // clears _shape, so remember the new one only afterwards or every call would rebuild the layer
         _shape = shape;
-        (_level, _warm, _shapeScreens) = (level, S.DimWarm, _screens);
+        (_level, _warm, _kelvin, _shapeScreens) = (level, S.DimWarm, S.DimKelvin, _screens);
         Builds++;
         // Warm cover: a hint of amber keeps blue light down on top of simply being darker.
-        var colour = S.DimWarm ? Color.FromRgb(38, 14, 0) : Colors.Black;
+        var colour = S.DimWarm ? ComfortPresets.Tint(S.DimKelvin) : Colors.Black;
         foreach (var screen in WF.Screen.AllScreens)
         {
             var window = new Window
@@ -156,6 +156,7 @@ public sealed class DimController : IDisposable
     private string _k1 = "", _k2 = "", _k3 = "";
     private double _level;
     private bool _warm;
+    private int _kelvin;
     private string _screens = "", _shapeScreens = "";
     private volatile bool _screensStale = true;
     private void OnDisplayChanged(object? sender, EventArgs e) => _screensStale = true;

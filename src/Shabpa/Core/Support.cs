@@ -50,14 +50,37 @@ public sealed class TicketInfo
 
 public static class SupportInfo
 {
-    public static readonly string[] Categories = ["bug", "idea", "question", "other"];
+    public static readonly string[] Categories = ["bug", "idea", "question", "game", "other"];
 
     public static string CategoryName(string key) => key switch
     {
         "bug" => L.T("مشکل / باگ", "Problem / bug"),
         "idea" => L.T("پیشنهاد", "Idea"),
         "question" => L.T("سؤال", "Question"),
+        "game" => L.T("بازی و اورلی", "Games & overlay"),
         _ => L.T("سایر", "Other"),
+    };
+
+    /// <summary>The colour family of a status pill (names of theme brushes).</summary>
+    public static string StatusTint(string key) => key switch { "answered" => "Green", "closed" => "Gold", "reviewing" => "Accent", _ => "Red" };
+
+    public static readonly string[] Filters = ["all", "open", "answered", "closed"];
+
+    public static string FilterName(string key) => key switch
+    {
+        "open" => L.T("باز", "Open"),
+        "answered" => L.T("جواب‌داده", "Answered"),
+        "closed" => L.T("بسته", "Closed"),
+        _ => L.T("همه", "All"),
+    };
+
+    /// <summary>"open" also covers tickets being looked at; "all" lets everything through.</summary>
+    public static bool Matches(string filter, string status) => filter switch
+    {
+        "open" => status is "open" or "reviewing",
+        "answered" => status == "answered",
+        "closed" => status == "closed",
+        _ => true,
     };
 
     public static string StatusName(string key) => key switch
@@ -223,6 +246,37 @@ public sealed class SupportClient
             request.Headers.Add("X-Admin-Key", AdminKey);
             using var response = await http.SendAsync(request, ct).ConfigureAwait(false);
             return response.IsSuccessStatusCode ? null : Describe(response.StatusCode);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            return L.T("اتصال به سرور پشتیبانی برقرار نشد.", "Could not reach the support server.");
+        }
+    }
+
+    /// <summary>The person closes one of their own tickets (the server checks the device id).</summary>
+    public Task<string?> CloseAsync(string id, CancellationToken ct = default) =>
+        Simple(HttpMethod.Post, $"{Endpoint}/tickets/{Uri.EscapeDataString(id)}/close?device={_settings().DeviceId}", admin: false, ct);
+
+    /// <summary>The person deletes one of their own tickets for good.</summary>
+    public Task<string?> DeleteAsync(string id, CancellationToken ct = default) =>
+        Simple(HttpMethod.Delete, $"{Endpoint}/tickets/{Uri.EscapeDataString(id)}?device={_settings().DeviceId}", admin: false, ct);
+
+    /// <summary>Owner only: deletes any ticket.</summary>
+    public Task<string?> AdminDeleteAsync(string id, CancellationToken ct = default) =>
+        Simple(HttpMethod.Delete, $"{Endpoint}/admin/tickets/{Uri.EscapeDataString(id)}", admin: true, ct);
+
+    private async Task<string?> Simple(HttpMethod method, string url, bool admin, CancellationToken ct)
+    {
+        if (!Available) return L.T("سرور پشتیبانی تنظیم نشده.", "The support server is not set up.");
+        if (admin && !IsAdmin) return L.T("کلید مدیر وارد نشده.", "No admin key entered.");
+        try
+        {
+            using var http = Http();
+            using var request = new HttpRequestMessage(method, url);
+            if (admin) request.Headers.Add("X-Admin-Key", AdminKey);
+            using var response = await http.SendAsync(request, ct).ConfigureAwait(false);
+            // 404: already gone, which is what the person wanted
+            return response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.NotFound ? null : Describe(response.StatusCode);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {

@@ -396,6 +396,8 @@ public partial class App : Application
         // windows are cheap to draw either way.
         if (settings.LowMemory || settings.SoftwareRender) System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
         L.En = (Value(e.Args, "--lang") ?? settings.Language) == "en";
+        // Windows 10 (and early Windows 11) cannot do the glass backdrop well: whoever picked it goes back to the normal theme
+        if (!Ui.GlassSupported() && settings.Glass != "off") { settings.Glass = "off"; if (!dryRun) store.Save(); }
         if (shots is not null && Value(e.Args, "--theme") is { } forced) settings.Theme = Palette.Find(forced).Key; // screenshot runs never save
         var startTheme = Palette.Find(settings.Theme);
         if (Birthday.LookFor(settings.Birthday, Birthday.Now())) startTheme = Birthday.Tint(startTheme); // the festive look, for this day only
@@ -438,6 +440,7 @@ public partial class App : Application
 #if DEBUG || SHABPA_TESTHOOKS
             else if (Value(e.Args, "--birthday-probe") is { } birthdayDir) _ = Pages.BirthdayProbe.Run(_window, birthdayDir, Save);
 #endif
+            else if (Value(e.Args, "--tabs-test") is { } tabsReport) _ = Pages.TabsProbe.Run(_window, tabsReport, shots, Save);
             else if (Value(e.Args, "--tick-test") is { } tickReport) _ = Pages.TickProbe.Run(_window, tickReport, shots, Save);
             else if (Value(e.Args, "--motion-audit") is { } auditReport) _ = Pages.MotionAudit.Run(_window, auditReport, shots, Save);
             else if (!args.Contains("--interactive")) _ = CaptureAll(shots, Value(e.Args, "--only"));
@@ -720,7 +723,7 @@ public partial class App : Application
             {
                 M("fps", "FPS", "156", "", 0.8), M("gpu", "GPU", "64", "%", 0.64), M("hotspot", "HOT", "84", "°C", 0.84, 1), M("gputemp", "GPU", "96", "°C", 0.96, 2),
                 M("gpufan", "FAN", "46", "%", 0.46), M("vram", "VRAM", "9.2", "GB", 0.58), M("cpu", "CPU", "32", "%", 0.32),
-                M("ram", "RAM", "100", "%", 1.0, 2), M("cputemp", "SYS", "1.4k", "", 0.3), M("frame", "FT", "8.3", "ms", null), M("ping", "PING", "23", "ms", null),
+                M("ram", "RAM", "100", "%", 1.0, 2), M("cputemp", "CPU", "1.4k", "", 0.3), M("frame", "FT", "8.3", "ms", null), M("ping", "PING", "23", "ms", null),
                 M("low1", "1%", "118", "", 0.6), M("gpupower", "PWR", "1234", "W", 0.5),
             };
             var persian = all.Take(7).Select(m => m with { Value = Fa.Digits(m.Value) }).ToList();

@@ -13,7 +13,7 @@
     <ApplicationIcon>shabpa.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <StartupObject>Shabpa.Setup.Program</StartupObject>
-    <Version>3.6.0</Version>
+    <Version>3.7.0</Version>
     <Product>Shabpa Setup</Product>
     <AssemblyTitle>Shabpa Setup</AssemblyTitle>
     <Company>Mr.PitPot</Company>

@@ -24,7 +24,7 @@ public sealed record GlassTokens(
 
     public static uint Mix(uint a, uint b, double t)
     {
-        static uint C(uint x, uint y, double t) => (uint)Math.Round(x + (y - x) * t);
+        static uint C(uint x, uint y, double t) => (uint)Math.Clamp(Math.Round(x + ((double)y - x) * t), 0, 255);
         return (C((a >> 16) & 255, (b >> 16) & 255, t) << 16) | (C((a >> 8) & 255, (b >> 8) & 255, t) << 8) | C(a & 255, b & 255, t);
     }
 

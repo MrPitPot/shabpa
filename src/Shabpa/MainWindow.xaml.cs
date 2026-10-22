@@ -311,6 +311,7 @@ public partial class MainWindow : Window
     {
         if (_pages is null) return;
         var key = _pages.First(p => ReferenceEquals(p.Value.nav, sender)).Key;
+        if (PageUse.Record(Hub.I.State.PageVisits, key)) Hub.I.Store.Save();
         Show(key, Page(key));
     }
 

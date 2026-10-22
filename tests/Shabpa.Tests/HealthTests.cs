@@ -33,7 +33,59 @@ public class HealthChecksTests
         Assert.Equal(CheckState.Attention, Health.PendingReboot(a).State);
         var b = new FakeRegistry();
         b.Values[(@"HKLM\SYSTEM\CurrentControlSet\Control\Session Manager", "PendingFileRenameOperations")] = new[] { "x" };
-        Assert.Equal(CheckState.Attention, Health.PendingReboot(b).State);
+        Assert.Equal(CheckState.Attention, Health.PendingReboot(b, _ => true).State);
+    }
+
+    [Fact]
+    public void Dead_pending_file_renames_do_not_keep_the_restart_warning()
+    {
+        var reg = new FakeRegistry();
+        reg.Values[(@"HKLM\SYSTEM\CurrentControlSet\Control\Session Manager", "PendingFileRenameOperations")] = new[] { @"\??\C:\gone\old.dll", "", "", "" };
+        Assert.Equal(CheckState.Good, Health.PendingReboot(reg, _ => false).State);
+        Assert.Equal(1, Health.LiveFileRenames(reg, p => p == @"C:\gone\old.dll"));
+        Assert.Equal(CheckState.Attention, Health.PendingReboot(reg, p => p == @"C:\gone\old.dll").State);
+    }
+
+    [Fact]
+    public void Sheed_is_found_by_its_running_programs_even_when_it_is_not_registered()
+    {
+        var found = Health.DetectByProcess(["explorer", "SheedAntivirusService", "SheedScannerService", "chrome"]);
+        Assert.Equal(["Sheed"], found.Select(f => f.Name));
+        Assert.Empty(Health.DetectByProcess(["explorer", "chrome"]));
+        Assert.Empty(Health.DetectByProcess(["navpane", "wsctrl", "legui"]));
+        Assert.Equal(["Kaspersky"], Health.DetectByProcess(["avp"]).Select(f => f.Name));
+        // Defender in "passive" state (0x62100 while another antivirus runs) is not "on"
+        Assert.False(Health.DecodeAv("Windows Defender", 0x62100).Enabled);
+        var checks = Health.Security(new FakeRegistry(), _ => null, false, [Health.DecodeAv("Windows Defender", 0x62100), .. found]);
+        Assert.Equal(CheckState.Good, checks.Single(c => c.Id == "antivirus").State);
+    }
+
+    [Fact]
+    public void Monitor_refresh_rate_and_dwm_rate_are_readable()
+    {
+        Assert.True(DisplayRate.MonitorHz(IntPtr.Zero) is >= 24 and <= 600);
+        var rate = new DisplayRate();
+        rate.ComposeFps();
+        Thread.Sleep(300);
+        Assert.True(rate.ComposeFps() >= 0);
+        Assert.NotNull(Health.AntivirusNow());
+    }
+
+    [Fact]
+    public void A_third_party_antivirus_is_recognised_and_defender_off_is_then_fine()
+    {
+        var reg = new FakeRegistry();
+        reg.Values[(@"HKLM\SOFTWARE\Microsoft\Windows Defender\Real-Time Protection", "DisableRealtimeMonitoring")] = 1;
+        var sheed = Health.DecodeAv("Sheed Antivirus", 0x1000);
+        Assert.True(sheed.Enabled);
+        Assert.True(sheed.UpToDate);
+        Assert.False(Health.DecodeAv("X", 0x0000).Enabled);
+        Assert.False(Health.DecodeAv("X", 0x1010).UpToDate);
+        var checks = Health.Security(reg, _ => null, false, [sheed]);
+        Assert.Equal(CheckState.Good, checks.Single(c => c.Id == "antivirus").State);
+        Assert.Equal(CheckState.Good, checks.Single(c => c.Id == "defender").State);
+        var none = Health.Security(reg, _ => null, false, []);
+        Assert.Equal(CheckState.Problem, none.Single(c => c.Id == "antivirus").State);
     }
 
     [Fact]
