@@ -1,5 +1,11 @@
 namespace Shabpa.Core;
 
+/// <summary>Thrown instead of starting yet another nested wait; callers treat it like a cancelled call (keep the old value, try later).</summary>
+public sealed class OffloadBusyException : OperationCanceledException
+{
+    public OffloadBusyException() : base("another slow call is still running on the window thread") { }
+}
+
 public static class Offload
 {
     /// <summary>Runs a slow call (a console program, a driver) on the thread pool while the calling window thread keeps
@@ -10,6 +16,25 @@ public static class Offload
     internal static T KeepResponsive<T>(Func<T> work, System.Windows.Threading.Dispatcher? dispatcher)
     {
         if (dispatcher is null || !dispatcher.CheckAccess()) return work();
+        // Each call pumps messages on top of the caller's stack. Something that asks again while the first call is still running
+        // (a refresh fired by the one-second clock, a second click) must not pile frames up until the stack is gone.
+        if (_depth >= MaxDepth) throw new OffloadBusyException();
+        _depth++;
+        try
+        {
+            return Pump(work, dispatcher);
+        }
+        finally
+        {
+            _depth--;
+        }
+    }
+
+    public const int MaxDepth = 3;
+    [ThreadStatic] private static int _depth;
+
+    private static T Pump<T>(Func<T> work, System.Windows.Threading.Dispatcher dispatcher)
+    {
         var frame = new System.Windows.Threading.DispatcherFrame();
         T result = default!;
         Exception? error = null;

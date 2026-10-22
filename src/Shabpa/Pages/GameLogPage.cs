@@ -245,7 +245,6 @@ public sealed class GameLogPage : PageBase
         var delete = IconButton("trash", L.T("پاک کردن تاریخچه‌ی این بازی", "Delete this game's history"), () => DeleteGame(t));
         delete.Margin = new Thickness(8, 0, 0, 0);
         delete.VerticalAlignment = VerticalAlignment.Center;
-        delete.PreviewMouseLeftButtonUp += (_, e) => e.Handled = true; // the row below must not open
         Grid.SetColumn(delete, 3);
         grid.Children.Add(delete);
         shell.Child = grid;
@@ -376,7 +375,6 @@ public sealed class GameLogPage : PageBase
             grid.Children.Add(left);
             var trash = IconButton("trash", L.T("پاک کردن این نوبت", "Delete this session"), () => DeleteSession(entry, s));
             trash.VerticalAlignment = VerticalAlignment.Center;
-            trash.PreviewMouseLeftButtonUp += (_, e) => e.Handled = true;
             Grid.SetColumn(trash, 1);
             grid.Children.Add(trash);
             shell.Child = grid;

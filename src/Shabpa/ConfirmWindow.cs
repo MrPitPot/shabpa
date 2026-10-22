@@ -129,7 +129,19 @@ public sealed class ConfirmWindow : Window
         var hub = Hub.I;
         if (hub is { Demo: true }) return true;
         var window = new ConfirmWindow(title, message, yes ?? L.T("تایید", "Confirm"), no ?? L.T("انصراف", "Cancel"), danger, detail);
+        OffScreenForTests(window);
         return window.ShowDialog() == true;
+    }
+
+    // Debug builds only: probes that answer the dialog themselves keep it out of the user's sight.
+    [System.Diagnostics.Conditional("DEBUG")]
+    private static void OffScreenForTests(Window w)
+    {
+        if (Environment.GetEnvironmentVariable("SHABPA_TEST_OFFSCREEN") != "1") return;
+        w.WindowStartupLocation = WindowStartupLocation.Manual;
+        w.Left = -30000;
+        w.Top = -30000;
+        w.ShowActivated = false;
     }
 
     public static bool Ask(string title, string message, string? yes = null, string? no = null, bool danger = false, string? detail = null)

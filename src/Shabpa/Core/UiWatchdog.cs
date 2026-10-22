@@ -142,7 +142,10 @@ public static class UiWatchdog
     private static void WriteStack(int uiThread, long silentMs)
     {
         var reader = StackReader;
-        _ = Task.Run(() =>
+        Log.Write($"ui stall: reading the window thread's stack ({silentMs} ms into the stall)");
+        // A thread of its own, not Task.Run: when the thread pool is starved (the usual companion of a frozen window: sync-over-async,
+        // blocked workers) a queued job would never start and no stack would ever be written.
+        var thread = new Thread(() =>
         {
             try
             {
@@ -154,8 +157,11 @@ public static class UiWatchdog
             {
                 Log.Write($"ui stall stack failed: {ex.GetType().Name}");
             }
-        });
+        }) { IsBackground = true, Name = "ui-stall-stack" };
+        thread.Start();
     }
+
+    internal static void WriteStackForTest(int uiThread, long silentMs) => WriteStack(uiThread, silentMs);
 
     public static void Stop() => _stop = true;
 }

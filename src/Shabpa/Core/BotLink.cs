@@ -184,6 +184,7 @@ public sealed class BotLink : IDisposable
     {
         var http = _http!;
         var failures = 0;
+        var backoff = new BotBackoff();
         while (!ct.IsCancellationRequested)
         {
             try
@@ -202,9 +203,10 @@ public sealed class BotLink : IDisposable
                 }
 
                 using var poll = await Send(http, HttpMethod.Get, "/api/device/poll", null, ct);
+                if (failures >= 2) Log.Write($"bot link: reachable again after {failures} failed tries");
                 failures = 0;
                 _ = Task.Run(() => FlushAsync());
-                if (poll is null) continue;
+                if (poll is null) { await Task.Delay(PollEvery, ct); continue; } // an empty answer is not a reason to ask again at once
                 var root = poll.RootElement;
                 var chats = root.TryGetProperty("chats", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetInt32() : 0;
                 if (chats != Chats || State is BotState.Connecting or BotState.Error)
@@ -233,9 +235,9 @@ public sealed class BotLink : IDisposable
             catch (Exception ex)
             {
                 failures++;
-                if (failures == 1) Log.Write($"bot link: {ex.GetType().Name}: {ex.Message}");
+                if (backoff.ShouldLog(ex.GetType().Name, DateTime.UtcNow)) Log.Write($"bot link: {ex.GetType().Name}: {ex.Message}");
                 if (failures >= 2) Set(BotState.Error, L.T("به سرور شب‌پا وصل نشد. اینترنت یا پروکسی رو چک کن؛ خودم دوباره تلاش می‌کنم.", "Could not reach the Shabpa server. Check the internet or proxy; I will keep retrying."));
-                try { await Task.Delay(TimeSpan.FromSeconds(Math.Min(60, 5 * failures)), ct); }
+                try { await Task.Delay(BotBackoff.Wait(failures), ct); }
                 catch (OperationCanceledException) { return; }
                 continue;
             }
@@ -410,4 +412,22 @@ public sealed class BotLink : IDisposable
     }
 
     public void Dispose() => Stop();
+}
+
+/// <summary>How the link behaves while the server cannot be reached: waits 5, 10, 20 ... up to 300 seconds between tries, and writes
+/// one log line per kind of failure (again only after half an hour or when the kind changes), not one per try.</summary>
+internal sealed class BotBackoff
+{
+    public static TimeSpan Wait(int failures) => TimeSpan.FromSeconds(Math.Min(300, 5 * Math.Pow(2, Math.Clamp(failures - 1, 0, 6))));
+
+    private string _kind = "";
+    private DateTime _at = DateTime.MinValue;
+
+    public bool ShouldLog(string kind, DateTime now)
+    {
+        if (kind == _kind && now - _at < TimeSpan.FromMinutes(30)) return false;
+        _kind = kind;
+        _at = now;
+        return true;
+    }
 }
