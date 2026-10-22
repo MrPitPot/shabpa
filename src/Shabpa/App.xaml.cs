@@ -387,6 +387,7 @@ public partial class App : Application
 
         var store = new Store();
         Log.File = Path.Combine(store.Folder, "shabpa.log");
+        Core.CrashLog.Install();
         if (demo) store.ReadOnly = true;
         else
         {
@@ -409,6 +410,8 @@ public partial class App : Application
                           + $"admin={Elevation.IsElevated} · render tier {System.Windows.Media.RenderCapability.Tier >> 16} · low-memory={settings.LowMemory} software-render={settings.SoftwareRender}");
             }
             catch { /* the log line is optional */ }
+            // a breadcrumb for runs that end without a goodbye; a clean exit removes it (see OnExit)
+            if (!demo) Core.RunMarker.Begin(store.Folder, System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "", () => _window?.CurrentPage ?? "");
         }
         L.En = (Value(e.Args, "--lang") ?? settings.Language) == "en";
         // Windows 10 (and early Windows 11) cannot do the glass backdrop well: whoever picked it goes back to the normal theme
@@ -466,6 +469,9 @@ public partial class App : Application
             else if (Value(e.Args, "--motion-test") is { } motionReport) _ = MotionProbe(shots, motionReport);
 #if DEBUG || SHABPA_TESTHOOKS
             else if (Value(e.Args, "--birthday-probe") is { } birthdayDir) _ = Pages.BirthdayProbe.Run(_window, birthdayDir, Save);
+#endif
+#if DEBUG || SHABPA_TESTHOOKS
+            else if (Value(e.Args, "--delete-test") is { } deleteReport) _ = Pages.DeleteProbe.Run(_window, deleteReport);
 #endif
             else if (Value(e.Args, "--tour-test") is { } tourReport) _ = Tour.TourProbe.Run(_window, tourReport, shots, Save);
             else if (Value(e.Args, "--glass-test") is { } glassReport) _ = Pages.GlassProbe.Run(_window, glassReport);
@@ -535,6 +541,12 @@ public partial class App : Application
         _window.Show();
         if (_window.WindowState == WindowState.Minimized) _window.WindowState = WindowState.Normal;
         _window.Activate();
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        Core.RunMarker.End();
+        base.OnExit(e);
     }
 
     public void Quit()

@@ -74,8 +74,8 @@ public partial class MainWindow : Window
         DryRunPill.Visibility = hub.DryRun ? Visibility.Visible : Visibility.Collapsed;
         // Nobody sees a hidden window, so it is not redrawn every second; showing it again refreshes everything.
         hub.OpenPage += Navigate;
-        hub.Changed += () => { if (!Shown) return; _current?.Refresh(); UpdateSide(); };
-        hub.Tick += s => { if (!Shown) return; _current?.OnTick(s); UpdateSide(); };
+        hub.Changed += OnHubChanged;
+        hub.Tick += s => { if (!Shown || _inTick) return; _inTick = true; try { _current?.OnTick(s); UpdateSide(); } finally { _inTick = false; } };
         hub.Second += () => { if (Shown) { _current?.OnSecond(); UpdateSide(); } };
         hub.BirthdayChanged += OnBirthdayChanged;
         hub.BirthdayGreet += () => ShowBirthdayGreeting();
@@ -258,6 +258,32 @@ public partial class MainWindow : Window
         catch
         {
             // keep the icon from the XAML
+        }
+    }
+
+    // A page's Refresh can pump messages (a slow call kept responsive) or change the hub itself; the change that arrives meanwhile
+    // must not start a second Refresh on top of the first. It is remembered and done once after the first returns.
+    private bool _refreshing, _refreshAgain, _inTick;
+
+    private void OnHubChanged()
+    {
+        if (!Shown) return;
+        if (!Dispatcher.CheckAccess()) { Dispatcher.BeginInvoke(OnHubChanged); return; }
+        if (_refreshing) { _refreshAgain = true; return; }
+        _refreshing = true;
+        try
+        {
+            for (var round = 0; round < 3; round++)
+            {
+                _refreshAgain = false;
+                _current?.Refresh();
+                UpdateSide();
+                if (!_refreshAgain) break;
+            }
+        }
+        finally
+        {
+            _refreshing = false;
         }
     }
 
