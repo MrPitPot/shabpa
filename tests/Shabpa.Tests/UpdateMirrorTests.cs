@@ -231,11 +231,11 @@ public sealed class UpdateMirrorTests : IDisposable
     // ---- the source list ---------------------------------------------------------------------
 
     [Fact]
-    public void Sources_are_ordered_github_site_domestic_custom_then_the_legacy_api()
+    public void Sources_are_ordered_github_site_arvan_domestic_custom_then_the_legacy_api()
     {
         var list = UpdateSources.Build("https://mirror.example.ir/shabpa", "");
         Assert.Equal(["github", "shabpa.ir", "arvan", "dl.shabpa.ir", "custom", "github-api"], list.Select(s => s.Id));
-        Assert.Equal("https://mirror.example.ir/shabpa/latest.json", list[3].ManifestUrl);
+        Assert.Equal("https://mirror.example.ir/shabpa/latest.json", list[4].ManifestUrl);
         Assert.True(list[^1].Legacy);
     }
 
@@ -345,7 +345,7 @@ public sealed class UpdateMirrorTests : IDisposable
     {
         var r = await Sources(new FakeNet(), 100).CheckAsync(UpdateSources.Build("", ""), Now);
         Assert.True(r.AllFailed);
-        Assert.Equal(4, r.Failures.Count);
+        Assert.Equal(5, r.Failures.Count);
     }
 
     [Fact]
@@ -373,7 +373,7 @@ public sealed class UpdateMirrorTests : IDisposable
         var r = await Sources(net).CheckAsync(UpdateSources.Build("", ""), Now);
         Assert.Equal("github-api", r.Source!.Id);
         Assert.Equal(Hex(Installer), r.Manifest!.Sha256);
-        Assert.Equal(3, r.Failures.Count);
+        Assert.Equal(4, r.Failures.Count);
     }
 
     [Fact]
