@@ -9,6 +9,7 @@ using Xunit;
 namespace Shabpa.Tests;
 
 /// <summary>The weather backdrop must really move: two renders a moment apart differ.</summary>
+[Collection("Wpf")]
 public class SceneMotionTests
 {
     private static void OnSta(Action test)

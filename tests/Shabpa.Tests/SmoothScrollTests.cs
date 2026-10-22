@@ -7,6 +7,7 @@ using static Shabpa.Kit.SmoothScrollPhysics;
 
 namespace Shabpa.Tests;
 
+[Collection("Wpf")]
 public class SmoothScrollTests
 {
     private static State Run(State s, double target, double seconds, double dt = 1.0 / 60)

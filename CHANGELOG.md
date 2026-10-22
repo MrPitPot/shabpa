@@ -4,6 +4,21 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [3.10.0] - 2026-10-22
+
+### Added
+- **Weather: several cities** - save up to 8 favourite cities and pick a default that opens at startup. The clicked city shows full details, the others show a compact tile (name, icon, temperature, high/low). Cities load lazily without blocking the window.
+- **Crash tracking** - if Shabpa closes unexpectedly, the next start writes a line to the log with the version, the last page and the last-seen time. Unhandled errors are logged with their type and stack.
+
+### Fixed
+- **Playtime:** the trash button on a session or game row froze the app and deleted nothing.
+- **Telegram:** game-end messages were silently lost when the bot link had a hiccup; they are now queued (max 50, kept across restarts for 12 hours) and retried, and every send, retry and skip is written to the log with its reason. An empty poll answer no longer makes the bot link spin.
+- **Theme change:** the glow under the main buttons, tab thumbs and glass cards now follows the theme instead of keeping the old colour.
+- **Layouts:** the ping destination box is no longer oversized; the Home buttons have proper spacing; the weather city card is slimmer.
+- **Sliders:** pressing anywhere on a slider track (e.g. glass opacity) sets the value and lets you drag, not only the knob.
+- **Leaks:** ten pages kept listening to app events after they were unloaded and kept refreshing in the background.
+- **Freezes:** nested message pumps are capped, refreshes that arrive while one is running are skipped, the stall stack is read on its own thread, and bot-link failures back off instead of retrying fast.
+
 ## [3.9.0] - 2026-10-22
 
 ### Added

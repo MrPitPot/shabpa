@@ -8,6 +8,7 @@ using Shabpa.Pages;
 namespace Shabpa.Tests;
 
 /// <summary>Drives the real tab control inside a real WPF window on an STA thread.</summary>
+[Collection("Wpf")]
 public class TabsTests
 {
     private sealed class Dummy(string title) : PageBase

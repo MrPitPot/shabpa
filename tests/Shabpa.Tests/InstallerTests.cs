@@ -142,7 +142,7 @@ public sealed class InstallerTests : IDisposable
         try { payload = Installer.EmbeddedPayload(); }
         catch (InvalidDataException) { return; }
         var (version, files) = Payload.Unpack(payload);
-        Assert.Equal("3.9.0", version);
+        Assert.Equal("3.10.0", version);
         var names = files.Select(f => f.Path).ToHashSet();
         foreach (var required in new[] { "Shabpa.exe", "Shabpa.dll", "WinDivert.dll", "WinDivert64.sys", "Microsoft.Diagnostics.Tracing.TraceEvent.dll", "Shabpa.runtimeconfig.json" })
             Assert.Contains(required, names);

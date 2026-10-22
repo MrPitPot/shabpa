@@ -5,6 +5,7 @@ using Shabpa.Kit;
 
 namespace Shabpa.Tests;
 
+[Collection("Wpf")]
 public class SliderDragTests
 {
     [Fact]
@@ -17,13 +18,12 @@ public class SliderDragTests
         {
             try
             {
-                var app = Application.Current ?? new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-                if (!app.Resources.Contains("Panel"))
-                {
-                    app.Resources.MergedDictionaries.Add(Ui.Resources(Palette.Find("night")));
-                    app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("pack://application:,,,/Shabpa;component/Theme.xaml", UriKind.Absolute) });
-                }
-                var s = new Slider { Style = (Style)app.Resources["Slide"], Minimum = 0, Maximum = 100, Width = 300 };
+                // A private dictionary, so no Application is created on this thread (other tests share Application.Current).
+                var res = new ResourceDictionary();
+                res.MergedDictionaries.Add(Ui.Resources(Palette.Find("night")));
+                res.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("pack://application:,,,/Shabpa;component/Theme.xaml", UriKind.Absolute) });
+                var s = new Slider { Style = (Style)res["Slide"], Minimum = 0, Maximum = 100, Width = 300 };
+                s.Resources.MergedDictionaries.Add(res);
                 s.ApplyTemplate();
                 s.Measure(new Size(300, 28));
                 s.Arrange(new Rect(0, 0, 300, 28));

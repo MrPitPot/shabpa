@@ -297,6 +297,7 @@ public sealed class RatingTests
     }
 }
 
+[Collection("Wpf")]
 public sealed class GlassTests
 {
     [Fact]

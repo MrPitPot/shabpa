@@ -5,6 +5,7 @@ using Shabpa.Kit;
 
 namespace Shabpa.Tests;
 
+[Collection("Wpf")]
 public class ThemedShadowTests
 {
     [Fact]
