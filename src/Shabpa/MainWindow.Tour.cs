@@ -21,6 +21,7 @@ public partial class MainWindow : ITourHost
 
     /// <summary>Test aid: the key of the page that is open, and how many tour layers are left on the window.</summary>
     public string ActiveTourPage => ActiveKey;
+    public bool HomeIsShowing => ReferenceEquals(Host.Content, PageFor("home"));
     public int CaptureRootOverlays => Root.Children.OfType<TourOverlay>().Count();
 
     /// <summary>Test aid: the small "want a tour?" card.</summary>
@@ -35,6 +36,8 @@ public partial class MainWindow : ITourHost
     {
         IsVisibleChanged += (_, _) => _ = TourFirstLookAsync();
         Loaded += (_, _) => _ = TourFirstLookAsync();
+        // registered before the window's own shortcuts, so while the tour is up it sees every key first
+        PreviewKeyDown += (_, e) => _tour?.HandleKey(e);
     }
 
     /// <summary>The first time the window really shows: a new install gets the tour, an updated one is only offered it, once.
@@ -59,6 +62,9 @@ public partial class MainWindow : ITourHost
         }
         // an existing user: a small card, shown once, and not on top of a notice
         while (Toast.Visibility == Visibility.Visible && IsVisible) await Task.Delay(500);
+        // closed to the tray while waiting: nothing is saved and the card is not shown in a hidden window; look again next time
+        if (!IsVisible || WindowState == WindowState.Minimized) { _tourChecked = false; return; }
+        if (_tour is not null || _offer is not null) return;
         hub.Settings.TourStatus = TourState.Offered;
         hub.Store.Save();
         ShowTourOffer();
@@ -69,6 +75,8 @@ public partial class MainWindow : ITourHost
     {
         if (_tour is not null) return;
         HideTourOffer();
+        _tourScrolled.Clear();
+        _idCache = null;
         if (!Shown) { Show(); if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal; }
         var session = new TourSession(TourSteps.All);
         _tour = new TourOverlay(this, session, how =>
@@ -77,8 +85,32 @@ public partial class MainWindow : ITourHost
             TourSession.Record(Hub.I.Settings, how);
             Hub.I.Store.Save();
             Navigate("home");
+            EnsureHome();
         });
         _tour.Open();
+    }
+
+    /// <summary>Test aid: takes the card away without waiting for its fade.</summary>
+    public void HideTourOfferNow() { if (_offer is { } c) { _offer = null; Root.Children.Remove(c); } }
+
+    private int _homeTicket;
+
+    /// <summary>The tour ended while a page change (made by one of its own steps) may still have been under way: make sure the
+    /// person lands on Home and not on whatever page was opening, also with animations on.</summary>
+    private void EnsureHome()
+    {
+        var ticket = ++_homeTicket;
+        async void Check()
+        {
+            for (var i = 0; i < 3; i++)
+            {
+                await Task.Delay(i == 0 ? 120 : 450);
+                if (ticket != _homeTicket || _tour is not null) return;
+                if (ActiveKey != "home" || !ReferenceEquals(Host.Content, PageFor("home")))
+                    Navigate("home");
+            }
+        }
+        Check();
     }
 
     private void HideTourOffer()
@@ -145,7 +177,7 @@ public partial class MainWindow : ITourHost
         if (target.StartsWith(TourTargets.NavPrefix, StringComparison.Ordinal))
         {
             if (!_pages.TryGetValue(target[TourTargets.NavPrefix.Length..], out var entry)) return null;
-            if (entry.nav.IsLoaded) entry.nav.BringIntoView();
+            if (entry.nav.IsLoaded && _tourScrolled.Add(target)) entry.nav.BringIntoView(); // once per tour: not on every look
             return entry.nav;
         }
         if (target.StartsWith(TourTargets.PagePrefix, StringComparison.Ordinal) && int.TryParse(target.AsSpan(TourTargets.PagePrefix.Length), out var n))
@@ -153,14 +185,19 @@ public partial class MainWindow : ITourHost
         if (target.StartsWith(TourTargets.IdPrefix, StringComparison.Ordinal))
         {
             var id = target[TourTargets.IdPrefix.Length..];
-            var found = Host.Content is DependencyObject page ? FindById(page, id) : null;
-            if (found is not null && !_tourScrolled.Contains(id)) { _tourScrolled.Add(id); found.BringIntoView(); }
+            if (Host.Content is not DependencyObject page) return null;
+            // the search walks the page once; the element is remembered for as long as the same page shows it
+            if (_idCache is { } c && c.id == id && ReferenceEquals(c.page, page) && c.element.IsLoaded) return c.element;
+            var found = FindById(page, id);
+            _idCache = found is null ? null : (id, page, found);
+            if (found is not null && _tourScrolled.Add(target)) found.BringIntoView();
             return found;
         }
         return null;
     }
 
     private readonly HashSet<string> _tourScrolled = [];
+    private (string id, DependencyObject page, FrameworkElement element)? _idCache;
 
     private static FrameworkElement? FindById(DependencyObject root, string id)
     {

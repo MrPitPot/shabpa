@@ -136,6 +136,9 @@ public static class TourSteps
             "Got a problem or an idea? Write it here and read the reply. That was the tour: go set up your first schedule. Good night."),
     ];
 
+    /// <summary>The step wants a page that is not the open one.</summary>
+    public static bool NeedsPage(TourStep step, string activeKey) => step.Page.Length > 0 && !string.Equals(activeKey, step.Page, StringComparison.Ordinal);
+
     /// <summary>The page keys of MainWindow the steps may open or ask to be clicked.</summary>
     public static IEnumerable<string> PagesUsed => All.SelectMany(s => new[] { s.Page, s.ClickPage }).Where(p => p.Length > 0).Distinct();
 }

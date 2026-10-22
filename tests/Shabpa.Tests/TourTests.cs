@@ -321,4 +321,58 @@ public class TourTests
         var p = TourOverlay.BubbleSpot(new Rect(4, 4, 1272, 792), Bubble, Window);
         Assert.True(Inside(p));
     }
+
+    // ---- the modal keys ----------------------------------------------------------------------------
+
+    private const System.Windows.Input.ModifierKeys None = System.Windows.Input.ModifierKeys.None, Ctrl = System.Windows.Input.ModifierKeys.Control;
+
+    [Theory]
+    [InlineData(System.Windows.Input.Key.Escape, None, TourKeyAction.Skip)]
+    [InlineData(System.Windows.Input.Key.Enter, None, TourKeyAction.Next)]
+    [InlineData(System.Windows.Input.Key.Tab, None, TourKeyAction.Swallow)]
+    [InlineData(System.Windows.Input.Key.Space, None, TourKeyAction.Swallow)]
+    [InlineData(System.Windows.Input.Key.D3, Ctrl, TourKeyAction.Swallow)]
+    [InlineData(System.Windows.Input.Key.OemComma, Ctrl, TourKeyAction.Swallow)]
+    [InlineData(System.Windows.Input.Key.Right, Ctrl, TourKeyAction.Swallow)]
+    [InlineData(System.Windows.Input.Key.LeftCtrl, Ctrl, TourKeyAction.Pass)]
+    [InlineData(System.Windows.Input.Key.F4, System.Windows.Input.ModifierKeys.Alt, TourKeyAction.Pass)]
+    [InlineData(System.Windows.Input.Key.LWin, None, TourKeyAction.Pass)]
+    public void Keys_are_swallowed_except_the_tour_keys_and_system_keys(System.Windows.Input.Key key, System.Windows.Input.ModifierKeys mods, TourKeyAction expected) =>
+        Assert.Equal(expected, TourKeys.Classify(key, mods, FlowDirection.LeftToRight));
+
+    [Fact]
+    public void Ctrl_shift_K_the_hidden_kit_shortcut_is_swallowed_too() =>
+        Assert.Equal(TourKeyAction.Swallow, TourKeys.Classify(System.Windows.Input.Key.K, Ctrl | System.Windows.Input.ModifierKeys.Shift, FlowDirection.LeftToRight));
+
+    [Fact]
+    public void Arrows_follow_the_reading_direction()
+    {
+        Assert.Equal(TourKeyAction.Next, TourKeys.Classify(System.Windows.Input.Key.Right, None, FlowDirection.LeftToRight));
+        Assert.Equal(TourKeyAction.Back, TourKeys.Classify(System.Windows.Input.Key.Left, None, FlowDirection.LeftToRight));
+        Assert.Equal(TourKeyAction.Next, TourKeys.Classify(System.Windows.Input.Key.Left, None, FlowDirection.RightToLeft));
+        Assert.Equal(TourKeyAction.Back, TourKeys.Classify(System.Windows.Input.Key.Right, None, FlowDirection.RightToLeft));
+    }
+
+    [Fact]
+    public void A_step_asks_for_its_page_again_when_another_one_is_open()
+    {
+        var step = new TourStep("x", "page:0", "dns", "t", "t", "x", "x");
+        Assert.True(TourSteps.NeedsPage(step, "home"));
+        Assert.False(TourSteps.NeedsPage(step, "dns"));
+        Assert.False(TourSteps.NeedsPage(step with { Page = "" }, "home"));
+    }
+
+    [Fact]
+    public void The_window_hooks_keep_the_tour_safe()
+    {
+        var code = Source("MainWindow.Tour.cs");
+        var main = Source("MainWindow.xaml.cs");
+        Assert.Contains("_tourScrolled.Clear()", code);          // a second tour scrolls again
+        Assert.Contains("EnsureHome();", code);                  // skipping while a page opens still lands on Home
+        // the key hook is registered before the window's own shortcuts (Ctrl+number...), so the tour sees every key first
+        Assert.True(main.IndexOf("InitTour();") < main.IndexOf("PreviewKeyDown += OnShortcut"));
+        // the card saves "offered" only after the last visibility check, so a window sent to the tray meanwhile saves nothing
+        var look = code[code.IndexOf("Task TourFirstLookAsync")..];
+        Assert.True(look.LastIndexOf("!IsVisible || WindowState") < look.IndexOf("TourState.Offered"));
+    }
 }
