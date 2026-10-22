@@ -118,7 +118,7 @@ public sealed class Segmented : Border
         _thumb.VerticalAlignment = VerticalAlignment.Top;
         _thumb.RenderTransform = _tx;
         _thumb.IsHitTestVisible = false;
-        _thumb.Children.Add(new Shadow { Radius = 9, Blur = 10, Spread = -4, OffsetY = 4, Layers = 4, Color = K.ColorOf("ShadowSoftC") });
+        _thumb.Children.Add(Shadow.Themed(new Shadow { Radius = 9, Blur = 10, Spread = -4, OffsetY = 4, Layers = 4 }, "ShadowSoftC"));
         _thumb.Children.Add(new Border { CornerRadius = new CornerRadius(9), BorderThickness = new Thickness(1), Background = K.Brush("Card2Fill"), BorderBrush = K.Brush("CardRim") });
         _host.Children.Add(_thumb);
         for (var i = 0; i < labels.Count; i++)

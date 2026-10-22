@@ -51,7 +51,7 @@ public sealed class MacroBanner : Window
         }
         // flyout surface of the design: near-opaque sheet, rim light, layered shadow (kit:Shadow, no DropShadowEffect)
         var bar = new Grid { Margin = new Thickness(26, 14, 26, 32) };
-        bar.Children.Add(new Kit.Shadow { Radius = 14, Blur = 22, Spread = -8, OffsetY = 9, Layers = 7, Color = Kit.K.ColorOf("ShadowC"), IsHitTestVisible = false });
+        bar.Children.Add(Kit.Shadow.Themed(new Kit.Shadow { Radius = 14, Blur = 22, Spread = -8, OffsetY = 9, Layers = 7, IsHitTestVisible = false }, "ShadowC"));
         bar.Children.Add(new Border
         {
             Child = row, Padding = new Thickness(16, 11, 16, 11), CornerRadius = new CornerRadius(14),

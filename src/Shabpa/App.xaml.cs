@@ -841,12 +841,19 @@ public partial class App : Application
             var pid0 = Environment.ProcessId; var win0 = _window.GetHashCode();
             log.AppendLine($"pid at start: {pid0}");
             log.AppendLine($"theme at start: {Ui.Theme.Key} (light={Ui.Theme.Light}) lang={tag} glass={Ui.Glass}");
+            foreach (var key in new[] { "system", "ping", "gaming", "weather", "dns", "download", "comfort", "support", "update", "settings", "home" }) { _window.Navigate(key); await Task.Delay(250); }
+            var gaps = new List<long>(); var gapWatch = System.Diagnostics.Stopwatch.StartNew(); var last = 0L;
+            var gapTimer = new System.Windows.Threading.DispatcherTimer(TimeSpan.FromMilliseconds(8), System.Windows.Threading.DispatcherPriority.Render, (_, _) => { var n = gapWatch.ElapsedMilliseconds; gaps.Add(n - last); last = n; }, Dispatcher);
+            gapTimer.Start();
             for (var i = 0; i < 6; i++) { _window.SwitchTheme(Ui.Theme.Light ? "night" : "white", button); await Task.Delay(800); } // warm-up: first-use caches
+            gapTimer.Stop(); log.AppendLine($"UI-thread gaps over 6 toggles with all pages built: max {gaps.Max()} ms, over 50 ms: {gaps.Count(g => g > 50)}, list>50: {string.Join(',', gaps.Where(g => g > 50))}");
             log.AppendLine("memory before (after 6 warm-up toggles): " + Mem());
             foreach (var step in new[] { 0, 1 })
             {
                 var from = Ui.Theme.Light ? "light" : "dark";
+                var swSync = System.Diagnostics.Stopwatch.StartNew();
                 _window.SwitchTheme(Ui.Theme.Light ? "night" : "white", button);
+                log.AppendLine($"{from}->: SwitchTheme blocked the UI thread for {swSync.ElapsedMilliseconds} ms (page={_window.CurrentPage})");
                 var sw = System.Diagnostics.Stopwatch.StartNew();
                 foreach (var at in new[] { 0, 150, 300, 450, 700 })
                 {

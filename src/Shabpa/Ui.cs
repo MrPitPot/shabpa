@@ -264,7 +264,14 @@ public static class Ui
         if (old is null || ReferenceEquals(old, fresh)) return;
         foreach (var key in fresh.Keys.Cast<object>().ToList()) old[key] = fresh[key];
         foreach (Window window in Application.Current.Windows)
-            if (window.IsLoaded) Chrome(window);
+            if (window.IsLoaded) { Chrome(window); Repaint(window); }
+    }
+
+    /// <summary>Elements that read theme colours inside OnRender (card shadows) repaint after a theme change.</summary>
+    private static void Repaint(DependencyObject o)
+    {
+        if (o is Kit.GlassCard card) card.InvalidateVisual();
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(o); i++) Repaint(VisualTreeHelper.GetChild(o, i));
     }
 
     /// <summary>The brushes code-built screens hold (<c>K.Brush</c>): one long-lived instance per key that a theme change

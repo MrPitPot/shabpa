@@ -96,7 +96,7 @@
     <!-- Secondary / danger: translucent face, rim light, cheap layered shadow. Hover lift and press come from kit:Fx (spring). -->
     <ControlTemplate x:Key="ButtonTemplate" TargetType="ButtonBase">
         <Grid x:Name="root">
-            <kit:Shadow Radius="12" Blur="16" Spread="-7" OffsetY="7" Layers="8" Color="{StaticResource ShadowSoftC}" IsHitTestVisible="False"/>
+            <kit:Shadow Radius="12" Blur="16" Spread="-7" OffsetY="7" Layers="8" Color="{DynamicResource ShadowSoftC}" IsHitTestVisible="False"/>
             <Border x:Name="face" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                     BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{Binding (kit:Skin.Corner), RelativeSource={RelativeSource TemplatedParent}}"/>
             <Border x:Name="glow" Background="{DynamicResource Hi}" Opacity="0" IsHitTestVisible="False"
@@ -133,7 +133,7 @@
     <!-- Primary: accent gradient, top rim light, accent glow, and a sheen that sweeps across on hover. -->
     <ControlTemplate x:Key="PrimaryButtonTemplate" TargetType="ButtonBase">
         <Grid x:Name="root">
-            <kit:Shadow Radius="12" Blur="20" Spread="-8" OffsetY="8" Layers="14" Color="{StaticResource AccentGlowC}" IsHitTestVisible="False"/>
+            <kit:Shadow Radius="12" Blur="20" Spread="-8" OffsetY="8" Layers="14" Color="{DynamicResource AccentGlowC}" IsHitTestVisible="False"/>
             <Border x:Name="face" Background="{TemplateBinding Background}" CornerRadius="{Binding (kit:Skin.Corner), RelativeSource={RelativeSource TemplatedParent}}"/>
             <Border BorderBrush="{StaticResource PrimaryRim}" BorderThickness="1" IsHitTestVisible="False"
                     CornerRadius="{Binding (kit:Skin.Corner), RelativeSource={RelativeSource TemplatedParent}}"/>
@@ -530,7 +530,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Thumb">
                     <Grid Width="20" Height="20">
-                        <kit:Shadow Radius="10" Blur="8" Spread="-3" OffsetY="3" Layers="4" Color="{StaticResource ShadowSoftC}" IsHitTestVisible="False"/>
+                        <kit:Shadow Radius="10" Blur="8" Spread="-3" OffsetY="3" Layers="4" Color="{DynamicResource ShadowSoftC}" IsHitTestVisible="False"/>
                         <Ellipse Fill="{DynamicResource Card2Fill}" Stroke="{DynamicResource Line}" StrokeThickness="1"/>
                         <Ellipse Fill="{DynamicResource Hi}" Margin="1"/>
                     </Grid>
