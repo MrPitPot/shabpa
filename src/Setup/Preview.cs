@@ -63,7 +63,7 @@ public partial class SetupWindow
         _preview = preview;
         _installed = null;
         _runtimeReady = true;
-        _version = "3.8.0";
+        _version = "3.8.1";
         _stage = Stage.Ready;
         _error = "";
         if (preview.Lang is "en" or "fa") _en = preview.Lang == "en";

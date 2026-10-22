@@ -4,6 +4,13 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [3.8.1] - 2026-10-22
+
+### Fixed
+- Playtime: the game list could disappear while a game was running.
+- Overlay: dragging no longer jumps back to the old place, and it now snaps flush to the corners and edges.
+- The glass darkness slider now changes the window while you drag it.
+
 ## [3.8.0] - 2026-10-22
 
 ### Added

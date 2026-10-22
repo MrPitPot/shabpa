@@ -86,7 +86,7 @@ public sealed class QuietInstallTests : IDisposable
     }
 
     private static byte[] Payload3() =>
-        Shabpa.Setup.Payload.Pack("3.8.0", [new PayloadFile("Shabpa.exe", Encoding.UTF8.GetBytes("app")), new PayloadFile("sub/x.dll", [1, 2, 3])]);
+        Shabpa.Setup.Payload.Pack("3.8.1", [new PayloadFile("Shabpa.exe", Encoding.UTF8.GetBytes("app")), new PayloadFile("sub/x.dll", [1, 2, 3])]);
 
     private QuietEnvironment Env(Func<bool>? runtime = null, Func<string?>? download = null, Func<byte[]>? payload = null,
                                  InstallTarget? target = null, TimeSpan? watchdog = null, Action? stop = null, Action<int>? terminate = null) => new()
@@ -114,7 +114,7 @@ public sealed class QuietInstallTests : IDisposable
         using var key = _registry.OpenSubKey(Installer.UninstallKey)!;
         foreach (var name in new[] { "DisplayName", "DisplayVersion", "Publisher", "InstallLocation", "UninstallString", "QuietUninstallString", "DisplayIcon" })
             Assert.False(string.IsNullOrEmpty(key.GetValue(name) as string), name);
-        Assert.Equal("3.8.0", key.GetValue("DisplayVersion"));
+        Assert.Equal("3.8.1", key.GetValue("DisplayVersion"));
         Assert.Equal("Mr.PitPot", key.GetValue("Publisher"));
         Assert.Equal(_target.Dir, key.GetValue("InstallLocation"));
         Assert.Equal($"\"{_target.Uninstaller}\" --uninstall --quiet", key.GetValue("QuietUninstallString"));
@@ -183,7 +183,7 @@ public sealed class QuietInstallTests : IDisposable
         File.Create(Path.Combine(Directory.CreateDirectory(_root).FullName, "Start")).Dispose();   // a file where the Start Menu folder should be
         Assert.Equal(0, Quiet.Run(SetupArgs.Parse(["--quiet"]), Env()));
         Assert.True(File.Exists(_target.Exe));
-        Assert.Equal("3.8.0", Installer.InstalledVersion(_target));
+        Assert.Equal("3.8.1", Installer.InstalledVersion(_target));
     }
 
     [Fact]
