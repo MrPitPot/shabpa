@@ -110,6 +110,7 @@ public static class OverlayMetrics
         // general
         new("fps", "نمایش FPS", "FPS", "general", "", true),
         new("frame", "زمان فریم", "Frame time", "general", "ms"),
+        new("hz", "نرخ تازه‌سازی مانیتور", "Monitor refresh rate", "general", "Hz"),
         new("low1", "Low ۱٪", "1% low", "general", "", true),
         new("fpsgraph", "نمودار FPS", "FPS graph", "general", ""),
         new("clock", "ساعت", "Clock", "time", ""),
@@ -195,7 +196,7 @@ public static class OverlayMetrics
     /// <summary>The short English caption drawn on the overlay itself, like other overlay tools do.</summary>
     public static string Abbrev(string key) => key switch
     {
-        "fps" => "FPS", "low1" => "1% LOW", "frame" => "FRAME", "fpsgraph" => "FPS", "clock" => "TIME", "gametime" => "PLAYED",
+        "fps" => "FPS", "low1" => "1% LOW", "frame" => "FRAME", "hz" => "HZ", "fpsgraph" => "FPS", "clock" => "TIME", "gametime" => "PLAYED",
         "gpu" => "GPU LOAD", "gputemp" => "GPU TEMP", "hotspot" => "GPU HOT", "memtemp" => "VRAM TEMP", "gpupower" => "GPU PWR",
         "gpuvolt" => "GPU VOLT", "gpufan" => "GPU FAN", "gpufanrpm" => "GPU RPM", "gpuclock" => "GPU CLK", "memclock" => "VRAM CLK",
         "vram" => "VRAM", "cpu" => "CPU LOAD", "cputemp" => "CPU TEMP", "cpuwatts" => "CPU PWR", "cpufreq" => "CPU CLK",
@@ -219,6 +220,7 @@ public static class OverlayMetrics
             "fps" => Make(s.Fps > 0 ? s.Fps : null, 0, 240),
             "low1" => Make(s.Low1Fps > 0 ? s.Low1Fps : null, 0, 240),
             "frame" => Make(s.FrameMs > 0 ? s.FrameMs : null, 1, 50),
+            "hz" => Make(s.RefreshHz > 0 ? s.RefreshHz : null, 0, 360),
             "gpu" => Make(g.LoadPercent, 0, 100),
             "gputemp" => Make(g.TempC, 0, 110),
             "hotspot" => Make(g.HotspotC, 0, 110),
@@ -281,6 +283,7 @@ public static class OverlayMetrics
             },
             Fps = 164 + 8 * wobble,
             Low1Fps = 121,
+            RefreshHz = 165,
             FrameMs = 6.1,
             FpsProcess = "cs2",
             PingMs = 24 + 3 * wobble,

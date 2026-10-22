@@ -1,11 +1,11 @@
 // Shabpa support tickets: a tiny Cloudflare Worker with one KV namespace (binding TICKETS).
 // Secrets: ADMIN_KEY (required), TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID (optional, to be told about new tickets).
 // Nothing is stored beyond what the app sends: title, text, category, an optional contact, an optional diagnostics block,
-// a random device id and the replies. Deleting a ticket is just removing its key in the Cloudflare dashboard.
+// a random device id and the replies. A person (or the owner) can close and delete a ticket; deleting removes it for good.
 
 const LIMITS = { title: 120, body: 4000, diag: 3000, contact: 100, reply: 2000 };
 const STATUSES = ["open", "reviewing", "answered", "closed"];
-const CATEGORIES = ["bug", "idea", "question", "other"];
+const CATEGORIES = ["bug", "idea", "question", "game", "other"];
 const PER_HOUR = 5;
 
 const json = (data, status = 200) =>
@@ -86,6 +86,15 @@ async function load(env, ids) {
   return tickets.filter(Boolean);
 }
 
+// removes a ticket and its place in the device list and the owner's list
+async function remove(env, ticket) {
+  await env.TICKETS.delete("t:" + ticket.id);
+  for (const key of ["d:" + ticket.device, "all"]) {
+    const list = await readList(env, key);
+    await env.TICKETS.put(key, JSON.stringify(list.filter((id) => id !== ticket.id)));
+  }
+}
+
 const publicView = (t) => ({ id: t.id, title: t.title, body: t.body, category: t.category, status: t.status, created: t.created, replies: t.replies });
 
 export default {
@@ -102,11 +111,34 @@ export default {
       return json({ tickets: tickets.map(publicView) });
     }
 
+    // a person closes or deletes only their own ticket: the request must carry the device id the ticket was made with
+    const own = path.match(/^\/tickets\/([0-9a-f]{10})(\/close)?$/);
+    if (own && (request.method === "DELETE" || (request.method === "POST" && own[2]))) {
+      const device = url.searchParams.get("device");
+      if (!validDevice(device)) return json({ error: "bad-device" }, 400);
+      const ticket = await env.TICKETS.get("t:" + own[1], "json");
+      if (!ticket || ticket.device !== device) return json({ error: "not-found" }, 404);
+      if (request.method === "DELETE") {
+        await remove(env, ticket);
+        return json({ ok: true });
+      }
+      ticket.status = "closed";
+      await env.TICKETS.put("t:" + ticket.id, JSON.stringify(ticket));
+      return json({ ok: true, status: ticket.status });
+    }
+
     if (path.startsWith("/admin/")) {
       if (!isAdmin(request, env)) return json({ error: "forbidden" }, 403);
       if (request.method === "GET" && path === "/admin/tickets") {
         const tickets = await load(env, await readList(env, "all"));
         return json({ tickets });
+      }
+      const gone = path.match(/^\/admin\/tickets\/([0-9a-f]{10})$/);
+      if (request.method === "DELETE" && gone) {
+        const ticket = await env.TICKETS.get("t:" + gone[1], "json");
+        if (!ticket) return json({ error: "not-found" }, 404);
+        await remove(env, ticket);
+        return json({ ok: true });
       }
       const match = path.match(/^\/admin\/tickets\/([0-9a-f]{10})\/reply$/);
       if (request.method === "POST" && match) {

@@ -284,6 +284,11 @@ public sealed class OverlayPage : PageBase
                         "This cannot be read without administrator rights; the overlay shows “ADMIN” instead. Run Shabpa as administrator.");
                     box.Content = def.Label + L.T(" (نیاز به ادمین)", " (needs admin)");
                 }
+                if (def.Key == "fps" && box.ToolTip is null)
+                    box.ToolTip = L.T("بازی یا برنامه‌ای که جلوته: تعداد فریم‌هایی که واقعاً نشون می‌ده (از رویدادهای گرافیک ویندوز). روی دسکتاپ: تعداد فریم‌هایی که کامپوزیتور ویندوز (DWM) در ثانیه ساخته؛ دسکتاپ ساکن کمتر از نرخ مانیتوره، چون DWM فقط وقتی چیزی عوض شه فریم می‌سازه.",
+                        "A game or program in front: the frames it really presents (from Windows graphics events). On the desktop: the frames per second Windows' compositor (DWM) produced; a still desktop is below the monitor rate because DWM only composes when something changes.");
+                else if (def.Key == "hz")
+                    box.ToolTip = L.T("نرخ تازه‌سازی فعلی مانیتوری که پنجرهٔ جلو روشه (مثلاً ۱۶۵ هرتز).", "Current refresh rate of the monitor the window in front is on (for example 165 Hz).");
                 box.Click += OnItem;
                 _items[def.Key] = box;
                 wrap.Children.Add(box);

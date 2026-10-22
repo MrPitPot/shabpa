@@ -43,6 +43,21 @@ public abstract class TabsPage : PageBase
         Content = stack;
         _tabs.SizeChanged += (_, _) => PlaceThumb(false);
         Loaded += (_, _) => PlaceThumb(false);
+        IsVisibleChanged += (_, e) => { if (e.NewValue is true) PlaceThumb(false); };
+        // Whatever moved a tab or the page without a size change (language, font, a page re-attached, a monitor change),
+        // the thumb is put back under the chosen tab as soon as no spring is running.
+        LayoutUpdated += (_, _) => Heal();
+    }
+
+    private long _springUntil;
+
+    private void Heal()
+    {
+        if (Environment.TickCount64 < _springUntil || !IsVisible) return;
+        var tab = CheckedTab;
+        if (tab is null || !tab.IsLoaded || tab.ActualWidth <= 0 || !_strip.IsLoaded) return;
+        var x = Fx.Slot(_tabs, tab).X;
+        if (Math.Abs(_thumbMove.X - x) > 0.5 || Math.Abs(_thumb.Width - tab.ActualWidth) > 0.5 || Math.Abs(_thumb.Height - tab.ActualHeight) > 0.5) PlaceThumb(false);
     }
 
     private RadioButton? CheckedTab => _entries.Values.Select(e => e.tab).FirstOrDefault(t => t.IsChecked == true);
@@ -61,6 +76,7 @@ public abstract class TabsPage : PageBase
             _thumbMove.X = x;
             return;
         }
+        _springUntil = Environment.TickCount64 + 700;
         var from = _thumb.Width;
         _thumb.Width = tab.ActualWidth;
         _thumb.BeginAnimation(FrameworkElement.WidthProperty, new DoubleAnimation(from, tab.ActualWidth, TimeSpan.FromMilliseconds(520)) { EasingFunction = SpringEase.I, FillBehavior = FillBehavior.Stop });
@@ -77,7 +93,9 @@ public abstract class TabsPage : PageBase
     {
         var content = new TextBlock { Text = title, VerticalAlignment = VerticalAlignment.Center };
         var tab = new RadioButton { Style = St("SegTab"), GroupName = _group, Content = content };
-        tab.Checked += (_, _) => { Show(page); PlaceThumb(true); };
+        // the thumb springs first; the new tab's own work (Refresh may read the registry, list files...) follows in the next idle
+        // slot so a click never waits for it, and clicks in quick succession only do the work of the last one
+        tab.Checked += (_, _) => { PlaceThumb(true); Show(page); };
         _tabs.Children.Add(tab);
         _entries[key] = (tab, page);
         page.HeaderChanged += () => { if (ReferenceEquals(page, _current)) RaiseHeaderChanged(); };
@@ -94,6 +112,30 @@ public abstract class TabsPage : PageBase
         if (_entries.TryGetValue(key, out var entry)) entry.tab.IsChecked = true;
     }
 
+    /// <summary>Test aid (<see cref="TabsProbe"/>): where the thumb is drawn and where the chosen tab sits, both in the strip's left-to-right space.</summary>
+    internal (double thumbX, double thumbW, double tabX, double tabW, bool animatingX, bool animatingW) ProbeThumb()
+    {
+        var tab = CheckedTab;
+        if (tab is null) return (0, 0, 0, 0, false, false);
+        var thumbAt = _thumb.TransformToAncestor(_strip).Transform(new Point(0, 0)).X;
+        // a mirrored (right-to-left) element has its origin at its right edge: take the left one of the two corners
+        var map = tab.TransformToAncestor(_strip);
+        var tabAt = Math.Min(map.Transform(new Point(0, 0)).X, map.Transform(new Point(tab.ActualWidth, 0)).X);
+        return (thumbAt, _thumb.ActualWidth, tabAt, tab.ActualWidth,
+            DependencyPropertyHelper.GetValueSource(_thumbMove, TranslateTransform.XProperty).IsAnimated,
+            DependencyPropertyHelper.GetValueSource(_thumb, FrameworkElement.WidthProperty).IsAnimated);
+    }
+
+    internal string ProbeDump()
+    {
+        var sb = new System.Text.StringBuilder($"tabsW={_tabs.ActualWidth:0.#} stripW={_strip.ActualWidth:0.#} flow={_tabs.FlowDirection} thumbMoveX={_thumbMove.X:0.#};");
+        foreach (var e in _entries)
+            sb.Append($" [{e.Key} w={e.Value.tab.ActualWidth:0.#} x={e.Value.tab.TransformToAncestor(_strip).Transform(new Point(0, 0)).X:0.#} slot={Fx.Slot(_tabs, e.Value.tab).X:0.#}]");
+        return sb.ToString();
+    }
+
+    internal IReadOnlyList<string> Keys => [.. _entries.Keys];
+
     public T? PageOf<T>() where T : PageBase => _entries.Values.Select(e => e.page).OfType<T>().FirstOrDefault();
 
     private void Show(PageBase page)
@@ -102,13 +144,20 @@ public abstract class TabsPage : PageBase
         _host.Content = page;
         RaiseHeaderChanged();
         if (!IsLoaded) return;
-        page.Refresh();
-        page.OnTick(Hub.Snapshot);
-        page.OnSecond();
-        // a tab with several blocks: they rise one after another; otherwise the whole page does
-        if (page.Content is Panel { Children.Count: > 1 }) Motion.Enter("", page);
-        else Motion.Switch(page);
+        var ticket = ++_showTicket;
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (ticket != _showTicket || !ReferenceEquals(_current, page)) return;   // another tab was chosen meanwhile
+            page.Refresh();
+            page.OnTick(Hub.Snapshot);
+            page.OnSecond();
+            // a tab with several blocks: they rise one after another; otherwise the whole page does
+            if (page.Content is Panel { Children.Count: > 1 }) Motion.Enter("", page);
+            else Motion.Switch(page);
+        }, System.Windows.Threading.DispatcherPriority.Background);
     }
+
+    private int _showTicket;
 
     public override void Refresh() => Current.Refresh();
     public override void OnTick(SensorSnapshot s) => Current.OnTick(s);

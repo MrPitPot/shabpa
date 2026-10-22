@@ -7,6 +7,7 @@ const env = {
   TICKETS: {
     async get(key, type) { const v = store.get(key); return v === undefined ? null : type === "json" ? JSON.parse(v) : v; },
     async put(key, value) { store.set(key, value); },
+    async delete(key) { store.delete(key); },
   },
 };
 const call = (method, path, body, headers = {}) =>
@@ -37,4 +38,21 @@ assert.equal((await call("POST", "/tickets", { device: "bad", title: "abc", body
 assert.equal((await call("POST", "/tickets", { device, title: "a", body: "b" })).status, 400);
 for (let i = 0; i < 4; i++) assert.equal((await call("POST", "/tickets", { device, title: "again " + i, body: "again again" })).status, 200);
 assert.equal((await call("POST", "/tickets", { device, title: "too many", body: "too many" })).status, 429);
+
+// close and delete: only with the ticket's own device id
+r = await call("POST", "/tickets", { device: "b".repeat(32), title: "Close me", body: "please close this one", category: "game" });
+const own = (await r.json()).id;
+assert.equal((await call("POST", "/tickets/" + own + "/close?device=" + device)).status, 404, "another device cannot close it");
+assert.equal((await call("POST", "/tickets/" + own + "/close?device=" + "b".repeat(32))).status, 200);
+let theirs = (await (await call("GET", "/tickets?device=" + "b".repeat(32))).json()).tickets;
+assert.equal(theirs[0].status, "closed");
+assert.equal(theirs[0].category, "game");
+assert.equal((await call("DELETE", "/tickets/" + own + "?device=" + device)).status, 404);
+assert.equal((await call("DELETE", "/tickets/" + own + "?device=" + "b".repeat(32))).status, 200);
+theirs = (await (await call("GET", "/tickets?device=" + "b".repeat(32))).json()).tickets;
+assert.equal(theirs.length, 0);
+assert.equal((await call("DELETE", "/admin/tickets/" + id)).status, 403);
+assert.equal((await call("DELETE", "/admin/tickets/" + id, null, { "x-admin-key": env.ADMIN_KEY })).status, 200);
+const left = (await (await call("GET", "/admin/tickets", null, { "x-admin-key": env.ADMIN_KEY })).json()).tickets;
+assert.ok(!left.some((t) => t.id === id));
 console.log("worker ok");

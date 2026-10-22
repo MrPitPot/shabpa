@@ -140,3 +140,26 @@ public class DownloadPlanTests
         });
     }
 }
+
+public class DownloadWindowTests
+{
+    [Fact]
+    public void End_is_the_first_matching_time_after_the_start()
+    {
+        var start = new DateTime(2026, 10, 22, 23, 0, 0);
+        Assert.Equal(new DateTime(2026, 10, 23, 6, 0, 0), Shabpa.Core.DownloadPlan.EndAfter(start, 6 * 60));
+        Assert.Equal(new DateTime(2026, 10, 22, 23, 30, 0), Shabpa.Core.DownloadPlan.EndAfter(start, 23 * 60 + 30));
+        Assert.Null(Shabpa.Core.DownloadPlan.EndAfter(start, null));
+    }
+}
+
+public class SupportFilterTests
+{
+    [Theory]
+    [InlineData("all", "closed", true)]
+    [InlineData("open", "reviewing", true)]
+    [InlineData("open", "answered", false)]
+    [InlineData("closed", "closed", true)]
+    [InlineData("answered", "open", false)]
+    public void Ticket_filters(string filter, string status, bool expected) => Assert.Equal(expected, Shabpa.Core.SupportInfo.Matches(filter, status));
+}

@@ -19,6 +19,9 @@ public sealed class SupportPage : PageBase
     private readonly Kit.Switch _diag = new();
     private readonly TextBlock _diagPreview = new(), _viaNote = new(), _sendNote = new(), _adminNote = new();
     private readonly StackPanel _mine = new(), _all = new();
+    private readonly WrapPanel _mineFilter = new(), _allFilter = new();
+    private string _mineFilterKey = "all", _allFilterKey = "all";
+    private List<TicketInfo> _allTickets = [];
     private readonly PasswordBox _adminKey = new();
     private bool _busy;
 
@@ -99,7 +102,10 @@ public sealed class SupportPage : PageBase
         var refresh = new Button { Style = St("Btn"), Content = L.T("به‌روزرسانی", "Refresh"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0) };
         refresh.Click += async (_, _) => await RefreshMineAsync();
         mine.Children.Add(refresh);
+        _mineFilter.Margin = new Thickness(0, 12, 0, 2);
+        mine.Children.Add(_mineFilter);
         mine.Children.Add(_mine);
+        FilterChips(_mineFilter, _mineFilterKey, v => { _mineFilterKey = v; ShowMineLocal(); });
         _mineCard = mineCard;
 
         // ---- project owner ----------------------------------------------------------------------------
@@ -132,7 +138,10 @@ public sealed class SupportPage : PageBase
         _adminNote.TextWrapping = TextWrapping.Wrap;
         _adminNote.Margin = new Thickness(0, 8, 0, 0);
         adminBody.Children.Add(_adminNote);
+        _allFilter.Margin = new Thickness(0, 8, 0, 2);
+        adminBody.Children.Add(_allFilter);
         adminBody.Children.Add(_all);
+        FilterChips(_allFilter, _allFilterKey, v => { _allFilterKey = v; ShowAll(); });
         _adminCard = admin;
 
         foreach (var block in new[] { _ticketCard, _mineCard, _adminCard })
@@ -296,25 +305,54 @@ public sealed class SupportPage : PageBase
 
     private List<TicketInfo> _fromServer = [];
 
+    private static void FilterChips(Panel panel, string selected, Action<string> pick) =>
+        Chips(panel, SupportInfo.Filters.Select(f => (f, SupportInfo.FilterName(f))), selected, pick);
+
     private void ShowMineLocal()
     {
         _mine.Children.Clear();
         var shown = new HashSet<string>();
         var index = 0;
-        foreach (var t in _fromServer)
+        foreach (var t in _fromServer.OrderByDescending(t => t.Created))
         {
             shown.Add(t.Id);
+            if (!SupportInfo.Matches(_mineFilterKey, t.Status)) continue;
             Add(_mine, TicketRow(t, admin: false), "s" + t.Id, index++);
         }
-        foreach (var r in Hub.State.Tickets.Where(r => r.Via == "github" || !shown.Contains(r.Id)).Take(20))
+        // tickets sent through GitHub have no status here; they only show under "all"
+        foreach (var r in Hub.State.Tickets.Where(r => (r.Via == "github" && _mineFilterKey == "all") || (r.Via != "github" && !shown.Contains(r.Id) && _mineFilterKey is "all" or "open")).Take(20))
         {
             var github = r.Via == "github";
-            var open = github ? IconButton("globe", L.T("باز کردن ایشوها", "Open issues"), () => OpenUrl(GitHubIssue.IssuesUrl)) : null;
-            var row = Row(github ? "globe" : "cloud", github ? "Gold" : "Accent", r.Title,
-                (github ? L.T("گیت‌هاب", "GitHub") : L.T("سرور شب‌پا", "Shabpa server")) + " · " + $"{Fa.RelativeDay(r.Created, DateTime.Now)} {Fa.Clock(r.Created)}", open);
-            Add(_mine, row, "l" + r.Id, index++);
+            var record = r;
+            var card = ListUi.Nested(new Thickness(0, 8, 0, 0));
+            var line = new Grid();
+            line.ColumnDefinitions.Add(new ColumnDefinition());
+            line.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var texts = new StackPanel();
+            texts.Children.Add(new TextBlock { Text = r.Title, FontSize = 14, FontWeight = FontWeights.Bold, TextWrapping = TextWrapping.Wrap, Foreground = Res("Text") });
+            texts.Children.Add(new TextBlock
+            {
+                Text = (github ? L.T("گیت‌هاب", "GitHub") : L.T("سرور شب‌پا", "Shabpa server")) + " · " + $"{Fa.RelativeDay(r.Created, DateTime.Now)} {Fa.Clock(r.Created)}",
+                Style = St("Label"), Margin = new Thickness(0, 3, 0, 0),
+            });
+            line.Children.Add(texts);
+            var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            if (github) actions.Children.Add(IconButton("globe", L.T("باز کردن ایشوها", "Open issues"), () => OpenUrl(GitHubIssue.IssuesUrl)));
+            actions.Children.Add(IconButton("trash", L.T("حذف از این فهرست", "Remove from this list"), () =>
+            {
+                if (!Ask(L.T("حذف از فهرست؟", "Remove from the list?"),
+                        github ? L.T("فقط از فهرست همین برنامه پاک می‌شه؛ ایشوی گیت‌هاب سر جاش می‌مونه.", "It is only removed from this app's list; the GitHub issue stays.")
+                               : L.T("از فهرست این برنامه پاک می‌شه.", "It is removed from this app's list."), L.T("حذف", "Remove"), danger: true)) return;
+                Hub.State.Tickets.Remove(record);
+                Hub.Store.Save();
+                ShowMineLocal();
+            }));
+            Grid.SetColumn(actions, 1);
+            line.Children.Add(actions);
+            card.Child = line;
+            Add(_mine, card, "l" + r.Id, index++);
         }
-        if (_mine.Children.Count == 0) _mine.Children.Add(Empty(L.T("هنوز تیکتی نفرستادی.", "You have not sent a ticket yet.")));
+        if (_mine.Children.Count == 0) _mine.Children.Add(Empty(_mineFilterKey == "all" ? L.T("هنوز تیکتی نفرستادی.", "You have not sent a ticket yet.") : L.T("تیکتی با این وضعیت نیست.", "No ticket with this status.")));
         _primed = true;
     }
 
@@ -347,45 +385,107 @@ public sealed class SupportPage : PageBase
         ShowMineLocal();
     }
 
+    /// <summary>One ticket as a card: status and topic pills, the title, the text (long ones fold), the replies as bubbles and the actions.</summary>
     private UIElement TicketRow(TicketInfo t, bool admin)
     {
+        var card = ListUi.Nested(new Thickness(0, 8, 0, 0));
         var panel = new StackPanel();
-        var sub = $"{SupportInfo.StatusName(t.Status)} · {SupportInfo.CategoryName(t.Category)} · #{t.Id}";
-        panel.Children.Add(Row(t.Status == "answered" ? "chk" : t.Status == "closed" ? "lock" : "clk", t.Status == "answered" ? "Green" : t.Status == "closed" ? "Gold" : "Accent", t.Title, sub));
-        var text = new TextBlock { Text = t.Body, Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(54, 0, 0, 4) };
-        panel.Children.Add(text);
+        var head = new WrapPanel();
+        var status = ListUi.Pill(SupportInfo.StatusName(t.Status), SupportInfo.StatusTint(t.Status));
+        status.Margin = new Thickness(0, 0, 6, 4);
+        var topic = ListUi.PillMuted(SupportInfo.CategoryName(t.Category));
+        topic.Margin = new Thickness(0, 0, 6, 4);
+        head.Children.Add(status);
+        head.Children.Add(topic);
+        var when = t.Created.Kind == DateTimeKind.Utc ? t.Created.ToLocalTime() : t.Created;
+        head.Children.Add(new TextBlock
+        {
+            Text = $"#{t.Id} · {Fa.RelativeDay(when, DateTime.Now)} {Fa.Clock(when)}", Style = St("Label"), VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 0, 4), FlowDirection = FlowDirection.LeftToRight,
+        });
+        panel.Children.Add(head);
+        panel.Children.Add(new TextBlock { Text = t.Title, FontSize = 15, FontWeight = FontWeights.Bold, TextWrapping = TextWrapping.Wrap, Foreground = Res("Text"), Margin = new Thickness(0, 2, 0, 4) });
+
+        // long text folds to a few lines with a toggle
+        var body = new TextBlock { Text = t.Body, Style = St("Body"), TextWrapping = TextWrapping.Wrap };
+        if (t.Body.Length > 180 || t.Body.Count(c => c == '\n') > 3)
+        {
+            body.MaxHeight = 66;
+            body.TextTrimming = TextTrimming.CharacterEllipsis;
+            var more = new Button { Style = St("Btn"), Content = L.T("ادامه…", "More…"), HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(0, 4, 0, 0) };
+            more.Click += (_, _) =>
+            {
+                var open = double.IsPositiveInfinity(body.MaxHeight);
+                body.MaxHeight = open ? 66 : double.PositiveInfinity;
+                body.TextTrimming = open ? TextTrimming.CharacterEllipsis : TextTrimming.None;
+                more.Content = open ? L.T("ادامه…", "More…") : L.T("کمتر", "Less");
+            };
+            panel.Children.Add(body);
+            panel.Children.Add(more);
+        }
+        else panel.Children.Add(body);
+
         if (admin && t.Diag.Length > 0)
-            panel.Children.Add(new TextBlock { Text = t.Diag, Style = St("Label"), FontFamily = new FontFamily("Consolas"), FlowDirection = FlowDirection.LeftToRight, Margin = new Thickness(54, 0, 0, 4) });
+            panel.Children.Add(new TextBlock { Text = t.Diag, Style = St("Label"), FontFamily = new FontFamily("Consolas"), FlowDirection = FlowDirection.LeftToRight, Margin = new Thickness(0, 6, 0, 0), TextWrapping = TextWrapping.Wrap });
         if (admin && t.Contact.Length > 0)
-            panel.Children.Add(new TextBlock { Text = L.T("تماس: ", "Contact: ") + t.Contact, Style = St("Label"), Margin = new Thickness(54, 0, 0, 4) });
+            panel.Children.Add(new TextBlock { Text = L.T("تماس: ", "Contact: ") + t.Contact, Style = St("Label"), Margin = new Thickness(0, 4, 0, 0) });
         foreach (var reply in t.Replies)
+        {
+            var mine = reply.Admin != admin;
             panel.Children.Add(new Border
             {
-                Background = Res(reply.Admin ? "AccentSoft" : "Panel2"), CornerRadius = new CornerRadius(12), Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(54, 2, 0, 4),
-                Child = new TextBlock { Text = (reply.Admin ? L.T("پشتیبانی: ", "Support: ") : "") + reply.Text, Style = St("Body"), TextWrapping = TextWrapping.Wrap },
+                Background = Res(reply.Admin ? "AccentSoft" : "Panel2"), CornerRadius = new CornerRadius(12), Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(mine ? 0 : 28, 8, mine ? 28 : 0, 0),
+                Child = new TextBlock { Text = (reply.Admin ? L.T("پشتیبانی: ", "Support: ") : L.T("تو: ", "You: ")) + reply.Text, Style = St("Body"), TextWrapping = TextWrapping.Wrap },
             });
+        }
+
+        var id = t.Id;
+        var bar = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
         if (admin)
         {
-            var reply = new TextBox { Style = St("Input"), Width = 360, Padding = new Thickness(10, 7, 10, 7), AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(54, 4, 8, 4) };
-            var bar = new WrapPanel { Margin = new Thickness(0, 0, 0, 6) };
+            var reply = new TextBox { Style = St("Input"), Width = 320, Padding = new Thickness(10, 7, 10, 7), AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 8, 6) };
             bar.Children.Add(reply);
-            foreach (var (status, label) in new[] { ("answered", L.T("جواب بده", "Answer")), ("reviewing", L.T("در حال بررسی", "Reviewing")), ("closed", L.T("ببند", "Close")) })
+            foreach (var (st, label) in new[] { ("answered", L.T("جواب بده", "Answer")), ("reviewing", L.T("در حال بررسی", "Reviewing")), ("closed", L.T("ببند", "Close")) })
             {
-                var id = t.Id;
-                var s = status;
-                var button = new Button { Style = St("Btn"), Content = label, Margin = new Thickness(0, 4, 6, 4), VerticalAlignment = VerticalAlignment.Top };
+                var s2 = st;
+                var button = new Button { Style = St("Btn"), Content = label, Margin = new Thickness(0, 0, 6, 6), VerticalAlignment = VerticalAlignment.Top };
                 button.Click += async (_, _) =>
                 {
-                    var error = await Client.ReplyAsync(id, reply.Text.Trim(), s);
+                    var error = await Client.ReplyAsync(id, reply.Text.Trim(), s2);
                     _adminNote.Text = error ?? L.T("ثبت شد.", "Saved.");
                     if (error is null) await RefreshAllAsync();
                 };
                 bar.Children.Add(button);
             }
-            panel.Children.Add(bar);
         }
-        panel.Children.Add(Divider());
-        return panel;
+        else if (t.Status != "closed")
+        {
+            var close = new Button { Style = St("Btn"), Content = L.T("بستن تیکت", "Close ticket"), Margin = new Thickness(0, 0, 6, 0) };
+            close.Click += async (_, _) =>
+            {
+                if (!Ask(L.T("تیکت بسته بشه؟", "Close this ticket?"), L.T("تیکت بسته می‌شه ولی می‌مونه و جواب‌ها رو می‌تونی ببینی.", "The ticket is closed but stays, and you can still read the replies."), L.T("ببند", "Close"))) return;
+                var error = await Client.CloseAsync(id);
+                if (error is not null) { Say(_sendNote, "Red", error); return; }
+                await RefreshMineAsync();
+            };
+            bar.Children.Add(close);
+        }
+        var delete = new Button { Style = St("Btn"), Content = L.T("حذف", "Delete"), Margin = new Thickness(0, 0, 6, 6) };
+        delete.Click += async (_, _) =>
+        {
+            if (!Ask(L.T("تیکت حذف بشه؟", "Delete this ticket?"),
+                    admin ? L.T("برای همیشه از سرور پاک می‌شه و برای صاحبش هم از بین می‌ره.", "It is removed from the server for good and disappears for its sender too.")
+                          : L.T("برای همیشه از سرور و از این فهرست پاک می‌شه.", "It is removed from the server and from this list for good."), L.T("حذف", "Delete"), danger: true)) return;
+            var error = admin ? await Client.AdminDeleteAsync(id) : await Client.DeleteAsync(id);
+            if (error is not null) { Say(admin ? _adminNote : _sendNote, "Red", error); return; }
+            var local = Hub.State.Tickets.FirstOrDefault(r => r.Id == id);
+            if (local is not null) { Hub.State.Tickets.Remove(local); Hub.Store.Save(); }
+            if (admin) await RefreshAllAsync(); else await RefreshMineAsync();
+        };
+        bar.Children.Add(delete);
+        panel.Children.Add(bar);
+        card.Child = panel;
+        return card;
     }
 
     private async Task SaveAdminAsync()
@@ -414,6 +514,7 @@ public sealed class SupportPage : PageBase
         Hub.Settings.Support.AdminKeyProtected = "";
         Hub.Store.Save();
         _all.Children.Clear();
+        _allTickets = [];
         _adminNote.Text = L.T("از حالت مدیر خارج شدی.", "Signed out of owner mode.");
     }
 
@@ -425,14 +526,21 @@ public sealed class SupportPage : PageBase
             return;
         }
         var (tickets, error) = await Client.AllAsync();
-        _all.Children.Clear();
         if (tickets is null)
         {
+            _all.Children.Clear();
             Say(_adminNote, "Red", error ?? "");
             return;
         }
+        _allTickets = tickets;
         Say(_adminNote, "Muted", L.T($"{Fa.Digits(tickets.Count.ToString())} تیکت", $"{tickets.Count} tickets"));
+        ShowAll();
+    }
+
+    private void ShowAll()
+    {
+        _all.Children.Clear();
         var n = 0;
-        foreach (var t in tickets.Take(60)) Add(_all, TicketRow(t, admin: true), "a" + t.Id, n++);
+        foreach (var t in _allTickets.Where(t => SupportInfo.Matches(_allFilterKey, t.Status)).OrderByDescending(t => t.Created).Take(60)) Add(_all, TicketRow(t, admin: true), "a" + t.Id, n++);
     }
 }

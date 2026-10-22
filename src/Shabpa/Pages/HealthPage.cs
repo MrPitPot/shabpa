@@ -27,8 +27,9 @@ public sealed class HealthPage : TabsPage
 
 internal static class HealthUi
 {
-    /// <summary>One check as a list item: state icon (green tick, amber or red warning, grey for unknown), title, detail and advice.</summary>
-    public static FrameworkElement Row(HealthCheck check, bool first = false)
+    /// <summary>One check as a list item: state icon (green tick, amber or red warning, grey for unknown), title, detail and advice.
+    /// <paramref name="onIgnore"/> adds an "Ignore" button to a warning; <paramref name="onRestore"/> turns the row into an ignored one with a "Bring back" button.</summary>
+    public static FrameworkElement Row(HealthCheck check, bool first = false, Action? onIgnore = null, Action? onRestore = null)
     {
         var (icon, tint) = check.State switch
         {
@@ -37,7 +38,45 @@ internal static class HealthUi
             CheckState.Problem => ("warn", "HueE"),
             _ => ("min", "Accent"),
         };
-        return ListUi.Item(icon, tint, check.Title, check.Detail, null, first, note: check.Advice.Length > 0 ? check.Advice : null, neutral: check.State == CheckState.Unknown);
+        UIElement? trailing = null;
+        if (onRestore is not null) trailing = Small(L.T("برگردوندن", "Bring back"), onRestore);
+        else if (onIgnore is not null && check.State != CheckState.Good) trailing = Small(L.T("نادیده گرفتن", "Ignore"), onIgnore);
+        return ListUi.Item(icon, tint, check.Title, check.Detail, trailing, first, note: check.Advice.Length > 0 ? check.Advice : null, neutral: onRestore is not null || check.State == CheckState.Unknown);
+    }
+
+    private static Button Small(string text, Action click)
+    {
+        var b = ListUi.Btn(null, text, "Btn", click);
+        b.Padding = new Thickness(14, 7, 14, 7);
+        return b;
+    }
+
+    public static bool IsIgnored(HealthCheck c) => Hub.I.State.HealthIgnored.Contains(c.Id);
+
+    public static void SetIgnored(HealthCheck c, bool ignored)
+    {
+        var list = Hub.I.State.HealthIgnored;
+        if (ignored && !list.Contains(c.Id)) list.Add(c.Id);
+        else if (!ignored) list.Remove(c.Id);
+        Hub.I.Store.Save();
+    }
+
+    /// <summary>The ignored warnings, under a small heading, each with a button to bring it back.</summary>
+    public static void AddIgnored(Panel host, Mo.Memo memo, IReadOnlyList<HealthCheck> ignored, Action changed)
+    {
+        if (ignored.Count == 0) return;
+        host.Children.Add(memo.Item("ign-head" + ignored.Count, new TextBlock
+        {
+            Text = L.T($"نادیده گرفته‌شده ({Fa.Digits(ignored.Count.ToString())})", $"Ignored ({ignored.Count})"),
+            Style = K.Style("Label"), Margin = new Thickness(0, 16, 0, 2),
+        }));
+        var first = true;
+        foreach (var c in ignored)
+        {
+            var captured = c;
+            host.Children.Add(memo.Item("ign:" + c.Id + c.State, Row(c, first, onRestore: () => { SetIgnored(captured, false); changed(); })));
+            first = false;
+        }
     }
 
     public static string WindowsVersion() => Environment.OSVersion.VersionString;
@@ -183,8 +222,15 @@ public sealed class HealthOverviewPage : PageBase
         });
     }
 
-    private void Show(List<HealthCheck> list, List<EventSummary> events)
+    private List<HealthCheck> _lastList = [];
+    private List<EventSummary> _lastEvents = [];
+
+    private void Show(List<HealthCheck> all, List<EventSummary> events)
     {
+        _lastList = all;
+        _lastEvents = events;
+        var list = all.Where(c => !HealthUi.IsIgnored(c)).ToList();
+        var ignored = all.Where(HealthUi.IsIgnored).ToList();
         var problems = list.Count(c => c.State == CheckState.Problem);
         var attention = list.Count(c => c.State == CheckState.Attention);
         var good = list.Count(c => c.State == CheckState.Good);
@@ -222,9 +268,11 @@ public sealed class HealthOverviewPage : PageBase
         var first = true;
         foreach (var c in list.OrderByDescending(c => c.State == CheckState.Problem).ThenByDescending(c => c.State == CheckState.Attention))
         {
-            _checks.Children.Add(_checkMemo.Item(c.Title + c.State, HealthUi.Row(c, first)));
+            var captured = c;
+            _checks.Children.Add(_checkMemo.Item(c.Title + c.State, HealthUi.Row(c, first, onIgnore: () => { HealthUi.SetIgnored(captured, true); Show(_lastList, _lastEvents); })));
             first = false;
         }
+        HealthUi.AddIgnored(_checks, _checkMemo, ignored, () => Show(_lastList, _lastEvents));
         _checkMemo.End();
 
         _events.Children.Clear();
@@ -330,7 +378,7 @@ public sealed class SecurityPage : PageBase
         _ = Task.Run(() =>
         {
             var reg = new WindowsRegistryProbe();
-            var security = Health.Security(reg, Health.ServiceStateNow, Hub.Elevated);
+            var security = Health.Security(reg, Health.ServiceStateNow, Hub.Elevated, Health.AntivirusNow());
             var startup = Health.Startup(reg, Health.StartupFolders());
             Dispatcher.BeginInvoke(() =>
             {
@@ -341,16 +389,21 @@ public sealed class SecurityPage : PageBase
         });
     }
 
-    private void ShowSecurity(List<HealthCheck> security)
+    private List<HealthCheck> _lastSecurity = [];
+
+    private void ShowSecurity(List<HealthCheck> all)
     {
+        _lastSecurity = all;
         _security.Children.Clear();
         _secMemo.Begin();
         var first = true;
-        foreach (var c in security)
+        foreach (var c in all.Where(c => !HealthUi.IsIgnored(c)))
         {
-            _security.Children.Add(_secMemo.Item(c.Title + c.State, HealthUi.Row(c, first)));
+            var captured = c;
+            _security.Children.Add(_secMemo.Item(c.Title + c.State, HealthUi.Row(c, first, onIgnore: () => { HealthUi.SetIgnored(captured, true); ShowSecurity(_lastSecurity); })));
             first = false;
         }
+        HealthUi.AddIgnored(_security, _secMemo, all.Where(HealthUi.IsIgnored).ToList(), () => ShowSecurity(_lastSecurity));
         _secMemo.End();
     }
 
