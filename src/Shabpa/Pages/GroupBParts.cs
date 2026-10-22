@@ -146,7 +146,7 @@ internal sealed class AnchorPicker : Border
         Padding = new Thickness(8);
         Background = K.Brush("Line");
         FlowDirection = FlowDirection.LeftToRight;
-        var grid = new Grid { Width = 210, Height = 112 };
+        var grid = new Grid { Width = 210, Height = 112, FlowDirection = FlowDirection.LeftToRight };
         for (var c = 0; c < 3; c++) grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.RowDefinitions.Add(new RowDefinition());
         grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(14) });
@@ -161,8 +161,9 @@ internal sealed class AnchorPicker : Border
             };
             cell.MouseLeftButtonUp += (_, _) => Pick(key, true);
             Fx.Attach(cell, grow: 1.05, press: 0.94);
-            Grid.SetColumn(cell, i % 3);
-            Grid.SetRow(cell, i < 3 ? 0 : 2);
+            // the column is the zone's place on the SCREEN (left = 0), read from the zone itself, not from its position in a list
+            Grid.SetColumn(cell, OverlayZone.Column(key));
+            Grid.SetRow(cell, OverlayZone.Row(key));
             grid.Children.Add(cell);
             _cells[key] = cell;
         }
