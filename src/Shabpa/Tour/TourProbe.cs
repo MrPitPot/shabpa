@@ -3,6 +3,7 @@ using System.Text;
 using System.Windows;
 using System.Windows.Input;
 using Shabpa.Core;
+using Shabpa.Kit;
 
 namespace Shabpa.Tour;
 
@@ -15,6 +16,7 @@ internal static class TourProbe
     public static async Task Run(MainWindow window, string report, string folder, Action<FrameworkElement, string> save)
     {
         var sb = new StringBuilder();
+        if (Environment.GetCommandLineArgs().Contains("--tour-cpu")) { await Cpu(window, report); return; }
         try
         {
             Directory.CreateDirectory(folder);
@@ -97,6 +99,29 @@ internal static class TourProbe
             sb.AppendLine($"motion on, after Esc: overlay removed = {window.ActiveTour is null && window.CaptureRootOverlays == 0}");
             Hub.I.Settings.Animations = false;
 
+            // Skip at the very moment a step opens its page, with animations on: the person must still land on Home
+            Hub.I.Settings.Animations = true;
+            window.StartTour();
+            await Task.Delay(1200);
+            var racer = window.ActiveTour!.Session;
+            while (racer.Current.Id != "dns") { racer.Next(); await Task.Delay(30); }
+            Press(window, Key.Escape);                 // the page "dns" is only just opening
+            await Task.Delay(2500);
+            sb.AppendLine($"skip while dns is opening: page={window.ActiveTourPage} (home expected) showing home={window.HomeIsShowing}");
+            if (window.ActiveTourPage != "home" || !window.HomeIsShowing) problems++;
+
+            // modal keys: Tab, Space, Ctrl+number must be swallowed (not reach the window); a page must not change under the curtain
+            Hub.I.Settings.Animations = false;
+            window.StartTour();
+            await Task.Delay(700);
+            var pageBefore = window.ActiveTourPage;
+            var swallowed = new[] { Press(window, Key.Tab), Press(window, Key.Space), Press(window, Key.D3, ModifierKeys.Control), Press(window, Key.OemComma, ModifierKeys.Control) };
+            await Task.Delay(300);
+            sb.AppendLine($"modal keys swallowed={string.Join(",", swallowed)} page unchanged={window.ActiveTourPage == pageBefore} tour still open={window.ActiveTour is not null}");
+            if (swallowed.Contains(false) || window.ActiveTourPage != pageBefore) problems++;
+            Press(window, Key.Escape);
+            await Task.Delay(300);
+
             // the card for people who updated
             window.ShowTourOffer();
             await Task.Delay(500);
@@ -112,12 +137,53 @@ internal static class TourProbe
         Application.Current.Shutdown();
     }
 
+    /// <summary>Test aid (<c>--tour-test r --tour-cpu</c>): idle CPU of the whole process (one core = 100 %) with nothing, with the tour
+    /// settled on a step, with the "want a tour?" card, and with the tour while the window is minimised; 20 s warm-up, 10 s measured each.</summary>
+    private static async Task Cpu(MainWindow window, string report)
+    {
+        var sb = new StringBuilder();
+        Hub.I.Settings.Animations = true;
+        sb.AppendLine($"motion enabled={Motion.Enabled}");
+        await Task.Delay(6000);
+        async Task Measure(string name)
+        {
+            await Task.Delay(20000);
+            var proc = System.Diagnostics.Process.GetCurrentProcess();
+            var t0 = proc.TotalProcessorTime;
+            var w0 = DateTime.UtcNow;
+            await Task.Delay(10000);
+            proc.Refresh();
+            var pct = (proc.TotalProcessorTime - t0).TotalSeconds / (DateTime.UtcNow - w0).TotalSeconds * 100;
+            sb.AppendLine($"{name}: {pct:0.0} % of one core");
+            File.WriteAllText(report, sb.ToString());
+        }
+        await Measure("no tour");
+        window.StartTour();
+        window.ActiveTour!.Session.Next(); // sidebar step
+        await Measure("tour open and still");
+        window.ActiveTour!.Session.Skip();
+        await Task.Delay(1000);
+        window.ShowTourOffer();
+        await Measure("offer card");
+        window.HideTourOfferNow();
+        window.StartTour();
+        window.ActiveTour!.Session.Next();
+        window.WindowState = WindowState.Minimized;
+        await Measure("tour open, window minimised");
+        window.WindowState = WindowState.Normal;
+        File.WriteAllText(report, sb.ToString());
+        Application.Current.Shutdown();
+    }
+
     private static string Fmt(Rect? r) => r is { } x ? $"({x.X:0},{x.Y:0},{x.Width:0},{x.Height:0})" : "-";
 
-    private static void Press(Window w, Key key)
+    /// <summary>Raises the key through the window's key tunnel; returns whether somebody handled it.</summary>
+    private static bool Press(Window w, Key key, ModifierKeys modifiers = ModifierKeys.None)
     {
         var source = PresentationSource.FromVisual(w);
-        if (source is null) return;
-        w.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice, source, Environment.TickCount, key) { RoutedEvent = Keyboard.PreviewKeyDownEvent });
+        if (source is null) return false;
+        var args = new KeyEventArgs(Keyboard.PrimaryDevice, source, Environment.TickCount, key) { RoutedEvent = Keyboard.PreviewKeyDownEvent };
+        w.RaiseEvent(args);
+        return args.Handled;
     }
 }

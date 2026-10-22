@@ -29,14 +29,12 @@ internal sealed class Spotlight : FrameworkElement
 
     public static readonly DependencyProperty HoleXProperty = Reg(nameof(HoleX), 0), HoleYProperty = Reg(nameof(HoleY), 0),
         HoleWProperty = Reg(nameof(HoleW), 0), HoleHProperty = Reg(nameof(HoleH), 0),
-        PulseProperty = Reg(nameof(Pulse), 0), DimProperty = Reg(nameof(Dim), 0);
+        DimProperty = Reg(nameof(Dim), 0);
 
     public double HoleX { get => (double)GetValue(HoleXProperty); set => SetValue(HoleXProperty, value); }
     public double HoleY { get => (double)GetValue(HoleYProperty); set => SetValue(HoleYProperty, value); }
     public double HoleW { get => (double)GetValue(HoleWProperty); set => SetValue(HoleWProperty, value); }
     public double HoleH { get => (double)GetValue(HoleHProperty); set => SetValue(HoleHProperty, value); }
-    /// <summary>0 to 1, repeating: the ring around the target grows and fades.</summary>
-    public double Pulse { get => (double)GetValue(PulseProperty); set => SetValue(PulseProperty, value); }
     /// <summary>0 to 1: how much of the dimming is shown (fades in and out).</summary>
     public double Dim { get => (double)GetValue(DimProperty); set => SetValue(DimProperty, value); }
 
@@ -74,13 +72,6 @@ internal sealed class Spotlight : FrameworkElement
         var glow = hole; glow.Inflate(3, 3);
         dc.DrawRoundedRectangle(null, new Pen(new SolidColorBrush(A(0.16)), 9), glow, r + 3, r + 3);   // soft halo
         dc.DrawRoundedRectangle(null, new Pen(new SolidColorBrush(A(0.95)), 2), glow, r + 3, r + 3);   // crisp ring
-        if (Pulse > 0)
-        {
-            var wave = hole;
-            var grow = 4 + 18 * Pulse;
-            wave.Inflate(grow, grow);
-            dc.DrawRoundedRectangle(null, new Pen(new SolidColorBrush(A(0.55 * (1 - Pulse))), 2), wave, r + grow, r + grow);
-        }
     }
 }
 
@@ -102,10 +93,17 @@ public sealed class TourOverlay : Grid
     private readonly Border _hint = new();
     private readonly Border _progressFill = new();
     private readonly Button _back, _next, _skip;
-    private readonly DispatcherTimer _follow = new() { Interval = TimeSpan.FromMilliseconds(140) };
+    private readonly DispatcherTimer _follow = new() { Interval = TimeSpan.FromMilliseconds(300) };
+    // the pulse ring: one small cached element that is scaled and faded (render thread only), a few times per step, then it rests
+    private readonly Border _ring = new() { IsHitTestVisible = false, Visibility = Visibility.Collapsed, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top, RenderTransformOrigin = new Point(0.5, 0.5) };
+    private readonly ScaleTransform _ringScale = new(1, 1);
+    private readonly TranslateTransform _ringMove = new();
+    private DateTime _ringDue = DateTime.MaxValue;
+    private bool _ringOn, _paused;
     private Rect? _lastHole;
     private Point _lastBubble;
     private bool _placed, _closing;
+    private Size _bubbleSize;
     private DateTime _holdUntil = DateTime.MinValue;
     private string _themeKey = "";
     private readonly Action<TourEnd> _onFinished;
@@ -143,6 +141,11 @@ public sealed class TourOverlay : Grid
         Panel.SetZIndex(this, 950);
         Focusable = false;
         Children.Add(_spot);
+        _ring.RenderTransform = new TransformGroup { Children = { _ringScale, _ringMove } };
+        _ring.CacheMode = new BitmapCache(1);
+        _ring.BorderBrush = K.Brush("Accent");
+        _ring.BorderThickness = new Thickness(2);
+        Children.Add(_ring);
 
         // ---- the bubble ------------------------------------------------------------------------------
         _bubble.HorizontalAlignment = HorizontalAlignment.Left;
@@ -241,8 +244,11 @@ public sealed class TourOverlay : Grid
     public void Open()
     {
         _host.Surface.Children.Add(this);
-        _host.Window.PreviewKeyDown += OnKey;
         _host.Window.SizeChanged += OnWindowSize;
+        _host.Window.StateChanged += OnWindowActivity;
+        _host.Window.Activated += OnWindowActivity;
+        _host.Window.Deactivated += OnWindowActivity;
+        _host.Window.IsVisibleChanged += OnWindowVisible;
         Keyboard.ClearFocus();
     }
 
@@ -253,9 +259,6 @@ public sealed class TourOverlay : Grid
         var cy = ActualHeight / 2;
         _spot.HoleX = cx; _spot.HoleY = cy; _spot.HoleW = 0; _spot.HoleH = 0;
         Fx.Anim(_spot, Spotlight.DimProperty, 1, new CubicEase { EasingMode = EasingMode.EaseOut }, 380);
-        if (Motion.Enabled)
-            _spot.BeginAnimation(Spotlight.PulseProperty, new DoubleAnimation(0.001, 1, TimeSpan.FromMilliseconds(1700))
-            { RepeatBehavior = RepeatBehavior.Forever, EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } }.Slow());
         ApplyStep(first: true);
         _follow.Start();
     }
@@ -272,13 +275,17 @@ public sealed class TourOverlay : Grid
         if (_closing) return;
         _closing = true;
         _follow.Stop();
-        _host.Window.PreviewKeyDown -= OnKey;
         _host.Window.SizeChanged -= OnWindowSize;
+        _host.Window.StateChanged -= OnWindowActivity;
+        _host.Window.Activated -= OnWindowActivity;
+        _host.Window.Deactivated -= OnWindowActivity;
+        _host.Window.IsVisibleChanged -= OnWindowVisible;
+        StopRing();
         _spot.PassThrough = false;
         _spot.IsHitTestVisible = false;
         void Remove()
         {
-            _spot.BeginAnimation(Spotlight.PulseProperty, null);
+            StopRing();
             _host.Surface.Children.Remove(this);
         }
         if (!Motion.Enabled || !IsLoaded) { Remove(); return; }
@@ -296,19 +303,70 @@ public sealed class TourOverlay : Grid
 
     // ---- keyboard --------------------------------------------------------------------------------------
 
-    private void OnKey(object sender, KeyEventArgs e)
+    /// <summary>Called by the window before any of its own key handling: the tour is modal, see <see cref="TourKeys"/>.</summary>
+    public void HandleKey(KeyEventArgs e)
     {
+        if (_closing) return;
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
-        var forward = Ui.Flow == FlowDirection.LeftToRight ? Key.Right : Key.Left;
-        var backward = Ui.Flow == FlowDirection.LeftToRight ? Key.Left : Key.Right;
-        if (key == Key.Escape) _session.Skip();
-        else if (key == forward || key == Key.Enter || key == Key.PageDown) _session.Next();
-        else if (key == backward || key == Key.PageUp) _session.Back();
-        else return;
+        switch (TourKeys.Classify(key, Keyboard.Modifiers, Ui.Flow))
+        {
+            case TourKeyAction.Pass: return;
+            case TourKeyAction.Skip: _session.Skip(); break;
+            case TourKeyAction.Next: _session.Next(); break;
+            case TourKeyAction.Back: _session.Back(); break;
+        }
         e.Handled = true;
     }
 
     private void OnWindowSize(object sender, SizeChangedEventArgs e) => Follow();
+
+    private void OnWindowVisible(object sender, DependencyPropertyChangedEventArgs e) => OnWindowActivity(sender, EventArgs.Empty);
+
+    /// <summary>A minimised or hidden window costs nothing (no timer, no ring); a window in the background only stops the pulse.</summary>
+    private void OnWindowActivity(object? sender, EventArgs e)
+    {
+        if (_closing) return;
+        var w = _host.Window;
+        _paused = !w.IsVisible || w.WindowState == WindowState.Minimized;
+        if (_paused) { _follow.Stop(); StopRing(); return; }
+        if (!_follow.IsEnabled) _follow.Start();
+        if (!w.IsActive) StopRing();                                   // in the background: the ring rests, the lit area is still kept right
+        else if (!_ringOn) _ringDue = DateTime.UtcNow.AddMilliseconds(300);
+    }
+
+    /// <summary>The ring grows out of the lit area and fades, three times, then stays quiet (30 frames a second, cached bitmap).</summary>
+    private void StartRing()
+    {
+        if (_ringOn || _lastHole is not { } h || h.Width < 4 || h.Height < 4 || !Motion.Enabled) { _ringDue = DateTime.MaxValue; return; }
+        _ringDue = DateTime.MaxValue;
+        _ringOn = true;
+        const double grow = 20;
+        _ring.Width = h.Width;
+        _ring.Height = h.Height;
+        _ring.CornerRadius = new CornerRadius(Math.Min(14, Math.Min(h.Width, h.Height) / 2) + 3);
+        _ringMove.X = h.X;
+        _ringMove.Y = h.Y;
+        _ring.Visibility = Visibility.Visible;
+        var length = TimeSpan.FromMilliseconds(1700);
+        var repeat = new RepeatBehavior(3);
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        DoubleAnimation Make(double from, double to) => new DoubleAnimation(from, to, length) { RepeatBehavior = repeat, EasingFunction = ease, FillBehavior = FillBehavior.Stop }.Slow();
+        var fade = Make(0.6, 0);
+        fade.Completed += (_, _) => { if (_ringOn) StopRing(); };
+        _ring.BeginAnimation(OpacityProperty, fade);
+        _ringScale.BeginAnimation(ScaleTransform.ScaleXProperty, Make(1, (h.Width + 2 * grow) / h.Width));
+        _ringScale.BeginAnimation(ScaleTransform.ScaleYProperty, Make(1, (h.Height + 2 * grow) / h.Height));
+    }
+
+    private void StopRing()
+    {
+        _ringDue = DateTime.MaxValue;
+        _ringOn = false;
+        _ring.BeginAnimation(OpacityProperty, null);
+        _ringScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        _ringScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        _ring.Visibility = Visibility.Collapsed;
+    }
 
     // ---- one step --------------------------------------------------------------------------------------
 
@@ -318,7 +376,7 @@ public sealed class TourOverlay : Grid
     {
         if (_closing) return;
         var step = _session.Current;
-        if (step.Page.Length > 0 && !string.Equals(_host.ActiveKey, step.Page, StringComparison.Ordinal))
+        if (TourSteps.NeedsPage(step, _host.ActiveKey))
         {
             _host.GoTo(step.Page);
             _holdUntil = DateTime.UtcNow.AddMilliseconds(Motion.Enabled ? 260 : 40); // the old page is still leaving
@@ -347,6 +405,7 @@ public sealed class TourOverlay : Grid
             _contentMove.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(10, 0, TimeSpan.FromMilliseconds(520)) { EasingFunction = SpringEase.I, FillBehavior = FillBehavior.Stop });
         }
         _bubble.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        _bubbleSize = _bubble.DesiredSize; // measured once per step: measuring text every tick was costing CPU
         Place(animate: !first, force: true);
     }
 
@@ -365,7 +424,16 @@ public sealed class TourOverlay : Grid
         if (_closing || !IsLoaded) return;
         if (_themeKey != Ui.Theme.Key) { _themeKey = Ui.Theme.Key; _spot.InvalidateVisual(); _bubble.Background = OpaqueCard(); }
         if (DateTime.UtcNow < _holdUntil) return;
+        var step = _session.Current;
+        if (TourSteps.NeedsPage(step, _host.ActiveKey))
+        {
+            // something else opened a page since: bring the step's page back so the lit area is never over a stale target
+            _host.GoTo(step.Page);
+            _holdUntil = DateTime.UtcNow.AddMilliseconds(Motion.Enabled ? 260 : 40);
+            return;
+        }
         Place(animate: true, force: false);
+        if (DateTime.UtcNow >= _ringDue && _host.Window.IsActive) StartRing();
     }
 
     /// <summary>The lit rectangle of the current step in this layer's coordinates, or null for a centred step (or while the target is not shown).</summary>
@@ -409,11 +477,12 @@ public sealed class TourOverlay : Grid
             Move(Spotlight.HoleWProperty, hole.Width);
             Move(Spotlight.HoleHProperty, hole.Height);
             _lastHole = hole;
+            StopRing();
+            _ringDue = DateTime.UtcNow.AddMilliseconds(spring ? 1000 : 200); // the ring starts once the hole has come to rest
         }
 
         // bubble
-        _bubble.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        var size = _bubble.DesiredSize;
+        var size = _bubbleSize;
         var spot = BubbleSpot(target, size, area);
         var movedBubble = !_placed || Math.Abs(spot.X - _lastBubble.X) > 1 || Math.Abs(spot.Y - _lastBubble.Y) > 1;
         if (!movedBubble && !force) return;
