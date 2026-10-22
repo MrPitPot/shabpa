@@ -6,6 +6,28 @@ namespace Shabpa.Tests;
 public class DnsTests
 {
     [Fact]
+    public void Old_settings_without_notes_load_with_an_empty_note_list()
+    {
+        var s = System.Text.Json.JsonSerializer.Deserialize<Settings>("{\"CustomDns\":[]}")!;
+        Assert.NotNull(s.DnsNotes);
+        Assert.Empty(s.DnsNotes);
+    }
+
+    [Fact]
+    public void Notes_are_saved_trimmed_capped_and_cleared_when_empty()
+    {
+        var s = new Settings();
+        Shabpa.Pages.DnsPage.SetNote(s, "1.1.1.1/1.0.0.1", "  good for\nValorant  ");
+        Assert.Equal("good for Valorant", s.DnsNotes["1.1.1.1/1.0.0.1"]);
+        Shabpa.Pages.DnsPage.SetNote(s, "k", new string('x', 500));
+        Assert.Equal(140, s.DnsNotes["k"].Length);
+        Shabpa.Pages.DnsPage.SetNote(s, "k", "  ");
+        Assert.False(s.DnsNotes.ContainsKey("k"));
+        var back = System.Text.Json.JsonSerializer.Deserialize<Settings>(System.Text.Json.JsonSerializer.Serialize(s))!;
+        Assert.Equal("good for Valorant", back.DnsNotes["1.1.1.1/1.0.0.1"]);
+    }
+
+    [Fact]
     public void Query_is_a_valid_a_record_question()
     {
         var q = DnsProbe.BuildQuery(0x1234, "www.google.com");
