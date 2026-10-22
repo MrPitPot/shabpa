@@ -1,3 +1,4 @@
+using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -65,13 +66,15 @@ public sealed class BotLink : IDisposable
     public int Chats { get; private set; }
     public event Action? Changed;
 
-    public BotLink(Func<Settings> settings, Action save, BotHost host, HttpMessageHandler? handler = null, Func<DateTimeOffset>? now = null)
+    public BotLink(Func<Settings> settings, Action save, BotHost host, HttpMessageHandler? handler = null, Func<DateTimeOffset>? now = null, string? outboxFile = null)
     {
+        _outboxFile = outboxFile;
         _settings = settings;
         _save = save;
         _host = host;
         _handler = handler;
         _now = now ?? (() => DateTimeOffset.UtcNow);
+        LoadOutbox();
     }
 
     private string Endpoint => string.IsNullOrWhiteSpace(_settings().BotEndpoint) ? DefaultEndpoint : _settings().BotEndpoint.TrimEnd('/');
@@ -200,6 +203,7 @@ public sealed class BotLink : IDisposable
 
                 using var poll = await Send(http, HttpMethod.Get, "/api/device/poll", null, ct);
                 failures = 0;
+                _ = Task.Run(() => FlushAsync());
                 if (poll is null) continue;
                 var root = poll.RootElement;
                 var chats = root.TryGetProperty("chats", out var c) && c.ValueKind == JsonValueKind.Number ? c.GetInt32() : 0;
@@ -292,16 +296,117 @@ public sealed class BotLink : IDisposable
 
     private static string Cut(string text) => text.Length <= 1500 ? text : text[..1500];
 
+    private sealed record Outgoing(string Id, long At, string Kind, string Text, string TextEn, string? Html);
+
+    internal const int OutboxMax = 50;
+    internal static readonly TimeSpan OutboxMaxAge = TimeSpan.FromHours(12);
+    private readonly string? _outboxFile;
+    private readonly List<Outgoing> _outbox = [];
+    private readonly object _outboxGate = new();
+    private readonly SemaphoreSlim _flushing = new(1, 1);
+
+    private void LoadOutbox()
+    {
+        if (_outboxFile is null || !File.Exists(_outboxFile)) return;
+        try
+        {
+            var list = JsonSerializer.Deserialize<List<Outgoing>>(File.ReadAllText(_outboxFile));
+            if (list is not null) lock (_outboxGate) _outbox.AddRange(list.Where(o => o.Id.Length > 0).Take(OutboxMax));
+        }
+        catch (Exception ex) { Log.Write($"bot event: outbox unreadable, starting empty ({ex.GetType().Name})"); }
+    }
+
+    private void SaveOutbox()
+    {
+        if (_outboxFile is null) return;
+        try
+        {
+            string json;
+            lock (_outboxGate) json = JsonSerializer.Serialize(_outbox);
+            Directory.CreateDirectory(Path.GetDirectoryName(_outboxFile)!);
+            File.WriteAllText(_outboxFile, json);
+        }
+        catch { /* the in-memory queue still works */ }
+    }
+
+    /// <summary>Number of events waiting to be delivered.</summary>
+    internal int Pending { get { lock (_outboxGate) return _outbox.Count; } }
+
     /// <summary>Pushes an event to the linked chats; the server applies each person's notification switches.
-    /// kind is one of game, budget, update, warning.</summary>
+    /// kind is one of game, budget, update, warning. The event is queued (bounded, saved to disk) and kept until the
+    /// server accepted it, so a network blip or a restart does not lose it. Every outcome is written to shabpa.log.</summary>
     public void Notify(string kind, string text, string? textEn = null, string? html = null)
     {
-        if (State != BotState.Connected || _http is not { } http || _cts is not { } cts) return;
-        _ = Task.Run(async () =>
+        if (!_settings().BotEnabled) { Log.Write($"bot event {kind}: skipped (bot link is off)"); return; }
+        if (_settings().BotDeviceId.Length == 0) { Log.Write($"bot event {kind}: skipped (this PC is not registered with the bot yet)"); return; }
+        if (State == BotState.WaitingForPair && Chats == 0) { Log.Write($"bot event {kind}: skipped (no Telegram chat is linked)"); return; }
+        var item = new Outgoing(Guid.NewGuid().ToString("N"), _now().ToUnixTimeSeconds(), kind, Cut(text), Cut(textEn ?? text), html is null ? null : GameMessage.Fit(html));
+        lock (_outboxGate)
         {
-            try { (await Send(http, HttpMethod.Post, "/api/device/event", new { kind, text = Cut(text), textEn = Cut(textEn ?? text), html = html is null ? null : GameMessage.Fit(html), parseMode = html is null ? null : "HTML" }, cts.Token))?.Dispose(); }
-            catch { /* best effort */ }
-        });
+            _outbox.Add(item);
+            while (_outbox.Count > OutboxMax) { Log.Write($"bot event {_outbox[0].Kind}: dropped (queue full)"); _outbox.RemoveAt(0); }
+        }
+        SaveOutbox();
+        Log.Write($"bot event {kind}: queued ({item.Id[..8]})");
+        _ = Task.Run(() => FlushAsync());
+    }
+
+    /// <summary>Sends the queued events in order; stops at the first transient failure and tries again on the next poll.</summary>
+    internal async Task FlushAsync()
+    {
+        if (_http is not { } http || _cts is not { } cts) return;
+        if (!await _flushing.WaitAsync(0)) return;
+        try
+        {
+            while (!cts.IsCancellationRequested)
+            {
+                Outgoing? next;
+                lock (_outboxGate) next = _outbox.Count > 0 ? _outbox[0] : null;
+                if (next is null) return;
+                if (_now().ToUnixTimeSeconds() - next.At > OutboxMaxAge.TotalSeconds)
+                {
+                    Log.Write($"bot event {next.Kind}: dropped (older than {OutboxMaxAge.TotalHours:0} h, {next.Id[..8]})");
+                    Remove(next);
+                    continue;
+                }
+                try
+                {
+                    using var reply = await Send(http, HttpMethod.Post, "/api/device/event", new
+                    {
+                        kind = next.Kind, text = next.Text, textEn = next.TextEn, html = next.Html, parseMode = next.Html is null ? null : "HTML", eventId = next.Id,
+                    }, cts.Token);
+                    var sent = reply is not null && reply.RootElement.TryGetProperty("sent", out var n) && n.ValueKind == JsonValueKind.Number ? n.GetInt32() : -1;
+                    Remove(next);
+                    Log.Write(sent == 0
+                        ? $"bot event {next.Kind}: server accepted but delivered to 0 chats (muted, quiet hours or Telegram refused) ({next.Id[..8]})"
+                        : $"bot event {next.Kind}: sent ({next.Id[..8]})");
+                }
+                catch (HttpRequestException ex) when (ex.StatusCode is >= HttpStatusCode.BadRequest and < HttpStatusCode.InternalServerError && ex.StatusCode != HttpStatusCode.RequestTimeout && ex.StatusCode != HttpStatusCode.TooManyRequests)
+                {
+                    // the server refuses this event for good (bad request): retrying would only repeat it
+                    Remove(next);
+                    Log.Write($"bot event {next.Kind}: failed, not retried ({(int)ex.StatusCode!.Value}) ({next.Id[..8]})");
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    Log.Write($"bot event {next.Kind}: failed (device unknown to the server, will retry after re-pairing) ({next.Id[..8]})");
+                    return;
+                }
+                catch (OperationCanceledException) when (cts.IsCancellationRequested) { return; }
+                catch (Exception ex)
+                {
+                    Log.Write($"bot event {next.Kind}: failed, will retry ({ex.GetType().Name}: {ex.Message}) ({next.Id[..8]})");
+                    return;
+                }
+            }
+        }
+        finally { _flushing.Release(); }
+    }
+
+    private void Remove(Outgoing item)
+    {
+        lock (_outboxGate) _outbox.RemoveAll(o => o.Id == item.Id);
+        SaveOutbox();
     }
 
     public void Dispose() => Stop();
