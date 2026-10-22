@@ -10,6 +10,15 @@ a patch release only fixes bugs, a minor release adds a tested batch of features
 - **Command box (assistant, phase 0)** - type a command in Persian or English («یه ساعت و ربع دیگه خاموش کن»، «ساعت ۲ و نیم شب بخوابون»، «وقتی دانلود تموم شد خاموش کن»، "remind me at 5pm to call mom"). It works fully offline with no language model: shutdown, sleep, hibernate, restart, lock, cancel, wake timers, reminders, focus timer, night light, sleep mode and the list of what is scheduled, plus the conditions the rules already have (download or upload done, idle, a program closed, heavy work done). Every command shows a card with the exact time first; anything unclear (2 o'clock morning or afternoon?, a question, «خاموش نکن») offers choices instead and runs nothing. Open it from the tray menu or with Ctrl+Alt+Space (changeable in Settings). Bidar the owl shows what it is doing.
 - **Telegram:** the app understands a new `text` bot command with the same parser, so free text sent to the bot can be routed to it once the bot server forwards it.
 
+## [3.11.1] - 2026-10-23
+
+### Fixed
+- **Crash when the mouse wheel turned over a text box** - on Settings (name / birthday, power fields, recorders), Support and Update, scrolling with the pointer over any text box ended the app at once with "A new guard page for the stack cannot be created". The wheel handler passed the turn on to the page behind by re-raising it, and for the ScrollViewer inside a text box that re-raise came straight back to itself until the stack ran out. The wheel now goes to the nearest viewer above, found by walking the tree, and the hand-over is capped. Found from a crash dump; covered by new tests.
+- **Internet cut for a few seconds, and window stalls, while a speed limit is active** - the speed limiter held its packet lock while it read the table of ports and looked up every process name, which can take seconds on a busy PC and stops the traffic of the whole computer. That work now runs outside the lock.
+- **Ping page stalls** - program icons were read from disk on the window thread (535 ms in a real log); they now load in the background and appear when ready.
+- **Main window lookup** - a few buttons (birthday preview, quick cards, theme switch) found the window through the application's "main window", which is the first window ever created. The real window is now set explicitly.
+- Update signature: the published `latest.json.sig` of 3.11.0 did not match the manifest, so the mirror update path could not verify it. Re-signed (no change to the installer).
+
 ## [3.11.0] - 2026-10-22
 
 ### Added

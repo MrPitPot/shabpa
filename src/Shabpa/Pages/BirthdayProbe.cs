@@ -60,6 +60,14 @@ public static class BirthdayProbe
             card.Reload();
             await Task.Delay(300);
 
+            // the real click on "Preview the birthday" (the handler looks the window up itself)
+            var previewButton = All(card).OfType<System.Windows.Controls.Button>().First(b => b.Content as string is "پیش‌نمایش جشن تولد" or "Preview the birthday");
+            previewButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            await Task.Delay(900);
+            Say($"preview click: greetingOpen={window.BirthdayOpen} applicationMainWindow={Application.Current.MainWindow?.GetType().Name} isSameAsWindow={ReferenceEquals(Application.Current.MainWindow, window)}");
+            if (window.BirthdayOpen) save(window.CaptureRoot, Path.Combine(folder, $"preview-click-{tag}.png"));
+            window.CloseBirthdayGreeting();
+
             // the day arrives: motion on, so the circle reveal and the shower really run
             hub.Settings.Animations = true;
             var cpu0 = Process.GetCurrentProcess().TotalProcessorTime;
@@ -95,6 +103,12 @@ public static class BirthdayProbe
             window.Navigate("settings");
             await Task.Delay(800);
             save(window.CaptureRoot, Path.Combine(folder, $"settings-{tag}.png"));
+            foreach (var key in new[] { "support", "update", "settings", "support", "settings", "update" })
+            {
+                window.Navigate(key);
+                await Task.Delay(700);
+                Say($"festive look on {key}: ok (look={hub.BirthdayLook}, tree={VisualStats.Measure(window.CaptureRoot)})");
+            }
 
             // the still version (animations off)
             window.ShowBirthdayGreeting();

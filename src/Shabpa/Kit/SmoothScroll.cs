@@ -92,14 +92,40 @@ public static class SmoothScroll
         Start(sv);
     }
 
+    [ThreadStatic] private static int _handOffDepth;
+
     /// <summary>WPF's own ScrollViewer swallows the wheel even at its end, so a list inside a page would trap it. At the end the
-    /// event is re-raised on the parent instead, so the outer viewer carries on.</summary>
+    /// wheel goes to the nearest viewer further up instead (found by walking the tree here, not by re-raising the event: the route
+    /// of a re-raised event can lead straight back to this very viewer, for example from the ScrollViewer inside a TextBox, and that
+    /// looped until the stack ran out and the app died the moment the wheel turned over a text box). Nesting is capped as well.</summary>
     private static void HandOff(ScrollViewer sv, MouseWheelEventArgs e)
     {
         e.Handled = true;
-        if (VisualTreeHelper.GetParent(sv) is not UIElement parent) return;
-        parent.RaiseEvent(new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta) { RoutedEvent = UIElement.MouseWheelEvent, Source = sv });
+        if (_handOffDepth >= 6) return;
+        _handOffDepth++;
+        try
+        {
+            var up = UpOf(sv);
+            for (var i = 0; up is not null && i < 200; i++, up = UpOf(up))
+            {
+                if (up is ScrollViewer outer && !ReferenceEquals(outer, sv))
+                {
+                    OnWheel(outer, new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta) { RoutedEvent = UIElement.MouseWheelEvent, Source = outer });
+                    return;
+                }
+            }
+            // no viewer above: whoever sits above (a list with its own wheel handling, a window) gets the event, as before
+            if (VisualTreeHelper.GetParent(sv) is UIElement parent)
+                parent.RaiseEvent(new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta) { RoutedEvent = UIElement.MouseWheelEvent, Source = sv });
+        }
+        finally { _handOffDepth--; }
     }
+
+    /// <summary>The next element up: the visual parent, else the templated parent (a template root has none until it is attached), else the logical parent.</summary>
+    internal static DependencyObject? UpOf(DependencyObject d) =>
+        d is Visual or System.Windows.Media.Media3D.Visual3D && VisualTreeHelper.GetParent(d) is { } visual ? visual
+        : d is FrameworkElement { TemplatedParent: { } templated } ? templated
+        : LogicalTreeHelper.GetParent(d);
 
     /// <summary>If somebody else moved the offset (scrollbar drag, keyboard, caret) the glide forgets its target and follows.</summary>
     private static void Sync(Axis axis, double offset)
