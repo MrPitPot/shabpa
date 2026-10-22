@@ -46,13 +46,19 @@ public abstract class TabsPage : PageBase
         IsVisibleChanged += (_, e) => { if (e.NewValue is true) PlaceThumb(false); };
         // Whatever moved a tab or the page without a size change (language, font, a page re-attached, a monitor change),
         // the thumb is put back under the chosen tab as soon as no spring is running.
-        LayoutUpdated += (_, _) => Heal();
+        // Only while the page is in the window: LayoutUpdated is a global event that keeps a subscriber alive, so a page that was
+        // thrown away and rebuilt (low-memory mode) would otherwise stay in memory and keep healing a thumb nobody sees.
+        Loaded += (_, _) => { LayoutUpdated -= OnLayoutUpdated; LayoutUpdated += OnLayoutUpdated; };
+        Unloaded += (_, _) => LayoutUpdated -= OnLayoutUpdated;
     }
+
+    private void OnLayoutUpdated(object? sender, EventArgs e) => Heal();
 
     private long _springUntil;
 
     private void Heal()
     {
+        StackGauge.Sample("tabs.heal");
         if (Environment.TickCount64 < _springUntil || !IsVisible) return;
         var tab = CheckedTab;
         if (tab is null || !tab.IsLoaded || tab.ActualWidth <= 0 || !_strip.IsLoaded) return;
@@ -142,12 +148,14 @@ public abstract class TabsPage : PageBase
     {
         _current = page;
         _host.Content = page;
+        RunMarker.Note($"tab {GetType().Name}/{page.GetType().Name}");
         RaiseHeaderChanged();
         if (!IsLoaded) return;
         var ticket = ++_showTicket;
         Dispatcher.BeginInvoke(() =>
         {
             if (ticket != _showTicket || !ReferenceEquals(_current, page)) return;   // another tab was chosen meanwhile
+            StackGauge.Sample("tabs.show");
             page.Refresh();
             page.OnTick(Hub.Snapshot);
             page.OnSecond();

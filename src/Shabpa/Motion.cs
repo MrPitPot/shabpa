@@ -105,28 +105,47 @@ public static class Motion
         return true;
     }
 
-    /// <summary>The 170 ms exit of the old page: fades and lifts 8 px, then <paramref name="done"/> runs.</summary>
+    /// <summary>The 170 ms exit of the old page: fades and lifts 8 px, then <paramref name="done"/> runs exactly once. If the clock
+    /// never reports back (a render thread that is stuck, a window that is not drawn) a one-shot timer runs it anyway: without that
+    /// the page switch would wait for the exit forever and the old page would stay faded out on screen.</summary>
     public static void Leave(FrameworkElement host, Action done)
     {
         if (!Enabled) { done(); return; }
+        var ran = false;
+        var mine = ++_leaveId;
+        void Finish()
+        {
+            if (ran) return;
+            ran = true;
+            // a newer exit on the same host owns the fade now: this one only reports back
+            if (mine == _leaveId)
+            {
+                host.BeginAnimation(UIElement.OpacityProperty, null);
+                host.Opacity = 1;
+                host.RenderTransform = Transform.Identity;
+            }
+            done();
+        }
         var move = new TranslateTransform();
         var scale = new ScaleTransform(1, 1);
         host.RenderTransformOrigin = new Point(0.5, 0.3);
         host.RenderTransform = new TransformGroup { Children = { scale, move } };
         var d = TimeSpan.FromMilliseconds(170);
         var fade = new DoubleAnimation(1, 0, d) { FillBehavior = FillBehavior.HoldEnd };
-        fade.Completed += (_, _) =>
-        {
-            host.BeginAnimation(UIElement.OpacityProperty, null);
-            host.Opacity = 1;
-            host.RenderTransform = Transform.Identity;
-            done();
-        };
+        fade.Completed += (_, _) => Finish();
         host.BeginAnimation(UIElement.OpacityProperty, fade);
         move.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(0, -8, d));
         scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, 0.99, d));
         scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1, 0.99, d));
+        var net = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Normal, host.Dispatcher) { Interval = d + LeaveSafety };
+        net.Tick += (_, _) => { net.Stop(); Finish(); };
+        net.Start();
     }
+
+    [ThreadStatic] private static int _leaveId;
+
+    /// <summary>How long past the exit's own length the safety timer of <see cref="Leave"/> waits.</summary>
+    internal static TimeSpan LeaveSafety = TimeSpan.FromMilliseconds(300);
 
     /// <summary>The page title and subtitle rise in when the tab changes (the shell header is block 0 of the page).</summary>
     public static void Header(params FrameworkElement[] parts)

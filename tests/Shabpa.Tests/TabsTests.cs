@@ -63,13 +63,8 @@ public class TabsTests
 
     private static Application EnsureApp()
     {
-        var app = Application.Current ?? new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-        if (!app.Resources.Contains("Panel"))
-        {
-            app.Resources.MergedDictionaries.Add(Ui.Resources(Palette.Find("night")));
-            app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("pack://application:,,,/Shabpa;component/Theme.xaml", UriKind.Absolute) });
-        }
-        return app;
+        StaRunner.EnsureApp(); // every test thread gets its own live brushes (see there)
+        return Application.Current;
     }
 
     [Fact]

@@ -24,6 +24,7 @@ public class ButtonClickGuardTests
     }
 }
 
+[Collection("Wpf")] // navigation notes come from the pages, so these must not run beside the window tests
 public class RunMarkerTests
 {
     private static string Folder()

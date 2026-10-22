@@ -21,6 +21,14 @@ public static class RunMarker
         public DateTime Started { get; set; }
         public DateTime Heartbeat { get; set; }
         public string Page { get; set; } = "";
+        /// <summary>The last navigation step (a page opened from the side menu, a tab chosen) and when it happened.</summary>
+        public string Action { get; set; } = "";
+        public DateTime ActionAt { get; set; }
+        /// <summary>Longest visual-tree chain and number of visuals after the last page switch (0 when not measured).</summary>
+        public int TreeDepth { get; set; }
+        public int Visuals { get; set; }
+        /// <summary>How many page or tab switches this run has made.</summary>
+        public int Switches { get; set; }
     }
 
     private static string? _path;
@@ -37,8 +45,11 @@ public static class RunMarker
         var last = previous.Heartbeat == default ? previous.Started : previous.Heartbeat;
         var page = previous.Page.Length > 0 ? previous.Page : "?";
         return $"previous run ended unexpectedly: version {previous.Version}, started {previous.Started:yyyy-MM-dd HH:mm:ss}, "
-               + $"last seen {last:yyyy-MM-dd HH:mm:ss} on page {page} (no clean exit; a crash, a freeze that was closed by force, or a power cut)";
+               + $"last seen {last:yyyy-MM-dd HH:mm:ss} on page {page}{Navigation(previous)} (no clean exit; a crash, a freeze that was closed by force, or a power cut)";
     }
+
+    private static string Navigation(Mark m) =>
+        m.Action.Length == 0 ? "" : $", last step \"{m.Action}\" at {m.ActionAt:HH:mm:ss}, switch #{m.Switches}" + (m.TreeDepth > 0 ? $", visual tree {m.TreeDepth} deep with {m.Visuals} visuals" : "");
 
     /// <summary>Call once at the start of the primary instance. Reports a leftover flag, then writes a fresh one.</summary>
     public static string? Begin(string folder, string version, Func<string> page, bool startTimer = true)
@@ -75,6 +86,39 @@ public static class RunMarker
         }
     }
 
+    /// <summary>Minimum time between two writes caused by navigation notes; a note inside the window is written when it ends.</summary>
+    public static readonly TimeSpan NoteEvery = TimeSpan.FromMilliseconds(250);
+    private static long _lastWrite;
+    private static Timer? _pending;
+
+    /// <summary>Remembers the last navigation step (called on every page or tab switch, so it must stay cheap: a few fields and, at most
+    /// four times a second, one small file write). If the process dies right after, the next start's log says what was being done.</summary>
+    public static void Note(string action)
+    {
+        lock (Gate)
+        {
+            if (_path is null) return;
+            _mark.Action = action;
+            _mark.ActionAt = DateTime.Now;
+            _mark.Switches++;
+            var since = Environment.TickCount64 - _lastWrite;
+            if (since >= NoteEvery.TotalMilliseconds) { _lastWrite = Environment.TickCount64; Write(); return; }
+            _pending ??= new Timer(_ => { lock (Gate) { if (_path is null) return; _lastWrite = Environment.TickCount64; Write(); } });
+            _pending.Change(NoteEvery - TimeSpan.FromMilliseconds(since), Timeout.InfiniteTimeSpan);
+        }
+    }
+
+    /// <summary>The size of the visual tree after the last switch (measured once the switch has settled).</summary>
+    public static void NoteTree(int depth, int visuals)
+    {
+        lock (Gate)
+        {
+            if (_path is null) return;
+            _mark.TreeDepth = depth;
+            _mark.Visuals = visuals;
+        }
+    }
+
     /// <summary>The clean exit: the flag goes away.</summary>
     public static void End()
     {
@@ -82,6 +126,8 @@ public static class RunMarker
         {
             _timer?.Dispose();
             _timer = null;
+            _pending?.Dispose();
+            _pending = null;
             if (_path is null) return;
             try { File.Delete(_path); } catch { /* best effort */ }
             _path = null;
