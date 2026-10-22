@@ -26,6 +26,7 @@ public sealed class BirthdayCard : GlassCard
     private bool _jalali;
     private bool _hasDate;
     private int _month = 1, _day = 1, _year;
+    private int _wantedDay = 1; // what the person chose; the shown day is only clamped to the month, so 29 returns when a leap year comes back
     private int _yearLo, _yearHi;
 
     /// <summary>Test aid: the editing fields (month 0 = no date chosen; the year is empty when "no year" is picked).</summary>
@@ -70,7 +71,7 @@ public sealed class BirthdayCard : GlassCard
             heads.Children.Add(head);
             picker.Add(col, weight);
         }
-        _dayCol.Changed += i => { _day = i + 1; ShowError(null); };
+        _dayCol.Changed += i => { _day = _wantedDay = i + 1; ShowError(null); };
         _monthCol.Changed += i => { _month = i + 1; RefreshDays(true); ShowError(null); };
         _yearCol.Changed += i => { _year = WheelMath.YearAt(i, _yearHi); RefreshDays(true); ShowError(null); };
         _pickerBox.Margin = new Thickness(0, 4, 0, 0);
@@ -150,7 +151,7 @@ public sealed class BirthdayCard : GlassCard
     {
         var now = Birthday.Now();
         _month = s.HasDate ? s.Month : Birthday.MonthOf(_jalali, now);
-        _day = s.HasDate ? s.Day : Birthday.DayOf(_jalali, now);
+        _day = _wantedDay = s.HasDate ? s.Day : Birthday.DayOf(_jalali, now);
         _year = s.HasDate ? s.Year : 0;
     }
 
@@ -183,7 +184,7 @@ public sealed class BirthdayCard : GlassCard
             }
             _jalali = jalali;
             _month = temp.Month;
-            _day = temp.Day;
+            _day = _wantedDay = temp.Day;
             _year = temp.Year;
             BuildWheels(true);
             UpdateStatus();
@@ -204,7 +205,7 @@ public sealed class BirthdayCard : GlassCard
     private void RefreshDays(bool animate, bool force = false)
     {
         var count = WheelMath.DayCount(_jalali, _month, _year);
-        _day = WheelMath.ClampDay(_day, count);
+        _day = WheelMath.ClampDay(_wantedDay, count);
         if (force || _dayCol.Count != count)
             _dayCol.SetItems(Enumerable.Range(1, count).Select(d => Fa.Digits(d.ToString())).ToList(), _day - 1, animate);
         else _dayCol.Select(_day - 1, animate);

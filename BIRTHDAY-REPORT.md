@@ -13,7 +13,7 @@ New: Core/Birthday.cs, Kit/Confetti.cs, Pages/BirthdayCard.cs, Pages/BirthdayPro
 Changed: Core/Models.cs, Core/Palette.cs, Core/GlassTokens.cs, Hub.cs, Ui.cs, MainWindow.Theme.cs, MainWindow.xaml.cs, App.xaml.cs, Overlay.cs, Tray.cs, Pages/HomePage.cs, Pages/SettingsPage.cs, Pages/PageBase.cs.
 
 ## How to preview
-`SHABPA_DATA=<scratch> SHABPA_FAKE_TODAY=2026-11-06 ./run-bday.sh fa night` (Debug build), or fill the Settings card and press Preview. Screenshots: design-check/birthday (settings empty/filled, greeting mid-shower and static, home, control, playtime, settings, home next day; fa/en, dark/light) and probe-*.txt.
+`SHABPA_DATA=<scratch> SHABPA_FAKE_TODAY=2026-11-06 ./run-bday.sh fa night` (Debug build), or fill the Settings card and press Preview. Screenshots (not kept in the repo; regenerate with the probe, which now uses a made-up person) (settings empty/filled, greeting mid-shower and static, home, control, playtime, settings, home next day; fa/en, dark/light) and probe-*.txt.
 
 ## Verified (Debug build, offscreen, fake day 2026-11-06)
 Greeting opens once, shower runs then stops (running=false, 0 visible pieces after 6 s), ~0.4-1.2% of one core while the settled card stays open, no second greeting the same day, look on during the day and reverts the next day with the saved theme untouched, in all four fa/en x dark/light runs.

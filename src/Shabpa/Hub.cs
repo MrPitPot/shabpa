@@ -157,8 +157,10 @@ public sealed class Hub
             else _ = Task.Run(() =>
             {
                 var monitor = NetMonitor.TryStart(Traffic, out var netError);
+                if (Volatile.Read(ref _down)) { monitor?.Dispose(); return; } // the app closed while the trace session was starting: nobody else would stop it
                 Application.Current?.Dispatcher.BeginInvoke(() =>
                 {
+                    if (Volatile.Read(ref _down)) { monitor?.Dispose(); return; }
                     _net = monitor;
                     NetError = netError;
                     NetTick?.Invoke();
@@ -210,12 +212,16 @@ public sealed class Hub
             });
     }
 
+    private bool _down;
+
     public void Shutdown()
     {
+        Volatile.Write(ref _down, true);
         Voice.Stop();
         _clock.Stop();
         if (_sleepStart is not null && _sleepVolume is { } startVolume)
         {
+            MasterVolume.CancelLater(); // a queued ramp step must not land after the restore and leave the sound low
             MasterVolume.SetBounded(startVolume, 800);
             Settings.Comfort.PendingVolume = null;
         }
@@ -227,6 +233,7 @@ public sealed class Hub
         Bot.Dispose();
         Ping.Dispose();
         _net?.Dispose();
+        WaitForPowerPlan(3000); // the powercfg worker records the previous plan; the file must have it before the save below
         // Limits only exist inside this process: stopping the shaper restores normal traffic.
         Shaper.Dispose();
         Store.Save();
@@ -895,11 +902,11 @@ public sealed class Hub
     }
 
     /// <summary>Test aid: waits until the queued power plan steps are done.</summary>
-    internal void WaitForPowerPlan()
+    internal void WaitForPowerPlan(int milliseconds = 30000)
     {
         Task last;
         lock (_planGate) last = _planChain;
-        last.Wait(30000);
+        last.Wait(milliseconds);
     }
 
     private void SwitchPowerPlanInBackground()
@@ -1668,10 +1675,21 @@ public sealed class Hub
         Changed?.Invoke();
     }
 
+    private bool _addingWake;
+
     /// <summary>Returns an error message or null.</summary>
     public string? AddWake(WakeSchedule schedule)
     {
-        if (!Demo && Offload.KeepResponsive(() => WakeScheduler.Register(schedule, ExePath)) is { } error) return error;
+        if (_addingWake) return L.T("ثبت قبلی هنوز تموم نشده.", "The previous request is still running."); // the window keeps answering during the task call: no second click may start another
+        if (!Demo)
+        {
+            _addingWake = true;
+            string? error;
+            try { error = Offload.KeepResponsive(() => WakeScheduler.Register(schedule, ExePath)); }
+            catch (OperationCanceledException) { return L.T("برنامه در حال بسته شدن بود.", "The app was closing."); }
+            finally { _addingWake = false; }
+            if (error is not null) return error;
+        }
         State.WakeSchedules.Add(schedule);
         Store.Save();
         Changed?.Invoke();

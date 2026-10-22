@@ -117,14 +117,7 @@ public sealed class MicrophonePage : PageBase
             if (_loading) return;
             SetLevelLater(_level.Value / 100.0);
         };
-        _mute.Click += (_, _) =>
-        {
-            _ = Task.Run(() =>
-            {
-                if (Microphone.Read() is { } now) Microphone.SetMuted(!now.muted);
-                Dispatcher.BeginInvoke(Refresh);
-            });
-        };
+        _mute.Click += (_, _) => SetMutedLater(_mute.IsChecked != true); // the switch says what is wanted; a double click cannot flip it back
         micBody.Children.Add(K.SettingRow(L.T("میکروفون وصل باشه", "Microphone on"), _mute));
         micBody.Children.Add(_deviceState);
         var micCard = new GlassCard { Child = micBody };
@@ -328,6 +321,37 @@ public sealed class MicrophonePage : PageBase
 
     /// <summary>The audio driver and the registry are asked off the window's thread (a misbehaving audio driver can hold the
     /// call for many seconds); the page is filled in when the answers are there. Changes that arrive meanwhile run once more.</summary>
+    private readonly object _muteGate = new();
+    private bool? _muteWanted;
+    private bool _muteRunning;
+
+    /// <summary>Sets the mute state off the window's thread; quick clicks only leave the newest wish, applied in order.</summary>
+    private void SetMutedLater(bool muted)
+    {
+        lock (_muteGate)
+        {
+            _muteWanted = muted;
+            if (_muteRunning) return;
+            _muteRunning = true;
+        }
+        _ = Task.Run(() =>
+        {
+            while (true)
+            {
+                bool next;
+                lock (_muteGate)
+                {
+                    if (_muteWanted is not { } value) { _muteRunning = false; break; }
+                    next = value;
+                    _muteWanted = null;
+                }
+                try { Microphone.SetMuted(next); }
+                catch (Exception ex) { Log.Write($"microphone mute: {ex.GetType().Name}: {ex.Message}"); }
+            }
+            Dispatcher.BeginInvoke(Refresh);
+        });
+    }
+
     public override void Refresh()
     {
         ShowVoice();

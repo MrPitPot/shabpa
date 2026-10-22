@@ -251,6 +251,51 @@ public class OffloadTests
         Assert.Throws<InvalidOperationException>(() => dispatcher!.Invoke(() => Offload.KeepResponsive<int>(() => throw new InvalidOperationException("x"), dispatcher)));
         dispatcher!.InvokeShutdown();
     }
+    private static Dispatcher StartDispatcher()
+    {
+        Dispatcher? dispatcher = null;
+        var ready = new ManualResetEventSlim();
+        var thread = new Thread(() => { dispatcher = Dispatcher.CurrentDispatcher; ready.Set(); Dispatcher.Run(); }) { IsBackground = true };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        Assert.True(ready.Wait(5000));
+        return dispatcher!;
+    }
+
+    [Fact]
+    public void Closing_the_window_mid_work_still_returns_the_real_result()
+    {
+        var dispatcher = StartDispatcher();
+        _ = Task.Run(() => { Thread.Sleep(100); dispatcher.InvokeShutdown(); });
+        var result = 0;
+        try { dispatcher.Invoke(() => result = Offload.KeepResponsive(() => { Thread.Sleep(400); return 5; }, dispatcher)); }
+        catch (Exception) { /* the dispatcher is going down; the value below is what matters */ }
+        Assert.Equal(5, result); // never the default 0 (which a caller would read as "no error")
+    }
+
+    [Fact]
+    public void Closing_the_window_while_the_work_hangs_throws_instead_of_faking_success()
+    {
+        var dispatcher = StartDispatcher();
+        var old = Offload.ShutdownWaitMs;
+        Offload.ShutdownWaitMs = 50;
+        try
+        {
+            _ = Task.Run(() => { Thread.Sleep(100); dispatcher.InvokeShutdown(); });
+            Exception? caught = null;
+            try
+            {
+                dispatcher.Invoke(() =>
+                {
+                    try { Offload.KeepResponsive<string?>(() => { Thread.Sleep(1500); return null; }, dispatcher); }
+                    catch (Exception ex) { caught = ex; }
+                });
+            }
+            catch (Exception) { /* Invoke itself may be cancelled by the shutdown */ }
+            Assert.IsType<OperationCanceledException>(caught);
+        }
+        finally { Offload.ShutdownWaitMs = old; }
+    }
 }
 
 public class AdapterGuardTests

@@ -30,7 +30,7 @@ public static class BirthdayProbe
             save(card, Path.Combine(folder, $"settings-empty-{tag}.png"));
             Say($"today={Birthday.Now():yyyy-MM-dd} baseTheme={Ui.BaseTheme.Key} activeTheme={Ui.Theme.Key} savedTheme={hub.Settings.Theme} gameRunning={hub.Snapshot.GameRunning}");
 
-            // fill the form (Persian: 15 Aban, English: 6 Nov) and look at the card
+            // fill the form (made-up person; Persian: 15 Aban, English: 6 Nov) and look at the card
             hub.Settings.Birthday = new BirthdaySettings { Name = L.En ? "Ali" : "علی", Jalali = !L.En, Month = L.En ? 11 : 8, Day = L.En ? 6 : 15 };
             card.Reload();
             await Task.Delay(400);

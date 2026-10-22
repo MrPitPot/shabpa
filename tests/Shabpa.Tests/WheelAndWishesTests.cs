@@ -7,6 +7,27 @@ public class WheelAndWishesTests
 {
     // ---- wheel maths ----------------------------------------------------------------------------------------
 
+    [Theory]
+    [InlineData(-2.4)]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(0.5)]
+    [InlineData(1)]
+    [InlineData(3)]
+    public void A_click_maps_back_to_the_row_drawn_there(double rows)
+    {
+        var (y, _, _) = WheelMath.Pose(rows, 36);
+        Assert.Equal(rows, WheelMath.RowAtOffset(y, 36), 6);
+    }
+
+    [Fact]
+    public void A_row_three_places_out_is_not_picked_as_the_second()
+    {
+        var (y, _, _) = WheelMath.Pose(3, 36);
+        Assert.Equal(3, WheelMath.Nearest(WheelMath.RowAtOffset(y, 36), 50));
+        Assert.NotEqual(3, WheelMath.Nearest(y / 36, 50)); // the old linear maths missed it
+    }
+
     [Fact]
     public void Clamp_and_step_stay_inside_the_list()
     {

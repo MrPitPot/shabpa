@@ -291,6 +291,18 @@ public static class MasterVolume
         });
     }
 
+    /// <summary>Drops a level that is queued and waits (a moment) for the one being applied, so a restore that follows is the last word.</summary>
+    public static void CancelLater(int milliseconds = 1500)
+    {
+        lock (LaterGate) _later = null;
+        var end = Environment.TickCount64 + milliseconds;
+        while (Environment.TickCount64 < end)
+        {
+            lock (LaterGate) if (!_laterRunning) return;
+            Thread.Sleep(10);
+        }
+    }
+
     public static bool Set(double level)
     {
         try

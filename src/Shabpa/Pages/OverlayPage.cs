@@ -213,7 +213,8 @@ public sealed class OverlayPage : PageBase
         GpuReading? card = null;
         if (!Hub.Demo)
         {
-            try { card = GpuProbe.CardInfo(600); } // read in the background (a graphics driver call can take seconds)
+            // never wait for it here (a graphics driver call can take seconds): marks are added when the read finishes
+            try { card = GpuProbe.CardInfo(0); }
             catch { /* no card information, nothing is marked */ }
         }
 
@@ -284,6 +285,12 @@ public sealed class OverlayPage : PageBase
                 wrap.Children.Add(box);
             }
         }
+        if (!Hub.Demo && card is null)
+            _ = GpuProbe.CardTask.ContinueWith(t =>
+            {
+                if (t.IsCompletedSuccessfully && t.Result is { Name.Length: > 0 } late)
+                    Dispatcher.BeginInvoke(() => MarkUnsupported(late));
+            }, TaskScheduler.Default);
         _editor = new OverlayEditor(() => Hub.Settings.Overlay, Groups, () =>
         {
             Hub.OverlayChanged();
@@ -413,6 +420,18 @@ public sealed class OverlayPage : PageBase
         o.Shadow = _shadow.IsChecked == true;
         o.Rounded = _rounded.IsChecked == true;
     }, pop: true);
+
+    /// <summary>The card answered after the page was built: its unsupported readings get the same mark they would have had.</summary>
+    private void MarkUnsupported(GpuReading card)
+    {
+        foreach (var def in OverlayMetrics.All)
+        {
+            if (def.Advanced || !_items.TryGetValue(def.Key, out var box) || !Unsupported(def.Key, card)) continue;
+            box.ToolTip = L.T("این کارت گرافیک این مقدار رو گزارش نمی‌ده.", "This graphics card does not report this reading.");
+            box.Content = def.Label + L.T(" (پشتیبانی نمی‌شه)", " (not reported)");
+            box.Opacity = 0.55;
+        }
+    }
 
     private static bool Unsupported(string key, GpuReading g) => key switch
     {

@@ -10,23 +10,23 @@ public class BirthdayTests
     private static BirthdaySettings G(int month, int day, int year = 0) => new() { Jalali = false, Month = month, Day = day, Year = year };
 
     [Fact]
-    public void Twenty_sixth_of_Mehr_1405_is_18_October_2026()
+    public void Fifteenth_of_Aban_1405_is_6_November_2026()
     {
-        var b = J(7, 26);
-        Assert.True(Birthday.IsToday(b, new DateTime(2026, 10, 18, 9, 0, 0)));
-        Assert.False(Birthday.IsToday(b, new DateTime(2026, 10, 17, 23, 59, 0)));
-        Assert.False(Birthday.IsToday(b, new DateTime(2026, 10, 19, 0, 0, 1)));
+        var b = J(8, 15);
+        Assert.True(Birthday.IsToday(b, new DateTime(2026, 11, 6, 9, 0, 0)));
+        Assert.False(Birthday.IsToday(b, new DateTime(2026, 11, 5, 23, 59, 0)));
+        Assert.False(Birthday.IsToday(b, new DateTime(2026, 11, 7, 0, 0, 1)));
     }
 
     [Fact]
     public void Next_birthday_is_today_or_later_and_rolls_to_next_year()
     {
-        var b = J(7, 26);
-        Assert.Equal(new DateTime(2026, 10, 18), Birthday.Next(b, new DateTime(2026, 10, 18, 22, 0, 0)));
-        Assert.Equal(new DateTime(2026, 10, 18), Birthday.Next(b, new DateTime(2026, 10, 1)));
-        var next = Birthday.Next(b, new DateTime(2026, 10, 19))!.Value;
-        Assert.True(next > new DateTime(2027, 10, 1) && next < new DateTime(2027, 10, 31));
-        Assert.Equal(26, Birthday.DayOf(true, next));
+        var b = J(8, 15);
+        Assert.Equal(new DateTime(2026, 11, 6), Birthday.Next(b, new DateTime(2026, 11, 6, 22, 0, 0)));
+        Assert.Equal(new DateTime(2026, 11, 6), Birthday.Next(b, new DateTime(2026, 10, 1)));
+        var next = Birthday.Next(b, new DateTime(2026, 11, 7))!.Value;
+        Assert.True(next > new DateTime(2027, 11, 1) && next < new DateTime(2027, 11, 30));
+        Assert.Equal(15, Birthday.DayOf(true, next));
     }
 
     [Fact]
@@ -80,19 +80,19 @@ public class BirthdayTests
     [Fact]
     public void Switching_calendar_keeps_the_same_day()
     {
-        var b = J(7, 26);
+        var b = J(8, 15);
         Birthday.Convert(b, false, new DateTime(2026, 10, 1));
         Assert.False(b.Jalali);
-        Assert.Equal((10, 18), (b.Month, b.Day));
+        Assert.Equal((11, 6), (b.Month, b.Day));
         Birthday.Convert(b, true, new DateTime(2026, 10, 1));
-        Assert.Equal((7, 26), (b.Month, b.Day));
+        Assert.Equal((8, 15), (b.Month, b.Day));
     }
 
     [Fact]
     public void Greeting_is_due_once_per_day_and_the_look_follows_the_day()
     {
-        var b = J(7, 26);
-        var day = new DateTime(2026, 10, 18, 8, 0, 0);
+        var b = J(8, 15);
+        var day = new DateTime(2026, 11, 6, 8, 0, 0);
         Assert.True(Birthday.GreetingDue(b, day));
         b.LastGreeted = Birthday.Key(day);
         Assert.False(Birthday.GreetingDue(b, day.AddHours(10)));
@@ -100,7 +100,7 @@ public class BirthdayTests
         b.Theme = false;
         Assert.False(Birthday.LookFor(b, day));
         Assert.False(Birthday.IsToday(b, Birthday.NextMidnight(day)));
-        Assert.Equal(new DateTime(2026, 10, 19), Birthday.NextMidnight(day));
+        Assert.Equal(new DateTime(2026, 11, 7), Birthday.NextMidnight(day));
     }
 
     [Fact]
@@ -152,12 +152,12 @@ public class BirthdayTests
         try
         {
             var store = new Store(folder);
-            store.State.Settings.Birthday = new BirthdaySettings { Name = "Ali", Jalali = true, Month = 8, Day = 15, Year = 1390, Theme = false, LastGreeted = "2026-11-06" };
+            store.State.Settings.Birthday = new BirthdaySettings { Name = "Ali", Jalali = true, Month = 8, Day = 15, Year = 1375, Theme = false, LastGreeted = "2026-11-06" };
             store.Save();
             var loaded = new Store(folder);
             loaded.Load();
             var b = loaded.State.Settings.Birthday;
-            Assert.Equal(("Ali", true, 8, 15, 1390, false, "2026-11-06"), (b.Name, b.Jalali, b.Month, b.Day, b.Year, b.Theme, b.LastGreeted));
+            Assert.Equal(("Ali", true, 8, 15, 1375, false, "2026-11-06"), (b.Name, b.Jalali, b.Month, b.Day, b.Year, b.Theme, b.LastGreeted));
         }
         finally { if (Directory.Exists(folder)) Directory.Delete(folder, true); }
     }

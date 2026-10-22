@@ -47,6 +47,14 @@ public static class WheelMath
         return (rowHeight / Theta * Math.Sin(angle), cos, cos * cos);
     }
 
+    /// <summary>The inverse of <see cref="Pose"/>'s offset: how many rows from the centre lie under a point <paramref name="y"/> pixels
+    /// from the centre line. The rows are pressed together on the drum, so this is not a plain division by the row height.</summary>
+    public static double RowAtOffset(double y, double rowHeight)
+    {
+        var s = Math.Clamp(y * Theta / rowHeight, -1, 1);
+        return Math.Asin(s) / Theta;
+    }
+
     /// <summary>How much of the "selected" colour a row at distance <paramref name="d"/> shows (1 in the middle, 0 half a row away).</summary>
     public static double Emphasis(double d) => Math.Clamp(1 - Math.Abs(d) * 2, 0, 1);
 
@@ -331,7 +339,7 @@ public sealed class WheelColumn : Border
         }
         else
         {
-            var offset = (y - RowHeight * VisibleRows / 2) / RowHeight;
+            var offset = WheelMath.RowAtOffset(y - RowHeight * VisibleRows / 2, RowHeight);
             Pick(WheelMath.Nearest(Position + offset, _items.Count), 300);
         }
         e.Handled = true;

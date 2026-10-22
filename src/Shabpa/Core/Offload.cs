@@ -13,16 +13,22 @@ public static class Offload
         var frame = new System.Windows.Threading.DispatcherFrame();
         T result = default!;
         Exception? error = null;
+        var done = new ManualResetEventSlim(false);
         _ = Task.Run(() =>
         {
             try { result = work(); }
             catch (Exception ex) { error = ex; }
-            finally { frame.Continue = false; }
+            finally { done.Set(); frame.Continue = false; }
         });
         if (frame.Continue) System.Windows.Threading.Dispatcher.PushFrame(frame);
+        // PushFrame also returns when the dispatcher shuts down mid-work: never hand back the default value as if it were a
+        // finished result. Wait a bounded time for the work, else say so with an exception.
+        if (!done.IsSet && !done.Wait(ShutdownWaitMs)) throw new OperationCanceledException("the work was still running when the window closed");
         if (error is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(error).Throw();
         return result;
     }
+
+    internal static int ShutdownWaitMs = 10000;
 
     /// <summary>Runs <paramref name="work"/> on the thread pool and waits at most <paramref name="milliseconds"/> for it.
     /// When it is late the caller gets <paramref name="fallback"/> at once and the work keeps running (and is ignored): a hung

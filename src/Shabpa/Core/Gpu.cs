@@ -53,6 +53,12 @@ public static class GpuProbe
             }
         });
 
+    /// <summary>The background read itself, for callers that want to be told when it is there instead of waiting.</summary>
+    public static Task<GpuReading?> CardTask
+    {
+        get { PrefetchCard(); return _card!; }
+    }
+
     /// <summary>The card's readings, or null if they are not there yet after <paramref name="waitMilliseconds"/>.</summary>
     public static GpuReading? CardInfo(int waitMilliseconds)
     {

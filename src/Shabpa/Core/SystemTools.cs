@@ -340,8 +340,15 @@ public static class Autostart
     /// rights (a Run-key entry would start it without them). Returns an error message or null.</summary>
     public static string? Set(bool enabled, string exePath, bool elevated = false)
     {
-        try { return SetCore(enabled, exePath, elevated); }
-        finally { TaskState.Invalidate(); }
+        string? error = null;
+        try { return error = SetCore(enabled, exePath, elevated); }
+        finally
+        {
+            // Put the new answer straight into the cache (the caller is on a worker): otherwise the switch jumps back to the
+            // old value until the next background check. The task is known when this call just made or removed it as admin.
+            if (error is null && elevated) TaskState.Set(enabled);
+            else TaskState.Invalidate();
+        }
     }
 
     private static string? SetCore(bool enabled, string exePath, bool elevated)

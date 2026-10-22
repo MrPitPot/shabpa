@@ -225,13 +225,13 @@ public class NetTextTests
     [Fact]
     public void Elevated_autostart_task_runs_at_logon_with_highest_rights()
     {
-        var xml = XDocument.Parse(Autostart.BuildTaskXml(@"C:\Apps\R&D\Shabpa.exe", @"PC\Amir"));
+        var xml = XDocument.Parse(Autostart.BuildTaskXml(@"C:\Apps\R&D\Shabpa.exe", @"PC\Ali"));
         XNamespace ns = "http://schemas.microsoft.com/windows/2004/02/mit/task";
         Assert.Equal("HighestAvailable", xml.Descendants(ns + "RunLevel").Single().Value);
         Assert.Single(xml.Descendants(ns + "LogonTrigger"));
         Assert.Equal(@"C:\Apps\R&D\Shabpa.exe", xml.Descendants(ns + "Command").Single().Value);
         Assert.Equal("--minimized", xml.Descendants(ns + "Arguments").Single().Value);
-        Assert.All(xml.Descendants(ns + "UserId"), u => Assert.Equal(@"PC\Amir", u.Value));
+        Assert.All(xml.Descendants(ns + "UserId"), u => Assert.Equal(@"PC\Ali", u.Value));
     }
 }
 

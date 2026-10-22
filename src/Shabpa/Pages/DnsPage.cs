@@ -98,6 +98,14 @@ public sealed class DnsPage : PageBase
         DrawGroupChips();
     }
 
+    private bool _applying;
+
+    private List<DnsAdapter> AdaptersSafe()
+    {
+        try { return Offload.KeepResponsive(DnsConfig.Adapters); }
+        catch (OperationCanceledException) { return _adapters; }
+    }
+
     private DnsAdapter? Adapter => _adapters.FirstOrDefault(a => a.Id == _adapterId);
 
     private IEnumerable<DnsEntry> Entries() =>
@@ -107,7 +115,7 @@ public sealed class DnsPage : PageBase
     {
         _adapters = Hub.Demo
             ? [new DnsAdapter("Wi-Fi", 12, "demo", ["8.8.8.8", "8.8.4.4"], false, true)]
-            : Offload.KeepResponsive(DnsConfig.Adapters);
+            : AdaptersSafe();
         if (Adapter is null) _adapterId = _adapters.FirstOrDefault()?.Id;
         Chips(_adapterChips, _adapters.Select(a => (a.Id, a.Name)), _adapterId ?? "", id =>
         {
@@ -520,7 +528,12 @@ public sealed class DnsPage : PageBase
             return false;
         }
 
-        var error = Offload.KeepResponsive(() => DnsConfig.Apply(adapter, primary, secondary)); // netsh: seconds, so the window keeps answering meanwhile
+        if (_applying) return false; // a second click while netsh runs must not start another one
+        string? error;
+        _applying = true;
+        try { error = Offload.KeepResponsive(() => DnsConfig.Apply(adapter, primary, secondary)); } // netsh: seconds, so the window keeps answering meanwhile
+        catch (OperationCanceledException) { return false; } // the window is closing: not a success
+        finally { _applying = false; }
         if (error is not null)
         {
             _status.Foreground = Res("Red");
