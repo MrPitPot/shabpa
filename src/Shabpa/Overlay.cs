@@ -128,6 +128,22 @@ public static class OverlayRenderer
         return block;
     }
 
+    /// <summary>The number at the full size and its unit (%, °C, MHz...) a little smaller next to it, as MSI Afterburner does.</summary>
+    private static TextBlock Reading(MetricView m, double size, Color color, FontFamily font, bool shadow)
+    {
+        var block = Text(m.HasValue ? m.Value : "—", size, color, font, FontWeights.Bold, shadow);
+        if (!m.HasValue) return block;
+        var unit = UnitText(m);
+        if (unit.Length > 0) block.Inlines.Add(new System.Windows.Documents.Run(unit) { FontSize = Math.Round(size * UnitScale, 1), FontWeight = FontWeights.SemiBold });
+        return block;
+    }
+
+    internal const double UnitScale = 0.72;
+
+    /// <summary>What follows the number: "%" and "°C" stick to it, other units are set apart by a space.</summary>
+    internal static string UnitText(MetricView m) =>
+        m.Unit.Length == 0 ? "" : m.Unit is "%" or "°C" ? m.Unit : " " + m.Unit;
+
     private static string Display(MetricView m) => m.Unit.Length > 0 && m.HasValue && !m.Unit.StartsWith('/') ? $"{m.Value}{(m.Unit is "%" or "°C" ? m.Unit : " " + m.Unit)}" : m.HasValue ? $"{m.Value} {m.Unit}".Trim() : "—";
 
     // ---- card: label on one side, value on the other -------------------------------------------
@@ -147,12 +163,12 @@ public static class OverlayRenderer
             var big = i == 0 && m.Key == "fps";
             if (o.ShowLabels)
             {
-                var label = Text(m.Label, 12, c.Muted, font, FontWeights.Medium, o.Shadow);
+                var label = Text(m.Label, 13, c.Muted, font, FontWeights.Medium, o.Shadow);
                 label.Margin = new Thickness(0, 1.5, 0, 1.5);
                 Grid.SetRow(label, i);
                 grid.Children.Add(label);
             }
-            var value = Text(Display(m), big ? 22 : 14, ValueColor(o, c, m), font, FontWeights.Bold, o.Shadow);
+            var value = Reading(m, big ? 25 : 16, ValueColor(o, c, m), font, o.Shadow);
             value.Margin = new Thickness(0, 1.5, 0, 1.5);
             value.HorizontalAlignment = HorizontalAlignment.Right;
             Grid.SetRow(value, i);
@@ -198,8 +214,8 @@ public static class OverlayRenderer
             if (i > 0)
                 row.Children.Add(new Border { Width = 1, Height = 16, Background = Brush(Color.FromArgb(0x55, c.Text.R, c.Text.G, c.Text.B)), Margin = new Thickness(10, 0, 10, 0) });
             var cell = new StackPanel { Orientation = Orientation.Horizontal };
-            if (o.ShowLabels) cell.Children.Add(Text(Short(m), 11.5, c.Muted, font, FontWeights.Medium, o.Shadow));
-            var value = Text(Display(m), 14, ValueColor(o, c, m), font, FontWeights.Bold, o.Shadow);
+            if (o.ShowLabels) cell.Children.Add(Text(Short(m), 12.5, c.Muted, font, FontWeights.Medium, o.Shadow));
+            var value = Reading(m, 16, ValueColor(o, c, m), font, o.Shadow);
             value.Margin = new Thickness(o.ShowLabels ? 6 : 0, 0, 0, 0);
             cell.Children.Add(value);
             row.Children.Add(cell);
@@ -210,7 +226,7 @@ public static class OverlayRenderer
     private static string Short(MetricView m) => m.Key switch
     {
         "fps" => "FPS", "low1" => "1%", "frame" => "FT", "gpu" => "GPU", "gputemp" => "GPU°", "hotspot" => "HOT", "memtemp" => "MEM°",
-        "gpuclock" => "CLK", "memclock" => "VCLK", "gpupower" => "PWR", "gpufan" => "FAN", "vram" => "VRAM", "cpu" => "CPU", "cputemp" => "SYS°",
+        "gpuclock" => "CLK", "memclock" => "VCLK", "gpupower" => "PWR", "gpufan" => "FAN", "vram" => "VRAM", "cpu" => "CPU", "cputemp" => "CPU",
         "cpuwatts" => "CPU W", "ram" => "RAM", "ping" => "PING", "down" => "↓", "up" => "↑", "clock" => "", "gametime" => "⏱",
         "gpuvolt" => "mV", "gpufanrpm" => "FAN", "cpufreq" => "CLK", "cpufan" => "FAN%", "cpufanrpm" => "FAN", "ramused" => "RAM",
         "fpsgraph" => "",
@@ -225,8 +241,8 @@ public static class OverlayRenderer
         foreach (var m in metrics)
         {
             var cell = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 1, 12, 1) };
-            if (o.ShowLabels) cell.Children.Add(Text(Short(m), 10.5, c.Muted, font, FontWeights.Medium, o.Shadow));
-            var value = Text(Display(m), 13, ValueColor(o, c, m), font, FontWeights.Bold, o.Shadow);
+            if (o.ShowLabels) cell.Children.Add(Text(Short(m), 11.5, c.Muted, font, FontWeights.Medium, o.Shadow));
+            var value = Reading(m, 15, ValueColor(o, c, m), font, o.Shadow);
             value.Margin = new Thickness(o.ShowLabels ? 4 : 0, 0, 0, 0);
             cell.Children.Add(value);
             panel.Children.Add(cell);
@@ -244,14 +260,12 @@ public static class OverlayRenderer
             var line = new StackPanel { Orientation = Orientation.Horizontal };
             if (o.ShowLabels) line.Children.Add(new TextBlock
             {
-                Text = Short(m) + " ", FontSize = 12, FontFamily = font, FontWeight = FontWeights.Medium, Foreground = Brush(c.Text), Opacity = 0.75,
+                Text = Short(m) + " ", FontSize = 13, FontFamily = font, FontWeight = FontWeights.Medium, Foreground = Brush(c.Text), Opacity = 0.75,
                 Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 5, ShadowDepth = 1.5, Opacity = 1 },
             });
-            line.Children.Add(new TextBlock
-            {
-                Text = Display(m), FontSize = m.Key == "fps" ? 20 : 14, FontFamily = font, FontWeight = FontWeights.Bold, Foreground = Brush(ValueColor(o, c, m)),
-                Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 5, ShadowDepth = 1.5, Opacity = 1 },
-            });
+            var reading = Reading(m, m.Key == "fps" ? 23 : 16, ValueColor(o, c, m), font, false);
+            reading.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 5, ShadowDepth = 1.5, Opacity = 1 };
+            line.Children.Add(reading);
             panel.Children.Add(line);
         }
         return panel;
@@ -278,7 +292,7 @@ public static class OverlayRenderer
 
     // Gauge geometry (everything follows the size slider because the whole overlay is scaled as one piece):
     // the ring's stroke and radius come from the diameter, and the number is fitted into the free circle inside it.
-    private const double RingSize = 68, RingStroke = 5.5, RingGap = 3.5;
+    private const double RingSize = 72, RingStroke = 5.5, RingGap = 3.5;
 
     private static FrameworkElement RingCell(OverlaySettings o, Skin c, FontFamily font, MetricView m)
     {
@@ -300,7 +314,7 @@ public static class OverlayRenderer
         gauge.Children.Add(number);
 
         var label = o.ShowLabels ? Short(m) : "";
-        var labelSize = 10.5;
+        var labelSize = 11.5;
         var cellWidth = RingSize + 6;
         if (label.Length > 0)
         {
@@ -327,14 +341,14 @@ public static class OverlayRenderer
         return formatted.WidthIncludingTrailingWhitespace;
     }
 
-    /// <summary>The biggest font (at most 17) at which the text's box sits inside a circle of radius <paramref name="radius"/>:
+    /// <summary>The biggest font (at most 19) at which the text's box sits inside a circle of radius <paramref name="radius"/>:
     /// "9.2" gets large, "156" and "1.4k" shrink, a four-digit value shrinks further.</summary>
     private static double FitInCircle(string text, FontFamily font, FontWeight weight, double radius)
     {
         var unit = Measure(text, font, weight, 100) / 100;     // width per point of font size
         const double heightPerSize = 0.78;                      // digits are about this tall (no descenders in a gauge value)
         var best = 8.0;
-        for (var size = 17.0; size >= 8; size -= 0.25)
+        for (var size = 19.0; size >= 8; size -= 0.25)
         {
             var half = unit * size / 2;
             var tall = heightPerSize * size / 2;
@@ -361,7 +375,7 @@ public static class OverlayRenderer
         var root = new StackPanel { MinWidth = 190 };
         var fps = metrics.FirstOrDefault(m => m.Key == "fps");
         if (fps is not null)
-            root.Children.Add(Text($"{Display(fps)} FPS".Replace(" FPS FPS", " FPS"), 22, ValueColor(o, c, fps), font, FontWeights.Bold, o.Shadow));
+            root.Children.Add(Text($"{Display(fps)} FPS".Replace(" FPS FPS", " FPS"), 25, ValueColor(o, c, fps), font, FontWeights.Bold, o.Shadow));
 
         var samples = history ?? [];
         var values = samples.Select(s => s.Fps).TakeLast(60).ToList();
@@ -532,6 +546,12 @@ public sealed class OverlayWindow : Window
         {
             Render(_hub.Telemetry.Latest);
         }
+        // a game that goes borderless-fullscreen (or takes the top spot itself) can slip in above the overlay: take the top back
+        if (IsVisible && !_fadingOut)
+        {
+            OverlayWin.KeepOnTop(_handle);
+            foreach (var block in _blocks.Values) OverlayWin.KeepOnTop(new WindowInteropHelper(block).Handle);
+        }
     }
 
     private bool _fadingOut;
@@ -605,69 +625,82 @@ public sealed class OverlayWindow : Window
     }
 
     /// <summary>Puts the main block and every separate block at its anchor on the monitor the game is on. Blocks that
-    /// share a corner are stacked one under the other instead of covering each other.</summary>
+    /// share a corner are stacked one under the other instead of covering each other. Everything is done in physical
+    /// pixels with the scale of the monitor it lands on, and no block is ever left partly outside its monitor.</summary>
     private void Place()
     {
         if (!IsVisible || _handle == IntPtr.Zero) return;
         var o = _hub.Settings.Overlay.WithProfile(_game);
-        var dpi = VisualTreeHelper.GetDpi(this);
-        var area = WF.Screen.FromHandle(Native.GetForegroundWindow()).Bounds;
-        var gap = 8 * dpi.DpiScaleY;
-        var next = new Dictionary<string, double>();
-        var placed = new List<System.Windows.Rect>();
+        var foreground = Native.GetForegroundWindow();
+        var screen = foreground != IntPtr.Zero ? WF.Screen.FromHandle(foreground) : WF.Screen.PrimaryScreen ?? WF.Screen.AllScreens[0];
+        var area = OverlayWin.Box(screen.Bounds);
+        var scale = OverlayWin.ScaleOf(screen);
+        var gap = (int)Math.Round(8 * scale);
+        var next = new Dictionary<string, int>();
+        var placed = new List<PxBox>();
 
         void Put(Window window, string anchor, double x, double y, double offsetX, double offsetY)
         {
-            var width = window.ActualWidth * dpi.DpiScaleX;
-            var height = window.ActualHeight * dpi.DpiScaleY;
-            if (width <= 0 || height <= 0) return;
-            double left, top;
+            var handle = new WindowInteropHelper(window).EnsureHandle();
+            if (!OverlayWin.Rect(handle, out var now) || now.W <= 0 || now.H <= 0) return;
+            var (width, height) = (now.W, now.H);
+            var target = area;
+            int left, top;
             if (anchor == "free")
             {
-                (left, top) = (x, y);
+                // a saved spot: stay on the monitor it was saved on (the nearest one if that screen is gone)
+                target = OverlayWin.Box(WF.Screen.FromRectangle(new System.Drawing.Rectangle((int)x, (int)y, width, height)).Bounds);
+                (left, top) = ((int)Math.Round(x), (int)Math.Round(y));
             }
             else
             {
-                var edge = next.TryGetValue(anchor, out var used) ? used : offsetY;
-                left = anchor switch
-                {
-                    "tr" or "br" => area.Right - width - offsetX,
-                    "tc" or "bc" => area.Left + (area.Width - width) / 2,
-                    _ => area.Left + offsetX,
-                };
+                var edge = next.TryGetValue(anchor, out var used) ? used : (int)Math.Round(offsetY);
+                (left, top) = OverlayPlacement.AtZone(anchor, width, height, area, (int)Math.Round(offsetX), edge);
                 var bottom = anchor is "bl" or "br" or "bc";
-                top = bottom ? area.Bottom - height - edge : area.Top + edge;
                 // never sit on top of a block that is already placed (for example the main block, which may have been
                 // dragged to a free spot): slide away from the corner until the space is clear
                 for (var guard = 0; guard < 12; guard++)
                 {
-                    var hit = placed.FirstOrDefault(r => left < r.Right && left + width > r.Left && top < r.Bottom && top + height > r.Top);
-                    if (hit.Width <= 0) break;
-                    top = bottom ? hit.Top - height - gap : hit.Bottom + gap;
+                    var hit = placed.FirstOrDefault(r => left < r.Right && left + width > r.X && top < r.Bottom && top + height > r.Y);
+                    if (hit.W <= 0) break;
+                    top = bottom ? hit.Y - height - gap : hit.Bottom + gap;
                 }
-                next[anchor] = bottom ? area.Bottom - top + gap : top - area.Top + height + gap;
+                next[anchor] = bottom ? area.Bottom - top + gap : top - area.Y + height + gap;
             }
-            placed.Add(new System.Windows.Rect(left, top, width, height));
-            window.Left = left / dpi.DpiScaleX;
-            window.Top = top / dpi.DpiScaleY;
+            var spot = OverlayPlacement.Clamp(new PxBox(left, top, width, height), target);
+            placed.Add(spot);
+            if (spot.X != now.X || spot.Y != now.Y) OverlayWin.MoveTo(handle, spot.X, spot.Y);
         }
 
-        Put(this, o.Anchor, o.X, o.Y, o.X * dpi.DpiScaleX, o.Y * dpi.DpiScaleY);
+        Put(this, o.Anchor, o.X, o.Y, o.X * scale, o.Y * scale);
         foreach (var (group, block) in _blocks.OrderBy(b => o.OrderOf(b.Key)))
         {
             var place = o.PlaceOf(group);
-            Put(block, place.Anchor, place.X, place.Y, 20 * dpi.DpiScaleX, 20 * dpi.DpiScaleY);
+            Put(block, place.Anchor, place.X, place.Y, 20 * scale, 20 * scale);
         }
     }
 
-    private void SaveBlockPosition(string group, double x, double y)
+    /// <summary>Called when a separate block was let go while moving: it snaps to a corner or an edge, then the spot is saved.</summary>
+    private void SaveBlockPosition(string group, PxBox box)
     {
         var o = _hub.Settings.Overlay;
         var place = o.Places.FirstOrDefault(p => p.Group == group);
         if (place is null) o.Places.Add(place = new GroupPlace { Group = group });
-        (place.Anchor, place.X, place.Y) = ("free", x, y);
+        var (snapped, zone) = SnapToMonitor(box);
+        if (zone is not null) place.Anchor = zone;
+        else (place.Anchor, place.X, place.Y) = ("free", snapped.X, snapped.Y);
         _hub.Store.Save();
         _hub.OverlayChanged();
+        Place();
+    }
+
+    /// <summary>Pulls a box that was just dropped to the corners / edges of the monitor it is on.</summary>
+    private static (PxBox box, string? zone) SnapToMonitor(PxBox box)
+    {
+        var screen = WF.Screen.FromRectangle(new System.Drawing.Rectangle(box.X, box.Y, box.W, box.H));
+        var scale = OverlayWin.ScaleOf(screen);
+        var result = OverlayPlacement.Snap(box, OverlayWin.Box(screen.Bounds), (int)Math.Round(36 * scale), (int)Math.Round(16 * scale));
+        return (result.Box, result.Zone);
     }
 
     public void SetMoveMode(bool on)
@@ -685,21 +718,20 @@ public sealed class OverlayWindow : Window
 
     private void SavePosition()
     {
-        var dpi = VisualTreeHelper.GetDpi(this);
+        if (!OverlayWin.Rect(_handle, out var box)) return;
         var o = _hub.Settings.Overlay;
-        var (x, y) = (Left * dpi.DpiScaleX, Top * dpi.DpiScaleY);
-        if (o.ProfileFor(_game) is { } profile)
+        var (snapped, zone) = SnapToMonitor(box);
+        void Store(string anchor, double x, double y)
         {
-            profile.Anchor = "free";
-            (profile.X, profile.Y) = (x, y);
+            if (o.ProfileFor(_game) is { } profile) { profile.Anchor = anchor; (profile.X, profile.Y) = (x, y); }
+            else { o.Anchor = anchor; (o.X, o.Y) = (x, y); }
         }
-        else
-        {
-            o.Anchor = "free";
-            (o.X, o.Y) = (x, y);
-        }
+        // a corner keeps the same distance from it at any size (offsets are in 96-dpi pixels); anywhere else is a free spot
+        if (zone is not null) Store(zone, 16, 16);
+        else Store("free", snapped.X, snapped.Y);
         _hub.Store.Save();
         _hub.OverlayChanged();
+        Place();
     }
 
     public bool MoveMode => _moving;
@@ -734,7 +766,7 @@ public sealed class OverlayBlockWindow : Window
     private IntPtr _handle;
     private bool _moving;
 
-    public OverlayBlockWindow(string group, Action placed, Action<string, double, double> moved)
+    public OverlayBlockWindow(string group, Action placed, Action<string, PxBox> moved)
     {
         _group = group;
         AllowsTransparency = true;
@@ -754,8 +786,7 @@ public sealed class OverlayBlockWindow : Window
         MouseLeftButtonUp += (_, _) =>
         {
             if (!_moving) return;
-            var dpi = VisualTreeHelper.GetDpi(this);
-            moved(_group, Left * dpi.DpiScaleX, Top * dpi.DpiScaleY);
+            if (OverlayWin.Rect(new WindowInteropHelper(this).Handle, out var box)) moved(_group, box);
         };
     }
 
@@ -779,5 +810,52 @@ public sealed class OverlayBlockWindow : Window
         style = on ? style & ~WsExTransparent : style | WsExTransparent;
         SetWindowLongPtr(_handle, GwlExStyle, (IntPtr)style);
         Cursor = on ? Cursors.SizeAll : Cursors.Arrow;
+    }
+}
+
+/// <summary>Win32 helpers of the overlay windows: pixel rectangles, per-monitor scale, moving without activating, staying topmost.</summary>
+internal static class OverlayWin
+{
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Rc { public int Left, Top, Right, Bottom; }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Pt { public int X, Y; }
+
+    [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr hwnd, out Rc rect);
+    [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
+    [DllImport("user32.dll")] private static extern IntPtr MonitorFromPoint(Pt point, uint flags);
+    [DllImport("shcore.dll")] private static extern int GetDpiForMonitor(IntPtr monitor, int type, out uint dpiX, out uint dpiY);
+
+    private const uint NoSize = 0x1, NoMove = 0x2, NoZOrder = 0x4, NoActivate = 0x10;
+    private static readonly IntPtr Topmost = new(-1);
+
+    public static PxBox Box(System.Drawing.Rectangle r) => new(r.X, r.Y, r.Width, r.Height);
+
+    public static bool Rect(IntPtr hwnd, out PxBox box)
+    {
+        box = default;
+        if (hwnd == IntPtr.Zero || !GetWindowRect(hwnd, out var rc)) return false;
+        box = new PxBox(rc.Left, rc.Top, rc.Right - rc.Left, rc.Bottom - rc.Top);
+        return true;
+    }
+
+    public static void MoveTo(IntPtr hwnd, int x, int y) => SetWindowPos(hwnd, IntPtr.Zero, x, y, 0, 0, NoSize | NoZOrder | NoActivate);
+
+    public static void KeepOnTop(IntPtr hwnd)
+    {
+        if (hwnd != IntPtr.Zero) SetWindowPos(hwnd, Topmost, 0, 0, 0, 0, NoSize | NoMove | NoActivate);
+    }
+
+    /// <summary>The monitor's scale (1 = 96 dpi, 1.5 = 150 %), so offsets and snap distances look the same on every screen.</summary>
+    public static double ScaleOf(WF.Screen screen)
+    {
+        try
+        {
+            var b = screen.Bounds;
+            var monitor = MonitorFromPoint(new Pt { X = b.X + b.Width / 2, Y = b.Y + b.Height / 2 }, 2);
+            if (monitor != IntPtr.Zero && GetDpiForMonitor(monitor, 0, out var dpi, out _) == 0 && dpi > 0) return dpi / 96.0;
+        }
+        catch (Exception) { /* shcore missing: treat as 96 dpi */ }
+        return 1;
     }
 }

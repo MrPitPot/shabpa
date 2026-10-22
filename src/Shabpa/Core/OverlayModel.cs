@@ -328,3 +328,53 @@ public static class OverlayLayouts
         ("graph", "نمودار", "Graph"),
     ];
 }
+
+/// <summary>Colour maths for the overlay's own colour picker: hue / saturation / value to "RRGGBB" and back.</summary>
+public static class ColorMath
+{
+    /// <summary>Hue 0..360, saturation and value 0..1.</summary>
+    public static (byte r, byte g, byte b) FromHsv(double h, double s, double v)
+    {
+        h = ((h % 360) + 360) % 360;
+        s = Math.Clamp(s, 0, 1);
+        v = Math.Clamp(v, 0, 1);
+        var c = v * s;
+        var x = c * (1 - Math.Abs(h / 60 % 2 - 1));
+        var m = v - c;
+        var (r, g, b) = (int)(h / 60) switch
+        {
+            0 => (c, x, 0.0),
+            1 => (x, c, 0.0),
+            2 => (0.0, c, x),
+            3 => (0.0, x, c),
+            4 => (x, 0.0, c),
+            _ => (c, 0.0, x),
+        };
+        return ((byte)Math.Round((r + m) * 255), (byte)Math.Round((g + m) * 255), (byte)Math.Round((b + m) * 255));
+    }
+
+    public static (double h, double s, double v) ToHsv(byte r, byte g, byte b)
+    {
+        double R = r / 255.0, G = g / 255.0, B = b / 255.0;
+        var max = Math.Max(R, Math.Max(G, B));
+        var min = Math.Min(R, Math.Min(G, B));
+        var d = max - min;
+        double h;
+        if (d == 0) h = 0;
+        else if (max == R) h = 60 * (((G - B) / d % 6 + 6) % 6);
+        else if (max == G) h = 60 * ((B - R) / d + 2);
+        else h = 60 * ((R - G) / d + 4);
+        return (h, max == 0 ? 0 : d / max, max);
+    }
+
+    public static string ToHex(byte r, byte g, byte b) => $"{r:X2}{g:X2}{b:X2}";
+
+    public static bool TryParse(string? hex, out (byte r, byte g, byte b) rgb)
+    {
+        rgb = default;
+        var text = hex?.Trim().TrimStart('#') ?? "";
+        if (!OverlayLook.IsHex(text)) return false;
+        rgb = (Convert.ToByte(text[..2], 16), Convert.ToByte(text[2..4], 16), Convert.ToByte(text[4..6], 16));
+        return true;
+    }
+}
