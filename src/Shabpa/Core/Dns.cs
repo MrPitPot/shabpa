@@ -135,31 +135,41 @@ public sealed record DnsAdapter(string Name, int Index, string Id, string[] Serv
 /// <summary>Reads and sets the DNS servers of a network adapter (IPv4). Needs administrator rights to change.</summary>
 public static class DnsConfig
 {
-    public static List<DnsAdapter> Adapters()
+    public static List<DnsAdapter> Adapters() => Adapters(NetworkInterface.GetAllNetworkInterfaces);
+
+    /// <summary>The adapter list with every Windows call guarded: an adapter that cannot be read (no IPv4, error 10043 while
+    /// it appears or goes away, a vanished driver) is skipped, and a list that cannot be had at all is simply empty.</summary>
+    internal static List<DnsAdapter> Adapters(Func<IEnumerable<NetworkInterface>> source)
     {
         var list = new List<DnsAdapter>();
-        foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
+        IEnumerable<NetworkInterface> nics;
+        try { nics = source(); }
+        catch (Exception ex) when (ex is NetworkInformationException or SocketException or InvalidOperationException)
         {
-            if (nic.OperationalStatus != OperationalStatus.Up) continue;
-            if (nic.NetworkInterfaceType is NetworkInterfaceType.Loopback or NetworkInterfaceType.Tunnel) continue;
-            IPInterfaceProperties props;
-            IPv4InterfaceProperties? v4;
+            Log.Write($"dns adapters: {ex.GetType().Name} {ex.Message}");
+            return list;
+        }
+        foreach (var nic in nics)
+        {
             try
             {
-                props = nic.GetIPProperties();
-                v4 = props.GetIPv4Properties();
+                if (nic.OperationalStatus != OperationalStatus.Up) continue;
+                if (nic.NetworkInterfaceType is NetworkInterfaceType.Loopback or NetworkInterfaceType.Tunnel) continue;
+                var props = nic.GetIPProperties();
+                var v4 = props.GetIPv4Properties(); // throws for an adapter without IPv4 (some tunnels, IPv6-only)
+                if (v4 is null) continue;
+                var servers = props.DnsAddresses.Where(a => a.AddressFamily == AddressFamily.InterNetwork).Select(a => a.ToString()).ToArray();
+                var hasGateway = props.GatewayAddresses.Any(g => g.Address.AddressFamily == AddressFamily.InterNetwork && !g.Address.Equals(IPAddress.Any));
+                var description = nic.Description ?? "";
+                var virt = description.Contains("Virtual", StringComparison.OrdinalIgnoreCase) || description.Contains("TAP", StringComparison.OrdinalIgnoreCase)
+                           || description.Contains("Wintun", StringComparison.OrdinalIgnoreCase) || description.Contains("VPN", StringComparison.OrdinalIgnoreCase)
+                           || description.Contains("Hyper-V", StringComparison.OrdinalIgnoreCase) || description.Contains("VMware", StringComparison.OrdinalIgnoreCase);
+                list.Add(new DnsAdapter(nic.Name, v4.Index, nic.Id, servers, !IsStatic(nic.Id), hasGateway && !virt));
             }
-            catch (NetworkInformationException)
+            catch (Exception ex) when (ex is NetworkInformationException or SocketException or InvalidOperationException or NotSupportedException)
             {
-                continue; // an adapter without IPv4 (some tunnels, IPv6-only)
+                // skipped; the others still show
             }
-            if (v4 is null) continue;
-            var servers = props.DnsAddresses.Where(a => a.AddressFamily == AddressFamily.InterNetwork).Select(a => a.ToString()).ToArray();
-            var hasGateway = props.GatewayAddresses.Any(g => g.Address.AddressFamily == AddressFamily.InterNetwork && !g.Address.Equals(IPAddress.Any));
-            var virt = nic.Description.Contains("Virtual", StringComparison.OrdinalIgnoreCase) || nic.Description.Contains("TAP", StringComparison.OrdinalIgnoreCase)
-                       || nic.Description.Contains("Wintun", StringComparison.OrdinalIgnoreCase) || nic.Description.Contains("VPN", StringComparison.OrdinalIgnoreCase)
-                       || nic.Description.Contains("Hyper-V", StringComparison.OrdinalIgnoreCase) || nic.Description.Contains("VMware", StringComparison.OrdinalIgnoreCase);
-            list.Add(new DnsAdapter(nic.Name, v4.Index, nic.Id, servers, !IsStatic(nic.Id), hasGateway && !virt));
         }
         return [.. list.OrderByDescending(a => a.IsLikelyMain).ThenBy(a => a.Name)];
     }

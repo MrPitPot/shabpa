@@ -107,7 +107,7 @@ public sealed class DnsPage : PageBase
     {
         _adapters = Hub.Demo
             ? [new DnsAdapter("Wi-Fi", 12, "demo", ["8.8.8.8", "8.8.4.4"], false, true)]
-            : DnsConfig.Adapters();
+            : Offload.KeepResponsive(DnsConfig.Adapters);
         if (Adapter is null) _adapterId = _adapters.FirstOrDefault()?.Id;
         Chips(_adapterChips, _adapters.Select(a => (a.Id, a.Name)), _adapterId ?? "", id =>
         {
@@ -520,7 +520,7 @@ public sealed class DnsPage : PageBase
             return false;
         }
 
-        var error = DnsConfig.Apply(adapter, primary, secondary);
+        var error = Offload.KeepResponsive(() => DnsConfig.Apply(adapter, primary, secondary)); // netsh: seconds, so the window keeps answering meanwhile
         if (error is not null)
         {
             _status.Foreground = Res("Red");

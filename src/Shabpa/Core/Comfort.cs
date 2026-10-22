@@ -253,6 +253,44 @@ public static class MasterVolume
         }
     }
 
+    // The audio endpoint is a COM call into the sound driver. A driver that is busy or broken (virtual cables, some vendor audio
+    // suites) can keep it for many seconds, so the window never makes this call itself: it asks a worker and waits only a
+    // moment for the answer, or hands over the newest level and moves on.
+    private static readonly object LaterGate = new();
+    private static double? _later;
+    private static bool _laterRunning;
+
+    /// <summary><see cref="Get"/> without ever holding the caller for long: null when the driver did not answer in time.</summary>
+    public static double? GetBounded(int milliseconds = 1500) => Offload.Bounded(Get, null, milliseconds);
+
+    /// <summary><see cref="Set"/> that gives up waiting after a moment (false then).</summary>
+    public static bool SetBounded(double level, int milliseconds = 1500) => Offload.Bounded(() => Set(level), false, milliseconds);
+
+    /// <summary>Sets the level in the background; when called again before the driver answered, only the newest level is applied.</summary>
+    public static void SetLater(double level)
+    {
+        lock (LaterGate)
+        {
+            _later = level;
+            if (_laterRunning) return;
+            _laterRunning = true;
+        }
+        _ = Task.Run(() =>
+        {
+            while (true)
+            {
+                double next;
+                lock (LaterGate)
+                {
+                    if (_later is not { } value) { _laterRunning = false; return; }
+                    next = value;
+                    _later = null;
+                }
+                Set(next);
+            }
+        });
+    }
+
     public static bool Set(double level)
     {
         try

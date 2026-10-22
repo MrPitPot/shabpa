@@ -33,6 +33,34 @@ public interface IGpuProvider : IDisposable
 
 public static class GpuProbe
 {
+    // What the card reports, read once on a worker: opening a vendor library (AMD's ADL in particular) talks to the driver and
+    // can take seconds, or never return on a bad driver, so no window code may do it itself.
+    private static Task<GpuReading?>? _card;
+
+    /// <summary>Starts reading the card in the background (cheap to call again).</summary>
+    public static void PrefetchCard() =>
+        _card ??= Task.Run(() =>
+        {
+            try
+            {
+                using var probe = Open();
+                return probe?.Read();
+            }
+            catch (Exception ex)
+            {
+                Log.Write($"gpu card read failed: {ex.GetType().Name}: {ex.Message}");
+                return null;
+            }
+        });
+
+    /// <summary>The card's readings, or null if they are not there yet after <paramref name="waitMilliseconds"/>.</summary>
+    public static GpuReading? CardInfo(int waitMilliseconds)
+    {
+        PrefetchCard();
+        var task = _card!;
+        return task.Wait(waitMilliseconds) ? task.Result : null;
+    }
+
     /// <summary>Opens the best provider for this PC: the discrete card's vendor library when present.</summary>
     public static IGpuProvider? Open()
     {

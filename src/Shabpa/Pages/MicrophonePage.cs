@@ -115,18 +115,15 @@ public sealed class MicrophonePage : PageBase
         _level.ValueChanged += (_, _) =>
         {
             if (_loading) return;
-            Microphone.SetLevel(_level.Value / 100.0);
+            SetLevelLater(_level.Value / 100.0);
         };
         _mute.Click += (_, _) =>
         {
-            var now = Microphone.Read();
-            if (now is null)
+            _ = Task.Run(() =>
             {
-                Refresh();
-                return;
-            }
-            Microphone.SetMuted(!now.Value.muted);
-            Refresh();
+                if (Microphone.Read() is { } now) Microphone.SetMuted(!now.muted);
+                Dispatcher.BeginInvoke(Refresh);
+            });
         };
         micBody.Children.Add(K.SettingRow(L.T("میکروفون وصل باشه", "Microphone on"), _mute));
         micBody.Children.Add(_deviceState);
@@ -298,12 +295,72 @@ public sealed class MicrophonePage : PageBase
         catch (Exception ex) { Log.Write($"open settings: {ex.GetType().Name}"); }
     }
 
+    private bool _gathering, _gatherAgain;
+    private readonly object _levelGate = new();
+    private double? _levelNext;
+    private bool _levelRunning;
+
+    /// <summary>The slider moves many times a second; the driver gets only the newest value, one call at a time, off the window's thread.</summary>
+    private void SetLevelLater(double level)
+    {
+        lock (_levelGate)
+        {
+            _levelNext = level;
+            if (_levelRunning) return;
+            _levelRunning = true;
+        }
+        _ = Task.Run(() =>
+        {
+            while (true)
+            {
+                double next;
+                lock (_levelGate)
+                {
+                    if (_levelNext is not { } value) { _levelRunning = false; return; }
+                    next = value;
+                    _levelNext = null;
+                }
+                try { Microphone.SetLevel(next); }
+                catch (Exception ex) { Log.Write($"microphone level: {ex.GetType().Name}"); }
+            }
+        });
+    }
+
+    /// <summary>The audio driver and the registry are asked off the window's thread (a misbehaving audio driver can hold the
+    /// call for many seconds); the page is filled in when the answers are there. Changes that arrive meanwhile run once more.</summary>
     public override void Refresh()
     {
         ShowVoice();
+        if (_gathering) { _gatherAgain = true; return; }
+        _gathering = true;
+        _ = Task.Run(() =>
+        {
+            string? name = null;
+            (double level, bool muted)? state = null;
+            List<NoiseTool> toolList = [];
+            bool? allowed = null;
+            List<MicApp> list = [];
+            try
+            {
+                name = Microphone.DeviceName();
+                state = Microphone.Read();
+                toolList = Microphone.NoiseTools().ToList();
+                allowed = Microphone.DesktopAppsAllowed();
+                list = Microphone.RecentApps().Take(12).ToList();
+            }
+            catch (Exception ex) { Log.Write($"microphone page: {ex.GetType().Name}: {ex.Message}"); }
+            Dispatcher.BeginInvoke(() =>
+            {
+                _gathering = false;
+                ApplyRefresh(name, state, toolList, allowed, list);
+                if (_gatherAgain) { _gatherAgain = false; Refresh(); }
+            });
+        });
+    }
+
+    private void ApplyRefresh(string? name, (double level, bool muted)? state, List<NoiseTool> toolList, bool? allowed, List<MicApp> list)
+    {
         _loading = true;
-        var name = Microphone.DeviceName();
-        var state = Microphone.Read();
         _device.Text = name ?? L.T("میکروفونی پیدا نشد", "No microphone found");
         _device.FlowDirection = name is null ? Flow : FlowDirection.LeftToRight;
         _device.HorizontalAlignment = HorizontalAlignment.Stretch;
@@ -326,7 +383,6 @@ public sealed class MicrophonePage : PageBase
         _loading = false;
 
         _tools.Children.Clear();
-        var toolList = Microphone.NoiseTools().ToList();
         var toolSig = string.Join("|", toolList.Select(t => t.Name + t.Installed));
         foreach (var t in toolList)
         {
@@ -350,7 +406,6 @@ public sealed class MicrophonePage : PageBase
         if (toolSig != _toolsSig) NetFx.RiseChildren(_tools, 8, 10, 0.5);
         _toolsSig = toolSig;
 
-        var allowed = Microphone.DesktopAppsAllowed();
         _access.Text = allowed switch
         {
             true => L.T("ویندوز اجازه می‌ده برنامه‌های دسکتاپ از میکروفون استفاده کنن.", "Windows lets desktop programs use the microphone."),
@@ -359,7 +414,6 @@ public sealed class MicrophonePage : PageBase
         };
         _access.Visibility = _access.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         _apps.Children.Clear();
-        var list = Microphone.RecentApps().Take(12).ToList();
         if (list.Count == 0) _apps.Children.Add(new TextBlock { Text = L.T("چیزی ثبت نشده.", "Nothing recorded."), Style = St("Body") });
         for (var i = 0; i < list.Count; i++)
         {

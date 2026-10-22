@@ -97,6 +97,7 @@ public sealed class Hub
         Ping = new PingMeter(() => Settings.PingHost);
         Telemetry = new Telemetry(() => Sensors.Latest, () => Ping.Samples);
         Telemetry.UseBoardSensors = Settings.Overlay.BoardSensors && !demo;
+        if (!demo) GpuProbe.PrefetchCard();
         Telemetry.LogWhileGameAlive = Settings.GameLog && !demo;
         Sensors.InteractiveCheck = () => WindowShown || Telemetry.HasDemand;
         GameLog = new GameLogStore(Store.Folder, readOnly: store.ReadOnly || demo);
@@ -150,11 +151,33 @@ public sealed class Hub
         else Usage.Load(UsageFile);
         if (!Demo)
         {
-            _net = NetMonitor.TryStart(Traffic, out var netError);
-            NetError = netError;
+            // Starting the Windows trace session takes a moment (longer when a crashed run left one behind): off the window's thread.
+            // Until it answers, "per-app measurement is not running" is simply the state, as it is without admin rights.
+            if (!Elevated) NetError = "needs-admin";
+            else _ = Task.Run(() =>
+            {
+                var monitor = NetMonitor.TryStart(Traffic, out var netError);
+                Application.Current?.Dispatcher.BeginInvoke(() =>
+                {
+                    _net = monitor;
+                    NetError = netError;
+                    NetTick?.Invoke();
+                });
+            });
         }
 
-        Sensors.Updated += s => Application.Current?.Dispatcher.BeginInvoke(() => OnSensors(s));
+        // Only the newest reading is handed to the window: when it is busy (a long layout, a slow disk) the readings must not
+        // pile up in its queue and then all run back to back, which is how one short stall turns into a long one.
+        Sensors.Updated += s =>
+        {
+            Volatile.Write(ref _pendingSensors, s);
+            if (Interlocked.Exchange(ref _sensorsQueued, 1) == 1) return;
+            Application.Current?.Dispatcher.BeginInvoke(() =>
+            {
+                Interlocked.Exchange(ref _sensorsQueued, 0);
+                if (Volatile.Read(ref _pendingSensors) is { } latest) OnSensors(latest);
+            });
+        };
         Sensors.Start();
         if (!Demo)
         {
@@ -168,7 +191,7 @@ public sealed class Hub
             // Sleep mode lowered the volume and the PC was switched off before it could be put back.
             if (Settings.Comfort.PendingVolume is { } pending)
             {
-                MasterVolume.Set(pending);
+                MasterVolume.SetLater(pending);
                 Settings.Comfort.PendingVolume = null;
                 Store.Save();
             }
@@ -193,7 +216,7 @@ public sealed class Hub
         _clock.Stop();
         if (_sleepStart is not null && _sleepVolume is { } startVolume)
         {
-            MasterVolume.Set(startVolume);
+            MasterVolume.SetBounded(startVolume, 800);
             Settings.Comfort.PendingVolume = null;
         }
         Dim?.Dispose();
@@ -233,8 +256,16 @@ public sealed class Hub
             if (!_startupChecked && now - _startedAt > TimeSpan.FromSeconds(45))
             {
                 _startupChecked = true;
-                try { CheckStartup(announce: true); }
-                catch (Exception ex) { Log.Write($"startup watch: {ex.GetType().Name}: {ex.Message}"); }
+                // the registry and the startup folders are read on a worker; the comparison and the notices run back here
+                _ = Task.Run(() => Health.Startup(new WindowsRegistryProbe(), Health.StartupFolders())).ContinueWith(t =>
+                {
+                    if (t.IsFaulted) { Log.Write($"startup watch: {t.Exception?.GetBaseException().GetType().Name}"); return; }
+                    Application.Current?.Dispatcher.BeginInvoke(() =>
+                    {
+                        try { CheckStartup(announce: true, t.Result); }
+                        catch (Exception ex) { Log.Write($"startup watch: {ex.GetType().Name}: {ex.Message}"); }
+                    });
+                }, TaskScheduler.Default);
             }
         }
         var missed = new List<ScheduledCommand>();
@@ -280,6 +311,9 @@ public sealed class Hub
         }
         Second?.Invoke();
     }
+
+    private SensorSnapshot? _pendingSensors;
+    private int _sensorsQueued;
 
     private void OnSensors(SensorSnapshot s)
     {
@@ -618,7 +652,7 @@ public sealed class Hub
         var c = Settings.Comfort;
         _sleepLength = TimeSpan.FromMinutes(Math.Clamp(c.SleepMinutes, 1, 600));
         _sleepStart = DateTime.Now;
-        _sleepVolume = c.SleepVolume ? MasterVolume.Get() : null;
+        _sleepVolume = c.SleepVolume ? MasterVolume.GetBounded() : null;
         _sleepDim = Dim is { Active: true } ? c.DimLevel : 0.05;
         if (_sleepVolume is { } v)
         {
@@ -634,7 +668,7 @@ public sealed class Hub
         _sleepStart = null;
         if (_sleepVolume is { } v)
         {
-            MasterVolume.Set(v);
+            MasterVolume.SetLater(v);
             Settings.Comfort.PendingVolume = null;
             Store.Save();
         }
@@ -743,7 +777,7 @@ public sealed class Hub
             hub.ComfortChanged();
         }
 
-        public void SetVolume(int percent) => MasterVolume.Set(percent / 100.0);
+        public void SetVolume(int percent) => MasterVolume.SetLater(percent / 100.0);
 
         public void CleanRam() => hub.CleanMemory(cache: false);
 
@@ -789,7 +823,7 @@ public sealed class Hub
     /// <summary>Runs a profile. <paramref name="source"/> says why: "manual", "time", "game", "start".</summary>
     public ProfileOutcome RunProfile(WorkProfile profile, string source)
     {
-        _profileUndo = (Settings.Comfort.DimOn, Settings.Comfort.DimLevel, MasterVolume.Get(), Settings.Comfort.BreakOn, profile.Name);
+        _profileUndo = (Settings.Comfort.DimOn, Settings.Comfort.DimLevel, MasterVolume.GetBounded(), Settings.Comfort.BreakOn, profile.Name);
         var outcome = Core.Profiles.Run(profile, new HubProfileHost(this));
         State.RunLog.Add(new RunLogEntry { Time = DateTime.Now, Profile = profile.Name, Source = source, Ok = outcome.Ok, Steps = [.. outcome.Steps] });
         if (State.RunLog.Count > 100) State.RunLog.RemoveRange(0, State.RunLog.Count - 100);
@@ -807,7 +841,7 @@ public sealed class Hub
         c.DimOn = u.dimOn;
         c.DimLevel = u.dimLevel;
         c.BreakOn = u.breaks;
-        if (u.volume is { } v) MasterVolume.Set(v);
+        if (u.volume is { } v) MasterVolume.SetLater(v);
         Store.Save();
         Dim?.Apply();
         ComfortChanged();
@@ -829,15 +863,7 @@ public sealed class Hub
         if (game && c.GameModeOn && !GameModeActive)
         {
             GameModeActive = true;
-            if (c.GameModePower && c.PendingPowerPlan.Length == 0)
-            {
-                var before = PowerPlan.SwitchToPerformance();
-                if (before is not null)
-                {
-                    c.PendingPowerPlan = before; // kept on disk so it is put back even if the PC restarts mid-game
-                    Store.Save();
-                }
-            }
+            if (c.GameModePower && c.PendingPowerPlan.Length == 0) SwitchPowerPlanInBackground();
             if (c.GameModeRam) CleanMemory(cache: false);
             Notices.Add((DateTime.Now, L.T("حالت بازی", "Game mode"), L.T("روشن شد.", "On.")));
         }
@@ -849,13 +875,58 @@ public sealed class Hub
         }
     }
 
+    // powercfg is a console program (several launches, up to 8 s each on a slow PC), so the power plan is changed on a
+    // worker, one step after the other: a "restore" queued behind a "switch" always sees what the switch remembered.
+    private readonly object _planGate = new();
+    private Task _planChain = Task.CompletedTask;
+    private int _planSteps;
+    private bool PlanBusy => Volatile.Read(ref _planSteps) > 0;
+
+    private void QueuePlanStep(Action step)
+    {
+        Interlocked.Increment(ref _planSteps);
+        lock (_planGate)
+            _planChain = _planChain.ContinueWith(_ =>
+            {
+                try { step(); }
+                catch (Exception ex) { Log.Write($"power plan: {ex.GetType().Name}: {ex.Message}"); }
+                finally { Interlocked.Decrement(ref _planSteps); }
+            }, TaskScheduler.Default);
+    }
+
+    /// <summary>Test aid: waits until the queued power plan steps are done.</summary>
+    internal void WaitForPowerPlan()
+    {
+        Task last;
+        lock (_planGate) last = _planChain;
+        last.Wait(30000);
+    }
+
+    private void SwitchPowerPlanInBackground()
+    {
+        var c = Settings.Comfort;
+        QueuePlanStep(() =>
+        {
+            if (c.PendingPowerPlan.Length != 0) return;
+            var before = PowerPlan.SwitchToPerformance();
+            if (before is null) return;
+            c.PendingPowerPlan = before; // kept on disk so it is put back even if the PC restarts mid-game
+            Application.Current?.Dispatcher.BeginInvoke(() => Store.Save());
+        });
+    }
+
     private void RestorePowerPlan()
     {
         var c = Settings.Comfort;
-        if (c.PendingPowerPlan.Length == 0) return;
-        PowerPlan.Set(c.PendingPowerPlan);
-        c.PendingPowerPlan = "";
-        Store.Save();
+        if (c.PendingPowerPlan.Length == 0 && !PlanBusy) return;
+        QueuePlanStep(() =>
+        {
+            var plan = c.PendingPowerPlan;
+            if (plan.Length == 0) return;
+            PowerPlan.Set(plan);
+            c.PendingPowerPlan = "";
+            Application.Current?.Dispatcher.BeginInvoke(() => Store.Save());
+        });
     }
 
     private void RunTriggers(DateTime now)
@@ -868,6 +939,7 @@ public sealed class Hub
         var timeCheck = now - _lastTriggerCheck >= TimeSpan.FromSeconds(20);
         if (!edge && !timeCheck) return;
         if (timeCheck) _lastTriggerCheck = now;
+        var fired = false;
         foreach (var trigger in State.Triggers.ToList())
         {
             var fire = trigger.Kind switch
@@ -878,6 +950,7 @@ public sealed class Hub
                 _ => false,
             };
             if (!fire) continue;
+            fired = true;
             var profile = State.Profiles.FirstOrDefault(p => p.Id == trigger.ProfileId);
             trigger.LastRun = now;
             if (profile is null) continue;
@@ -890,7 +963,7 @@ public sealed class Hub
             var outcome = RunProfile(profile, trigger.Kind switch { TriggerKind.Time => "time", TriggerKind.AppStart => "start", _ => "game" });
             Notify(L.T("اتوماسیون", "Automation"), L.T($"پروفایل «{profile.Name}» اجرا شد.", $"Profile “{profile.Name}” ran.") + (outcome.Ok ? "" : L.T(" بعضی کارها انجام نشد.", " Some steps did not work.")));
         }
-        Store.Save();
+        if (fired) Store.Save(); // not every 20 s for nothing: that was a file write on the window's thread
     }
 
     private bool _appStartRan;
@@ -901,9 +974,9 @@ public sealed class Hub
 
     /// <summary>The first time ever, the current startup list becomes the baseline silently. After that, every new or
     /// changed entry is announced once.</summary>
-    public List<StartupChange> CheckStartup(bool announce)
+    public List<StartupChange> CheckStartup(bool announce, List<StartupItem>? read = null)
     {
-        var current = Health.Startup(new WindowsRegistryProbe(), Health.StartupFolders());
+        var current = read ?? Health.Startup(new WindowsRegistryProbe(), Health.StartupFolders());
         if (State.StartupBaseline is null)
         {
             State.StartupBaseline = current.ToDictionary(i => i.Key, i => i.Command);
@@ -975,7 +1048,7 @@ public sealed class Hub
         if (_sleepStart is { } start)
         {
             var progress = SleepRamp.Progress(start, _sleepLength, now);
-            if (_sleepVolume is { } volume) MasterVolume.Set(SleepRamp.Volume(volume, progress));
+            if (_sleepVolume is { } volume) MasterVolume.SetLater(SleepRamp.Volume(volume, progress));
             if (c.SleepDim && Dim is not null)
             {
                 Dim.Override = SleepRamp.Dim(_sleepDim, progress);
@@ -1001,7 +1074,7 @@ public sealed class Hub
         }
         if (_volumeRestoreAt is { } at && now >= at && c.PendingVolume is { } pending)
         {
-            MasterVolume.Set(pending);
+            MasterVolume.SetLater(pending);
             c.PendingVolume = null;
             _volumeRestoreAt = null;
             Store.Save();
@@ -1430,7 +1503,7 @@ public sealed class Hub
             {
                 var level = BoolArg(args, "mute") ? 0 : Math.Clamp(IntArg(args, "level", -1), -1, 100);
                 if (level < 0) return RemoteReply.Fail("مقدار صدا مشخص نیست.", "No volume level was given.");
-                return MasterVolume.Set(level / 100.0)
+                return MasterVolume.SetBounded(level / 100.0)
                     ? RemoteReply.Done($"صدا روی {Fa.Digits(level.ToString())}٪ رفت.", $"Volume set to {level}%.")
                     : RemoteReply.Fail("دستگاه صدا پیدا نشد.", "No audio device was found.");
             }
@@ -1598,7 +1671,7 @@ public sealed class Hub
     /// <summary>Returns an error message or null.</summary>
     public string? AddWake(WakeSchedule schedule)
     {
-        if (!Demo && WakeScheduler.Register(schedule, ExePath) is { } error) return error;
+        if (!Demo && Offload.KeepResponsive(() => WakeScheduler.Register(schedule, ExePath)) is { } error) return error;
         State.WakeSchedules.Add(schedule);
         Store.Save();
         Changed?.Invoke();
@@ -1607,7 +1680,7 @@ public sealed class Hub
 
     public void RemoveWake(Guid id)
     {
-        if (!Demo) WakeScheduler.Unregister(id);
+        if (!Demo) _ = Task.Run(() => WakeScheduler.Unregister(id)); // a console program: never on the window's thread
         State.WakeSchedules.RemoveAll(w => w.Id == id);
         Store.Save();
         Changed?.Invoke();

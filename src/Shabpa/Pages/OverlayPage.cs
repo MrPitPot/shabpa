@@ -213,11 +213,7 @@ public sealed class OverlayPage : PageBase
         GpuReading? card = null;
         if (!Hub.Demo)
         {
-            try
-            {
-                using var probe = GpuProbe.Open();
-                card = probe?.Read();
-            }
+            try { card = GpuProbe.CardInfo(600); } // read in the background (a graphics driver call can take seconds)
             catch { /* no card information, nothing is marked */ }
         }
 

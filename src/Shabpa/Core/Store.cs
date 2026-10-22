@@ -167,7 +167,7 @@ public static class Log
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(File)!);
                 var info = new FileInfo(File);
-                if (info.Exists && info.Length > 512 * 1024) info.Delete();
+                if (info.Exists && info.Length > 512 * 1024) System.IO.File.Move(File, File + ".old", overwrite: true); // keeps the previous log too, so a stall from last week is still there
                 System.IO.File.AppendAllText(File, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture) + $" {message}{Environment.NewLine}");
             }
             catch { /* logging must never throw */ }

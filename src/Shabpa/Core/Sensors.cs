@@ -60,6 +60,7 @@ public sealed class SensorHub : IDisposable
     private NetworkInterface[] _nics = [];
     private long _nicsAt;
     private static volatile bool _nicsStale = true;
+    private string _nicError = "";
 
     static SensorHub()
     {
@@ -155,14 +156,22 @@ public sealed class SensorHub : IDisposable
         {
             _nicsStale = false;
             _nicsAt = now;
-            _nics = NetworkInterface.GetAllNetworkInterfaces();
+            // Windows can refuse the list for a moment (error 10043 and friends: an adapter appearing or going away);
+            // the old list stays in use and the next tick asks again, so the sensors never stop for it.
+            try { _nics = NetworkInterface.GetAllNetworkInterfaces(); }
+            catch (Exception ex) when (ex is NetworkInformationException or System.Net.Sockets.SocketException or InvalidOperationException)
+            {
+                _nicsStale = true;
+                var text = $"network adapters: {ex.GetType().Name} {ex.Message}";
+                if (text != _nicError) { _nicError = text; Log.Write(text); } // once, not every second
+            }
         }
         foreach (var nic in _nics)
         {
-            if (nic.OperationalStatus != OperationalStatus.Up) continue;
-            if (nic.NetworkInterfaceType is NetworkInterfaceType.Loopback) continue;
             try
             {
+                if (nic.OperationalStatus != OperationalStatus.Up) continue;
+                if (nic.NetworkInterfaceType is NetworkInterfaceType.Loopback) continue;
                 var stats = nic.GetIPStatistics();
                 current[nic.Id] = (stats.BytesReceived, stats.BytesSent);
                 if (seconds > 0 && _net.TryGetValue(nic.Id, out var prev))
@@ -173,7 +182,7 @@ public sealed class SensorHub : IDisposable
                     up = Math.Max(up, Math.Max(0, stats.BytesSent - prev.tx) * 8 / 1e6 / seconds);
                 }
             }
-            catch (NetworkInformationException) { /* adapter went away mid-read */ }
+            catch (Exception ex) when (ex is NetworkInformationException or System.Net.Sockets.SocketException or InvalidOperationException) { /* adapter went away mid-read */ }
         }
         _net = current;
         return (down, up);

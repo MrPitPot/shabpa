@@ -334,7 +334,17 @@ public sealed class SettingsPage : PageBase
 
     public override void Refresh()
     {
-        try { AutostartCheck.IsChecked = Autostart.IsEnabled(); }
+        // never a program on the window's thread: the logon task is asked in the background and the switch follows when it answers
+        try
+        {
+            _autostartOn = Autostart.IsEnabledCached(now => Dispatcher.BeginInvoke(() =>
+            {
+                if (_autostartBusy || _autostartOn == now) return;
+                _autostartOn = now;
+                AutostartCheck.IsChecked = now;
+            }));
+            AutostartCheck.IsChecked = _autostartOn;
+        }
         catch { AutostartCheck.IsEnabled = false; }
         MinimizedCheck.IsChecked = Hub.Settings.StartMinimized;
         ConfirmCheck.IsChecked = Hub.Settings.ConfirmActions;
@@ -456,6 +466,8 @@ public sealed class SettingsPage : PageBase
         Apply(); // the drawing mode is chosen once, when the app starts
     }
 
+    private bool _autostartOn, _autostartBusy;
+
     private void OnBehaviour(object sender, RoutedEventArgs e)
     {
         Hub.Settings.StartMinimized = MinimizedCheck.IsChecked == true;
@@ -467,13 +479,27 @@ public sealed class SettingsPage : PageBase
         Hub.Settings.UiSounds = SoundCheck.IsChecked == true;
         Hub.Store.Save();
         if (Hub.Demo) return;
-        try
+        var wanted = AutostartCheck.IsChecked == true;
+        if (wanted == _autostartOn || _autostartBusy) { Refresh(); return; } // another switch was clicked: nothing to change for Windows
+        _autostartOn = wanted;
+        _autostartBusy = true;
+        var exe = Hub.ExePath;
+        var elevated = Hub.Elevated;
+        // the registry and the logon task are touched off the window's thread (schtasks can take seconds)
+        _ = Task.Run(() =>
         {
-            if (Autostart.Set(AutostartCheck.IsChecked == true, Hub.ExePath, Hub.Elevated) is { } error)
-                Log.Write($"autostart: {error}");
-        }
-        catch (Exception ex) { Log.Write($"autostart: {ex.Message}"); }
-        Refresh();
+            try
+            {
+                if (Autostart.Set(wanted, exe, elevated) is { } error)
+                    Log.Write($"autostart: {error}");
+            }
+            catch (Exception ex) { Log.Write($"autostart: {ex.Message}"); }
+            Dispatcher.BeginInvoke(() =>
+            {
+                _autostartBusy = false;
+                Refresh();
+            });
+        });
     }
 
     private void OnSavePower(object sender, RoutedEventArgs e)

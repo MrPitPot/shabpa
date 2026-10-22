@@ -204,8 +204,10 @@ public partial class App : Application
             log.AppendLine($"installed plans: {string.Join(", ", Core.PowerPlan.Installed())}");
             log.AppendLine($"plan before: {before}");
             gHub.GameModeStep(true);
+            gHub.WaitForPowerPlan();
             log.AppendLine($"plan during game mode: {Core.PowerPlan.Active()} (active flag {gHub.GameModeActive}, remembered {gHub.Settings.Comfort.PendingPowerPlan})");
             gHub.GameModeStep(false);
+            gHub.WaitForPowerPlan();
             log.AppendLine($"plan after: {Core.PowerPlan.Active()} (active flag {gHub.GameModeActive}, remembered '{gHub.Settings.Comfort.PendingPowerPlan}')");
             log.AppendLine($"restored exactly: {Core.PowerPlan.Active() == before}");
             File.WriteAllText(gameReport, log.ToString());
@@ -264,10 +266,12 @@ public partial class App : Application
             };
             testHub.Settings.Comfort.BreakOn = false;
             var outcome = testHub.RunProfile(profile, "manual");
+            Thread.Sleep(500); // the volume is set by a background worker
             log.AppendLine($"ok={outcome.Ok} steps={string.Join(" | ", outcome.Steps)}");
             log.AppendLine($"volume after run: {Core.MasterVolume.Get():0.00} (expected 0.17), breaks on: {testHub.Settings.Comfort.BreakOn}, dim on: {testHub.Settings.Comfort.DimOn} level {testHub.Settings.Comfort.DimLevel:0.00}");
             log.AppendLine($"undo available: {testHub.CanUndoProfile}");
             testHub.UndoProfile();
+            Thread.Sleep(500);
             log.AppendLine($"volume after undo: {Core.MasterVolume.Get():0.00} (expected {before:0.00}), breaks on: {testHub.Settings.Comfort.BreakOn}, dim on: {testHub.Settings.Comfort.DimOn}");
             log.AppendLine($"run log entries: {testHub.State.RunLog.Count}");
             File.WriteAllText(profileReport, log.ToString());
@@ -396,6 +400,16 @@ public partial class App : Application
         // "Use less RAM": no graphics-card device at all (that is where the memory goes); the small overlay and dim
         // windows are cheap to draw either way.
         if (settings.LowMemory || settings.SoftwareRender) System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
+        if (shots is null)
+        {
+            // one line per run: what a support log needs to put a stall next to a machine (no names, no paths, nothing personal)
+            try
+            {
+                Log.Write($"start {System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)} · Windows {Environment.OSVersion.Version} · .NET {Environment.Version} · "
+                          + $"admin={Elevation.IsElevated} · render tier {System.Windows.Media.RenderCapability.Tier >> 16} · low-memory={settings.LowMemory} software-render={settings.SoftwareRender}");
+            }
+            catch { /* the log line is optional */ }
+        }
         L.En = (Value(e.Args, "--lang") ?? settings.Language) == "en";
         // Windows 10 (and early Windows 11) cannot do the glass backdrop well: whoever picked it goes back to the normal theme
         if (!Ui.GlassSupported() && settings.Glass != "off") { settings.Glass = "off"; if (!dryRun) store.Save(); }
@@ -415,6 +429,18 @@ public partial class App : Application
         _window = new MainWindow();
         UiSound.Install();
         if (shots is null) UiWatchdog.Start(Dispatcher, () => _window?.CurrentPage ?? "");
+        // test aid: --stall-test blocks the window thread for a few seconds and quits, to see what the watchdog writes (use SHABPA_DATA)
+        if (shots is null && Value(e.Args, "--stall-test") is { } stallSeconds && int.TryParse(stallSeconds, out var stallFor))
+        {
+            var stall = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+            stall.Tick += (_, _) =>
+            {
+                stall.Stop();
+                Core.StallTestSpot.Block(TimeSpan.FromSeconds(stallFor));
+                new System.Windows.Threading.DispatcherTimer(TimeSpan.FromSeconds(2), System.Windows.Threading.DispatcherPriority.Normal, (_, _) => Shutdown(), Dispatcher).Start();
+            };
+            stall.Start();
+        }
         Motion.Install();
         // test aid: --size 960x620 shows the window at its smallest, to check nothing is cut off
         if (Value(e.Args, "--size") is { } size && size.Split('x') is [var w, var h] && double.TryParse(w, out var width) && double.TryParse(h, out var height))
