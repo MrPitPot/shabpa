@@ -111,6 +111,8 @@ public sealed class Settings
     public bool LaunchersScanned { get; set; }
     /// <summary>DNS servers the user added to the list.</summary>
     public List<DnsEntry> CustomDns { get; set; } = [];
+    /// <summary>The person's short note per DNS (works for this game / got around that block), keyed by "primary/secondary". Older files simply lack it.</summary>
+    public Dictionary<string, string> DnsNotes { get; set; } = [];
     /// <summary>The city shown on the weather page.</summary>
     public WeatherCity? WeatherCity { get; set; }
     /// <summary>Programs the person says are games (names, separated by commas), for games Shabpa does not recognise by itself.</summary>

@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Shabpa.Core;
@@ -192,15 +193,19 @@ public sealed class DnsPage : PageBase
         _ => key,
     };
 
-    /// <summary>One table row: # · name · DNS 1 · DNS 2 · ping · type · actions (or the header when <paramref name="header"/>).</summary>
+    // column widths, shared by the header and every row so they line up: # · name · DNS 1 · DNS 2 · type · ping · note · actions
+    private static readonly double[] Widths = [28, 0, 112, 112, 64, 66, 170, 150];
+    private const int NoteMax = 140;
+
+    /// <summary>One table row (or the header when <paramref name="header"/>). Every column has a fixed width
+    /// (the name takes the rest), including the actions one, so the trash button never shifts anything.</summary>
     private Grid Columns(bool header, DnsEntry? entry, int number)
     {
         var grid = new Grid { Margin = new Thickness(0, header ? 4 : 3, 0, header ? 6 : 3), FlowDirection = Flow };
-        foreach (var width in new[] { 30.0, 0.0, 118.0, 118.0, 74.0, 78.0 })
+        foreach (var width in Widths)
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = width == 0 ? new GridLength(1, GridUnitType.Star) : new GridLength(width), MinWidth = width == 0 ? 110 : 0 });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        TextBlock Cell(string text, int column, bool ltr = false, bool bold = false)
+        TextBlock Cell(string text, int column, bool ltr = false, bool bold = false, bool center = false)
         {
             var t = new TextBlock
             {
@@ -215,6 +220,7 @@ public sealed class DnsPage : PageBase
                 t.TextAlignment = Flow == FlowDirection.RightToLeft ? TextAlignment.Right : TextAlignment.Left;
                 if (!header) t.FontFamily = (FontFamily)Application.Current.Resources["Num"];
             }
+            if (center) t.TextAlignment = TextAlignment.Center;
             Grid.SetColumn(t, column);
             grid.Children.Add(t);
             return t;
@@ -226,8 +232,10 @@ public sealed class DnsPage : PageBase
             Cell(L.T("نام", "Name"), 1);
             Cell("DNS 1", 2, ltr: true);
             Cell("DNS 2", 3, ltr: true);
-            Cell(L.T("پینگ", "Ping"), 4, ltr: true);
-            Cell(L.T("نوع", "Type"), 5);
+            Cell(L.T("نوع", "Type"), 4);
+            Cell(L.T("پینگ", "Ping"), 5, center: true);
+            Cell(L.T("یادداشت", "Note"), 6);
+            Cell(L.T("عملیات", "Actions"), 7);
             return grid;
         }
 
@@ -239,29 +247,125 @@ public sealed class DnsPage : PageBase
         name.TextAlignment = Flow == FlowDirection.RightToLeft ? TextAlignment.Right : TextAlignment.Left;
         Cell(e.Primary, 2, ltr: true);
         Cell(e.Secondary.Length > 0 ? e.Secondary : "—", 3, ltr: true);
-        var pingText = Cell("", 4, ltr: true, bold: true);
+        Cell(GroupName(e.Group), 4);
+        var pingText = Cell("", 5, ltr: true, bold: true, center: true);
         ShowPing(pingText, Key(e));
         if (!_pingBoxes.TryGetValue(Key(e), out var boxList)) _pingBoxes[Key(e)] = boxList = [];
         boxList.Add(pingText);
-        Cell(GroupName(e.Group), 5);
 
-        var apply = new Button { Style = St("Btn"), Content = L.T("اعمال", "Apply"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(4, 0, 0, 0) };
+        // note: short text with an ellipsis; a click opens the whole thing in a comic-style bubble
+        var note = Hub.Settings.DnsNotes.TryGetValue(Key(e), out var saved) ? saved : "";
+        var noteText = new TextBlock
+        {
+            Text = note.Length > 0 ? note : L.T("+ یادداشت", "+ note"), Style = St("Label"), TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = VerticalAlignment.Center, Opacity = note.Length > 0 ? 1 : 0.55,
+        };
+        var noteBox = new Border { Background = Brushes.Transparent, Cursor = System.Windows.Input.Cursors.Hand, Margin = new Thickness(4, 0, 4, 0), Padding = new Thickness(0, 4, 0, 4), Child = noteText };
+        noteBox.MouseLeftButtonUp += (_, _) => OpenBubble(noteBox, e, edit: note.Length == 0);
+        Grid.SetColumn(noteBox, 6);
+        grid.Children.Add(noteBox);
+
+        var apply = new Button { Style = St("Btn"), Content = L.T("اعمال", "Apply"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(4, 0, 0, 0), MinWidth = 62 };
         apply.Click += (_, _) => ApplyDns(e.Name, e.Primary, e.Secondary);
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Children = { apply } };
+        var edit = IconButton("edit", L.T("یادداشت", "Note"), () => OpenBubble(noteBox, e, edit: true));
+        // a fixed slot for the trash button, so rows without one line up with rows that have it
+        var trashSlot = new Border { Width = 38, HorizontalAlignment = HorizontalAlignment.Center };
         if (e.IsCustom)
-            buttons.Children.Add(IconButton("trash", L.T("حذف از لیست", "Remove"), () =>
+            trashSlot.Child = IconButton("trash", L.T("حذف از لیست", "Remove"), () =>
             {
                 if (!Ask(L.T("این دی‌ان‌اس از لیست حذف بشه؟", "Remove this DNS from the list?"), e.Name, L.T("حذف", "Remove"), danger: true)) return;
                 NetFx.Out(grid, () =>
                 {
                     Hub.Settings.CustomDns.Remove(e);
+                    Hub.Settings.DnsNotes.Remove(Key(e));
                     Hub.Store.Save();
                     DrawRows();
                 });
-            }));
-        Grid.SetColumn(buttons, 6);
+            });
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Children = { apply, edit, trashSlot } };
+        Grid.SetColumn(buttons, 7);
         grid.Children.Add(buttons);
         return grid;
+    }
+
+    private static string CleanNote(string raw)
+    {
+        var t = string.Join(' ', raw.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)).Trim();
+        return t.Length > NoteMax ? t[..NoteMax] : t;
+    }
+
+    /// <summary>Stores (or clears) the note of one DNS, next to the other settings.</summary>
+    internal static void SetNote(Settings settings, string key, string text)
+    {
+        var t = CleanNote(text);
+        if (t.Length == 0) settings.DnsNotes.Remove(key);
+        else settings.DnsNotes[key] = t;
+    }
+
+    /// <summary>A speech bubble (comic-style, with a tail pointing at the note) that pops open from its tail:
+    /// reads the whole note, or edits it.</summary>
+    private void OpenBubble(FrameworkElement anchor, DnsEntry e, bool edit)
+    {
+        var key = Key(e);
+        Hub.Settings.DnsNotes.TryGetValue(key, out var current);
+        current ??= "";
+        var popup = new Popup { PlacementTarget = anchor, Placement = PlacementMode.Bottom, StaysOpen = false, AllowsTransparency = true, PopupAnimation = PopupAnimation.None };
+
+        var body = new StackPanel { Margin = new Thickness(14, 10, 14, 12) };
+        body.Children.Add(new TextBlock { Text = e.Name, Style = St("Label"), FontWeight = FontWeights.SemiBold, FlowDirection = FlowDirection.LeftToRight, HorizontalAlignment = Flow == FlowDirection.RightToLeft ? HorizontalAlignment.Right : HorizontalAlignment.Left, Margin = new Thickness(0, 0, 0, 6) });
+        void Close(bool redraw)
+        {
+            popup.IsOpen = false;
+            if (redraw) DrawRows();
+        }
+        if (edit)
+        {
+            var box = new TextBox { Style = St("Input"), Text = current, MaxLength = NoteMax, TextWrapping = TextWrapping.Wrap, MinHeight = 64, Width = 260, Padding = new Thickness(10, 6, 10, 6), AcceptsReturn = false, FlowDirection = Flow };
+            ToolTipService.SetToolTip(box, L.T("مثلاً: برای بازی X خوب بود / برای رفع تحریم Y جواب داد", "e.g. good for game X / got around block Y"));
+            body.Children.Add(box);
+            var save = new Button { Style = St("BtnPrimary"), Content = L.T("ذخیره", "Save"), Padding = new Thickness(16, 6, 16, 6), Margin = new Thickness(0, 0, 8, 0) };
+            var clear = new Button { Style = St("Btn"), Content = L.T("پاک‌کردن", "Clear"), Padding = new Thickness(14, 6, 14, 6) };
+            void Commit(string text)
+            {
+                SetNote(Hub.Settings, key, text);
+                Hub.Store.Save();
+                Close(true);
+            }
+            save.Click += (_, _) => Commit(box.Text);
+            clear.Click += (_, _) => Commit("");
+            box.KeyDown += (_, k) => { if (k.Key == System.Windows.Input.Key.Enter) Commit(box.Text); };
+            body.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0), Children = { save, clear } });
+            popup.Opened += (_, _) => { box.Focus(); box.CaretIndex = box.Text.Length; };
+        }
+        else
+        {
+            body.Children.Add(new TextBlock { Text = current, Style = St("Body"), TextWrapping = TextWrapping.Wrap, MaxWidth = 280, LineHeight = 22 });
+            var change = new Button { Style = St("Btn"), Content = L.T("ویرایش", "Edit"), Padding = new Thickness(14, 5, 14, 5), Margin = new Thickness(0, 10, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
+            change.Click += (_, _) => { popup.IsOpen = false; OpenBubble(anchor, e, edit: true); };
+            body.Children.Add(change);
+        }
+
+        var tail = new System.Windows.Shapes.Polygon
+        {
+            Points = [new Point(0, 11), new Point(11, 0), new Point(22, 11)], Fill = Res("Panel"), Stroke = Res("CardRim"), StrokeThickness = 1,
+            HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, -1),
+        };
+        var bubble = new Border { Style = St("Card"), CornerRadius = new CornerRadius(16), Padding = new Thickness(0), Child = body, Background = Res("Panel") };
+        Panel.SetZIndex(bubble, 1);
+        var root = new StackPanel { Margin = new Thickness(10, 2, 10, 14), FlowDirection = Flow, Children = { tail, bubble }, RenderTransformOrigin = new Point(0.5, 0), Opacity = 0 };
+        root.Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 18, ShadowDepth = 4, Opacity = 0.35, Direction = 270 };
+        var scale = new ScaleTransform(0.55, 0.55);
+        root.RenderTransform = scale;
+        popup.Child = root;
+        popup.Opened += (_, _) =>
+        {
+            var ease = new System.Windows.Media.Animation.BackEase { Amplitude = 0.55, EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut };
+            var dur = TimeSpan.FromMilliseconds(320);
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, new System.Windows.Media.Animation.DoubleAnimation(0.55, 1, dur) { EasingFunction = ease });
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, new System.Windows.Media.Animation.DoubleAnimation(0.55, 1, dur) { EasingFunction = ease });
+            root.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(180)));
+        };
+        popup.IsOpen = true;
     }
 
     private static string Key(DnsEntry e) => e.Primary + "/" + e.Secondary;
