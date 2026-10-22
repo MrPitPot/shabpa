@@ -108,7 +108,7 @@
                         <!-- the one sliding pill: it springs to the active row -->
                         <Grid x:Name="Pill" Height="42" VerticalAlignment="Top" IsHitTestVisible="False" Opacity="0" Margin="0,1,0,0">
                             <Grid.RenderTransform><TranslateTransform x:Name="PillMove"/></Grid.RenderTransform>
-                            <kit:Shadow Radius="10" Blur="24" Spread="-10" OffsetY="10" Layers="7" Color="{StaticResource ShadowC}"/>
+                            <kit:Shadow Radius="10" Blur="24" Spread="-10" OffsetY="10" Layers="7" Color="{DynamicResource ShadowC}"/>
                             <Border CornerRadius="10" Background="{DynamicResource Card2Fill}" BorderBrush="{DynamicResource CardRim}" BorderThickness="1"/>
                             <Border Width="3" Margin="0,11" CornerRadius="3" HorizontalAlignment="Left" Background="{DynamicResource AccentBar}"/>
                         </Grid>
@@ -198,7 +198,7 @@
                                 <TranslateTransform x:Name="ToastMove"/>
                             </TransformGroup>
                         </Grid.RenderTransform>
-                        <kit:Shadow Radius="14" Blur="30" Spread="-10" OffsetY="14" Layers="8" Color="{StaticResource ShadowHoverC}" IsHitTestVisible="False"/>
+                        <kit:Shadow Radius="14" Blur="30" Spread="-10" OffsetY="14" Layers="8" Color="{DynamicResource ShadowHoverC}" IsHitTestVisible="False"/>
                         <Border Background="{DynamicResource Ink}" CornerRadius="14" Padding="20,12">
                             <DockPanel>
                                 <kit:TickMark x:Name="ToastTick" DockPanel.Dock="Left" Width="20" Height="20" Weight="2.2" Foreground="{DynamicResource Green}" VerticalAlignment="Top" Margin="0,2,12,0" Progress="1"/>

@@ -24,7 +24,7 @@ public abstract class TabsPage : PageBase
     protected TabsPage()
     {
         _thumb.RenderTransform = _thumbMove;
-        _thumb.Children.Add(new Shadow { Radius = 9, Blur = 10, Spread = -4, OffsetY = 4, Layers = 4, Color = K.ColorOf("ShadowSoftC") });
+        _thumb.Children.Add(Shadow.Themed(new Shadow { Radius = 9, Blur = 10, Spread = -4, OffsetY = 4, Layers = 4 }, "ShadowSoftC"));
         _thumb.Children.Add(new Border { CornerRadius = new CornerRadius(9), BorderThickness = new Thickness(1), Background = Res("Card2Fill"), BorderBrush = Res("CardRim") });
         _strip.Children.Add(_thumb);
         _strip.Children.Add(_tabs);

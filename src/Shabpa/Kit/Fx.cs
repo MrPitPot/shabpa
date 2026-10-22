@@ -180,6 +180,13 @@ public sealed class Shadow : FrameworkElement
     public int Layers { get; set; } = 9;
     public bool Knockout { get; set; } = true;
 
+    /// <summary>Binds the shadow colour to a theme colour resource, so it follows a live theme change.</summary>
+    public static Shadow Themed(Shadow shadow, string colorKey) {
+        try { shadow.SetResourceReference(ColorProperty, colorKey); }
+        catch (InvalidOperationException) { } // the application belongs to another thread (tests): keep the default colour
+        return shadow;
+    }
+
     protected override Size MeasureOverride(Size availableSize) => new(0, 0);
 
     private static readonly Dictionary<(Color, int), Brush> Cache = [];
