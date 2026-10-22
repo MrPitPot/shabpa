@@ -100,10 +100,19 @@ public sealed class DnsPage : PageBase
 
     private bool _applying;
 
+    /// <summary>Where the adapter list comes from (tests replace it by something slow).</summary>
+    internal Func<List<DnsAdapter>> AdapterSource { get; set; } = DnsConfig.Adapters;
+
+    private Cached<List<DnsAdapter>>? _adapterCache;
+
+    /// <summary>The adapter list as last read. Reading it asks Windows about every network card, which can take seconds with a
+    /// misbehaving VPN or virtual driver, so a page refresh never waits for it (and never pumps messages while waiting: that nests
+    /// one message loop on top of the page switch that called it, and a nested loop cannot return before the loop above it).
+    /// The first call answers with an empty list; when the read ends the page refreshes itself.</summary>
     private List<DnsAdapter> AdaptersSafe()
     {
-        try { return Offload.KeepResponsive(DnsConfig.Adapters); }
-        catch (OperationCanceledException) { return _adapters; }
+        _adapterCache ??= new Cached<List<DnsAdapter>>(AdapterSource, TimeSpan.FromSeconds(4), []);
+        return _adapterCache.Get(_ => Dispatcher.BeginInvoke(Refresh));
     }
 
     private DnsAdapter? Adapter => _adapters.FirstOrDefault(a => a.Id == _adapterId);
@@ -544,11 +553,13 @@ public sealed class DnsPage : PageBase
                 "readback" => L.T("ثبت شد ولی ویندوز همون مقدار رو برنگردوند؛ دوباره امتحان کن.", "It was set but Windows did not report the same value; try again."),
                 _ => error,
             };
+            _adapterCache?.Invalidate();
             Refresh();
             return false;
         }
         _status.Foreground = Res("Green");
         StatusText = L.T($"ثبت شد و از ویندوز تایید گرفت: {what}", $"Set and confirmed by Windows: {what}");
+        _adapterCache?.Invalidate();
         Refresh();
         return true;
     }

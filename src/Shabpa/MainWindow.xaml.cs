@@ -76,7 +76,7 @@ public partial class MainWindow : Window
         // Nobody sees a hidden window, so it is not redrawn every second; showing it again refreshes everything.
         hub.OpenPage += Navigate;
         hub.Changed += OnHubChanged;
-        hub.Tick += s => { if (!Shown || _inTick) return; _inTick = true; try { _current?.OnTick(s); UpdateSide(); } finally { _inTick = false; } };
+        hub.Tick += s => { if (!Shown || _inTick) return; _inTick = true; try { StackGauge.Sample("hub.tick"); _current?.OnTick(s); UpdateSide(); } finally { _inTick = false; } };
         hub.Second += () => { if (Shown) { _current?.OnSecond(); UpdateSide(); } };
         hub.BirthdayChanged += OnBirthdayChanged;
         hub.BirthdayGreet += () => ShowBirthdayGreeting();
@@ -277,6 +277,7 @@ public partial class MainWindow : Window
             for (var round = 0; round < 3; round++)
             {
                 _refreshAgain = false;
+                StackGauge.Sample("hub.changed");
                 _current?.Refresh();
                 UpdateSide();
                 if (!_refreshAgain) break;
@@ -349,10 +350,12 @@ public partial class MainWindow : Window
     {
         var previous = _current;
         _current = page;
+        RunMarker.Note($"page {key}");
         _tour?.PageOpened(key);
         PlacePill(true);
         void Swap()
         {
+            StackGauge.Sample("nav.swap");
             UpdateHeader();
             Host.Content = page;
             Scroller.ScrollToTop();
@@ -362,6 +365,7 @@ public partial class MainWindow : Window
             Motion.Header(HeaderGrid);
             Motion.Enter(key, page, 1);
             _life?.PageChanged();
+            MeasureTree();
             if (Hub.I.Settings.LowMemory)
             {
                 _release.Stop();
@@ -374,6 +378,21 @@ public partial class MainWindow : Window
         if (previous is null || ReferenceEquals(previous, page) || !Motion.Enabled || !IsLoaded || !IsVisible) { _navTicket++; Swap(); return; }
         var ticket = ++_navTicket;
         Motion.Leave(PageStack, () => { if (ticket == _navTicket) Swap(); });
+    }
+
+    private int _treeTicket;
+
+    /// <summary>After the page has settled in, measures the visual tree once and gives it to the run marker (the crash breadcrumb).
+    /// Burst-proof: only the last switch of a quick series measures.</summary>
+    internal void MeasureTree()
+    {
+        var ticket = ++_treeTicket;
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (ticket != _treeTicket) return;
+            var r = VisualStats.Measure(Host);
+            RunMarker.NoteTree(r.Depth, r.Count);
+        }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
     }
 
     private string ActiveKey => _pages.First(p => p.Value.nav.IsChecked == true).Key;

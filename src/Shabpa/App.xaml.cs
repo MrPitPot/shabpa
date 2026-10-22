@@ -485,6 +485,7 @@ public partial class App : Application
 #if DEBUG || SHABPA_TESTHOOKS
             else if (Value(e.Args, "--overlay-stable-test") is { } stableReport) _ = Pages.OverlayStableProbe.Run(stableReport);
 #endif
+            else if (Value(e.Args, "--nav-stress") is { } navReport) _ = Pages.NavStressProbe.Run(_window, navReport, int.TryParse(Value(e.Args, "--rounds"), out var navRounds) ? navRounds : 1000);
             else if (Value(e.Args, "--tick-test") is { } tickReport) _ = Pages.TickProbe.Run(_window, tickReport, shots, Save);
             else if (Value(e.Args, "--motion-audit") is { } auditReport) _ = Pages.MotionAudit.Run(_window, auditReport, shots, Save);
             else if (!args.Contains("--interactive")) _ = CaptureAll(shots, Value(e.Args, "--only"));
