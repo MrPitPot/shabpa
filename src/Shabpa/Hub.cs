@@ -1863,6 +1863,12 @@ public sealed class Hub
             new FocusSession { Start = now.Date.AddHours(10), Minutes = 18, Completed = false },
         ]);
         Settings.WeatherCity = new WeatherCity { Name = "تهران", Region = "استان تهران", Country = "ایران", Latitude = 35.69, Longitude = 51.42 };
+        Settings.WeatherFavorites =
+        [
+            new WeatherCity { Name = L.T("اصفهان", "Isfahan"), Region = L.T("استان اصفهان", "Isfahan"), Country = L.T("ایران", "Iran"), Latitude = 32.66, Longitude = 51.68 },
+            new WeatherCity { Name = L.T("شیراز", "Shiraz"), Region = L.T("استان فارس", "Fars"), Country = L.T("ایران", "Iran"), Latitude = 29.59, Longitude = 52.58 },
+            new WeatherCity { Name = L.T("تبریز", "Tabriz"), Region = L.T("آذربایجان شرقی", "East Azerbaijan"), Country = L.T("ایران", "Iran"), Latitude = 38.08, Longitude = 46.29 },
+        ];
         State.DownloadPlans =
         [
             new DownloadPlan
