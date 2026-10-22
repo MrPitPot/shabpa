@@ -46,7 +46,7 @@ public sealed class AssistantWindow : Window
         ShowInTaskbar = false;
         Topmost = true;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        Background = Res("Bg");
+        this.SetResourceReference(BackgroundProperty, "Bg");
         FontFamily = (FontFamily)Application.Current.Resources["Ui"];
         TextOptions.SetTextFormattingMode(this, TextFormattingMode.Ideal);
         UseLayoutRounding = true;
@@ -64,7 +64,7 @@ public sealed class AssistantWindow : Window
         DockPanel.SetDock(_owl, Dock.Left);
         header.Children.Add(_owl);
         var titles = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        titles.Children.Add(new TextBlock { Text = L.T("چی کار کنم؟", "What should I do?"), FontSize = 19, FontWeight = FontWeights.Bold, Foreground = Res("Text") });
+        titles.Children.Add(Themed(new TextBlock { Text = L.T("چی کار کنم؟", "What should I do?"), FontSize = 19, FontWeight = FontWeights.Bold }, "Text"));
         _hint.Style = (Style)Application.Current.Resources["Tip"];
         titles.Children.Add(_hint);
         header.Children.Add(titles);
@@ -76,12 +76,17 @@ public sealed class AssistantWindow : Window
 
         var sheet = new Kit.GlassCard
         {
-            Background = Res("FlyoutFill"), CornerRadius = new CornerRadius(22), Padding = new Thickness(24, 22, 24, 22),
+            CornerRadius = new CornerRadius(22), Padding = new Thickness(24, 22, 24, 22),
             Margin = new Thickness(18), Child = panel,
         };
+        sheet.SetResourceReference(Control.BackgroundProperty, "FlyoutFill");
+        var wall = new Border();
+        wall.SetResourceReference(Border.BackgroundProperty, "Wallpaper");
+        var veil = new Border { Opacity = 0.45 };
+        veil.SetResourceReference(Border.BackgroundProperty, "Bg");
         var root = new Grid();
-        root.Children.Add(new Border { Background = Res("Wallpaper") });
-        root.Children.Add(new Border { Background = Res("Bg"), Opacity = 0.45 });
+        root.Children.Add(wall);
+        root.Children.Add(veil);
         root.Children.Add(sheet);
         Content = root;
 
@@ -90,12 +95,27 @@ public sealed class AssistantWindow : Window
         Idle();
     }
 
-    private static Brush Res(string key) => (Brush)Application.Current.Resources[key];
+    private static readonly Dictionary<string, ImageSource?> OwlCache = [];
 
     private void Owl(string mood)
     {
-        try { _owl.Source = new BitmapImage(new Uri($"pack://application:,,,/Assets/bidar/{mood}.png")); }
-        catch { _owl.Source = null; } // the box works without the picture
+        if (!OwlCache.TryGetValue(mood, out var img))
+        {
+            try
+            {
+                var b = new BitmapImage();
+                b.BeginInit();
+                b.UriSource = new Uri($"pack://application:,,,/Assets/bidar/{mood}.png");
+                b.DecodePixelWidth = 128; // shown at 64 DIP: keep the decoded picture small
+                b.CacheOption = BitmapCacheOption.OnLoad;
+                b.EndInit();
+                b.Freeze();
+                img = b;
+            }
+            catch { img = null; } // the box works without the picture
+            OwlCache[mood] = img;
+        }
+        _owl.Source = img;
     }
 
     private void Idle()
@@ -106,11 +126,17 @@ public sealed class AssistantWindow : Window
         _result.Children.Clear();
     }
 
-    private TextBlock Line(string text, string brush = "Text", double size = 14, FontWeight? weight = null) => new()
+    private TextBlock Line(string text, string brush = "Text", double size = 14, FontWeight? weight = null) => Themed(new TextBlock()
     {
-        Text = text, TextWrapping = TextWrapping.Wrap, Foreground = Res(brush), FontSize = size, FontWeight = weight ?? FontWeights.Normal,
+        Text = text, TextWrapping = TextWrapping.Wrap, FontSize = size, FontWeight = weight ?? FontWeights.Normal,
         LineHeight = 24, LineStackingStrategy = LineStackingStrategy.BlockLineHeight, Margin = new Thickness(0, 4, 0, 4),
-    };
+    }, brush);
+
+    private TextBlock Themed(TextBlock t, string brush)
+    {
+        t.SetResourceReference(TextBlock.ForegroundProperty, brush); // follows a theme change while the box is open
+        return t;
+    }
 
     private Button Btn(string text, string style, Action click)
     {
@@ -157,9 +183,10 @@ public sealed class AssistantWindow : Window
         var danger = command.Intent == CommandIntent.Power && command.Action is not PowerAction.Lock;
         var box = new Border
         {
-            Background = Res(danger ? "HueESoft" : "HueASoft"), CornerRadius = new CornerRadius(14), Padding = new Thickness(16, 12, 16, 12),
+            CornerRadius = new CornerRadius(14), Padding = new Thickness(16, 12, 16, 12),
             Child = Line(command.Summary(now), danger ? "Red" : "Accent", 14.5, FontWeights.SemiBold),
         };
+        box.SetResourceReference(Border.BackgroundProperty, danger ? "HueESoft" : "HueASoft");
         _result.Children.Add(box);
         if (command.Defaulted)
             _result.Children.Add(Line(L.T("ساعت دقیق رو نگفتی؛ این ساعت رو گذاشتم. اگه درست نیست، دقیق‌ترش رو بنویس.", "You did not give an exact time, so I picked this one. If it is wrong, type it more exactly."), "Muted", 12.5));

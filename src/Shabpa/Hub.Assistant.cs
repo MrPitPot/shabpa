@@ -135,12 +135,20 @@ public sealed partial class Hub
     {
         var now = DateTime.Now;
         var result = CommandParser.Parse(text, now);
+        // a guessed time (the person gave no clock) never runs unseen: there is no card to confirm it on here
+        if (result is { Status: CommandStatus.Ready, Command: { Defaulted: true } guessed })
+            return Reply(false, L.T("ساعت دقیق رو ننوشتی. دقیق بنویس، مثلاً «ساعت ۹ صبح»؛ چیزی اجرا نشد.", "You did not give an exact time. Write it exactly, e.g. “at 9am”; nothing was run.")
+                + Environment.NewLine + guessed.Summary(now));
         if (result is { Status: CommandStatus.Ready, Command: { } command })
         {
             if (command.ToBotRequest(now) is { } request)
             {
                 using var doc = System.Text.Json.JsonDocument.Parse(request.Args);
-                return ExecuteRemote(request.Type, doc.RootElement.Clone());
+                var reply = ExecuteRemote(request.Type, doc.RootElement.Clone());
+                // say the exact time that was understood, so a misreading is seen at once
+                return reply.Ok && command.Intent == CommandIntent.Power && command.At is not null
+                    ? new RemoteReply(true, reply.Fa + Environment.NewLine + command.Summary(now), reply.En + Environment.NewLine + command.Summary(now))
+                    : reply;
             }
             return RunAssistant(command, "bot");
         }
