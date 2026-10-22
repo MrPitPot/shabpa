@@ -20,7 +20,9 @@ public sealed record UpdateCheckResult(UpdateManifest? Manifest, UpdateSource? S
 /// (tests pass a fake handler), nothing here touches the UI thread.</summary>
 public sealed class UpdateSources(HttpClient http, string publicKey, bool allowLocal = false)
 {
-    public const string GitHubId = "github", SiteId = "shabpa.ir", DomesticId = "dl.shabpa.ir", CustomId = "custom", LegacyId = "github-api";
+    public const string GitHubId = "github", SiteId = "shabpa.ir", DomesticId = "dl.shabpa.ir", ArvanId = "arvan", CustomId = "custom", LegacyId = "github-api";
+    /// <summary>The public ArvanCloud storage box (Iran, Tehran) that serves /update/ when the international internet is cut.</summary>
+    public const string ArvanBase = "https://shabpa-dl.s3.ir-central1.arvanstorage.ir/update/";
     public const string LegacyApi = "https://api.github.com/repos/" + Updater.DefaultFeed + "/releases/latest";
 
     /// <summary>Short timeout for the manifest of each source (so a dead one costs seconds, not minutes).</summary>
@@ -33,6 +35,7 @@ public sealed class UpdateSources(HttpClient http, string publicKey, bool allowL
         {
             new(GitHubId, "GitHub", "https://github.com/" + Updater.DefaultFeed + "/releases/latest/download/latest.json"),
             new(SiteId, "shabpa.ir", "https://shabpa.ir/update/latest.json"),
+            new(ArvanId, "ArvanCloud", ArvanBase + "latest.json"),
             new(DomesticId, "dl.shabpa.ir", "https://dl.shabpa.ir/update/latest.json"),
         };
         if (NormalizeMirror(extraMirror, allowLocal) is { } custom) list.Add(new UpdateSource(CustomId, custom, custom));

@@ -234,7 +234,7 @@ public sealed class UpdateMirrorTests : IDisposable
     public void Sources_are_ordered_github_site_domestic_custom_then_the_legacy_api()
     {
         var list = UpdateSources.Build("https://mirror.example.ir/shabpa", "");
-        Assert.Equal(["github", "shabpa.ir", "dl.shabpa.ir", "custom", "github-api"], list.Select(s => s.Id));
+        Assert.Equal(["github", "shabpa.ir", "arvan", "dl.shabpa.ir", "custom", "github-api"], list.Select(s => s.Id));
         Assert.Equal("https://mirror.example.ir/shabpa/latest.json", list[3].ManifestUrl);
         Assert.True(list[^1].Legacy);
     }
