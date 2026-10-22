@@ -44,7 +44,6 @@ public sealed class WeatherPage : PageBase
     private readonly DispatcherTimer _debounce = new() { Interval = TimeSpan.FromMilliseconds(450) };
     private CancellationTokenSource? _searchCts;
     private WeatherReport? _report;
-    private bool _loading;
     private string? _error;
     private DateTime _lastFetch = DateTime.MinValue;
     private DateTime _lastTick = DateTime.MinValue;

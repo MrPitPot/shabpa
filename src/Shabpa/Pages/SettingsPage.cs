@@ -32,6 +32,9 @@ public sealed class SettingsPage : PageBase
     private readonly TextBlock PowerHint = new() { Style = St("Body"), Margin = new Thickness(0, 4, 0, 12) };
     private readonly TextBox GpuMaxBox = new(), GpuIdleBox = new(), BaseBox = new(), CpuMaxBox = new();
     private readonly StackPanel CpuMaxPanel = new() { Margin = new Thickness(6) };
+    private readonly TextBlock PowerInfo = new(), PowerDetails = new();
+    private readonly Button RedetectButton = new(), DetailsButton = new();
+    private readonly List<(PowerField Field, TextBox Box, Border Badge, TextBlock BadgeText, Button Reset)> _powerRows = [];
 
     // recorders, backup, notices
     private readonly TextBox RecorderBox = new();
@@ -173,22 +176,43 @@ public sealed class SettingsPage : PageBase
         var (power, powerBody) = Card(L.T("تخمین مصرف برق", "Power estimate"));
         powerBody.Children.Add(PowerHint);
         var fields = new UniformGrid { Columns = 2, Margin = new Thickness(-6, 0, -6, 0) };
-        fields.Children.Add(Field(L.T("بیشترین توان گرافیک (وات)", "GPU maximum (W)"), GpuMaxBox));
-        fields.Children.Add(Field(L.T("توان گرافیک در بیکاری", "GPU when idle (W)"), GpuIdleBox));
-        fields.Children.Add(Field(L.T("بقیه‌ی قطعات (وات)", "Everything else (W)"), BaseBox));
-        CpuMaxPanel.Children.Add(K.Text(L.T("بیشترین توان پردازنده", "CPU maximum (W)"), "Label"));
-        ((TextBlock)CpuMaxPanel.Children[0]).Margin = new Thickness(0, 0, 0, 6);
-        StyleNumberBox(CpuMaxBox);
-        CpuMaxPanel.Children.Add(CpuMaxBox);
+        fields.Children.Add(PowerRowFor(PowerField.GpuMax, L.T("بیشترین توان گرافیک (وات)", "GPU maximum (W)"), GpuMaxBox));
+        fields.Children.Add(PowerRowFor(PowerField.GpuIdle, L.T("توان گرافیک در بیکاری", "GPU when idle (W)"), GpuIdleBox));
+        fields.Children.Add(PowerRowFor(PowerField.Base, L.T("بقیه‌ی قطعات (وات)", "Everything else (W)"), BaseBox));
+        CpuMaxPanel.Margin = new Thickness(0);
+        CpuMaxPanel.Children.Add(PowerRowFor(PowerField.CpuMax, L.T("بیشترین توان پردازنده", "CPU maximum (W)"), CpuMaxBox));
         fields.Children.Add(CpuMaxPanel);
         powerBody.Children.Add(fields);
-        var savePower = new Button { Style = St("BtnPrimary"), Content = L.T("ذخیره", "Save"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 14, 0, 0), Padding = new Thickness(26, 9, 26, 9) };
+        PowerInfo.Style = St("Label");
+        PowerInfo.TextWrapping = TextWrapping.Wrap;
+        PowerInfo.Margin = new Thickness(0, 8, 0, 0);
+        powerBody.Children.Add(PowerInfo);
+        PowerDetails.Style = St("Label");
+        PowerDetails.TextWrapping = TextWrapping.Wrap;
+        PowerDetails.Margin = new Thickness(0, 6, 0, 0);
+        PowerDetails.Visibility = Visibility.Collapsed;
+        powerBody.Children.Add(PowerDetails);
+        var buttons = new WrapPanel { Margin = new Thickness(0, 14, 0, 0) };
+        var savePower = new Button { Style = St("BtnPrimary"), Content = L.T("ذخیره", "Save"), Padding = new Thickness(26, 9, 26, 9), Margin = new Thickness(0, 0, 8, 0) };
         savePower.Click += OnSavePower;
-        powerBody.Children.Add(savePower);
-        GpuMaxBox.Text = s.GpuMaxWatts.ToString("0");
-        GpuIdleBox.Text = s.GpuIdleWatts.ToString("0");
-        BaseBox.Text = s.BaseWatts.ToString("0");
-        CpuMaxBox.Text = s.CpuMaxWatts.ToString("0");
+        RedetectButton.Style = St("Btn");
+        RedetectButton.Content = L.T("تشخیص دوباره", "Re-detect");
+        RedetectButton.ToolTip = L.T("سخت‌افزار این سیستم دوباره خونده می‌شه؛ فقط عددهایی که دستی عوض نکردی به‌روز می‌شن.", "Reads this PC's hardware again; only figures you have not edited by hand are updated.");
+        RedetectButton.Margin = new Thickness(0, 0, 8, 0);
+        RedetectButton.Click += OnRedetectPower;
+        DetailsButton.Style = St("Btn");
+        DetailsButton.Content = L.T("ریز محاسبه", "Breakdown");
+        DetailsButton.Click += (_, _) =>
+        {
+            PowerDetails.Visibility = PowerDetails.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+            Motion.Pop(PowerDetails);
+        };
+        buttons.Children.Add(savePower);
+        buttons.Children.Add(RedetectButton);
+        buttons.Children.Add(DetailsButton);
+        powerBody.Children.Add(buttons);
+        While<Action>(h => Hub.PowerChanged += h, h => Hub.PowerChanged -= h, RefreshPower);
+        RefreshPower();
         RecorderBox.Text = s.RecorderProcesses;
         Put(power, 1, 1);
 
@@ -502,20 +526,125 @@ public sealed class SettingsPage : PageBase
         });
     }
 
+    private StackPanel PowerRowFor(PowerField field, string label, TextBox box)
+    {
+        var panel = new StackPanel { Margin = new Thickness(6) };
+        var head = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
+        var badgeText = new TextBlock { FontSize = 10.5, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+        var badge = new Border { CornerRadius = new CornerRadius(8), Padding = new Thickness(7, 1, 7, 2), Child = badgeText, VerticalAlignment = VerticalAlignment.Center, Visibility = Visibility.Collapsed };
+        DockPanel.SetDock(badge, Dock.Right);
+        head.Children.Add(badge);
+        head.Children.Add(new TextBlock { Text = label, Style = St("Label"), TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center });
+        panel.Children.Add(head);
+        StyleNumberBox(box);
+        panel.Children.Add(box);
+        var reset = new Button { Style = St("Btn"), Content = L.T("برگردون به تشخیص‌داده‌شده", "Reset to detected"), FontSize = 11.5, Margin = new Thickness(0, 6, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, Visibility = Visibility.Hidden };
+        reset.Click += (_, _) =>
+        {
+            PowerModel.ResetToDetected(Hub.Settings, field);
+            Hub.Store.Save();
+            RefreshPower();
+            Motion.Pop(box);
+        };
+        panel.Children.Add(reset);
+        _powerRows.Add((field, box, badge, badgeText, reset));
+        return panel;
+    }
+
+    private static string PartLabel(string key) => key switch
+    {
+        "gpu" => L.T("کارت گرافیک", "Graphics card"),
+        "cpu" => L.T("پردازنده", "Processor"),
+        "board" => L.T("مادربرد و جانبی‌ها", "Board and accessories"),
+        "ram" => L.T("رم", "Memory"),
+        "ssd" => L.T("حافظه SSD", "SSD drives"),
+        "hdd" => L.T("هارد دیسک", "Hard drives"),
+        "fans" => L.T("فن‌ها", "Fans"),
+        "display" => L.T("نمایشگر لپ‌تاپ", "Laptop screen"),
+        "psu" => L.T("اتلاف منبع تغذیه", "Power supply loss"),
+        _ => key,
+    };
+
+    private static string SourceLabel(PowerSource s) => s switch
+    {
+        PowerSource.Sensor => L.T("سنسور", "sensor"),
+        PowerSource.Table => L.T("جدول مدل", "model table"),
+        _ => L.T("تخمین کلی", "rule of thumb"),
+    };
+
+    /// <summary>Shows the stored figures, a "Detected / Learned / Edited" badge per field and the breakdown of the estimate.</summary>
+    private void RefreshPower()
+    {
+        var s = Hub.Settings;
+        foreach (var (field, box, badge, badgeText, reset) in _powerRows)
+        {
+            if (!box.IsKeyboardFocused) box.Text = PowerModel.Current(s, field).ToString("0");
+            var manual = PowerModel.IsManual(s, field);
+            var detected = PowerModel.Detected(s, field) > 0;
+            badge.Visibility = manual || detected ? Visibility.Visible : Visibility.Collapsed;
+            if (manual)
+            {
+                badgeText.Text = L.T("دستی", "Edited");
+                badge.Background = Res("AccentSoft");
+                badgeText.Foreground = Res("Accent");
+            }
+            else
+            {
+                badgeText.Text = PowerModel.IsLearned(s, field) ? L.T("آموخته‌شده", "Learned") : L.T("تشخیص‌داده‌شده", "Detected");
+                badge.Background = Res("GreenSoft");
+                badgeText.Foreground = Res("Green");
+            }
+            reset.Visibility = manual && detected ? Visibility.Visible : Visibility.Hidden;
+            if (detected) reset.ToolTip = L.T($"مقدار تشخیص‌داده‌شده: {Fa.N(PowerModel.Detected(s, field), 0)} وات", $"Detected value: {PowerModel.Detected(s, field):0} W");
+        }
+        var p = s.Power;
+        if (Hub.PowerDetecting) PowerInfo.Text = L.T("در حال خواندن سخت‌افزار…", "Reading the hardware…");
+        else if (p.DetectedAt.Length == 0) PowerInfo.Text = L.T("هنوز سخت‌افزار تشخیص داده نشده؛ «تشخیص دوباره» رو بزن.", "The hardware has not been detected yet; press Re-detect.");
+        else
+        {
+            var confidence = Enum.TryParse<PowerConfidence>(p.Confidence, out var c) ? c : PowerConfidence.Low;
+            var word = confidence switch
+            {
+                PowerConfidence.High => L.T("بالا", "high"),
+                PowerConfidence.Medium => L.T("متوسط", "medium"),
+                _ => L.T("کم", "low"),
+            };
+            PowerInfo.Text = L.T($"اطمینان تخمین: {word} · آخرین تشخیص {p.DetectedAt}. هر چی بازی کنی، عددها از روی سنسور واقعی دقیق‌تر می‌شن.",
+                $"Estimate confidence: {word} · last detected {p.DetectedAt}. The more you play, the more the real sensor readings refine the figures.");
+        }
+        PowerDetails.Text = string.Join('\n', p.Parts.Select(x =>
+            $"• {PartLabel(x.Key)}: {x.Watts:0.#} W ({SourceLabel(x.Source)}){(x.Detail.Length > 0 ? " · " + x.Detail : "")}"));
+        DetailsButton.Visibility = p.Parts.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        RedetectButton.IsEnabled = !Hub.PowerDetecting;
+    }
+
+    private async void OnRedetectPower(object sender, RoutedEventArgs e)
+    {
+        RedetectButton.IsEnabled = false;
+        RedetectButton.Content = L.T("در حال تشخیص…", "Detecting…");
+        PowerInfo.Text = L.T("در حال خواندن سخت‌افزار…", "Reading the hardware…");
+        try { await Hub.DetectPowerAsync(force: true); }
+        finally
+        {
+            RedetectButton.Content = L.T("تشخیص دوباره", "Re-detect");
+            RefreshPower();
+        }
+    }
+
     private void OnSavePower(object sender, RoutedEventArgs e)
     {
         var s = Hub.Settings;
-        s.GpuMaxWatts = Number(GpuMaxBox, 0, 1000, s.GpuMaxWatts);
-        s.GpuIdleWatts = Number(GpuIdleBox, 0, s.GpuMaxWatts, s.GpuIdleWatts);
-        s.BaseWatts = Number(BaseBox, 0, 1000, s.BaseWatts);
-        s.CpuMaxWatts = Number(CpuMaxBox, 0, 1000, s.CpuMaxWatts);
-        GpuMaxBox.Text = s.GpuMaxWatts.ToString("0");
-        GpuIdleBox.Text = s.GpuIdleWatts.ToString("0");
-        BaseBox.Text = s.BaseWatts.ToString("0");
-        CpuMaxBox.Text = s.CpuMaxWatts.ToString("0");
+        // the maximum first: the idle figure is capped by it
+        foreach (var field in new[] { PowerField.GpuMax, PowerField.GpuIdle, PowerField.Base, PowerField.CpuMax })
+        {
+            var box = _powerRows.First(r => r.Field == field).Box;
+            PowerModel.Edit(s, field, Number(box, 0, PowerModel.MaxWatts, PowerModel.Current(s, field)));
+        }
         Hub.Store.Save();
+        foreach (var r in _powerRows) r.Box.Text = PowerModel.Current(s, r.Field).ToString("0");
+        RefreshPower();
         // the four boxes pulse once: the values were taken (and clamped, if they were out of range)
-        foreach (var box in new[] { GpuMaxBox, GpuIdleBox, BaseBox, CpuMaxBox }) Motion.Pop(box);
+        foreach (var box in _powerRows.Select(r => r.Box)) Motion.Pop(box);
     }
 
     private void OnSaveRecorders(object sender, RoutedEventArgs e)
