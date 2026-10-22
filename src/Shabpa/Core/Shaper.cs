@@ -244,6 +244,14 @@ public sealed class Shaper : IDisposable
     /// <summary>Makes the running state match <paramref name="plan"/>: starts, updates or stops shaping.</summary>
     public void Apply(IReadOnlyList<EffectiveLimit> plan)
     {
+        var count = SetRules(plan);
+        if (count == 0) Stop();
+        else if (!_running) Start();
+    }
+
+    /// <summary>Installs the rules and rebuilds the port map (no driver involved); returns how many rules there are.</summary>
+    internal int SetRules(IReadOnlyList<EffectiveLimit> plan)
+    {
         var rules = new Dictionary<string, AppRule>();
         lock (_gate)
         {
@@ -266,11 +274,10 @@ public sealed class Shaper : IDisposable
 
             _rules = rules;
             _lastRefresh = 0;
-            RefreshPorts();
         }
 
-        if (rules.Count == 0) Stop();
-        else if (!_running) Start();
+        RefreshPorts(); // not under the lock: naming every process can take seconds, and the whole PC's traffic waits for the lock
+        return rules.Count;
     }
 
     private void Start()
@@ -414,44 +421,96 @@ public sealed class Shaper : IDisposable
         // must already be limited. Re-reading the table takes a millisecond or two; a short floor keeps a
         // burst of new connections from doing it on every packet.
         if (Stopwatch.GetElapsedTime(_lastRefresh).TotalMilliseconds < 20) return null;
-        RefreshPorts();
+        RefreshPortsQuick();
         if (_ports.TryGetValue(key, out rule)) return rule;
         // Still unknown (a socket that closed already): remember it until the next full rebuild.
         _knownPorts.Add(key);
         return null;
     }
 
-    /// <summary>Must be called under the lock.</summary>
-    private void RefreshPorts()
+    /// <summary>Test seams: the system's port table and the name of a process id.</summary>
+    internal Func<Dictionary<int, int>> ReadTable = PortTable.Read;
+    internal Func<int, string> NameOf = ProcessName;
+    private int _wantNames;
+
+    /// <summary>The port map from the table and the cached names only (cheap; called under the lock from the packet loop).
+    /// A process that is not named yet is picked up by the next full rebuild, which runs within a few milliseconds.</summary>
+    private void RefreshPortsQuick()
     {
         _lastRefresh = Stopwatch.GetTimestamp();
-        if (_rules.Count == 0)
-        {
-            _ports = [];
-            _knownPorts = [];
-            return;
-        }
+        if (_rules.Count == 0) { _ports = []; _knownPorts = []; return; }
         try
         {
-            var table = PortTable.Read();
+            var table = ReadTable();
             var ports = new Dictionary<int, AppRule>();
-            // Names are remembered only for processes still holding a port, so a reused id is re-read.
-            var names = new Dictionary<int, string>();
+            var known = new HashSet<int>();
+            var unnamed = false;
             foreach (var (key, pid) in table)
             {
-                if (!names.TryGetValue(pid, out var name))
-                    names[pid] = name = _names.TryGetValue(pid, out var cached) ? cached : ProcessName(pid);
+                if (!_names.TryGetValue(pid, out var name)) { unnamed = true; continue; }
+                known.Add(key);
                 if (name.Length > 0 && _rules.TryGetValue(name, out var rule)) ports[key] = rule;
             }
-            _names = names;
             _ports = ports;
-            _knownPorts = [.. table.Keys];
+            _knownPorts = known;
+            if (unnamed) Interlocked.Exchange(ref _wantNames, 1);
         }
         catch (Exception ex)
         {
             Log.Write($"port table: {ex.Message}");
         }
     }
+
+    /// <summary>Full rebuild. The slow part (reading the table, naming processes: each lookup can take milliseconds and a busy PC
+    /// has hundreds) runs WITHOUT the lock, because every packet of the PC waits while the lock is held; the result is swapped
+    /// in under the lock afterwards, and dropped if the rules changed in the meantime.</summary>
+    private void RefreshPorts()
+    {
+        Dictionary<string, AppRule> rules;
+        Dictionary<int, string> known;
+        lock (_gate)
+        {
+            _lastRefresh = Stopwatch.GetTimestamp();
+            if (_rules.Count == 0) { _ports = []; _knownPorts = []; return; }
+            rules = _rules;
+            known = _names;
+        }
+        try
+        {
+            var table = ReadTable();
+            var ports = new Dictionary<int, AppRule>();
+            // Names are remembered only for processes still holding a port, so a reused id is re-read.
+            var names = new Dictionary<int, string>();
+            foreach (var (key, pid) in table)
+            {
+                if (!names.TryGetValue(pid, out var name))
+                    names[pid] = name = known.TryGetValue(pid, out var cached) ? cached : NameOf(pid);
+                if (name.Length > 0 && rules.TryGetValue(name, out var rule)) ports[key] = rule;
+            }
+            lock (_gate)
+            {
+                if (!ReferenceEquals(rules, _rules)) return; // newer rules bring their own rebuild
+                _names = names;
+                _ports = ports;
+                _knownPorts = [.. table.Keys];
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"port table: {ex.Message}");
+        }
+    }
+
+    /// <summary>Test aid: true while the packet lock is free (a slow rebuild must not hold it).</summary>
+    internal bool GateFree()
+    {
+        if (!Monitor.TryEnter(_gate)) return false;
+        Monitor.Exit(_gate);
+        return true;
+    }
+
+    /// <summary>Test aid: the port map as it stands.</summary>
+    internal int MappedPorts { get { lock (_gate) return _ports.Count; } }
 
     private static string ProcessName(int pid)
     {
@@ -481,9 +540,9 @@ public sealed class Shaper : IDisposable
                     rule.Down?.Release(now, Inject);
                     rule.Up?.Release(now, Inject);
                 }
-                // Ports are reused by other programs over time; rebuild the map about once a second.
-                if (++ticks % 60 == 0) RefreshPorts();
             }
+            // Ports are reused by other programs over time; rebuild the map about once a second (outside the lock).
+            if (++ticks % 60 == 0 || Interlocked.Exchange(ref _wantNames, 0) == 1) RefreshPorts();
         }
     }
 

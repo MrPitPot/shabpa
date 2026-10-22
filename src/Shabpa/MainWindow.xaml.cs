@@ -49,6 +49,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         FlowDirection = Ui.Flow;
+        if (Application.Current is { } app) MainWindowClaim.Adopt(app, this); // the lookups through Application.MainWindow must find this window
         InitAssistantDock();
         _pages = new Dictionary<string, (RadioButton, Func<PageBase>)>
         {

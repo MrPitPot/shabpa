@@ -91,6 +91,23 @@ internal static class NavStressProbe
             await Task.Delay(2500);
             Say(Metrics(phase + "-settled", total));
         }
+        // the tabs inside a page (live / history, ...): hammered with no pause, on every page that has them
+        if (rounds > 0)
+            foreach (var key in keys)
+            {
+                window.Navigate(key);
+                await Task.Delay(400);
+                if (window.CurrentPageObject is not TabsPage tabsPage) continue;
+                var tabKeys = tabsPage.Keys;
+                var worstBefore = worstEver;
+                for (var i = 0; i < rounds; i++)
+                {
+                    tabsPage.Select(tabKeys[rng.Next(tabKeys.Count)]);
+                    if (i % 3 == 0) await Task.Delay(i % 2 == 0 ? 0 : 5);
+                }
+                await Task.Delay(1500);
+                Say($"tabs {key}: {tabKeys.Count} tabs x {rounds} quick switches, worst gap {worstEver:0} ms (before {worstBefore:0}), {Metrics("tabs", rounds)}");
+            }
         // the sidebar one by one, the way a hand does it, through the radio buttons themselves
         Say($"worst gap over the whole run: {worstEver:0} ms");
         await Task.Delay(400);

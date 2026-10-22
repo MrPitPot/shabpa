@@ -33,7 +33,6 @@ public sealed class PingPage : PageBase
     }
 
     private readonly Dictionary<string, AppRow> _rows = [];
-    private readonly Dictionary<string, ImageSource?> _icons = [];
     private bool _sortByToday;
     private string? _openKey;
     private int _ticks;
@@ -461,11 +460,18 @@ public sealed class PingPage : PageBase
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(22) });
 
         var name = new DockPanel();
-        FrameworkElement icon = IconFor(app.Path) is { } source
-            ? new Image { Source = source, Width = 26, Height = 26, VerticalAlignment = VerticalAlignment.Center, FlowDirection = FlowDirection.LeftToRight }
-            : Badge("net", "Accent", 28);
-        DockPanel.SetDock(icon, Dock.Left);
-        name.Children.Add(icon);
+        // the generic badge first; the real icon replaces it when the (off-thread) read is done
+        var iconHost = new Grid { Width = 28, Height = 28, VerticalAlignment = VerticalAlignment.Center };
+        iconHost.Children.Add(Badge("net", "Accent", 28));
+        void ShowIcon(ImageSource? source)
+        {
+            if (source is null) return;
+            iconHost.Children.Clear();
+            iconHost.Children.Add(new Image { Source = source, Width = 26, Height = 26, VerticalAlignment = VerticalAlignment.Center, FlowDirection = FlowDirection.LeftToRight });
+        }
+        if (AppIcons.Shared.Get(app.Path, ShowIcon, out var known)) ShowIcon(known);
+        DockPanel.SetDock(iconHost, Dock.Left);
+        name.Children.Add(iconHost);
         var title = NetParts.LatinText("", "H2", 13.5);
         title.TextTrimming = TextTrimming.CharacterEllipsis;
         var sub = NetParts.LatinText("", "Label", 11.5);
@@ -651,21 +657,4 @@ public sealed class PingPage : PageBase
         if (_openKey == row.Key) BuildEditor(row);
     }
 
-    private ImageSource? IconFor(string path)
-    {
-        if (path.Length == 0) return null;
-        if (_icons.TryGetValue(path, out var cached)) return cached;
-        ImageSource? source = null;
-        try
-        {
-            using var icon = System.Drawing.Icon.ExtractAssociatedIcon(path);
-            if (icon is not null)
-            {
-                source = Imaging.CreateBitmapSourceFromHIcon(icon.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
-                source.Freeze();
-            }
-        }
-        catch { /* no icon: the generic badge is used */ }
-        return _icons[path] = source;
-    }
 }
