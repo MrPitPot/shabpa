@@ -21,7 +21,7 @@ public partial class SetupWindow : Window
     private readonly bool _uninstall;
     private readonly InstallTarget _target = InstallTarget.Machine;
     private string? _installed;
-    private string _version = "3.10.0";
+    private string _version = "3.11.0";
     private Stage _stage = Stage.Ready;
     private string _error = "";
     private bool _en;

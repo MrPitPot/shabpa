@@ -565,6 +565,7 @@ public sealed class HomePage : PageBase
         if (sample) Push("cpu", s.CpuLoad);
         _cpu.Set(Fa.N(temperature ?? s.CpuLoad, 0), temperature is not null ? "°C" : L.T("٪", "%"), _history["cpu"]);
         _cpu.Value.Foreground = temperature is { } ct ? Tint(ct, 75, 90) : Tint(s.CpuLoad, 75, 92);
+        _cpu.Label.Text = HardwareLabel.Title(L.T("پردازنده", "Processor"), HardwareLabel.Cpu(Telemetry.CpuName()));
         _cpu.ToolTip = Telemetry.CpuName() + (s.CpuMHz is { } mhz ? $" · {mhz / 1000:0.0} GHz" : "") + (temperature is not null ? L.T($" · بار {Fa.N(s.CpuLoad, 0)}٪", $" · load {s.CpuLoad:0}%") : "");
 
         // memory
@@ -589,6 +590,7 @@ public sealed class HomePage : PageBase
             if (sample) Push("gpu", value);
             _gpu.Set(Fa.N(value, 0), g.TempC is not null ? "°C" : L.T("٪", "%"), _history["gpu"]);
             _gpu.Value.Foreground = g.TempC is { } temp ? Tint(temp, 75, 88) : Res("Text");
+            _gpu.Label.Text = HardwareLabel.Title(L.T("کارت گرافیک", "Graphics card"), HardwareLabel.Gpu(g.Name));
             _gpu.ToolTip = CleanGpuName(g.Name) + (g.VramTotalMb is { } vram ? $" · {vram / 1024:0} GB" : "") + (g.TempC is not null && g.LoadPercent is { } l ? L.T($" · بار {Fa.N(l, 0)}٪", $" · load {l:0}%") : "");
         }
 

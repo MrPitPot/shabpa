@@ -10,6 +10,23 @@ a patch release only fixes bugs, a minor release adds a tested batch of features
 - **Command box (assistant, phase 0)** - type a command in Persian or English («یه ساعت و ربع دیگه خاموش کن»، «ساعت ۲ و نیم شب بخوابون»، «وقتی دانلود تموم شد خاموش کن»، "remind me at 5pm to call mom"). It works fully offline with no language model: shutdown, sleep, hibernate, restart, lock, cancel, wake timers, reminders, focus timer, night light, sleep mode and the list of what is scheduled, plus the conditions the rules already have (download or upload done, idle, a program closed, heavy work done). Every command shows a card with the exact time first; anything unclear (2 o'clock morning or afternoon?, a question, «خاموش نکن») offers choices instead and runs nothing. Open it from the tray menu or with Ctrl+Alt+Space (changeable in Settings). Bidar the owl shows what it is doing.
 - **Telegram:** the app understands a new `text` bot command with the same parser, so free text sent to the bot can be routed to it once the bot server forwards it.
 
+## [3.11.0] - 2026-10-22
+
+### Added
+- **Bidar, the night-guard owl** - a small animated owl lives in the corner of every page. Click it to open a speech bubble and type a short Persian or English command (offline, no network, no language model): "shut down at 2 am", "sleep when the download is done", "remind me in half an hour". Every power action still goes through the confirmation card with the exact time, and 12-hour ambiguity asks you to choose. The owl has idle life (blinks, looks around, yawns, naps, flies to another perch), reacts to events and to your clicks, and stays still while you type, during games, when the window is hidden or when animations are off. It can be switched off in Settings, together with its idle life.
+- **Per-PC power estimate** - the power-estimate dialog detects this PC's own numbers (CPU, GPU, RAM, disks, laptop or desktop; NVIDIA power now read through NVML), learns the real GPU peak and idle power over time, and never overwrites values you typed. Fields show Detected / Learned / Edited badges with reset buttons.
+- **Update mirrors that survive a cut internet** - updates are looked up on GitHub, shabpa.ir and an ArvanCloud storage box in Iran, with an extra mirror you can add. The update manifest is signed (ECDSA P-256) and the installer hash is checked, so a hostile mirror cannot push a file. If every source fails, the Updates page offers the download page, "Install from file..." and "Import update bundle...".
+- **Crash tracking** - if Shabpa ends unexpectedly, the next start logs the version, the last page, the last navigation step and the time; Windows shutdown and installer closes are told apart from real crashes. Slow steps (250 ms and up) and long window stalls are logged with evidence.
+
+### Fixed
+- **Overlay:** choosing a corner after dragging the overlay could send it to the opposite side; positions are now reset to clean margins. After placement the overlay no longer moves or changes size when numbers change (fixed-width slots, size measured once).
+- **Security page:** a crash ("already the logical child of another element") when running as administrator.
+- **Freezes:** the startup-entry scan and a sleeping-disk check no longer run on the window's thread; the DNS page no longer starts nested message loops; page exit animations cannot wait forever; refresh errors in one page no longer take the window down.
+- **Pages left listening to app events after they were unloaded** and kept refreshing in the background.
+- **Bot link:** failing connections back off and are logged once per kind; lost game-end messages are queued and retried.
+- **Layouts and sliders:** ping destination box size, Home button spacing, weather city card, and sliders you can press anywhere and drag.
+- **Theme change:** shadows under buttons, tab thumbs and glass cards follow the new theme.
+
 ## [3.10.0] - 2026-10-22
 
 ### Added
