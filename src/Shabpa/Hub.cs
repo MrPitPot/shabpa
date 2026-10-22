@@ -942,7 +942,9 @@ public sealed class Hub
         {
             Store.Save();
             Notify(
-                ended == FocusPhase.Focus ? L.T("تمرکزت تموم شد 🎉", "Focus session done 🎉") : L.T("استراحت تموم شد", "Break is over"),
+                ended == FocusPhase.Focus
+                    ? Friendly.Notice(Settings.Birthday.Name, "تمرکزت تموم شد 🎉", "Focus session done 🎉", "آفرین {name}! تمرکزت تموم شد 🎉", "Nice one, {name}! Focus session done 🎉")
+                    : L.T("استراحت تموم شد", "Break is over"),
                 ended == FocusPhase.Focus
                     ? (Focus.Phase == FocusPhase.LongBreak ? L.T("آفرین! یه استراحت بلند بکن.", "Well done! Take a long break.") : L.T("آفرین! چند دقیقه استراحت کن.", "Well done! Take a short break."))
                     : (Focus.Phase == FocusPhase.Focus ? L.T("وقت دور بعدی تمرکزه.", "Time for the next focus round.") : L.T("هر وقت آماده بودی دوباره شروع کن.", "Start again whenever you are ready.")));
@@ -967,7 +969,7 @@ public sealed class Hub
         // break reminders: only time the person is really at the PC counts
         var active = UserIdle.Since() < TimeSpan.FromMinutes(2);
         if (_breaks.Tick(now, active, Snapshot.GameRunning, c, L.En) is { } nudge)
-            Notify(L.T("وقت یه استراحته", "Break time"), nudge);
+            Notify(Friendly.Notice(Settings.Birthday.Name, "وقت یه استراحته", "Break time", "{name}، وقت یه استراحته", "{name}, time for a break"), nudge);
 
         // sleep mode: volume and screen fade out, then the power action
         if (_sleepStart is { } start)

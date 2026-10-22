@@ -339,7 +339,7 @@ public sealed class HomePage : PageBase
 
     private void UpdateTitles(DateTime now)
     {
-        var greeting = Hub.BirthdayToday ? Birthday.HomeLine(Hub.Settings.Birthday.Name) : Greetings.Pick(now);
+        var greeting = Hub.BirthdayToday ? Birthday.HomeLine(Hub.Settings.Birthday.Name) : Friendly.Greeting(now, Hub.Settings.Birthday.Name) ?? Greetings.Pick(now);
         var date = L.T($"{Fa.DayName(now.DayOfWeek)} {Fa.Date(now)} · ساعت {Fa.Clock(now)}", $"{Fa.DayName(now.DayOfWeek)}, {Fa.Date(now)} · {Fa.Clock(now)}");
         var up = _onSince is { } since ? L.T($" — از آخرین روشن‌شدن {Fa.Duration(now - since)}", $" — up for {Fa.Duration(now - since)}") : "";
         var sub = date + up;
@@ -475,7 +475,7 @@ public sealed class HomePage : PageBase
         {
             _heroDue = null;
             NetFx.Say(_eyebrow, L.T("امشب", "Tonight"), false);
-            NetFx.Say(_heroTitle, L.T("هیچ برنامه‌ای در راه نیست", "Nothing is scheduled"), false);
+            NetFx.Say(_heroTitle, Friendly.Calm(Hub.Settings.Birthday.Name) ?? L.T("هیچ برنامه‌ای در راه نیست", "Nothing is scheduled"), false);
             NetFx.Say(_heroSub, L.T("یک زمان انتخاب کن و تأیید بزن؛ شب‌پا بقیه‌اش رو انجام می‌ده.", "Pick a time and confirm; Shabpa does the rest."), false);
             _clock.Text = "—";
             _clockAt.Text = "";

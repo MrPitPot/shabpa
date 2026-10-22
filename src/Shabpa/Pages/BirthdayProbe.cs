@@ -34,7 +34,31 @@ public static class BirthdayProbe
             hub.Settings.Birthday = new BirthdaySettings { Name = L.En ? "Ali" : "علی", Jalali = !L.En, Month = L.En ? 11 : 8, Day = L.En ? 6 : 15 };
             card.Reload();
             await Task.Delay(400);
-            save(card, Path.Combine(folder, $"settings-filled-{tag}.png"));
+            card.BringIntoView(); await Task.Delay(500); save(window.CaptureRoot, Path.Combine(folder, $"settings-filled-{tag}.png"));
+
+            // the wheels: keyboard, a year, and the day count following the month and year
+            var (dayW, monthW, yearW) = card.Wheels;
+            Say($"wheels: day={dayW.CentreText} month={monthW.CentreText} year={yearW.CentreText} fields={card.Fields}");
+            void Press(WheelColumn w, System.Windows.Input.Key key)
+            {
+                w.Focus();
+                w.RaiseEvent(new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice, PresentationSource.FromVisual(w)!, 0, key) { RoutedEvent = System.Windows.Input.Keyboard.KeyDownEvent });
+            }
+            Press(dayW, System.Windows.Input.Key.Down);
+            Press(dayW, System.Windows.Input.Key.Down);
+            Press(dayW, System.Windows.Input.Key.Up);
+            Say($"after Down,Down,Up on the day wheel: {card.Fields}");
+            yearW.Pick(L.En ? 36 : 15, 0); // some years back
+            monthW.Pick(L.En ? 1 : 11, 0); // Feb / Esfand
+            dayW.Pick(L.En ? 28 : 29, 0);
+            await Task.Delay(300);
+            Say($"Feb/Esfand with a year: days={dayW.Count} {card.Fields}");
+            card.BringIntoView(); await Task.Delay(500); save(window.CaptureRoot, Path.Combine(folder, $"settings-wheel-{tag}.png"));
+            yearW.Pick(0, 0);
+            await Task.Delay(200);
+            Say($"Feb/Esfand without a year: days={dayW.Count} {card.Fields}");
+            card.Reload();
+            await Task.Delay(300);
 
             // the day arrives: motion on, so the circle reveal and the shower really run
             hub.Settings.Animations = true;

@@ -79,7 +79,7 @@ public partial class MainWindow
         ColorEmoji.Fill(title, Birthday.Title(name, null).Replace(" 🎂", ""));
         body.Children.Add(title);
         var wish = new TextBlock { Style = K.Style("Body"), TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 20), Foreground = K.Brush("Muted") };
-        ColorEmoji.Fill(wish, Birthday.Wish());
+        ColorEmoji.Fill(wish, BirthdayWishes.Text(name, Birthday.Now()));
         body.Children.Add(wish);
         var thanks = new Button
         {
