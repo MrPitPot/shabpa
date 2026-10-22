@@ -17,6 +17,8 @@ public sealed record GpuReading
     public double? FanPercent { get; init; }
     public double? FanRpm { get; init; }
     public double? PowerW { get; init; }
+    /// <summary>The card's own power limit from the driver, in watts.</summary>
+    public double? PowerLimitW { get; init; }
     public double? VoltageMv { get; init; }
     public double? LoadPercent { get; init; }
     public double? VramUsedMb { get; init; }
@@ -383,7 +385,7 @@ public sealed class NvidiaGpu : IGpuProvider
     private readonly IntPtr _device;
     private readonly NvmlShutdown _shutdown;
     private readonly NvmlGetTemperature _temperature;
-    private readonly NvmlGetUInt? _fan, _power;
+    private readonly NvmlGetUInt? _fan, _power, _limit;
     private readonly NvmlGetClock _clock;
     private readonly NvmlGetUtilization _utilization;
     private readonly NvmlGetMemory _memory;
@@ -392,7 +394,7 @@ public sealed class NvidiaGpu : IGpuProvider
     public string Vendor => "NVIDIA";
 
     private NvidiaGpu(IntPtr library, IntPtr device, string name, NvmlShutdown shutdown, NvmlGetTemperature temperature, NvmlGetUInt? fan,
-        NvmlGetUInt? power, NvmlGetClock clock, NvmlGetUtilization utilization, NvmlGetMemory memory)
+        NvmlGetUInt? power, NvmlGetUInt? limit, NvmlGetClock clock, NvmlGetUtilization utilization, NvmlGetMemory memory)
     {
         _library = library;
         _device = device;
@@ -401,6 +403,7 @@ public sealed class NvidiaGpu : IGpuProvider
         _temperature = temperature;
         _fan = fan;
         _power = power;
+        _limit = limit;
         _clock = clock;
         _utilization = utilization;
         _memory = memory;
@@ -437,8 +440,8 @@ public sealed class NvidiaGpu : IGpuProvider
                 {
                     Marshal.WriteInt64(buffer, 0, 0);
                     var label = name(device, buffer, 128) == 0 ? Marshal.PtrToStringAnsi(buffer) ?? "NVIDIA GPU" : "NVIDIA GPU";
-                    return new NvidiaGpu(library, device, label, shutdown, temperature, Export<NvmlGetUInt>(library, "nvmlDeviceGetFanSpeed"), null,
-                        clock, utilization, memory);
+                    return new NvidiaGpu(library, device, label, shutdown, temperature, Export<NvmlGetUInt>(library, "nvmlDeviceGetFanSpeed"),
+                        Export<NvmlGetUInt>(library, "nvmlDeviceGetPowerUsage"), Export<NvmlGetUInt>(library, "nvmlDeviceGetPowerManagementLimit"), clock, utilization, memory);
                 }
                 finally
                 {
@@ -460,6 +463,8 @@ public sealed class NvidiaGpu : IGpuProvider
         double? core = _clock(_device, 0, out var c) == 0 ? c : null;
         double? mem = _clock(_device, 2, out var m) == 0 ? m : null;
         double? load = _utilization(_device, out var u) == 0 ? u.Gpu : null;
+        double? watts = _power is not null && _power(_device, out var mw) == 0 && mw is > 0 and < 2_000_000 ? mw / 1000.0 : null;
+        double? limit = _limit is not null && _limit(_device, out var lmw) == 0 && lmw is > 0 and < 2_000_000 ? lmw / 1000.0 : null;
         double? used = null, total = null;
         if (_memory(_device, out var info) == 0)
         {
@@ -468,7 +473,7 @@ public sealed class NvidiaGpu : IGpuProvider
         }
         return new GpuReading
         {
-            Name = Name, Vendor = Vendor, TempC = temp, CoreMHz = core, MemMHz = mem, FanPercent = fan, LoadPercent = load,
+            Name = Name, Vendor = Vendor, TempC = temp, CoreMHz = core, MemMHz = mem, FanPercent = fan, LoadPercent = load, PowerW = watts, PowerLimitW = limit,
             VramUsedMb = used, VramTotalMb = total,
         };
     }

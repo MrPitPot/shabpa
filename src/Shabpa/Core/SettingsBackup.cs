@@ -104,6 +104,12 @@ public static class SettingsBackup
         incoming.DnsNotes = (incoming.DnsNotes ?? []).Where(kv => !string.IsNullOrWhiteSpace(kv.Key) && kv.Value is not null).Take(200)
             .ToDictionary(kv => kv.Key, kv => kv.Value.Length > 140 ? kv.Value[..140] : kv.Value);
         WeatherCities.Sanitize(incoming);
+        // the detected figures and what was learned belong to the PC the file came from: they are measured again here
+        incoming.Power ??= new();
+        incoming.Power.Hardware = "";
+        incoming.Power.Learn = new();
+        PowerModel.Sanitize(incoming);
+        PowerModel.Migrate(incoming);
         state.Settings = incoming;
 
         var profiles = 0;

@@ -102,12 +102,66 @@ public sealed partial class Hub
         Sensors.InteractiveCheck = () => WindowShown || Telemetry.HasDemand;
         GameLog = new GameLogStore(Store.Folder, readOnly: store.ReadOnly || demo);
         Updater = new Updater(() => Settings);
+        PowerModel.Sanitize(Settings);
+        PowerModel.Migrate(Settings);
         if (Settings.Support.DeviceId.Length != 32) Settings.Support.DeviceId = Guid.NewGuid().ToString("N");
         Support = new SupportClient(() => Settings.Support, () => Settings.ProxyUrl);
         Bot = new BotLink(() => Settings, Store.Save, new BotHost
         {
             Execute = (type, args) => OnUi(() => ExecuteRemote(type, args)),
         }, outboxFile: demo ? null : System.IO.Path.Combine(Store.Folder, "bot-outbox.json"));
+    }
+
+    /// <summary>The power figures changed (detected, re-detected, or refined by the sensors); raised on the UI thread.</summary>
+    public event Action? PowerChanged;
+
+    private int _detecting;
+
+    /// <summary>True while a hardware detection runs.</summary>
+    public bool PowerDetecting => Volatile.Read(ref _detecting) != 0;
+
+    private void StartPower()
+    {
+        if (Demo || Store.ReadOnly) return;
+        Telemetry.Updated += OnPowerSample;
+        _ = DetectPowerAsync(force: false);
+    }
+
+    private void OnPowerSample(TelemetrySample t)
+    {
+        if (t.Gpu.PowerW is not { } watts || t.Gpu.LoadPercent is not { } load) return;
+        var dispatcher = Application.Current?.Dispatcher;
+        dispatcher?.BeginInvoke(() =>
+        {
+            if (!PowerModel.Observe(Settings, watts, load, DateTime.Now)) return;
+            Store.Save();
+            PowerChanged?.Invoke();
+        });
+    }
+
+    /// <summary>Reads the hardware on a worker thread and applies it to the fields that were not edited by hand. Without
+    /// <paramref name="force"/> nothing changes when the hardware is the same as last time. Must be called on the UI thread.</summary>
+    public async Task<bool> DetectPowerAsync(bool force)
+    {
+        if (Interlocked.Exchange(ref _detecting, 1) != 0) return false;
+        try
+        {
+            var result = await PowerDetect.EstimateAsync();
+            if (!force && !PowerModel.NeedsDetection(Settings, result.HardwareKey)) return false;
+            PowerModel.ApplyDetected(Settings, result, DateTime.Now);
+            Store.Save();
+            PowerChanged?.Invoke();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"power detect failed: {ex.Message}");
+            return false;
+        }
+        finally
+        {
+            Volatile.Write(ref _detecting, 0);
+        }
     }
 
     private static T OnUi<T>(Func<T> f) => Application.Current.Dispatcher.Invoke(f);
@@ -133,6 +187,7 @@ public sealed partial class Hub
     public void Start()
     {
         PrimeBirthday();
+        StartPower();
         StartVoiceIfWanted();
         if (State.ActiveRule is { } rule) Engine.Activate(rule);
 
@@ -1847,6 +1902,12 @@ public sealed partial class Hub
         var now = DateTime.Now;
         var random = new Random(7);
         SeedGameLog(now);
+        // a made-up PC, so the power card shows its "Detected" badges in screenshots
+        PowerModel.ApplyDetected(Settings, PowerEstimator.Estimate(new HardwareSnapshot
+        {
+            CpuName = "AMD Ryzen 7 7800X3D", GpuName = "NVIDIA GeForce RTX 4070", GpuLimitWatts = 200, RamSticks = 2, RamType = "DDR5", Ssd = 2, Hdd = 1, Fans = 4, Monitors = 2,
+        }), now);
+        PowerModel.Edit(Settings, PowerField.Base, 70);
         Settings.Launchers =
         [
             new LauncherInfo { Key = "steam", Name = "Steam", ExePath = @"C:\Program Files (x86)\Steam\steam.exe", Process = "steam" },
