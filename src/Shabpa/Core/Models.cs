@@ -124,6 +124,8 @@ public sealed class Settings
     /// <summary>Overrides the project's server address (empty = built-in).</summary>
     public string BotEndpoint { get; set; } = "";
     public string ProxyUrl { get; set; } = "";
+    /// <summary>Optional name and birthday for the birthday greeting. Stored on this PC only, never sent anywhere.</summary>
+    public BirthdaySettings Birthday { get; set; } = new();
     public string PingHost { get; set; } = "8.8.8.8";
     /// <summary>While a game runs, cap the upload of everything else.</summary>
     public bool GuardEnabled { get; set; }

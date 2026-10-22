@@ -115,7 +115,7 @@ public sealed class Tray : IDisposable
     {
         public static D.Color Pick(string key)
         {
-            var (r, g, b) = Ui.Theme.Rgb(key);
+            var (r, g, b) = Ui.BaseTheme.Rgb(key);
             return D.Color.FromArgb(r, g, b);
         }
 

@@ -31,6 +31,16 @@ public sealed record GlassTokens(
     public static GlassTokens Of(Palette p)
     {
         uint Col(string key) => Rgb(p.Colors[key]);
+        if (p.BaseKey is not null && p.Light)
+        {
+            // the temporary birthday look on a light theme: the design's own "white" surfaces with a pink, gold and violet wallpaper
+            return White(p) with
+            {
+                Mica = Argb(0xBD, Col("Bg")), Shadow = 0x47A0408C, ShadowHover = 0x61A0408C, OnInk = Argb(0xFF, Col("Bg")),
+                WallBase = Scale(Col("Bg"), 0.97), Wall1 = 0xFFC4E3, Wall2 = 0xFFE2A8, Wall3 = 0xD9C2FF, Wall4 = 0xFFC0D0,
+                HueA = Argb(0xFF, Col("Accent")), HueD = 0xFFC2185B,
+            };
+        }
         if (p.Key == "night") return Night(p);
         if (p.Key == "white") return White(p);
         var accent = Col("Accent");

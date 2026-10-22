@@ -396,7 +396,10 @@ public partial class App : Application
         // windows are cheap to draw either way.
         if (settings.LowMemory || settings.SoftwareRender) System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
         L.En = (Value(e.Args, "--lang") ?? settings.Language) == "en";
-        Resources.MergedDictionaries.Add(Ui.Resources(Palette.Find(Value(e.Args, "--theme") ?? settings.Theme), settings.LowMemory ? "off" : Value(e.Args, "--glass") ?? settings.Glass, settings.GlassLevel));
+        if (shots is not null && Value(e.Args, "--theme") is { } forced) settings.Theme = Palette.Find(forced).Key; // screenshot runs never save
+        var startTheme = Palette.Find(settings.Theme);
+        if (Birthday.LookFor(settings.Birthday, Birthday.Now())) startTheme = Birthday.Tint(startTheme); // the festive look, for this day only
+        Resources.MergedDictionaries.Add(Ui.Resources(startTheme, settings.LowMemory ? "off" : Value(e.Args, "--glass") ?? settings.Glass, settings.GlassLevel));
         Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/Shabpa;component/Theme.xaml", UriKind.Relative) });
 
         var hub = new Hub(store, dryRun, demo);
@@ -432,6 +435,9 @@ public partial class App : Application
             if (Value(e.Args, "--overlay-gallery") is { } galleryDir) _ = OverlayGallery(galleryDir);
             else if (Value(e.Args, "--theme-reveal-test") is { } revealDir) _ = RevealProbe(revealDir);
             else if (Value(e.Args, "--motion-test") is { } motionReport) _ = MotionProbe(shots, motionReport);
+#if DEBUG || SHABPA_TESTHOOKS
+            else if (Value(e.Args, "--birthday-probe") is { } birthdayDir) _ = Pages.BirthdayProbe.Run(_window, birthdayDir, Save);
+#endif
             else if (Value(e.Args, "--tick-test") is { } tickReport) _ = Pages.TickProbe.Run(_window, tickReport, shots, Save);
             else if (Value(e.Args, "--motion-audit") is { } auditReport) _ = Pages.MotionAudit.Run(_window, auditReport, shots, Save);
             else if (!args.Contains("--interactive")) _ = CaptureAll(shots, Value(e.Args, "--only"));

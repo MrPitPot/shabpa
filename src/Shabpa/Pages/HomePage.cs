@@ -308,7 +308,7 @@ public sealed class HomePage : PageBase
 
     private void UpdateTitles(DateTime now)
     {
-        var greeting = Greetings.Pick(now);
+        var greeting = Hub.BirthdayToday ? Birthday.HomeLine(Hub.Settings.Birthday.Name) : Greetings.Pick(now);
         var date = L.T($"{Fa.DayName(now.DayOfWeek)} {Fa.Date(now)} · ساعت {Fa.Clock(now)}", $"{Fa.DayName(now.DayOfWeek)}, {Fa.Date(now)} · {Fa.Clock(now)}");
         var up = _onSince is { } since ? L.T($" — از آخرین روشن‌شدن {Fa.Duration(now - since)}", $" — up for {Fa.Duration(now - since)}") : "";
         var sub = date + up;

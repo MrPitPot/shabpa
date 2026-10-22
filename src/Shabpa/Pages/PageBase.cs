@@ -109,7 +109,7 @@ public class PageBase : UserControl
 
     /// <summary>Fills a panel with a mutually exclusive choice. Two to four short options become the design's segmented
     /// control (one thumb that springs to the choice); longer or more numerous options become wrapping chips.</summary>
-    protected static void Chips<T>(Panel panel, IEnumerable<(T value, string label)> options, T selected, Action<T> onPick)
+    protected internal static void Chips<T>(Panel panel, IEnumerable<(T value, string label)> options, T selected, Action<T> onPick)
     {
         panel.Children.Clear();
         var list = options.ToList();

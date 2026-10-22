@@ -77,6 +77,9 @@ public partial class MainWindow : Window
         hub.Changed += () => { if (!Shown) return; _current?.Refresh(); UpdateSide(); };
         hub.Tick += s => { if (!Shown) return; _current?.OnTick(s); UpdateSide(); };
         hub.Second += () => { if (Shown) { _current?.OnSecond(); UpdateSide(); } };
+        hub.BirthdayChanged += OnBirthdayChanged;
+        hub.BirthdayGreet += () => ShowBirthdayGreeting();
+        UpdateBirthdayDecor();
         IsVisibleChanged += (_, _) => OnShownChanged();
         StateChanged += (_, _) => OnShownChanged();
         _release.Tick += (_, _) =>

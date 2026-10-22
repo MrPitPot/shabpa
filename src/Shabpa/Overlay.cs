@@ -35,7 +35,7 @@ public static class OverlayRenderer
         switch (look.Key)
         {
             case "theme":
-                var p = Ui.Theme;
+                var p = Ui.BaseTheme;
                 (accent, accent2, text, back) = (Rgb(p, "Accent"), Rgb(p, "Accent2"), Rgb(p, "Text"), Rgb(p, "Panel"));
                 break;
             case "custom":

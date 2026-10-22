@@ -142,6 +142,9 @@ public sealed class SettingsPage : PageBase
             });
         Put(behaviour, 0, 2);
 
+        // ---- name and birthday (optional) -------------------------------------------------------------
+        Put(new BirthdayCard(), 0, 3);
+
         // ---- screen recorders -------------------------------------------------------------------------
         var (recorders, recordersBody) = Card(L.T("برنامه‌های ضبط صفحه", "Screen recorders"),
             L.T("وقتی یکی از این‌ها باز باشه، قانون‌هایی که «موقع ضبط صفحه دست نگه دار» دارن صبر می‌کنن. اسم‌ها رو با ویرگول جدا کن.", "While one of these is running, rules set to hold during screen recording wait. Separate names with commas."));
@@ -296,7 +299,7 @@ public sealed class SettingsPage : PageBase
             var chip = new RadioButton
             {
                 Style = St("Chip"), GroupName = "themes", Content = content, Padding = new Thickness(9, 6, 14, 6),
-                Margin = new Thickness(0, 0, 8, 8), IsChecked = Ui.Theme.Key == key,
+                Margin = new Thickness(0, 0, 8, 8), IsChecked = Ui.BaseTheme.Key == key,
             };
             chip.Checked += (_, _) =>
             {

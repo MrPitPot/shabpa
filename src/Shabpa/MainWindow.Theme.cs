@@ -26,12 +26,27 @@ public partial class MainWindow
     /// <paramref name="origin"/> (the theme button) unless animations are off.</summary>
     public void SwitchTheme(string key, FrameworkElement? origin = null)
     {
-        var next = Palette.Find(key);
-        if (next.Key == Ui.Theme.Key) return;
-        FinishReveal();
-        Hub.I.Settings.Theme = next.Key;
+        var chosen = Palette.Find(key);
+        if (chosen.Key == Ui.BaseTheme.Key) return;
+        Hub.I.Settings.Theme = chosen.Key;
         Hub.I.Store.Save();
+        // on the birthday the festive version of the new theme is shown; the saved choice stays the plain one
+        Reveal(Hub.I.BirthdayLook ? Birthday.Tint(chosen) : chosen, origin);
+    }
 
+    /// <summary>Puts the festive birthday look on or takes it off (new day, birthday edited or cleared, option toggled),
+    /// with the same circle reveal, without touching the saved theme.</summary>
+    public void ApplyBirthdayLook(FrameworkElement? origin = null)
+    {
+        var chosen = Palette.Find(Hub.I.Settings.Theme);
+        var want = Hub.I.BirthdayLook ? Birthday.Tint(chosen) : chosen;
+        if (want.Key != Ui.Theme.Key) Reveal(want, origin);
+        UpdateBirthdayDecor();
+    }
+
+    private void Reveal(Palette next, FrameworkElement? origin)
+    {
+        FinishReveal();
         var animate = Motion.Enabled && IsLoaded && Shown && Root.ActualWidth > 40 && Root.ActualHeight > 40;
         Image? picture = null;
         if (animate)

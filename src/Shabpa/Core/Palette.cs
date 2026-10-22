@@ -7,6 +7,9 @@ public sealed record Palette(string Key, string Fa, string En, bool Light, IRead
 {
     public string Name => L.T(Fa, En);
 
+    /// <summary>Set on the temporary birthday look: the key of the theme the person actually chose (the saved one).</summary>
+    public string? BaseKey { get; init; }
+
     public const string Default = "night";
 
     /// <summary>Every colour a theme must define.</summary>

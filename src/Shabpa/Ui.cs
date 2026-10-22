@@ -20,6 +20,9 @@ public static class Ui
 {
     public static Palette Theme { get; private set; } = Palette.Find(null);
 
+    /// <summary>The theme the person chose, even while the temporary birthday look is on (the overlay and the tray menu use this one).</summary>
+    public static Palette BaseTheme => Palette.Find(Theme.BaseKey ?? Theme.Key);
+
     /// <summary>"off", "mica" or "acrylic" for this run (fixed at start, like the theme).</summary>
     public static string Glass { get; private set; } = "off";
 

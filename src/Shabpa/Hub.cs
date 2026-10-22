@@ -131,6 +131,7 @@ public sealed class Hub
 
     public void Start()
     {
+        PrimeBirthday();
         StartVoiceIfWanted();
         if (State.ActiveRule is { } rule) Engine.Activate(rule);
 
@@ -264,6 +265,7 @@ public sealed class Hub
                 Queue.Postpone(cmd.Action, now, TimeSpan.FromMinutes(1), cmd.Source);
         }
 
+        CheckBirthday(Core.Birthday.Now());
         CheckForUpdates(now);
         CheckBudget(now);
         RunDownloadPlans(now);
@@ -1635,6 +1637,74 @@ public sealed class Hub
     }
 
     public void RaiseChanged() => Changed?.Invoke();
+
+    // ---- birthday ----------------------------------------------------------------------------------------
+    // Checked on the existing one-second tick (a date comparison, nothing else) so there is no timer of its own: the first
+    // tick after midnight flips the look, and the greeting appears once per day when no game is running.
+
+    private DateTime _bdayDay;
+    private bool _bdayToday, _bdayLook, _bdayDirty = true;
+
+    /// <summary>Today is the person's birthday.</summary>
+    public bool BirthdayToday => _bdayToday;
+
+    /// <summary>The festive look is on (birthday today and the option is on).</summary>
+    public bool BirthdayLook => _bdayLook;
+
+    /// <summary>The birthday state changed (new day, settings edited): re-evaluate the look and the home greeting.</summary>
+    public event Action? BirthdayChanged;
+
+    /// <summary>The greeting window is due now.</summary>
+    public event Action? BirthdayGreet;
+
+    /// <summary>Settings were edited: look again at once.</summary>
+    public void RecheckBirthday()
+    {
+        _bdayDirty = true;
+        CheckBirthday(Core.Birthday.Now());
+    }
+
+    /// <summary>The state at start (no events: the window does not exist yet and builds itself from it).</summary>
+    private void PrimeBirthday()
+    {
+        var now = Core.Birthday.Now();
+        _bdayDay = now.Date;
+        _bdayDirty = false;
+        _bdayToday = Core.Birthday.IsToday(Settings.Birthday, now);
+        _bdayLook = _bdayToday && Settings.Birthday.Theme;
+    }
+
+    private void CheckBirthday(DateTime now)
+    {
+        var b = Settings.Birthday;
+        if (now.Date != _bdayDay || _bdayDirty)
+        {
+            _bdayDay = now.Date;
+            _bdayDirty = false;
+            var today = Core.Birthday.IsToday(b, now);
+            var look = today && b.Theme;
+            var changed = today != _bdayToday || look != _bdayLook;
+            _bdayToday = today;
+            _bdayLook = look;
+            if (changed) BirthdayChanged?.Invoke();
+        }
+        if (!_bdayToday) return;
+        var key = Core.Birthday.Key(now);
+        if (b.LastGreeted == key) return;
+        if (Snapshot.GameRunning || GameModeActive) return; // never over a game: it is offered again on a later tick
+        if (WindowShown)
+        {
+            b.LastGreeted = key;
+            Store.Save();
+            BirthdayGreet?.Invoke();
+        }
+        else if (b.LastBalloon != key)
+        {
+            b.LastBalloon = key;
+            Store.Save();
+            Notify(Core.Birthday.Title(b.Name), L.T("امیدوارم روز خوبی داشته باشی 🎈", "Have a lovely day 🎈"), "home");
+        }
+    }
 
     /// <summary>One line describing what is coming up, for the sidebar and the tray tooltip.</summary>
     public string NextText()
