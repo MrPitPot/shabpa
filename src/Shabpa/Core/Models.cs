@@ -113,8 +113,10 @@ public sealed class Settings
     public List<DnsEntry> CustomDns { get; set; } = [];
     /// <summary>The person's short note per DNS (works for this game / got around that block), keyed by "primary/secondary". Older files simply lack it.</summary>
     public Dictionary<string, string> DnsNotes { get; set; } = [];
-    /// <summary>The city shown on the weather page.</summary>
+    /// <summary>The default city of the weather page (shown at startup). Always one of <see cref="WeatherFavorites"/> once those are sanitised.</summary>
     public WeatherCity? WeatherCity { get; set; }
+    /// <summary>The cities the person keeps on the weather page (at most <see cref="WeatherCities.MaxCities"/>). Older files simply lack it.</summary>
+    public List<WeatherCity> WeatherFavorites { get; set; } = [];
     /// <summary>Programs the person says are games (names, separated by commas), for games Shabpa does not recognise by itself.</summary>
     public string GameList { get; set; } = "";
     public string RecorderProcesses { get; set; } = "obs64, obs32, obs, Streamlabs OBS, bdcam, CamtasiaStudio, CamRecorder, XSplit.Core, Action, ShareX, ffmpeg";

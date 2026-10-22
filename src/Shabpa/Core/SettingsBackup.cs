@@ -103,6 +103,7 @@ public static class SettingsBackup
         // notes from a hand-edited or damaged file: no nulls, a sane count and length
         incoming.DnsNotes = (incoming.DnsNotes ?? []).Where(kv => !string.IsNullOrWhiteSpace(kv.Key) && kv.Value is not null).Take(200)
             .ToDictionary(kv => kv.Key, kv => kv.Value.Length > 140 ? kv.Value[..140] : kv.Value);
+        WeatherCities.Sanitize(incoming);
         state.Settings = incoming;
 
         var profiles = 0;
