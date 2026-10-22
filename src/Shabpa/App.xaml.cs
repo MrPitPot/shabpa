@@ -473,6 +473,7 @@ public partial class App : Application
             else if (Value(e.Args, "--theme-reveal-test") is { } revealDir) _ = RevealProbe(revealDir);
             else if (Value(e.Args, "--motion-test") is { } motionReport) _ = MotionProbe(shots, motionReport);
 #if DEBUG || SHABPA_TESTHOOKS
+            else if (Value(e.Args, "--assistant-probe") is { } assistantDir) _ = AssistantProbe(assistantDir);
             else if (Value(e.Args, "--birthday-probe") is { } birthdayDir) _ = Pages.BirthdayProbe.Run(_window, birthdayDir, Save);
 #endif
 #if DEBUG || SHABPA_TESTHOOKS
@@ -961,6 +962,55 @@ public partial class App : Application
             log.AppendLine("power tabs motion error: " + ex);
         }
     }
+
+#if DEBUG || SHABPA_TESTHOOKS
+    /// <summary>Test aid (--screenshots x --assistant-probe dir): the corner owl, the open bubble, a confirmation card, an unclear
+    /// question and a sheet of every mood. The language and theme come from --lang/--theme as for every screenshot run.</summary>
+    private async Task AssistantProbe(string folder)
+    {
+        try
+        {
+            Hub.I.Settings.Animations = false;
+            Directory.CreateDirectory(folder);
+            await Task.Delay(1500);
+            _window!.Navigate("home");
+            await Task.Delay(900);
+            Save(_window.CaptureRoot, Path.Combine(folder, "1-dock.png"));
+            _window.OpenAssistant();
+            await Task.Delay(500);
+            Save(_window.CaptureRoot, Path.Combine(folder, "2-open.png"));
+            _window.AssistantPanelForProbe!.Submit(L.En ? "shut down at 2am" : "ساعت ۲ شب خاموش کن");
+            await Task.Delay(400);
+            Save(_window.CaptureRoot, Path.Combine(folder, "3-confirm.png"));
+            _window.AssistantPanelForProbe.Submit(L.En ? "shut down at 7" : "ساعت ۷ خاموش کن");
+            await Task.Delay(400);
+            Save(_window.CaptureRoot, Path.Combine(folder, "4-choices.png"));
+            _window.AssistantPanelForProbe.Submit("asdf qwer");
+            await Task.Delay(400);
+            Save(_window.CaptureRoot, Path.Combine(folder, "5-unknown.png"));
+            _window.CloseAssistant();
+            await Task.Delay(300);
+            var row = new System.Windows.Controls.StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, Margin = new Thickness(16) };
+            foreach (var mood in Enum.GetValues<Core.BidarMood>())
+            {
+                var owl = new Kit.BidarOwl { Width = 90, Height = 108, Margin = new Thickness(4) };
+                owl.SetMood(mood);
+                row.Children.Add(owl);
+            }
+            var sheet = new System.Windows.Controls.Border { Child = row };
+            sheet.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "Bg");
+            SaveSheet(sheet, Path.Combine(folder, "6-moods.png"));
+        }
+        catch (Exception ex)
+        {
+            File.WriteAllText(Path.Combine(folder, "error.txt"), ex.ToString());
+        }
+        finally
+        {
+            Shutdown();
+        }
+    }
+#endif
 
     private async Task CaptureAll(string folder, string? only)
     {

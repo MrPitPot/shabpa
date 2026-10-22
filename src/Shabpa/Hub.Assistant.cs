@@ -8,6 +8,16 @@ public sealed partial class Hub
     /// <summary>The shortcut that opens the command box (null in demo runs).</summary>
     public AssistantHotkey? AssistantKey { get; private set; }
 
+    /// <summary>Raised when the Bidar corner owl is switched on or off in Settings.</summary>
+    public event Action? AssistantDockChanged;
+
+    public void SetAssistantDock(bool on)
+    {
+        Settings.ShowAssistantDock = on;
+        Store.Save();
+        AssistantDockChanged?.Invoke();
+    }
+
     /// <summary>Runs a command the person has already confirmed on the card. Power actions go through the same paths as
     /// the Power page: "now" shows the cancellable countdown, a time goes into the queue (which shows its own countdown),
     /// a condition becomes the active rule. Returns what happened, in the current language.</summary>

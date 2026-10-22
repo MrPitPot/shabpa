@@ -36,6 +36,7 @@ public sealed class SettingsPage : PageBase
     // recorders, backup, notices
     private readonly TextBox RecorderBox = new();
     private readonly HotkeyBox AssistantKeyBox = new();
+    private readonly Switch AssistantDockCheck = new();
     private readonly Switch BackupProfiles = new() { IsChecked = true }, BackupTasks = new();
     private readonly TextBlock BackupHint = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
     private readonly StackPanel NoticeList = new() { Margin = new Thickness(0, 6, 0, 0) };
@@ -139,6 +140,10 @@ public sealed class SettingsPage : PageBase
         behaviourBody.Children.Add(SwitchRow(MinimizedCheck, L.T("همیشه بی‌صدا کنار ساعت باز بشه", "Always start quietly in the tray"), null));
         behaviourBody.Children.Add(K.SettingRow(L.T("کلید فرمان متنی", "Command box shortcut"), AssistantKeyBox,
             hint: L.T("از هر جا پنجره‌ی فرمان رو باز می‌کنه («ساعت ۲ شب خاموش کن»). از منوی کنار ساعت هم باز می‌شه.", "Opens the command box from anywhere (“shut down at 2am”). The tray menu opens it too.")));
+        behaviourBody.Children.Add(SwitchRow(AssistantDockCheck, L.T("جغد بیدار گوشه‌ی پنجره", "Bidar the owl in the window corner"),
+            L.T("یه جغد کوچولو تو گوشه‌ی همه‌ی صفحه‌هاست؛ کلیکش می‌کنی، فرمان متنی باز می‌شه. خاموشش کنی، کلید میانبر و منوی کنار ساعت هنوز کار می‌کنن.",
+                "A small owl sits in the corner of every page; click it to type a command. Turn it off and the shortcut and the tray menu still work.")));
+        AssistantDockCheck.Click += (_, _) => Hub.SetAssistantDock(AssistantDockCheck.IsChecked == true);
         AssistantKeyBox.Changed += v =>
         {
             Hub.Settings.AssistantKey = v;
@@ -358,6 +363,7 @@ public sealed class SettingsPage : PageBase
         MinimizedCheck.IsChecked = Hub.Settings.StartMinimized;
         ConfirmCheck.IsChecked = Hub.Settings.ConfirmActions;
         AssistantKeyBox.Set(Hub.Settings.AssistantKey);
+        AssistantDockCheck.IsChecked = Hub.Settings.ShowAssistantDock;
         ReportCheck.IsChecked = Hub.Settings.GameReports;
         GameLogCheck.IsChecked = Hub.Settings.GameLog;
         RefreshNotices();

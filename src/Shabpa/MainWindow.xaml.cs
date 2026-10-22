@@ -48,6 +48,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         FlowDirection = Ui.Flow;
+        InitAssistantDock();
         _pages = new Dictionary<string, (RadioButton, Func<PageBase>)>
         {
             ["home"] = (NavHome, () => new HomePage()),

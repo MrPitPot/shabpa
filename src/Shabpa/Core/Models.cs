@@ -148,6 +148,8 @@ public sealed class Settings
     public string TourStatus { get; set; } = "";
     /// <summary>Opens the typed-command box from anywhere; empty = no shortcut (the tray item still works).</summary>
     public string AssistantKey { get; set; } = "Ctrl+Alt+Space";
+    /// <summary>The small Bidar owl docked in the corner of the main window (a click opens the command box).</summary>
+    public bool ShowAssistantDock { get; set; } = true;
 }
 
 public sealed class AppState
