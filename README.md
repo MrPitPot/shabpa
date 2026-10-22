@@ -12,7 +12,7 @@
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4)
 
-[**Download**](https://github.com/MrPitPot/shabpa/releases/latest) &nbsp;·&nbsp; [فارسی](README.fa.md) &nbsp;·&nbsp; [Changelog](CHANGELOG.md)
+[**Download**](https://github.com/MrPitPot/shabpa/releases/latest) &nbsp;·&nbsp; [Website](https://shabpa.ir) &nbsp;·&nbsp; [فارسی](README.fa.md) &nbsp;·&nbsp; [Changelog](CHANGELOG.md)
 
 <img src="docs/screenshots/home.png" width="780" alt="Shabpa home screen">
 
@@ -20,6 +20,14 @@
 
 Shabpa started as a shutdown timer and grew into an everyday Windows assistant. It runs in the tray, keeps
 your data on your PC, and speaks Persian and English with 21 colour themes.
+
+## Why Shabpa
+
+- **One light app instead of five.** Shutdown timer, game overlay, per-app network limits, to-do and focus timer, backup and a health check, in the tray.
+- **Private by design.** No account, no telemetry, no ads. Everything stays in `%AppData%\Shabpa`.
+- **Safe by default.** Every schedule or clean-up shows its exact effect first; files only go to the Recycle Bin.
+- **Free and open source (MIT).** Read the code, build it yourself, or send a pull request.
+- **Persian and English**, with 21 themes.
 
 ## Features
 
