@@ -241,6 +241,11 @@ public partial class App : Application
             Try("volume", "{}");
             Try("run-program", "{\"path\":\"calc.exe\"}");
             Try("focus", "{\"action\":\"stop\"}");
+            // free text: a clear reading runs through the commands above, an unclear one only answers with choices
+            Try("text", "{\"text\":\"۳۰ دقیقه دیگه خاموش کن\"}");
+            Try("text", "{\"text\":\"shut down at 2\"}");
+            Try("text", "{\"text\":\"لغو\"}");
+            Try("text", "{\"text\":\"hello\"}");
             File.WriteAllText(remoteReport, log.ToString());
             Shutdown();
             return;

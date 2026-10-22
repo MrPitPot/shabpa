@@ -56,6 +56,7 @@ public sealed class Tray : IDisposable
         menu.Items.Add(next);
         menu.Items.Add(new WF.ToolStripSeparator());
         menu.Items.Add(L.T("باز کردن شب‌پا", "Open Shabpa"), null, (_, _) => show());
+        menu.Items.Add(L.T("فرمان متنی…", "Type a command…"), null, (_, _) => AssistantWindow.Open());
         menu.Items.Add(L.T("خاموشی در ۳۰ دقیقه", "Shut down in 30 minutes"), null, (_, _) => Quick(30));
         menu.Items.Add(L.T("خاموشی در ۱ ساعت", "Shut down in 1 hour"), null, (_, _) => Quick(60));
         menu.Items.Add(L.T("خالی کردن رم", "Free up RAM"), null, (_, _) => Hub.I.CleanMemory(cache: false));

@@ -146,6 +146,8 @@ public sealed class Settings
     public string AnnouncedVersion { get; set; } = "";
     /// <summary>The guided tour: "" (undecided), "pending", "offered", "done", "skipped" or "declined" (see Tour/TourState.cs).</summary>
     public string TourStatus { get; set; } = "";
+    /// <summary>Opens the typed-command box from anywhere; empty = no shortcut (the tray item still works).</summary>
+    public string AssistantKey { get; set; } = "Ctrl+Alt+Space";
 }
 
 public sealed class AppState

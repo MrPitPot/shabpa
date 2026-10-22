@@ -20,6 +20,9 @@ public class HotkeyTests
     public void A_shortcut_without_ctrl_or_alt_is_refused(string text) => Assert.Null(Hotkey.Parse(text));
 
     [Fact]
+    public void The_command_box_shortcut_is_valid_by_default() => Assert.Equal("Ctrl+Alt+Space", Hotkey.Parse(new Settings().AssistantKey)?.ToString());
+
+    [Fact]
     public void Captured_keys_need_ctrl_or_alt_and_a_real_key()
     {
         Assert.Null(Hotkey.From(ModifierKeys.None, Key.F9));

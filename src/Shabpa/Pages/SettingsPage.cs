@@ -35,6 +35,7 @@ public sealed class SettingsPage : PageBase
 
     // recorders, backup, notices
     private readonly TextBox RecorderBox = new();
+    private readonly HotkeyBox AssistantKeyBox = new();
     private readonly Switch BackupProfiles = new() { IsChecked = true }, BackupTasks = new();
     private readonly TextBlock BackupHint = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
     private readonly StackPanel NoticeList = new() { Margin = new Thickness(0, 6, 0, 0) };
@@ -136,6 +137,14 @@ public sealed class SettingsPage : PageBase
             L.T("کم‌مصرف‌ترین حالت: انیمیشن‌ها و صدای رابط خاموش می‌شن، پنجره به‌جای کارت گرافیک با پردازنده کشیده می‌شه (حدود ۴۵ مگ رم کمتر) و حافظه‌ی بلااستفاده زودتر برگردونده می‌شه. برنامه دوباره باز می‌شه.",
                 "The lightest mode: animations and interface sounds are off, the window is drawn by the processor instead of the graphics card (about 45 MB less RAM) and unused memory is handed back sooner. The app restarts.")));
         behaviourBody.Children.Add(SwitchRow(MinimizedCheck, L.T("همیشه بی‌صدا کنار ساعت باز بشه", "Always start quietly in the tray"), null));
+        behaviourBody.Children.Add(K.SettingRow(L.T("کلید فرمان متنی", "Command box shortcut"), AssistantKeyBox,
+            hint: L.T("از هر جا پنجره‌ی فرمان رو باز می‌کنه («ساعت ۲ شب خاموش کن»). از منوی کنار ساعت هم باز می‌شه.", "Opens the command box from anywhere (“shut down at 2am”). The tray menu opens it too.")));
+        AssistantKeyBox.Changed += v =>
+        {
+            Hub.Settings.AssistantKey = v;
+            Hub.Store.Save();
+            Hub.AssistantKey?.Apply(v);
+        };
         foreach (var sw in new[] { AutostartCheck, ConfirmCheck, ReportCheck, GameLogCheck, AnimCheck, SoundCheck, MinimizedCheck }) sw.Click += OnBehaviour;
         SoftwareCheck.Click += OnSoftware;
         LowMemoryCheck.Click += OnLowMemory;
@@ -348,6 +357,7 @@ public sealed class SettingsPage : PageBase
         catch { AutostartCheck.IsEnabled = false; }
         MinimizedCheck.IsChecked = Hub.Settings.StartMinimized;
         ConfirmCheck.IsChecked = Hub.Settings.ConfirmActions;
+        AssistantKeyBox.Set(Hub.Settings.AssistantKey);
         ReportCheck.IsChecked = Hub.Settings.GameReports;
         GameLogCheck.IsChecked = Hub.Settings.GameLog;
         RefreshNotices();

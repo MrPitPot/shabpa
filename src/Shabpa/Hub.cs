@@ -7,7 +7,7 @@ using Shabpa.Core;
 namespace Shabpa;
 
 /// <summary>Owns the long-lived services and is the one place the UI talks to.</summary>
-public sealed class Hub
+public sealed partial class Hub
 {
     public static Hub I { get; private set; } = null!;
 
@@ -190,6 +190,8 @@ public sealed class Hub
         {
             Dim = new DimController(this);
             Dim.Apply();
+            AssistantKey = new AssistantHotkey();
+            AssistantKey.Apply(Settings.AssistantKey);
             // Sleep mode lowered the volume and the PC was switched off before it could be put back.
             if (Settings.Comfort.PendingVolume is { } pending)
             {
@@ -226,6 +228,7 @@ public sealed class Hub
             Settings.Comfort.PendingVolume = null;
         }
         Dim?.Dispose();
+        AssistantKey?.Dispose();
         _wake.Dispose();
         Sensors.Dispose();
         Telemetry.Dispose();
@@ -1569,6 +1572,8 @@ public sealed class Hub
                 var list = string.Join("\n", today.Take(10).Select(t => "• " + t.Title + (t.Due is { } d ? $" ({Fa.Clock(d)})" : "")));
                 return RemoteReply.Done(today.Count == 0 ? "برای امروز کاری نداری." : list, today.Count == 0 ? "Nothing for today." : list);
             }
+            case "text":
+                return ExecuteText(StringArg(args, "text") ?? "");
             default:
                 // "after-download" and anything newer than this version
                 return RemoteReply.Fail("این نسخه‌ی شب‌پا هنوز این دستور رو نداره.", "This version of Shabpa does not support that yet.");

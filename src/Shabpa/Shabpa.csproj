@@ -34,6 +34,7 @@
     <Resource Include="Fonts\*.ttf" />
     <Resource Include="Assets\shabpa.ico" />
     <Resource Include="Assets\logo.png" />
+    <Resource Include="Assets\bidar\*.png" />
     <InternalsVisibleTo Include="Shabpa.Tests" />
   </ItemGroup>
 
