@@ -294,12 +294,12 @@ public sealed class BotLink : IDisposable
 
     /// <summary>Pushes an event to the linked chats; the server applies each person's notification switches.
     /// kind is one of game, budget, update, warning.</summary>
-    public void Notify(string kind, string text, string? textEn = null)
+    public void Notify(string kind, string text, string? textEn = null, string? html = null)
     {
         if (State != BotState.Connected || _http is not { } http || _cts is not { } cts) return;
         _ = Task.Run(async () =>
         {
-            try { (await Send(http, HttpMethod.Post, "/api/device/event", new { kind, text = Cut(text), textEn = Cut(textEn ?? text) }, cts.Token))?.Dispose(); }
+            try { (await Send(http, HttpMethod.Post, "/api/device/event", new { kind, text = Cut(text), textEn = Cut(textEn ?? text), html = html is null ? null : GameMessage.Fit(html), parseMode = html is null ? null : "HTML" }, cts.Token))?.Dispose(); }
             catch { /* best effort */ }
         });
     }

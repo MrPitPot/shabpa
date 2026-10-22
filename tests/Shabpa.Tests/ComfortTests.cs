@@ -142,3 +142,51 @@ public class OverlayPlaceTests
         Assert.Equal("card", o.Layout);
     }
 }
+
+public class ComfortPresetTests
+{
+    [Fact]
+    public void Defaults_are_in_range_and_unmodified()
+    {
+        var s = new Shabpa.Core.ComfortSettings();
+        foreach (var p in Shabpa.Core.ComfortPresets.Defaults)
+        {
+            Assert.InRange(p.Kelvin, Shabpa.Core.ComfortPresets.MinKelvin, Shabpa.Core.ComfortPresets.MaxKelvin);
+            Assert.InRange(p.Darkness, 0.05, 0.92);
+            Assert.False(Shabpa.Core.ComfortPresets.IsModified(s, p.Id));
+        }
+    }
+
+    [Fact]
+    public void Editing_then_resetting_a_preset_returns_to_default()
+    {
+        var s = new Shabpa.Core.ComfortSettings();
+        Shabpa.Core.ComfortPresets.Edit(s, "night", 2000, 0.8);
+        Assert.True(Shabpa.Core.ComfortPresets.IsModified(s, "night"));
+        Assert.Equal((2000, 0.8), Shabpa.Core.ComfortPresets.Current(s, "night"));
+        Shabpa.Core.ComfortPresets.Reset(s, "night");
+        Assert.False(Shabpa.Core.ComfortPresets.IsModified(s, "night"));
+        Shabpa.Core.ComfortPresets.Edit(s, "night", 2700, 0.55); // same as default: nothing stored
+        Assert.Empty(s.Presets);
+    }
+
+    [Fact]
+    public void Applying_sets_level_tint_and_switches_dimming_on()
+    {
+        var s = new Shabpa.Core.ComfortSettings();
+        Shabpa.Core.ComfortPresets.Apply(s, "night");
+        Assert.True(s.DimOn);
+        Assert.True(s.DimWarm);
+        Assert.Equal(2700, s.DimKelvin);
+        Shabpa.Core.ComfortPresets.Apply(s, "work");
+        Assert.False(s.DimWarm);
+    }
+
+    [Fact]
+    public void Tint_is_black_at_neutral_and_warmer_when_lower()
+    {
+        Assert.Equal(System.Windows.Media.Color.FromRgb(0, 0, 0), Shabpa.Core.ComfortPresets.Tint(6500));
+        Assert.True(Shabpa.Core.ComfortPresets.Tint(2000).R > Shabpa.Core.ComfortPresets.Tint(4000).R);
+        Assert.Equal(0, Shabpa.Core.ComfortPresets.Tint(2000).B);
+    }
+}

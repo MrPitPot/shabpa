@@ -13,6 +13,10 @@ public sealed class ComfortSettings
     public double DimLevel { get; set; } = 0.55;
     /// <summary>Tint the cover warm (less blue light) instead of plain black.</summary>
     public bool DimWarm { get; set; } = true;
+    /// <summary>Colour temperature of the warm tint in Kelvin, 1900 (very warm) to 6500 (no tint). Used when <see cref="DimWarm"/> is on.</summary>
+    public int DimKelvin { get; set; } = 3600;
+    /// <summary>Night-light presets the user edited; a preset missing here has its built-in values.</summary>
+    public List<PresetValue> Presets { get; set; } = [];
     /// <summary>Dim by itself between <see cref="DimFrom"/> and <see cref="DimTo"/>.</summary>
     public bool DimAuto { get; set; }
     public string DimFrom { get; set; } = "22:00";

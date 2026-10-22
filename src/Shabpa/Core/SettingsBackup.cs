@@ -96,6 +96,8 @@ public static class SettingsBackup
         // values that would be unsafe or senseless are brought back into range
         incoming.CountdownSeconds = Math.Clamp(incoming.CountdownSeconds, 5, 600);
         incoming.Comfort.DimLevel = Math.Clamp(incoming.Comfort.DimLevel, 0.05, 0.92);
+        incoming.Comfort.DimKelvin = Math.Clamp(incoming.Comfort.DimKelvin, ComfortPresets.MinKelvin, ComfortPresets.MaxKelvin);
+        incoming.Comfort.Presets ??= [];
         state.Settings = incoming;
 
         var profiles = 0;

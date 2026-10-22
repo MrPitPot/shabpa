@@ -16,6 +16,10 @@ public sealed class ComfortPage : PageBase
     private IconBadge _dimBadge = null!;
     private Slider _dimLevel = null!, _breakEvery = null!, _sleepMinutes = null!;
     private TextBlock _dimLevelValue = null!, _breakValue = null!, _sleepValue = null!;
+    private Slider _kelvin = null!;
+    private TextBlock _kelvinValue = null!;
+    private readonly Dictionary<string, PresetRow> _presetRows = new();
+    private sealed record PresetRow(TextBlock Summary, Button Reset, StackPanel Editor, Slider Kelvin, Slider Dark, Button Edit);
     private readonly CheckBox _warm = new Switch(), _auto = new Switch(), _breakOn = new Switch(), _breakGame = new Switch(), _sleepDim = new Switch(), _sleepVolume = new Switch();
     private readonly TextBox _fromH = GroupB.TimeBox(), _fromM = GroupB.TimeBox(), _toH = GroupB.TimeBox(), _toM = GroupB.TimeBox();
     private readonly HotkeyBox _toggleKey = new(), _darkerKey = new(), _lighterKey = new();
@@ -25,8 +29,8 @@ public sealed class ComfortPage : PageBase
     private readonly TextBlock _sleepStatus = new();
     private readonly CheckBox _gameOn = new Switch(), _gamePower = new Switch(), _gameRam = new Switch(), _gameQuiet = new Switch();
 
-    public override string PageTitle => L.T("آسایش و استراحت", "Comfort & rest");
-    public override string PageSubtitle => L.T("کم‌نور کردن صفحه برای شب، یادآور استراحت و حالت شب‌خواب.", "Night dimmer, break reminders and sleep mode.");
+    public override string PageTitle => L.T("نور شب و استراحت", "Night light & rest");
+    public override string PageSubtitle => L.T("نور شب با پریست‌های آماده، یادآور استراحت و حالت شب‌خواب.", "Night light with ready presets, break reminders and sleep mode.");
 
     /// <summary>Cards one under another, 16 px apart (one block of the page grid).</summary>
     private static StackPanel Column(params FrameworkElement[] cards)
@@ -46,7 +50,7 @@ public sealed class ComfortPage : PageBase
         var c = Hub.Settings.Comfort;
 
         // ---- dim screen ---------------------------------------------------------------------------
-        var (dimCard, dim) = Ui2.Card(L.T("کم‌نور کردن صفحه", "Dim screen"),
+        var (dimCard, dim) = Ui2.Card(L.T("نور شب", "Night light"),
             L.T("یه لایه‌ی تیره روی همه‌ی مانیتورها می‌ندازه و نور صفحه رو از حدی که دکمه‌های خود مانیتور اجازه می‌دن هم کمتر می‌کنه. کلیک و بازی از زیرش عادی کار می‌کنن.",
                 "Puts a dark layer over every monitor, so the screen gets dimmer than the monitor's own buttons allow. Clicks and games work normally underneath."));
         var status = new Grid { Margin = new Thickness(0, 16, 0, 4) };
@@ -75,6 +79,10 @@ public sealed class ComfortPage : PageBase
         level.row.Margin = new Thickness(0, 10, 0, 6);
         dim.Children.Add(level.row);
         dim.Children.Add(K.SettingRow(L.T("رنگ گرم (نور آبی کمتر، برای چشم راحت‌تر)", "Warm tint (less blue light, easier on the eyes)"), _warm));
+        var kelvin = Ui2.SliderRow(L.T("رنگ‌دما", "Colour temperature"), ComfortPresets.MinKelvin, ComfortPresets.MaxKelvin, 100, v => $"{Fa.Digits(((int)v).ToString())} K");
+        (_kelvin, _kelvinValue) = (kelvin.slider, kelvin.value);
+        kelvin.row.Margin = new Thickness(0, 6, 0, 6);
+        dim.Children.Add(kelvin.row);
         dim.Children.Add(K.SettingRow(L.T("خودکار توی این بازه‌ی شب کم‌نور شه", "Dim by itself during this night window"), _auto));
         var window = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
         window.Children.Add(GroupB.Field(L.T("از ساعت", "From"), GroupB.TimePair(_fromH, _fromM), 28));
@@ -95,7 +103,7 @@ public sealed class ComfortPage : PageBase
         _keyNote.TextWrapping = TextWrapping.Wrap;
         _keyNote.Margin = new Thickness(0, 8, 0, 0);
         keys.Children.Add(_keyNote);
-        root.Add(Column(dimCard, keyCard), 0, 0, 7);
+        root.Add(Column(dimCard, BuildPresets(), keyCard), 0, 0, 7);
 
         // ---- break reminders ----------------------------------------------------------------------
         var (breakCard, brk) = Ui2.Card(L.T("یادآور استراحت", "Break reminders"),
@@ -173,6 +181,7 @@ public sealed class ComfortPage : PageBase
 
         _dimLevel.ValueChanged += (_, _) => Edit(s => s.DimLevel = _dimLevel.Value);
         _warm.Click += (_, _) => Edit(s => s.DimWarm = _warm.IsChecked == true);
+        _kelvin.ValueChanged += (_, _) => Edit(s => { s.DimKelvin = (int)_kelvin.Value; s.DimWarm = s.DimKelvin < ComfortPresets.MaxKelvin; });
         _auto.Click += (_, _) => Edit(s => s.DimAuto = _auto.IsChecked == true);
         foreach (var box in new[] { _fromH, _fromM, _toH, _toM }) box.LostKeyboardFocus += (_, _) => SaveWindow();
         _toggleKey.Changed += v => Edit(s => s.DimKey = v);
@@ -189,6 +198,68 @@ public sealed class ComfortPage : PageBase
         _gameRam.Click += (_, _) => Edit(s => s.GameModeRam = _gameRam.IsChecked == true);
         _gameQuiet.Click += (_, _) => Edit(s => s.GameModeQuiet = _gameQuiet.IsChecked == true);
         Hub.ComfortUpdated += () => Dispatcher.BeginInvoke(Refresh);
+    }
+
+    /// <summary>The ready-made presets: apply with one click, edit Kelvin and darkness, or put one back to its default.</summary>
+    private Border BuildPresets()
+    {
+        var (card, body) = Ui2.Card(L.T("پریست‌های نور شب", "Night-light presets"),
+            L.T("یکی رو بزن تا همین الان روی صفحه بیاد. هر کدوم قابل ویرایشه (رنگ‌دما و تیرگی) و با «پیش‌فرض» به حالت اول برمی‌گرده.",
+                "Click one to put it on the screen now. Each can be edited (colour temperature and darkness) and “Default” puts it back."));
+        foreach (var p in ComfortPresets.Defaults)
+        {
+            var id = p.Id;
+            var holder = new StackPanel { Margin = new Thickness(0, 10, 0, 0) };
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition());
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var apply = new Button { Style = St("Btn"), HorizontalContentAlignment = HorizontalAlignment.Stretch, Padding = new Thickness(14, 8, 14, 8) };
+            var texts = new StackPanel();
+            texts.Children.Add(new TextBlock { Text = p.Icon + "  " + L.T(p.NameFa, p.NameEn), FontWeight = FontWeights.SemiBold });
+            var summary = new TextBlock { Style = St("Label"), Margin = new Thickness(0, 2, 0, 0) };
+            texts.Children.Add(summary);
+            apply.Content = texts;
+            apply.Click += (_, _) => { Edit(s => ComfortPresets.Apply(s, id)); Refresh(); };
+            grid.Children.Add(apply);
+            var tools = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+            var edit = new Button { Style = St("Btn"), Content = L.T("ویرایش", "Edit"), Padding = new Thickness(12, 6, 12, 6) };
+            var reset = new Button { Style = St("Btn"), Content = L.T("پیش‌فرض", "Default"), Padding = new Thickness(12, 6, 12, 6), Margin = new Thickness(6, 0, 0, 0) };
+            tools.Children.Add(edit);
+            tools.Children.Add(reset);
+            Grid.SetColumn(tools, 1);
+            grid.Children.Add(tools);
+            holder.Children.Add(grid);
+            var k = Ui2.SliderRow(L.T("رنگ‌دما", "Colour temperature"), ComfortPresets.MinKelvin, ComfortPresets.MaxKelvin, 100, v => $"{Fa.Digits(((int)v).ToString())} K");
+            var d = Ui2.SliderRow(L.T("تیرگی", "Darkness"), 0.05, 0.92, 0.01, v => $"{Fa.Digits(((int)Math.Round(v * 100)).ToString())}%");
+            var editor = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(4, 4, 4, 0) };
+            editor.Children.Add(k.row);
+            editor.Children.Add(d.row);
+            holder.Children.Add(editor);
+            body.Children.Add(holder);
+            _presetRows[id] = new PresetRow(summary, reset, editor, k.slider, d.slider, edit);
+            edit.Click += (_, _) => editor.Visibility = editor.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+            void Changed() { if (_loading) return; Edit(s => ComfortPresets.Edit(s, id, (int)k.slider.Value, d.slider.Value)); RefreshPresets(); }
+            k.slider.ValueChanged += (_, _) => Changed();
+            d.slider.ValueChanged += (_, _) => Changed();
+            reset.Click += (_, _) => { Edit(s => ComfortPresets.Reset(s, id)); RefreshPresets(); };
+        }
+        return card;
+    }
+
+    private void RefreshPresets()
+    {
+        var was = _loading;
+        _loading = true;
+        var c = Hub.Settings.Comfort;
+        foreach (var (id, row) in _presetRows)
+        {
+            var (k, d) = ComfortPresets.Current(c, id);
+            row.Summary.Text = L.T($"{Fa.Digits(k.ToString())} کلوین · تیرگی {Fa.Digits(((int)Math.Round(d * 100)).ToString())}٪", $"{k} K · darkness {Math.Round(d * 100)}%");
+            row.Kelvin.Value = k;
+            row.Dark.Value = d;
+            row.Reset.IsEnabled = ComfortPresets.IsModified(c, id);
+        }
+        _loading = was;
     }
 
     private void Edit(Action<ComfortSettings> change)
@@ -229,6 +300,8 @@ public sealed class ComfortPage : PageBase
         var c = Hub.Settings.Comfort;
         _dimLevel.Value = c.DimLevel;
         _warm.IsChecked = c.DimWarm;
+        _kelvin.Value = c.DimKelvin;
+        RefreshPresets();
         _auto.IsChecked = c.DimAuto;
         var from = ComfortTime.Parse(c.DimFrom) ?? new TimeSpan(22, 0, 0);
         var to = ComfortTime.Parse(c.DimTo) ?? new TimeSpan(7, 0, 0);
