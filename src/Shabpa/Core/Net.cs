@@ -73,14 +73,14 @@ public sealed class TrafficMeter
     {
         public string Title = "";
         public string Path = "";
-        public long Down, Up, StepDown, StepUp;
+        public long Down, Up, StepDown, StepUp; // Down/Up: the internet only; Step*: everything, loopback included (for rates and limits)
         public DateTime LastUpload, LastDownload;
     }
 
     private readonly object _gate = new();
     private readonly Func<int, ProcInfo?> _resolve;
     private readonly Dictionary<string, Entry> _apps = [];
-    private Dictionary<int, (long down, long up)> _pending = [];
+    private Dictionary<int, (long down, long up, long ldown, long lup)> _pending = [];
     private DateOnly _date;
     private readonly Dictionary<int, int> _waited = [];
     private const int MaxWaitRounds = 4;
@@ -88,13 +88,22 @@ public sealed class TrafficMeter
     public TrafficMeter(Func<int, ProcInfo?> resolve) => _resolve = resolve;
 
     /// <summary>Called from the capture thread for every packet batch; must stay cheap.</summary>
-    public void Record(int pid, int bytes, bool upload)
+    /// <param name="local">The bytes never left this PC (loopback, or the fake range of a VPN/proxy tunnel). They still count for the
+    /// speed of an app (so limits work behind a local proxy) but not for the totals: the proxy's own connection carries the same
+    /// bytes to the internet, so counting both showed every download and upload about twice.</param>
+    public void Record(int pid, int bytes, bool upload, bool local = false)
     {
         if (bytes <= 0) return;
         lock (_gate)
         {
-            _pending.TryGetValue(pid, out var value);
-            _pending[pid] = upload ? (value.down, value.up + bytes) : (value.down + bytes, value.up);
+            _pending.TryGetValue(pid, out var v);
+            _pending[pid] = (upload, local) switch
+            {
+                (false, false) => (v.down + bytes, v.up, v.ldown, v.lup),
+                (true, false) => (v.down, v.up + bytes, v.ldown, v.lup),
+                (false, true) => (v.down, v.up, v.ldown + bytes, v.lup),
+                _ => (v.down, v.up, v.ldown, v.lup + bytes),
+            };
         }
     }
 
@@ -122,11 +131,11 @@ public sealed class TrafficMeter
     /// <summary>Folds everything recorded since the last call into rates over <paramref name="seconds"/>.</summary>
     public IReadOnlyList<AppTraffic> Snapshot(double seconds, DateTime now)
     {
-        Dictionary<int, (long down, long up)> pending;
+        Dictionary<int, (long down, long up, long ldown, long lup)> pending;
         lock (_gate)
         {
             pending = _pending;
-            _pending = new Dictionary<int, (long, long)>(pending.Count);
+            _pending = new Dictionary<int, (long, long, long, long)>(pending.Count);
         }
 
         var today = DateOnly.FromDateTime(now);
@@ -137,8 +146,8 @@ public sealed class TrafficMeter
         }
 
         foreach (var entry in _apps.Values) entry.StepDown = entry.StepUp = 0;
-        Dictionary<int, (long down, long up)>? carry = null;
-        foreach (var (pid, (down, up)) in pending)
+        Dictionary<int, (long down, long up, long ldown, long lup)>? carry = null;
+        foreach (var (pid, (down, up, ldown, lup)) in pending)
         {
             var found = _resolve(pid);
             if (ReferenceEquals(found, ProcessResolver.Pending))
@@ -148,7 +157,7 @@ public sealed class TrafficMeter
                 _waited.TryGetValue(pid, out var rounds);
                 if (rounds < MaxWaitRounds)
                 {
-                    (carry ??= [])[pid] = (down, up);
+                    (carry ??= [])[pid] = (down, up, ldown, lup);
                     _waited[pid] = rounds + 1;
                     continue;
                 }
@@ -159,20 +168,20 @@ public sealed class TrafficMeter
             if (!_apps.TryGetValue(info.Key, out var entry)) _apps[info.Key] = entry = new Entry();
             if (info.Title.Length > 0) entry.Title = info.Title;
             if (info.Path.Length > 0) entry.Path = info.Path;
-            entry.StepDown += down;
-            entry.StepUp += up;
+            entry.StepDown += down + ldown;
+            entry.StepUp += up + lup;
             entry.Down += down;
             entry.Up += up;
-            if (up > 0) entry.LastUpload = now;
-            if (down > 0) entry.LastDownload = now;
+            if (up + lup > 0) entry.LastUpload = now;
+            if (down + ldown > 0) entry.LastDownload = now;
         }
 
         if (carry is not null)
             lock (_gate)
-                foreach (var (pid, (down, up)) in carry)
+                foreach (var (pid, (down, up, ldown, lup)) in carry)
                 {
-                    _pending.TryGetValue(pid, out var value);
-                    _pending[pid] = (value.down + down, value.up + up);
+                    _pending.TryGetValue(pid, out var v);
+                    _pending[pid] = (v.down + down, v.up + up, v.ldown + ldown, v.lup + lup);
                 }
 
         seconds = Math.Max(0.5, seconds);

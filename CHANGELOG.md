@@ -10,6 +10,11 @@ a patch release only fixes bugs, a minor release adds a tested batch of features
 - **Command box (assistant, phase 0)** - type a command in Persian or English («یه ساعت و ربع دیگه خاموش کن»، «ساعت ۲ و نیم شب بخوابون»، «وقتی دانلود تموم شد خاموش کن»، "remind me at 5pm to call mom"). It works fully offline with no language model: shutdown, sleep, hibernate, restart, lock, cancel, wake timers, reminders, focus timer, night light, sleep mode and the list of what is scheduled, plus the conditions the rules already have (download or upload done, idle, a program closed, heavy work done). Every command shows a card with the exact time first; anything unclear (2 o'clock morning or afternoon?, a question, «خاموش نکن») offers choices instead and runs nothing. Open it from the tray menu or with Ctrl+Alt+Space (changeable in Settings). Bidar the owl shows what it is doing.
 - **Telegram:** the app understands a new `text` bot command with the same parser, so free text sent to the bot can be routed to it once the bot server forwards it.
 
+## [3.11.4] - 2026-10-24
+
+### Fixed
+- **Internet usage (downloads and uploads) was shown about twice as high behind a VPN or proxy** - the per-app meter counted traffic to this PC itself (loopback and the 198.18.x tunnel range of Clash/Mihomo-style clients) as well as the proxy's own connection that carries the same bytes to the internet. That traffic still counts for an app's live speed (so limits keep working) but no longer for the daily totals, the usage history, the monthly cap and game reports. Totals recorded before this version stay as they were.
+
 ## [3.11.3] - 2026-10-24
 
 ### Fixed

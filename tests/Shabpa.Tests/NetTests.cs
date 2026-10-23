@@ -27,6 +27,34 @@ public class TrafficMeterTests
     }
 
     [Fact]
+    public void Local_bytes_count_for_speed_but_not_for_totals()
+    {
+        // behind a local proxy: the app talks to 127.0.0.1, the proxy carries the same bytes to the internet
+        var meter = Meter();
+        meter.Record(20, 1_000_000, upload: false, local: true);   // steam -> proxy
+        meter.Record(10, 1_000_000, upload: false);                // proxy -> internet (any resolvable process)
+        var rows = meter.Snapshot(1, T0);
+        var steam = rows.Single(r => r.Key == "steam");
+        Assert.Equal(8, steam.DownMbps, 6);   // still visible and limitable
+        Assert.Equal(0, steam.DownBytes);     // but not counted again in the totals
+        Assert.Equal(1_000_000, rows.Sum(r => r.DownBytes));
+    }
+
+    [Theory]
+    [InlineData("127.0.0.1", true)]
+    [InlineData("::1", true)]
+    [InlineData("198.18.0.5", true)]
+    [InlineData("198.19.255.1", true)]
+    [InlineData("169.254.1.1", true)]
+    [InlineData("::ffff:127.0.0.1", true)]
+    [InlineData("8.8.8.8", false)]
+    [InlineData("192.168.1.10", false)]
+    [InlineData("198.20.0.1", false)]
+    [InlineData("2606:4700::1111", false)]
+    public void Only_traffic_that_stays_inside_the_pc_is_local(string address, bool local) =>
+        Assert.Equal(local, NetMonitor.NeverLeavesThisPc(System.Net.IPAddress.Parse(address)));
+
+    [Fact]
     public void Processes_of_one_app_are_merged()
     {
         var meter = Meter();

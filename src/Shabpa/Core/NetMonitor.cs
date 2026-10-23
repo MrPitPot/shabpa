@@ -56,13 +56,19 @@ public sealed class NetMonitor : IDisposable
         }
     }
 
-    private static void Add(TrafficMeter meter, int pid, int size, bool upload, IPAddress source, IPAddress destination)
+    private static void Add(TrafficMeter meter, int pid, int size, bool upload, IPAddress source, IPAddress destination) =>
+        meter.Record(pid, size, upload, NeverLeavesThisPc(upload ? destination : source));
+
+    /// <summary>True for the far end of a connection that stays inside this PC: loopback, link-local, and 198.18.0.0/15, the
+    /// range VPN/proxy clients (Clash, Mihomo, sing-box tunnels) use. Behind such a client an app talks to the client, and the
+    /// client's own connection then carries the same bytes to the internet; that second leg is the real use of the line.</summary>
+    internal static bool NeverLeavesThisPc(IPAddress remote)
     {
-        // Loopback is counted on purpose: behind a local proxy or VPN client, an app's only "network"
-        // is 127.0.0.1, and that is the traffic the user wants to see and limit.
-        _ = source;
-        _ = destination;
-        meter.Record(pid, size, upload);
+        if (remote.IsIPv4MappedToIPv6) remote = remote.MapToIPv4();
+        if (IPAddress.IsLoopback(remote) || remote.IsIPv6LinkLocal) return true;
+        if (remote.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork) return false;
+        var b = remote.GetAddressBytes();
+        return (b[0] == 169 && b[1] == 254) || (b[0] == 198 && (b[1] == 18 || b[1] == 19));
     }
 
     public void Dispose()
