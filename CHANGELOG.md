@@ -10,6 +10,11 @@ a patch release only fixes bugs, a minor release adds a tested batch of features
 - **Command box (assistant, phase 0)** - type a command in Persian or English («یه ساعت و ربع دیگه خاموش کن»، «ساعت ۲ و نیم شب بخوابون»، «وقتی دانلود تموم شد خاموش کن»، "remind me at 5pm to call mom"). It works fully offline with no language model: shutdown, sleep, hibernate, restart, lock, cancel, wake timers, reminders, focus timer, night light, sleep mode and the list of what is scheduled, plus the conditions the rules already have (download or upload done, idle, a program closed, heavy work done). Every command shows a card with the exact time first; anything unclear (2 o'clock morning or afternoon?, a question, «خاموش نکن») offers choices instead and runs nothing. Open it from the tray menu or with Ctrl+Alt+Space (changeable in Settings). Bidar the owl shows what it is doing.
 - **Telegram:** the app understands a new `text` bot command with the same parser, so free text sent to the bot can be routed to it once the bot server forwards it.
 
+## [3.11.3] - 2026-10-24
+
+### Fixed
+- **Telegram game reports that waited for the connection now say when the game really ended** - if the PC could not reach the bot when a game closed, the report stayed in the queue and arrived later (hours, all at once) looking like a fresh report. The app now sends the time the event happened, and the bot adds a line with it when a report arrives late.
+
 ## [3.11.2] - 2026-10-23
 
 ### Fixed
