@@ -18,10 +18,9 @@ Apply at <https://signpath.org/apply> with the project owner's own account (only
 
 - **Public source, OSI license:** yes (MIT).
 - **Actively maintained, documented:** yes (README in English and Persian, changelog, CI).
-- **Built reproducibly by a public CI:** CI builds and tests on GitHub Actions. The release installer is currently built on
-  the maintainer's PC with `build-installer.sh`; to be signed it has to be built by a GitHub Actions workflow that uploads the
-  files to SignPath. That workflow can only be finished after approval, because it needs the organisation id and a secret
-  token SignPath issues.
+- **Built by a public CI:** the workflow `.github/workflows/release-build.yml` builds `ShabpaSetup.exe` on a GitHub-hosted
+  runner straight from this repository (`build-installer.sh`) and uploads it as an artifact. The submit-to-SignPath step is
+  added after approval, because it needs the organisation id and a secret token that SignPath issues.
 - **Two signing steps:** the installer carries the application inside it, so the application is signed first, then packed,
   then the installer is signed.
 - **No malware or potentially unwanted behaviour:** the app has no ads, no telemetry and no hidden network use; the
