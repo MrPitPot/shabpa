@@ -62,6 +62,8 @@ Download `ShabpaSetup.exe` from the [latest release](https://github.com/MrPitPot
 every installer is published next to it.
 
 Code signing: the binaries are currently not signed (a free SignPath Foundation application was not accepted), so SmartScreen may warn; see the [code signing policy](CODE_SIGNING_POLICY.md). Verify the SHA-256 published next to each release. If SmartScreen warns: choose **More info -> Run anyway**. Some antivirus
+
+**Is it safe?** The installer is built from this public source by [GitHub Actions](.github/workflows/release-build.yml), its SHA-256 is published with every release, and the 3.11.4 installer scanned clean on [VirusTotal (0/70)](https://www.virustotal.com/gui/file/b2a2da198cda8464232a4dcfd2b0a9947934740b8ee6f73a27854b77793c6f3c). To check a download yourself: `Get-FileHash ShabpaSetup.exe` in PowerShell and compare it with the `.sha256` file.
 products flag the bundled [WinDivert](https://github.com/basil00/WinDivert) driver (used for per-app speed limits)
 as a network tool. All source is here to read and build.
 
