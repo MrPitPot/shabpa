@@ -377,7 +377,7 @@ public sealed class BotLink : IDisposable
                 {
                     using var reply = await Send(http, HttpMethod.Post, "/api/device/event", new
                     {
-                        kind = next.Kind, text = next.Text, textEn = next.TextEn, html = next.Html, parseMode = next.Html is null ? null : "HTML", eventId = next.Id,
+                        kind = next.Kind, text = next.Text, textEn = next.TextEn, html = next.Html, parseMode = next.Html is null ? null : "HTML", eventId = next.Id, at = next.At,
                     }, cts.Token);
                     var sent = reply is not null && reply.RootElement.TryGetProperty("sent", out var n) && n.ValueKind == JsonValueKind.Number ? n.GetInt32() : -1;
                     Remove(next);

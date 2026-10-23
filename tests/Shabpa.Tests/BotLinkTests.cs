@@ -206,6 +206,7 @@ public class BotLinkTests
         Thread.Sleep(150);
         Assert.Equal(1, _server.Count("/api/device/event"));
         Assert.Contains("\"eventId\"", _server.Bodies("/api/device/event")[0]);
+        Assert.Contains("\"at\"", _server.Bodies("/api/device/event")[0]); // the server says when a queued report really happened
     }
 
     [Fact]
