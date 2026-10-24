@@ -15,6 +15,7 @@ internal sealed class FakeBotServer : HttpMessageHandler
     public int Chats;
     public bool ForgetDevice;
     public int FailEvents;
+    public string? DownHost; // requests to this host fail like a cut connection
     private int _codes;
 
     public int Count(string path) { lock (Calls) return Calls.Count(c => c.Path == path); }
@@ -22,6 +23,7 @@ internal sealed class FakeBotServer : HttpMessageHandler
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
     {
+        if (DownHost is not null && request.RequestUri!.Host == DownHost) throw new HttpRequestException("connection cut");
         var path = request.RequestUri!.AbsolutePath;
         var body = request.Content is null ? "" : await request.Content.ReadAsStringAsync(ct);
         var auth = request.Headers.Authorization?.ToString() ?? "";
@@ -193,6 +195,18 @@ public class BotLinkTests
     }
 
     private string TempOutbox() => _outbox = Path.Combine(Path.GetTempPath(), "shabpa-test-" + Guid.NewGuid().ToString("N") + ".json");
+
+    [Fact]
+    public void A_game_report_still_arrives_when_the_main_address_is_cut()
+    {
+        _server.DownHost = new Uri(BotLink.DefaultEndpoint).Host; // bot.shabpa.ir is blocked on this network
+        using var link = Link();
+        _server.Chats = 1;
+        link.Enable();
+        WaitFor(() => link.State == BotState.Connected);
+        link.Notify("game", "fa", "en", "<b>x</b>");
+        WaitFor(() => _server.Count("/api/device/event") == 1 && link.Pending == 0); // delivered through the second address
+    }
 
     [Fact]
     public void A_game_report_reaches_the_server_once()

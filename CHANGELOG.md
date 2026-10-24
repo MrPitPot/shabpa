@@ -10,6 +10,11 @@ a patch release only fixes bugs, a minor release adds a tested batch of features
 - **Command box (assistant, phase 0)** - type a command in Persian or English («یه ساعت و ربع دیگه خاموش کن»، «ساعت ۲ و نیم شب بخوابون»، «وقتی دانلود تموم شد خاموش کن»، "remind me at 5pm to call mom"). It works fully offline with no language model: shutdown, sleep, hibernate, restart, lock, cancel, wake timers, reminders, focus timer, night light, sleep mode and the list of what is scheduled, plus the conditions the rules already have (download or upload done, idle, a program closed, heavy work done). Every command shows a card with the exact time first; anything unclear (2 o'clock morning or afternoon?, a question, «خاموش نکن») offers choices instead and runs nothing. Open it from the tray menu or with Ctrl+Alt+Space (changeable in Settings). Bidar the owl shows what it is doing.
 - **Telegram:** the app understands a new `text` bot command with the same parser, so free text sent to the bot can be routed to it once the bot server forwards it.
 
+## [3.11.5] - 2026-10-24
+
+### Fixed
+- **Game reports did not reach Telegram when `bot.shabpa.ir` was cut on the network** - the log showed hours of `bot event game: failed, will retry (HttpRequestException)`. The app now has a second address for the same bot server (on another domain) and switches to it when the first does not answer; the one that answered last is tried first. A custom address in Settings is still used alone. Failure lines in the log now say what the socket reported (name not found, connection reset, timeout).
+
 ## [3.11.4] - 2026-10-24
 
 ### Fixed

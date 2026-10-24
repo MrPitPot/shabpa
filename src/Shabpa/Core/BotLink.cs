@@ -79,7 +79,6 @@ public sealed class BotLink : IDisposable
         LoadOutbox();
     }
 
-    private string Endpoint => string.IsNullOrWhiteSpace(_settings().BotEndpoint) ? DefaultEndpoint : _settings().BotEndpoint.TrimEnd('/');
     private bool HasDevice => _settings().BotDeviceId.Length > 0 && Secret.Unprotect(_settings().BotSecretProtected).Length > 0;
 
     /// <summary>Starts (or restarts) the link. Nothing is sent anywhere until the person chose to connect.</summary>
@@ -166,16 +165,49 @@ public sealed class BotLink : IDisposable
         Changed?.Invoke();
     }
 
+    /// <summary>The server's own address first, then its second address on another domain: on some networks one of the two is
+    /// cut while the other works. The one that answered last is tried first. A custom address (Settings) is used alone.</summary>
+    public static readonly string[] FallbackEndpoints = [DefaultEndpoint, "https://shabpa-bot.amber-garden-174c.workers.dev"];
+    private volatile int _preferred;
+
+    private IReadOnlyList<string> Endpoints()
+    {
+        var custom = _settings().BotEndpoint;
+        if (!string.IsNullOrWhiteSpace(custom)) return [custom.TrimEnd('/')];
+        var first = Math.Clamp(_preferred, 0, FallbackEndpoints.Length - 1);
+        return FallbackEndpoints.Skip(first).Concat(FallbackEndpoints.Take(first)).ToList();
+    }
+
     private async Task<JsonDocument?> Send(HttpClient http, HttpMethod method, string path, object? body, CancellationToken ct)
     {
-        using var request = new HttpRequestMessage(method, Endpoint + path);
-        if (body is not null) request.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
+        var json = body is null ? null : JsonSerializer.Serialize(body);
+        var endpoints = Endpoints();
+        for (var i = 0; ; i++)
+        {
+            try { return await SendTo(http, endpoints[i], method, path, json, ct); }
+            catch (Exception ex) when (i < endpoints.Count - 1 && !ct.IsCancellationRequested && IsTransportFailure(ex))
+            {
+                Log.Write($"bot link: {endpoints[i]} did not answer ({BotBackoff.Kind(ex)}), trying {endpoints[i + 1]}");
+            }
+        }
+    }
+
+    /// <summary>The request never got an answer (cut connection, name not found, timeout), as opposed to an answer saying no.</summary>
+    private static bool IsTransportFailure(Exception ex) =>
+        ex is TaskCanceledException || (ex is HttpRequestException { StatusCode: null });
+
+    private async Task<JsonDocument?> SendTo(HttpClient http, string endpoint, HttpMethod method, string path, string? json, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(method, endpoint + path);
+        if (json is not null) request.Content = new StringContent(json, Encoding.UTF8, "application/json");
         if (path != "/api/device/pair")
         {
             var secret = Secret.Unprotect(_settings().BotSecretProtected);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", $"{_settings().BotDeviceId}.{secret}");
         }
         using var response = await http.SendAsync(request, ct);
+        var index = Array.IndexOf(FallbackEndpoints, endpoint);
+        if (index >= 0) _preferred = index; // it answered: this address goes first next time
         if (response.StatusCode == HttpStatusCode.Unauthorized) throw new UnauthorizedAccessException();
         response.EnsureSuccessStatusCode();
         var text = await response.Content.ReadAsStringAsync(ct);
@@ -399,7 +431,7 @@ public sealed class BotLink : IDisposable
                 catch (OperationCanceledException) when (cts.IsCancellationRequested) { return; }
                 catch (Exception ex)
                 {
-                    Log.Write($"bot event {next.Kind}: failed, will retry ({ex.GetType().Name}: {ex.Message}) ({next.Id[..8]})");
+                    Log.Write($"bot event {next.Kind}: failed, will retry ({BotBackoff.Kind(ex)}: {ex.Message}) ({next.Id[..8]})");
                     return;
                 }
             }
