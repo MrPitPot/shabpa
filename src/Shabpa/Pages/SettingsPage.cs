@@ -179,8 +179,8 @@ public sealed class SettingsPage : PageBase
 
         // ---- Halloween (on by default, 28 October to 1 November) ----------------------------------------
         var (halloween, halloweenBody) = Card(L.T("هالووین 🎃", "Halloween 🎃"),
-            L.T("چند روز اطراف ۳۱ اکتبر شب‌پا رنگ و لعاب هالووینی می‌گیره و اولین بار که پنجره باز بشه یه جامپ‌اسکر کوتاه با صدا و یه تبریک نشون می‌ده؛ سالی یک بار. صدا فقط وقتی پخشه که «صدای رابط» روشن باشه.",
-                "For a few days around 31 October Shabpa dresses up, and the first time the window opens it plays a short jump scare with a sound and a greeting; once a year. The sound plays only while interface sounds are on."));
+            L.T("چند روز اطراف ۳۱ اکتبر شب‌پا رنگ و لعاب هالووینی می‌گیره و اولین بار که پنجره باز بشه یه جامپ‌اسکر کوتاه با صدا و یه تبریک نشون می‌ده؛ سالی یک بار. صدا موقع بازی و در حالت «کم‌مصرف رم» پخش نمی‌شه.",
+                "For a few days around 31 October Shabpa dresses up, and the first time the window opens it plays a short jump scare with a sound and a greeting; once a year. The sound does not play during a game or in low-memory mode."));
         var halloweenSwitch = new Switch { IsChecked = s.Halloween, Margin = new Thickness(0, 12, 0, 0) };
         halloweenSwitch.Content = new TextBlock { Text = L.T("تم و جامپ‌اسکر هالووین", "Halloween look and jump scare"), FontWeight = FontWeights.Medium, TextWrapping = TextWrapping.Wrap };
         halloweenSwitch.Click += (_, _) =>

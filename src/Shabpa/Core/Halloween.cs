@@ -116,13 +116,19 @@ public static class Halloween
 
     private static GCHandle _pin;
 
-    /// <summary>Plays the sting once, in the background. Silent (returns false) when a game runs, in "use less RAM" mode, or when the interface
-    /// sounds were turned off: the person who asked for quiet gets quiet.</summary>
+    private static long _playingUntil;
+
+    /// <summary>True while the sting plays: the small interface sounds keep quiet meanwhile, because Windows plays one sound at a time and a hover tick would cut the scream short.</summary>
+    public static bool Playing => Environment.TickCount64 < _playingUntil;
+
+    /// <summary>Plays the sting once, in the background. It does not depend on the little interface sounds (those are experimental and often off);
+    /// the Halloween switch in Settings is its own consent. Silent (returns false) while a game runs or in "use less RAM" mode.</summary>
     public static bool PlayScream()
     {
         try
         {
-            if (!UiSound.Enabled) return false;
+            if (Hub.I is { } hub && (hub.Settings.LowMemory || hub.Snapshot.GameProcess.Length > 0)) return false;
+            _playingUntil = Environment.TickCount64 + 1600;
             if (!_pin.IsAllocated) _pin = GCHandle.Alloc(ScreamWav(), GCHandleType.Pinned);
             return PlaySound(_pin.AddrOfPinnedObject(), IntPtr.Zero, 0x4 | 0x1 | 0x2); // memory, async, no default beep
         }

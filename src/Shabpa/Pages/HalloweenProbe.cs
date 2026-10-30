@@ -22,6 +22,7 @@ public static class HalloweenProbe
             await Task.Delay(3500);
             Say($"the greeting opened by itself at the first look of the window: {window.HalloweenOpen}");
             window.CloseHalloween();
+            Say($"UiSounds={Hub.I.Settings.UiSounds}; the scream starts anyway: {Halloween.PlayScream()}; interface sounds held meanwhile: {!UiSound.Enabled}");
             Motion.TestOverride = true;
             window.ShowHalloween();
             await Task.Delay(330);
