@@ -132,6 +132,10 @@ public sealed class Settings
     public string ProxyUrl { get; set; } = "";
     /// <summary>Optional name and birthday for the birthday greeting. Stored on this PC only, never sent anywhere.</summary>
     public BirthdaySettings Birthday { get; set; } = new();
+    /// <summary>The Halloween look and the first-open jump scare with a greeting (28 October to 1 November). On by default.</summary>
+    public bool Halloween { get; set; } = true;
+    /// <summary>The year the scare was last shown, so it comes once a year.</summary>
+    public int HalloweenSeenYear { get; set; }
     public string PingHost { get; set; } = "8.8.8.8";
     /// <summary>While a game runs, cap the upload of everything else.</summary>
     public bool GuardEnabled { get; set; }

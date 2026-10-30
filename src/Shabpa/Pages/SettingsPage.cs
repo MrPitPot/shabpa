@@ -177,6 +177,24 @@ public sealed class SettingsPage : PageBase
         // ---- name and birthday (optional) -------------------------------------------------------------
         Put(new BirthdayCard(), 0, 3);
 
+        // ---- Halloween (on by default, 28 October to 1 November) ----------------------------------------
+        var (halloween, halloweenBody) = Card(L.T("هالووین 🎃", "Halloween 🎃"),
+            L.T("چند روز اطراف ۳۱ اکتبر شب‌پا رنگ و لعاب هالووینی می‌گیره و اولین بار که پنجره باز بشه یه جامپ‌اسکر کوتاه با صدا و یه تبریک نشون می‌ده؛ سالی یک بار. صدا فقط وقتی پخشه که «صدای رابط» روشن باشه.",
+                "For a few days around 31 October Shabpa dresses up, and the first time the window opens it plays a short jump scare with a sound and a greeting; once a year. The sound plays only while interface sounds are on."));
+        var halloweenSwitch = new Switch { IsChecked = s.Halloween, Margin = new Thickness(0, 12, 0, 0) };
+        halloweenSwitch.Content = new TextBlock { Text = L.T("تم و جامپ‌اسکر هالووین", "Halloween look and jump scare"), FontWeight = FontWeights.Medium, TextWrapping = TextWrapping.Wrap };
+        halloweenSwitch.Click += (_, _) =>
+        {
+            s.Halloween = halloweenSwitch.IsChecked == true;
+            Hub.Store.Save();
+            Hub.RecheckBirthday();
+        };
+        halloweenBody.Children.Add(halloweenSwitch);
+        var halloweenPreview = new Button { Style = St("Btn"), Content = L.T("پیش‌نمایش (با صدا)", "Preview (with sound)"), HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(16, 8, 16, 8), Margin = new Thickness(0, 12, 0, 0) };
+        halloweenPreview.Click += (_, _) => (Application.Current.MainWindow as MainWindow)?.ShowHalloween();
+        halloweenBody.Children.Add(halloweenPreview);
+        Put(halloween, 1, 2);
+
         // ---- screen recorders -------------------------------------------------------------------------
         var (recorders, recordersBody) = Card(L.T("برنامه‌های ضبط صفحه", "Screen recorders"),
             L.T("وقتی یکی از این‌ها باز باشه، قانون‌هایی که «موقع ضبط صفحه دست نگه دار» دارن صبر می‌کنن. اسم‌ها رو با ویرگول جدا کن.", "While one of these is running, rules set to hold during screen recording wait. Separate names with commas."));

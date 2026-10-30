@@ -423,7 +423,8 @@ public partial class App : Application
         if (!Ui.GlassSupported() && settings.Glass != "off") { settings.Glass = "off"; if (!dryRun) store.Save(); }
         if (shots is not null && Value(e.Args, "--theme") is { } forced) settings.Theme = Palette.Find(forced).Key; // screenshot runs never save
         var startTheme = Palette.Find(settings.Theme);
-        if (Birthday.LookFor(settings.Birthday, Birthday.Now())) startTheme = Birthday.Tint(startTheme); // the festive look, for this day only
+        if (Birthday.LookFor(settings.Birthday, Birthday.Now())) startTheme = Birthday.Tint(startTheme);
+        else if (settings.Halloween && Halloween.InSeason(Birthday.Now())) startTheme = Halloween.Tint(startTheme); // the festive look, for this day only
         Resources.MergedDictionaries.Add(Ui.Resources(startTheme, settings.LowMemory ? "off" : Value(e.Args, "--glass") ?? settings.Glass, settings.GlassLevel));
         Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri("/Shabpa;component/Theme.xaml", UriKind.Relative) });
 
@@ -475,6 +476,9 @@ public partial class App : Application
 #if DEBUG || SHABPA_TESTHOOKS
             else if (Value(e.Args, "--assistant-probe") is { } assistantDir) _ = AssistantProbe(assistantDir);
             else if (Value(e.Args, "--birthday-probe") is { } birthdayDir) _ = Pages.BirthdayProbe.Run(_window, birthdayDir, Save);
+#if DEBUG || SHABPA_TESTHOOKS
+            else if (Value(e.Args, "--halloween-probe") is { } halloweenDir) _ = Pages.HalloweenProbe.Run(_window, halloweenDir, Save);
+#endif
 #endif
 #if DEBUG || SHABPA_TESTHOOKS
             else if (Value(e.Args, "--delete-test") is { } deleteReport) _ = Pages.DeleteProbe.Run(_window, deleteReport);

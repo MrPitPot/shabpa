@@ -65,18 +65,22 @@ public static class TourSteps
 
         new("system-tabs", TourTargets.PagePrefix + "0", "system",
             "تب‌های کنترل سیستم", "The System control tabs",
-            "دستور برق (همین حالا یا هر شب)، خاموشی شرطی (مثلاً وقتی دانلود تموم شد)، مصرف برق، خواب و بیداری، بیداریاش، حافظه و تلگرام. هر کدوم یه ابزار جداست.",
-            "Power command (now or every night), conditional shutdown (say, when a download ends), energy, sleep and wake, wake alarms, memory and Telegram. Each is its own tool."),
+            "دستور برق (همین حالا یا هر شب)، خاموشی شرطی (مثلاً وقتی دانلود تموم شد)، مصرف برق، خواب و بیداری، بیدارباش، حافظه، بهینه‌سازی بازی و تلگرام. هر کدوم یه ابزار جداست.",
+            "Power command (now or every night), conditional shutdown (say, when a download ends), energy, sleep and wake, wake alarms, memory, game tuning and Telegram. Each is its own tool."),
 
         new("system-power", TourTargets.PagePrefix + "1", "system",
             "همین حالا یا هر شب سر ساعت", "Right now, or every night",
             "اول کار رو انتخاب کن: خاموشی، خواب، قفل یا ری‌استارت. بعد زمانش: همین حالا، چند دقیقه‌ی دیگه یا هر شب سر ساعت. قبل از اجرا همیشه مهلت لغو داری.",
             "Pick the job first: shutdown, sleep, lock or restart. Then when: right now, in a few minutes or every night. You always get a moment to cancel."),
 
+        new("system-tune", TourTargets.PagePrefix + "1", "system:tune",
+            "بهینه‌سازی بازی", "Game tuning",
+            "چند تنظیم شناخته‌شده‌ی ویندوز که به بازی کمک می‌کنن، توی سه تب. کنار هر کدوم یه «i» هست؛ ماوس رو ببر روش تا بفهمی چی کار می‌کنه. هر کدوم رو خودت روشن می‌کنی، مقدار قبلی‌ات ذخیره می‌شه و با خاموش‌کردن دقیقاً برمی‌گرده. «برگردوندن همه» همه رو یک‌جا برمی‌گردونه.",
+            "A few well-known Windows settings that help games, in three tabs. Each has an “i”: hover it to learn what it does. You switch each on yourself, your old value is kept and comes back exactly when you switch it off. “Put everything back” undoes all of them."),
         new("comfort", TourTargets.PagePrefix + "0", "comfort",
             "نور شب و استراحت", "Night light & rest",
-            "نور صفحه رو شب‌ها گرم و کم‌نور کن، هر چند وقت یه بار برای استراحت یادآوری بگیر و حالت شب‌خواب رو روشن کن. چشمات ممنونت می‌شن.",
-            "Make the screen warm and dim at night, get break reminders and switch on sleep mode. Your eyes will thank you."),
+            "نور صفحه رو شب‌ها گرم و کم‌نور کن (رنگ گرم مثل نور شب خود ویندوزه)، هر چند وقت یه بار برای استراحت یادآوری بگیر و حالت شب‌خواب رو روشن کن. چشمات ممنونت می‌شن.",
+            "Make the screen warm (like Windows' own Night Light) and dim at night, get break reminders and switch on sleep mode. Your eyes will thank you."),
 
         new("gaming", TourTargets.NavPrefix + "gaming", "comfort",
             "اورلی بازی", "Game overlay",
@@ -86,8 +90,8 @@ public static class TourSteps
 
         new("gaming-page", TourTargets.PagePrefix + "0", "gaming",
             "ظاهر و جای اورلی", "Look and place of the overlay",
-            "این‌جا انتخاب می‌کنی چی نشون داده بشه، کجای صفحه بشینه و چه رنگی داشته باشه. یه کلید میان‌بر هم برای روشن و خاموش کردنش داری.",
-            "Choose what it shows, where it sits and its colour. There is also a hotkey to switch it on and off."),
+            "این‌جا انتخاب می‌کنی چی نشون داده بشه، کجای صفحه بشینه و چه رنگی داشته باشه. اندازه (۲۵ تا ۲۰۰٪) و تیرگی پس‌زمینه (روی ۰٪ پس‌زمینه کلاً حذف می‌شه) یک‌درصد یک‌درصد جابه‌جا می‌شن. یه کلید میان‌بر هم برای روشن و خاموش کردنش داری.",
+            "Choose what it shows, where it sits and its colour. Size (25-200 %) and background opacity (at 0 % the plate disappears completely) move one percent at a time. There is also a hotkey to switch it on and off."),
 
         new("playtime", TourTargets.PagePrefix + "1", "playtime",
             "زمان بازی", "Playtime",
@@ -96,13 +100,17 @@ public static class TourSteps
 
         new("dns", TourTargets.PagePrefix + "0", "dns",
             "دی‌ان‌اس", "DNS",
-            "یه دی‌ان‌اس مناسب از لیست انتخاب کن، پینگش رو ببین و با یه کلیک روی کارت شبکه‌ت ثبتش کن. برای بازی و اینترنت سریع‌تر به درد می‌خوره.",
-            "Pick a DNS from the list, check its ping and set it on your network card in one click. Handy for games and faster browsing."),
+            "یه دی‌ان‌اس مناسب از لیست انتخاب کن، پینگش رو ببین و با یه کلیک روی کارت شبکه‌ت ثبتش کن. اگه فیلترشکن یا پروکسی همه‌ی درخواست‌های DNS رو خودش جواب بده، عددها با «~» و کم‌رنگ میان و هشدار می‌گیری که پینگ واقعی نیستن.",
+            "Pick a DNS from the list, check its ping and set it on your network card in one click. If a VPN or proxy answers every DNS question itself, the numbers show dimmed with "),
 
+        new("download", TourTargets.PagePrefix + "0", "download",
+            "دانلود زمان‌بندی‌شده", "Scheduled downloads",
+            "یه لانچر (استیم، اپیک، رایوت...) رو سر ساعت باز می‌کنه و وقتی دانلودش تموم شد سیستم رو خاموش می‌کنه. لانچر یا برنامه‌ات توی فهرست نیست؟ «افزودن لانچر یا برنامه» رو بزن و فایل .exe رو نشون بده؛ هر برنامه‌ای می‌شه و می‌تونی بهش یاد بدی کجا کلیک کنه.",
+            "Opens a launcher (Steam, Epic, Riot...) at a set time and shuts the PC down when its download ends. Your launcher or program is not listed? Press “Add a launcher or program” and point at its .exe; any program works and you can teach it where to click."),
         new("health", TourTargets.PagePrefix + "0", "health",
             "سلامت و امنیت", "Health & security",
-            "سلامت سیستم، امنیت و استارتاپ، به‌روزرسانی برنامه‌ها، درایورها و گزارش برای پشتیبانی؛ همه به زبان ساده. فقط نشون می‌ده و چیزی رو بی‌خبر تغییر نمی‌ده.",
-            "System health, security and startup, app updates, drivers and a report for support, in plain words. It only shows; it never changes anything behind your back."),
+            "سلامت سیستم، امنیت و استارتاپ، به‌روزرسانی برنامه‌ها، درایورها و گزارش برای پشتیبانی؛ همه به زبان ساده. روی هر خطا بزنی می‌بینی ویندوز دقیقاً چی نوشته؛ خطاهایی که بعد از ری‌استارت تکرار نشدن کنار گذاشته می‌شن. چیزی رو بی‌خبر تغییر نمی‌ده.",
+            "System health, security and startup, app updates, drivers and a report for support, in plain words. Click any error to see exactly what Windows wrote; errors that did not come back after a restart are set aside. It never changes anything behind your back."),
 
         new("mic", TourTargets.PagePrefix + "0", "mic",
             "میکروفون", "Microphone",

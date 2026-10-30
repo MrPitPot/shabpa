@@ -328,6 +328,8 @@ public static class Ui
         {
             var round = 2; // DWMWCP_ROUND
             Native.DwmSetWindowAttribute(hwnd, 33, ref round, sizeof(int));
+            var noBorder = unchecked((int)0xFFFFFFFE); // DWMWA_BORDER_COLOR = DWMWA_COLOR_NONE: no Windows outline around the window, only the app's own look
+            Native.DwmSetWindowAttribute(hwnd, 34, ref noBorder, sizeof(int));
             if (IsGlass)
             {
                 if (HwndSource.FromHwnd(hwnd) is { CompositionTarget: { } target }) target.BackgroundColor = System.Windows.Media.Colors.Transparent;

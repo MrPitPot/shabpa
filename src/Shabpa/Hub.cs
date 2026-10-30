@@ -1813,7 +1813,16 @@ public sealed partial class Hub
     // tick after midnight flips the look, and the greeting appears once per day when no game is running.
 
     private DateTime _bdayDay;
-    private bool _bdayToday, _bdayLook, _bdayDirty = true;
+    private bool _bdayToday, _bdayLook, _bdayDirty = true, _hwLook;
+
+    /// <summary>The Halloween look is on (season and option).</summary>
+    public bool HalloweenLook => _hwLook;
+
+    /// <summary>The theme as it is shown today: the birthday look wins over the Halloween look, which wins over the plain theme.</summary>
+    public Palette FestiveTint(Palette chosen) => _bdayLook ? Core.Birthday.Tint(chosen) : _hwLook ? Core.Halloween.Tint(chosen) : chosen;
+
+    /// <summary>The Halloween scare and greeting are due now (the window is open).</summary>
+    public event Action? HalloweenGreet;
 
     /// <summary>Today is the person's birthday.</summary>
     public bool BirthdayToday => _bdayToday;
@@ -1842,6 +1851,7 @@ public sealed partial class Hub
         _bdayDirty = false;
         _bdayToday = Core.Birthday.IsToday(Settings.Birthday, now);
         _bdayLook = _bdayToday && Settings.Birthday.Theme;
+        _hwLook = Settings.Halloween && Core.Halloween.InSeason(now);
     }
 
     private void CheckBirthday(DateTime now)
@@ -1853,10 +1863,18 @@ public sealed partial class Hub
             _bdayDirty = false;
             var today = Core.Birthday.IsToday(b, now);
             var look = today && b.Theme;
-            var changed = today != _bdayToday || look != _bdayLook;
+            var hw = Settings.Halloween && Core.Halloween.InSeason(now);
+            var changed = today != _bdayToday || look != _bdayLook || hw != _hwLook;
             _bdayToday = today;
             _bdayLook = look;
+            _hwLook = hw;
             if (changed) BirthdayChanged?.Invoke();
+        }
+        if (Core.Halloween.Due(Settings.Halloween, Settings.HalloweenSeenYear, now) && WindowShown && !Snapshot.GameRunning && !GameModeActive)
+        {
+            Settings.HalloweenSeenYear = now.Year;
+            Store.Save();
+            HalloweenGreet?.Invoke();
         }
         if (!_bdayToday) return;
         var key = Core.Birthday.Key(now);

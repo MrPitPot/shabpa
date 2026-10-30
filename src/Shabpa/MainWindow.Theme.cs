@@ -31,7 +31,7 @@ public partial class MainWindow
         Hub.I.Settings.Theme = chosen.Key;
         Hub.I.Store.Save();
         // on the birthday the festive version of the new theme is shown; the saved choice stays the plain one
-        Reveal(Hub.I.BirthdayLook ? Birthday.Tint(chosen) : chosen, origin);
+        Reveal(Hub.I.FestiveTint(chosen), origin);
     }
 
     /// <summary>Puts the festive birthday look on or takes it off (new day, birthday edited or cleared, option toggled),
@@ -39,7 +39,7 @@ public partial class MainWindow
     public void ApplyBirthdayLook(FrameworkElement? origin = null)
     {
         var chosen = Palette.Find(Hub.I.Settings.Theme);
-        var want = Hub.I.BirthdayLook ? Birthday.Tint(chosen) : chosen;
+        var want = Hub.I.FestiveTint(chosen);
         if (want.Key != Ui.Theme.Key) Reveal(want, origin);
         UpdateBirthdayDecor();
     }

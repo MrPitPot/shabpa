@@ -114,7 +114,7 @@ public class TourTests
 
         foreach (var s in TourSteps.All)
         {
-            if (s.Page.Length > 0) Assert.True(pageNav.ContainsKey(s.Page), $"{s.Id}: no page '{s.Page}'");
+            if (s.Page.Length > 0) Assert.True(pageNav.ContainsKey(s.Page.Split(':')[0]), $"{s.Id}: no page '{s.Page}'"); // "system:tune" opens a tab of that page
             if (s.NeedsClick) Assert.True(pageNav.ContainsKey(s.ClickPage), $"{s.Id}: no page '{s.ClickPage}'");
             if (s.Target.StartsWith(TourTargets.NavPrefix))
             {

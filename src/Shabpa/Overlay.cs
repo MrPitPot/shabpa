@@ -99,8 +99,8 @@ public static class OverlayRenderer
         };
 
         var bar = o.Layout == "bar";
-        var padX = o.Layout == "minimal" ? 4 : bar ? 20 : 12;
-        var padY = o.Layout == "minimal" ? 2 : bar ? 12 : 10;
+        var padX = o.Layout == "minimal" ? 4 : bar ? 14 : 14;
+        var padY = o.Layout == "minimal" ? 2 : bar ? 10 : 12;
         var frame = new Border
         {
             Child = body,
@@ -143,7 +143,7 @@ public static class OverlayRenderer
 
     /// <summary>The number at the full size and its unit (%, °C, MHz...) a little smaller next to it, as MSI Afterburner does.
     /// It sits in a slot of fixed width (right-aligned), so a changing value never changes the size of the overlay.</summary>
-    private static TextBlock Reading(MetricView m, double size, Color color, FontFamily font, bool shadow)
+    private static TextBlock Reading(MetricView m, double size, Color color, FontFamily font, bool shadow, bool left = false)
     {
         var block = Text(m.HasValue ? m.Value : "—", size, color, font, FontWeights.Bold, shadow);
         if (m.HasValue)
@@ -152,7 +152,7 @@ public static class OverlayRenderer
             if (unit.Length > 0) block.Inlines.Add(new System.Windows.Documents.Run(unit) { FontSize = Math.Round(size * UnitScale, 1), FontWeight = FontWeights.SemiBold });
         }
         block.Width = SlotWidth(m, size, font);
-        block.TextAlignment = TextAlignment.Right;
+        block.TextAlignment = left ? TextAlignment.Left : TextAlignment.Right;
         block.TextTrimming = TextTrimming.CharacterEllipsis;
         block.TextWrapping = TextWrapping.NoWrap;
         return block;
@@ -170,7 +170,9 @@ public static class OverlayRenderer
         var number = OverlaySlots.NumberPattern(m.Key).Replace(OverlaySlots.Digit, digit);
         var unit = UnitText(unitRaw);
         var width = Measure(number, font, FontWeights.Bold, size) + (unit.Length > 0 ? Measure(unit, font, FontWeights.SemiBold, Math.Round(size * UnitScale, 1)) : 0);
-        width = Math.Max(width, Math.Max(Measure("ADMIN", font, FontWeights.Bold, size), Measure("—", font, FontWeights.Bold, size)));
+        // the word ADMIN only has to fit where a reading can really be replaced by it; elsewhere it would just leave a wide empty gap
+        var floor = OverlayMetrics.NeedsAdmin(m.Key) ? Measure("ADMIN", font, FontWeights.Bold, size) : 0;
+        width = Math.Max(width, Math.Max(floor, Measure("—", font, FontWeights.Bold, size)));
         return SlotCache[(m.Key, unitRaw, size)] = Math.Ceiling(width) + 1;
     }
 
@@ -192,7 +194,7 @@ public static class OverlayRenderer
     {
         var graphRow = metrics.Any(m => m.Key == "fpsgraph");
         metrics = [.. metrics.Where(m => m.Key != "fpsgraph")];
-        var grid = new Grid { MinWidth = 150 };
+        var grid = new Grid { MinWidth = 190 };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 14 });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -203,13 +205,13 @@ public static class OverlayRenderer
             var big = i == 0 && m.Key == "fps";
             if (o.ShowLabels)
             {
-                var label = Text(m.Label, 13, c.Muted, font, FontWeights.Medium, Sh(o));
-                label.Margin = new Thickness(0, 1.5, 0, 1.5);
+                var label = Text(m.Label, 15.5, c.Muted, font, FontWeights.Medium, Sh(o));
+                label.Margin = new Thickness(0, 2, 0, 2);
                 Grid.SetRow(label, i);
                 grid.Children.Add(label);
             }
-            var value = Reading(m, big ? 25 : 16, ValueColor(o, c, m), font, Sh(o));
-            value.Margin = new Thickness(0, 1.5, 0, 1.5);
+            var value = Reading(m, big ? 32 : 20, ValueColor(o, c, m), font, Sh(o));
+            value.Margin = new Thickness(0, 2, 0, 2);
             value.HorizontalAlignment = HorizontalAlignment.Right;
             Grid.SetRow(value, i);
             Grid.SetColumn(value, 2);
@@ -246,7 +248,7 @@ public static class OverlayRenderer
     // ---- bar: one horizontal strip --------------------------------------------------------------
 
     /// <summary>The strip reads like a dashboard: the frame rate big on the left, then one coloured name per group (GPU, CPU, RAM,
-    /// NET) followed by its numbers at a large size with the unit small beside each. Names are not repeated for every number.</summary>
+    /// NET) and, for every number, a small word saying what it is (LOAD, TEMP, CLK...) with the unit small beside the number.</summary>
     private static FrameworkElement Bar(OverlaySettings o, Skin c, FontFamily font, IReadOnlyList<MetricView> metrics)
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal };
@@ -257,27 +259,41 @@ public static class OverlayRenderer
             var big = m.Key == "fps";
             var newGroup = group != lastGroup;
             lastGroup = group;
-            var gap = row.Children.Count == 0 ? 0 : newGroup ? 22 : 12;
+            var gap = row.Children.Count == 0 ? 0 : newGroup ? 24 : 14;
             var cell = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(gap, 0, 0, 0) };
             if (o.ShowLabels && newGroup && GroupName(group) is { Length: > 0 } name && !big)
-                cell.Children.Add(Text(name, 17, GroupColor(c, group), font, FontWeights.Bold, Sh(o)));
-            else if (o.ShowLabels && group == "general" && !big)
-                cell.Children.Add(Text(Short(m), 14, c.Muted, font, FontWeights.Medium, Sh(o)));
-            var value = Reading(m, big ? 34 : 21, ValueColor(o, c, m), font, Sh(o));
-            value.Margin = new Thickness(cell.Children.Count > 0 ? 8 : 0, 0, 0, 0);
-            cell.Children.Add(value);
+                cell.Children.Add(Text(name, 19, GroupColor(c, group), font, FontWeights.Bold, Sh(o)));
+            if (o.ShowLabels && !big && BarLabel(m) is { Length: > 0 } word)
+            {
+                var small = Text(word, 12.5, Color.FromArgb(0xC8, c.Text.R, c.Text.G, c.Text.B), font, FontWeights.Medium, Sh(o));
+                small.Margin = new Thickness(cell.Children.Count > 0 ? 9 : 0, 0, 0, 0);
+                small.VerticalAlignment = VerticalAlignment.Bottom;
+                small.Padding = new Thickness(0, 0, 0, 3);
+                cell.Children.Add(small);
+            }
             if (big && o.ShowLabels)
             {
-                var fps = Text("FPS", 14, c.Muted, font, FontWeights.Medium, Sh(o));
-                fps.Margin = new Thickness(5, 0, 0, 0);
+                var fps = Text("FPS", 15, c.Muted, font, FontWeights.Medium, Sh(o));
+                fps.Margin = new Thickness(0, 0, 8, 5);
                 fps.VerticalAlignment = VerticalAlignment.Bottom;
                 cell.Children.Add(fps);
             }
+            var value = Reading(m, big ? 36 : 23, ValueColor(o, c, m), font, Sh(o), left: true);
+            value.Margin = new Thickness(cell.Children.Count > 0 && !big ? 5 : 0, 0, 0, 0);
+            cell.Children.Add(value);
             row.Children.Add(cell);
         }
         return row;
     }
 
+    /// <summary>The small word in front of a number on the bar: what that number is, short enough to read at a glance.</summary>
+    private static string BarLabel(MetricView m) => m.Key switch
+    {
+        "gpu" or "cpu" => "LOAD", "gputemp" or "cputemp" => "TEMP", "hotspot" => "HOT", "memtemp" => "MEM °", "gpuclock" or "cpufreq" => "CLK", "memclock" => "VCLK",
+        "gpupower" => "PWR", "cpuwatts" => "PWR", "gpufan" or "cpufanrpm" or "gpufanrpm" => "FAN", "cpufan" => "FAN", "vram" => "VRAM", "gpuvolt" => "VOLT",
+        "ram" or "ramused" => "USED", "ping" => "PING", "down" => "↓", "up" => "↑", "low1" => "1% LOW", "frame" => "FRAME", "gametime" => "TIME", "clock" => "",
+        _ => Short(m),
+    };
     private static string GroupName(string group) => group switch { "gpu" => "GPU", "cpu" => "CPU", "ram" => "RAM", "net" => "NET", "board" => "BOARD", _ => "" };
 
     /// <summary>One calm tone per group so the eye finds GPU / CPU / RAM / NET at a glance; darker tones on a light plate.</summary>
@@ -309,13 +325,13 @@ public static class OverlayRenderer
 
     private static FrameworkElement Compact(OverlaySettings o, Skin c, FontFamily font, IReadOnlyList<MetricView> metrics)
     {
-        var panel = new WrapPanel { MaxWidth = 300 };
+        var panel = new WrapPanel { MaxWidth = 400 };
         foreach (var m in metrics)
         {
-            var cell = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 1, 12, 1) };
-            if (o.ShowLabels) cell.Children.Add(Text(Short(m), 11.5, c.Muted, font, FontWeights.Medium, Sh(o)));
-            var value = Reading(m, 15, ValueColor(o, c, m), font, Sh(o));
-            value.Margin = new Thickness(o.ShowLabels ? 4 : 0, 0, 0, 0);
+            var cell = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 16, 2) };
+            if (o.ShowLabels) cell.Children.Add(Text(Short(m), 14, c.Muted, font, FontWeights.Medium, Sh(o)));
+            var value = Reading(m, 19, ValueColor(o, c, m), font, Sh(o), left: true);
+            value.Margin = new Thickness(o.ShowLabels ? 5 : 0, 0, 0, 0);
             cell.Children.Add(value);
             panel.Children.Add(cell);
         }
@@ -332,10 +348,10 @@ public static class OverlayRenderer
             var line = new StackPanel { Orientation = Orientation.Horizontal };
             if (o.ShowLabels) line.Children.Add(new TextBlock
             {
-                Text = Short(m) + " ", FontSize = 13, FontFamily = font, FontWeight = FontWeights.Medium, Foreground = Brush(c.Text), Opacity = 0.75,
+                Text = Short(m) + " ", FontSize = 16, FontFamily = font, FontWeight = FontWeights.Medium, Foreground = Brush(c.Text), Opacity = 0.75,
                 Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 5, ShadowDepth = 1.5, Opacity = 1 },
             });
-            var reading = Reading(m, m.Key == "fps" ? 23 : 16, ValueColor(o, c, m), font, false);
+            var reading = Reading(m, m.Key == "fps" ? 30 : 20, ValueColor(o, c, m), font, false);
             reading.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 5, ShadowDepth = 1.5, Opacity = 1 };
             line.Children.Add(reading);
             panel.Children.Add(line);
@@ -387,7 +403,7 @@ public static class OverlayRenderer
         gauge.Children.Add(number);
 
         var label = o.ShowLabels ? Short(m) : "";
-        var labelSize = 11.5;
+        var labelSize = 13.5;
         var cellWidth = RingSize + 6;
         if (label.Length > 0)
         {
@@ -445,26 +461,26 @@ public static class OverlayRenderer
 
     private static FrameworkElement Graph(OverlaySettings o, Skin c, FontFamily font, IReadOnlyList<MetricView> metrics, IReadOnlyList<TelemetrySample>? history)
     {
-        var root = new StackPanel { MinWidth = 190 };
+        var root = new StackPanel { MinWidth = 230 };
         var fps = metrics.FirstOrDefault(m => m.Key == "fps");
         if (fps is not null)
             {
-                var line = Text($"{Display(fps)} FPS".Replace(" FPS FPS", " FPS"), 25, ValueColor(o, c, fps), font, FontWeights.Bold, Sh(o));
-                line.Width = Math.Max(Measure(OverlaySlots.NumberPattern("fps").Replace(OverlaySlots.Digit, WidestDigit(font, FontWeights.Bold, 25)) + " FPS", font, FontWeights.Bold, 25), Measure("ADMIN FPS", font, FontWeights.Bold, 25)) + 2;
+                var line = Text($"{Display(fps)} FPS".Replace(" FPS FPS", " FPS"), 32, ValueColor(o, c, fps), font, FontWeights.Bold, Sh(o));
+                line.Width = Math.Max(Measure(OverlaySlots.NumberPattern("fps").Replace(OverlaySlots.Digit, WidestDigit(font, FontWeights.Bold, 32)) + " FPS", font, FontWeights.Bold, 32), Measure("ADMIN FPS", font, FontWeights.Bold, 32)) + 2;
                 line.TextTrimming = TextTrimming.CharacterEllipsis;
                 root.Children.Add(line);
             }
 
         var samples = history ?? [];
         var values = samples.Select(s => s.Fps).TakeLast(60).ToList();
-        var chart = new Canvas { Width = 190, Height = 54, Margin = new Thickness(0, 4, 0, 6), ClipToBounds = true };
-        chart.Children.Add(new Rectangle { Width = 190, Height = 54, Fill = Brush(Color.FromArgb(0x30, c.Text.R, c.Text.G, c.Text.B)), RadiusX = 6, RadiusY = 6 });
+        var chart = new Canvas { Width = 230, Height = 60, Margin = new Thickness(0, 4, 0, 6), ClipToBounds = true };
+        chart.Children.Add(new Rectangle { Width = 230, Height = 60, Fill = Brush(Color.FromArgb(0x30, c.Text.R, c.Text.G, c.Text.B)), RadiusX = 6, RadiusY = 6 });
         if (values.Count >= 2)
         {
             var top = Math.Max(30, values.Max() * 1.15);
             var points = new PointCollection();
             for (var i = 0; i < values.Count; i++)
-                points.Add(new Point(190.0 * i / (values.Count - 1), 52 - Math.Clamp(values[i] / top, 0, 1) * 50));
+                points.Add(new Point(230.0 * i / (values.Count - 1), 58 - Math.Clamp(values[i] / top, 0, 1) * 56));
             chart.Children.Add(new Polyline { Points = points, Stroke = Brush(c.Accent), StrokeThickness = 1.8, StrokeLineJoin = PenLineJoin.Round });
         }
         root.Children.Add(chart);

@@ -16,15 +16,17 @@ public sealed class ConfirmWindow : Window
         Title = L.T("شب‌پا", "Shabpa");
         Width = 468;
         SizeToContent = SizeToContent.Height;
+        // Only the sheet itself: no Windows frame, title bar or close button around it, and nothing behind it but the desktop.
+        WindowStyle = WindowStyle.None;
+        AllowsTransparency = true;
         ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false;
         Topmost = true;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        Background = Res("Bg");
+        Background = Brushes.Transparent;
         FontFamily = (FontFamily)Application.Current.Resources["Ui"];
         TextOptions.SetTextFormattingMode(this, TextFormattingMode.Ideal);
         UseLayoutRounding = true;
-        SourceInitialized += (_, _) => Ui.Chrome(this);
 
         // The flyout of the design: a near-opaque sheet with a big tinted icon, centred text and one full-width confirm button,
         // over a darker scrim (no blur in WPF; the scrim stands in for it).
@@ -88,10 +90,10 @@ public sealed class ConfirmWindow : Window
             Margin = new Thickness(22, 18, 22, 38), Child = panel, RenderTransformOrigin = new Point(0.5, 0.5),
         };
         var root = new Grid();
-        root.Children.Add(new Border { Background = Res("Wallpaper") });
-        root.Children.Add(new Border { Background = Res("Bg"), Opacity = 0.45 });
         root.Children.Add(sheet);
         Content = root;
+        // no title bar to grab: the sheet itself can be dragged by its empty parts
+        MouseLeftButtonDown += (_, e) => { if (!OnButton(e.OriginalSource as DependencyObject)) { try { DragMove(); } catch (InvalidOperationException) { } } };
         KeyDown += (_, e) => { if (e.Key == Key.Escape) Choose(false); };
         Loaded += (_, _) =>
         {
@@ -109,6 +111,13 @@ public sealed class ConfirmWindow : Window
             sheet.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220)) { FillBehavior = System.Windows.Media.Animation.FillBehavior.Stop });
             sheet.Opacity = 1;
         };
+    }
+
+    private static bool OnButton(DependencyObject? element)
+    {
+        for (; element is not null; element = element is Visual or System.Windows.Media.Media3D.Visual3D ? VisualTreeHelper.GetParent(element) : LogicalTreeHelper.GetParent(element))
+            if (element is System.Windows.Controls.Primitives.ButtonBase) return true;
+        return false;
     }
 
     private static System.Windows.Media.Brush Res(string key) => (System.Windows.Media.Brush)Application.Current.Resources[key];

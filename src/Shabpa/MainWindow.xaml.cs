@@ -87,6 +87,7 @@ public partial class MainWindow : Window
         hub.Second += () => { if (Shown) { PageBase.SafeSecond(_current); UpdateSide(); } };
         hub.BirthdayChanged += OnBirthdayChanged;
         hub.BirthdayGreet += () => ShowBirthdayGreeting();
+        hub.HalloweenGreet += () => Dispatcher.BeginInvoke(() => ShowHalloween());
         UpdateBirthdayDecor();
         InitTour();
         IsVisibleChanged += (_, _) => OnShownChanged();

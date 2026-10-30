@@ -7,6 +7,8 @@ a patch release only fixes bugs, a minor release adds a tested batch of features
 ## [Unreleased]
 
 ### Added
+- **Halloween (28 October to 1 November, on by default)** - an orange-and-violet look, and the first time the window opens in the season (once a year) a drawn pumpkin leaps out with one flash and a short scream made in the app, then a greeting card. No sound while a game runs or when interface sounds are off; with animations off only the card shows. One switch and a preview button in Settings.
+- **Game tips in the tour** - the guided tour now covers game tuning, scheduled downloads, the new overlay sizes, the warm night light, the DNS warning and clickable health errors.
 - **Game tuning (System control → Game tuning)** - ten documented Windows settings in three tabs (processor & memory, Windows & system, graphics), each with an "i" that explains it on hover: game gets the processor first, game scheduling priority, background share of the processor, Windows' own Game Mode, stop Game Bar's hidden recording, keep Store apps asleep, stop sharing updates with others, lift the multimedia network brake, merge service processes, hardware-scheduled graphics (HAGS), keep the PCIe lane awake, windowed/borderless game boost. Each asks first, keeps your own value before changing it and puts exactly that back when switched off; "put everything back" undoes all. Nothing disables a program, service or file. The X3D pinning row only shows whether such a processor exists (not built yet).
 - **Overlay bar layout redesigned** - big numbers with small units, the frame rate large on the left and one coloured name per group (GPU, CPU, RAM, NET) instead of a label on every number.
 - **Overlay size and opacity** - size 25-200 % and background opacity 0-100 % in one-percent steps; at 0 % there is no plate and no outline (the numbers keep a shadow).
@@ -14,6 +16,8 @@ a patch release only fixes bugs, a minor release adds a tested batch of features
 - **Downloads:** any program (not only launchers) can be added and taught clicks; the texts say so.
 
 ### Changed
+- **Every overlay layout is bigger and easier to read** (card, compact, minimal, graph, rings); the bar names what each number is (LOAD, TEMP, CLK...) and sits closer to its edges.
+- **Confirmation dialogs are only the sheet** - no Windows frame, title bar or close button around them; the Windows outline of the main window is removed too (it already had its own minimise, maximise and close buttons).
 - **Night light warm colour** now warms the display's colour curve like Windows' Night Light (the amber plate over the screen greyed the picture). The darkness stays a separate layer. A screen that refuses the curve falls back to the old plate. The curve is put back on switch-off and on exit.
 
 ### Fixed
