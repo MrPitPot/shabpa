@@ -1112,6 +1112,17 @@ public partial class App : Application
                 }
                 File.WriteAllLines(Path.Combine(folder, "10-no-flight.txt"), lines);
             }
+
+            // a stroll along the bottom of the page, caught mid-step
+            await Task.Delay(300);
+            if (life.WalkNow())
+            {
+                var route = life.Route!;
+                life.Seek(Core.WalkMotion.Start + (route.Seconds - Core.WalkMotion.Start - Core.WalkMotion.Stop) * 0.5 + 0.1);
+                Save(_window.CaptureRoot, Path.Combine(folder, "12-walking.png"));
+                life.HaltWalk();
+            }
+            else File.WriteAllText(Path.Combine(folder, "12-no-walk.txt"), $"no walk from {life.Rest}");
         }
         catch (Exception ex)
         {

@@ -3,13 +3,13 @@ namespace Shabpa.Core;
 /// <summary>Everything Bidar can do on his own (or in answer to an app event). Pure names: the rig (Kit/BidarLife.cs) plays them.</summary>
 public enum BidarAct
 {
-    Breathe, Blink, DoubleBlink, LookAround, LanternFlicker, Stretch, Yawn, WingWave, Hop, HatFidget, Hello, Think, Search, Shrug, Peek, Doze, Fly, Curious,
+    Breathe, Blink, DoubleBlink, LookAround, LanternFlicker, Stretch, Yawn, WingWave, Hop, HatFidget, Hello, Think, Search, Shrug, Peek, Doze, Fly, Walk, Curious,
     // reactions (never picked at random)
     Startle, Celebrate, Worry, Alert, Dizzy, EasterEgg,
 }
 
 /// <summary>Things that happen in the app that Bidar reacts to.</summary>
-public enum BidarCue { DownloadDone, BadPing, ShutdownSoon, Error }
+public enum BidarCue { DownloadDone, BadPing, ShutdownSoon, Error, Welcome }
 
 /// <summary>Why nothing is happening right now (None = free to act).</summary>
 public enum PauseReason { None, Disabled, NoMotion, LowMemory, GameRunning, Hidden, Inactive, UserBusy, PopupOpen, Busy, Asleep }
@@ -34,6 +34,8 @@ public sealed record BrainContext
     public bool Asleep { get; init; }
     /// <summary>At least one safe resting place other than the current one exists.</summary>
     public bool CanFly { get; init; }
+    /// <summary>A free spot on the same row can be reached on foot without crossing anything.</summary>
+    public bool CanWalk { get; init; }
     /// <summary>How long nobody has touched the owl or the app.</summary>
     public TimeSpan IdleFor { get; init; }
 }
@@ -65,6 +67,7 @@ public sealed class BidarBrain
         new(BidarAct.Peek, 2, 100),
         new(BidarAct.Doze, 1.5, 180, 25),
         new(BidarAct.Fly, 3, 75),
+        new(BidarAct.Walk, 4, 35),
     ];
 
     private static readonly Dictionary<BidarCue, (BidarAct Act, double CooldownSeconds)> Reactions = new()
@@ -73,6 +76,7 @@ public sealed class BidarBrain
         [BidarCue.BadPing] = (BidarAct.Worry, 180),
         [BidarCue.ShutdownSoon] = (BidarAct.Alert, 300),
         [BidarCue.Error] = (BidarAct.Dizzy, 4),
+        [BidarCue.Welcome] = (BidarAct.Hello, 600),
     };
 
     private readonly Random _rng;
@@ -131,6 +135,7 @@ public sealed class BidarBrain
             if (c.IdleFor.TotalSeconds < e.MinIdleSeconds) continue;
             if (_last.TryGetValue(e.Act, out var at) && (c.Now - at).TotalSeconds < e.CooldownSeconds) continue;
             if (e.Act == BidarAct.Fly && !c.CanFly) continue;
+            if (e.Act == BidarAct.Walk && !c.CanWalk) continue;
             var w = e.Weight;
             switch (e.Act)
             {
@@ -148,6 +153,7 @@ public sealed class BidarBrain
                     if (night) w *= 0.4;
                     if (worried) w *= 0.2;
                     break;
+                case BidarAct.Walk:
                 case BidarAct.Fly:
                     if (night) w *= 0.5;
                     if (worried) w *= 0.3;

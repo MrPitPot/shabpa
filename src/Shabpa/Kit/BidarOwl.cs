@@ -72,7 +72,7 @@ public sealed partial class BidarOwl : Decorator
     private readonly RotateTransform _hatTilt = new(0, 50, 40);
     private readonly Dictionary<string, Path> _props = [];
     private readonly RotateTransform _wingL = new(14, 0, 0), _wingR = new(-14, 0, 0), _head = new(0, 50, 60);
-    private readonly TranslateTransform _lowerBeak = new();
+    private readonly TranslateTransform _lowerBeak = new(), _footL = new(), _footR = new();
     private readonly Path _mouth, _lantern;
     private readonly Ellipse _glow, _cheekL, _cheekR, _shadow;
     private readonly Eye _eyeL, _eyeR;
@@ -161,7 +161,7 @@ public sealed partial class BidarOwl : Decorator
         // feet
         foreach (var x in new[] { 33.0, 55.0 })
         {
-            var foot = new Ellipse { Width = 12, Height = 6, Fill = Orange };
+            var foot = new Ellipse { Width = 12, Height = 6, Fill = Orange, RenderTransform = x < 50 ? _footL : _footR };
             Canvas.SetLeft(foot, x);
             Canvas.SetTop(foot, 107);
             root.Children.Add(foot);
