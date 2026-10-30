@@ -25,6 +25,7 @@ a patch release only fixes bugs, a minor release adds a tested batch of features
 - **Night light warm colour** now warms the display's colour curve like Windows' Night Light (the amber plate over the screen greyed the picture). The darkness stays a separate layer. A screen that refuses the curve falls back to the old plate. The curve is put back on switch-off and on exit.
 
 ### Fixed
+- **Setup no longer fails with "WinDivert64.sys is being used by another process"** when the speed-limit driver is still loaded from an earlier install. Files that did not change are skipped, the driver is stopped if Windows loaded it from Shabpa's own folder, and as a last resort the locked file is moved aside and removed at the next restart.
 - **DNS ping numbers were wrong behind a VPN/proxy** - with a tunnel client (or a router/ISP) that answers every DNS question itself, all servers, even a non-existent one, showed under 30 ms. The test now detects this (a question to the reserved address 192.0.2.53 gets an answer) and shows the numbers dimmed with "~" and an explanation.
 - **Window freezes of many seconds** - the first network request of the weather, support and update pages ran on the window thread (proxy lookup and name resolution took up to 21 s in a real log); they now start on a background thread.
 - **Ping stability list scrolled slowly on weak PCs** - unchanged text and animations are no longer rewritten every second, the list is not rebuilt unless its order really changed, and numbers wait while the wheel is turning.

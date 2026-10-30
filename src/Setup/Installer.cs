@@ -150,6 +150,7 @@ public static class Installer
         SetupLog.Info("payload: version " + version + ", " + files.Count + " files");
 
         long total = files.Sum(f => (long)f.Data.Length), done = 0;
+        var unchanged = 0;
         try
         {
             Directory.CreateDirectory(target.Dir);
@@ -160,17 +161,20 @@ public static class Installer
             var current = files.Select(f => f.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
             foreach (var stale in old.Where(p => !current.Contains(p)))
                 TryDelete(Path.Combine(target.Dir, stale));
+            foreach (var leftover in Directory.GetFiles(target.Dir, "*" + SetAsideMark + "*", SearchOption.AllDirectories))
+                TryDelete(leftover);
 
             foreach (var file in files)
             {
                 var path = Path.Combine(target.Dir, file.Path.Replace('/', Path.DirectorySeparatorChar));
                 Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                WriteWithRetry(path, file.Data);
+                if (SameContent(path, file.Data)) unchanged++;
+                else WriteReplacing(target, path, file.Data);
                 done += file.Data.Length;
                 progress?.Invoke(0.9 * done / Math.Max(1, total));
             }
             File.WriteAllLines(manifest, current.OrderBy(p => p, StringComparer.OrdinalIgnoreCase));
-            SetupLog.Info("files written (" + total + " bytes)");
+            SetupLog.Info("files written (" + total + " bytes, " + unchanged + " already up to date)");
 
             if (uninstallerSource is not null && File.Exists(uninstallerSource) &&
                 !string.Equals(Path.GetFullPath(uninstallerSource), Path.GetFullPath(target.Uninstaller), StringComparison.OrdinalIgnoreCase))
@@ -386,21 +390,125 @@ public static class Installer
         void SetPath([MarshalAs(UnmanagedType.LPWStr)] string file);
     }
 
-    /// <summary>A just-closed app can hold its files for a moment; retry instead of failing the install.</summary>
-    private static void WriteWithRetry(string path, byte[] data)
+    /// <summary>Name part of a locked file that was moved out of the way; it is deleted at the next reboot or the next install.</summary>
+    private const string SetAsideMark = ".shabpa-old-";
+
+    /// <summary>True when <paramref name="path"/> already holds exactly <paramref name="data"/>. Skipping such a file is what lets an
+    /// install go over a WinDivert driver Windows still has loaded: the driver is the same release in every version of Shabpa.</summary>
+    private static bool SameContent(string path, byte[] data)
     {
-        for (var attempt = 0; ; attempt++)
+        try
+        {
+            var info = new FileInfo(path);
+            if (!info.Exists || info.Length != data.Length) return false;
+            // A loaded driver image can still be opened for reading.
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            var buffer = new byte[81920];
+            for (var offset = 0; offset < data.Length;)
+            {
+                var n = stream.Read(buffer, 0, Math.Min(buffer.Length, data.Length - offset));
+                if (n <= 0) return false;
+                for (var i = 0; i < n; i++)
+                    if (buffer[i] != data[offset + i]) return false;
+                offset += n;
+            }
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Writes a file that may be held open by something the installer cannot close by killing Shabpa: mostly
+    /// WinDivert64.sys, which stays loaded as a kernel driver after the app exits. First the driver is stopped (only when
+    /// Windows loaded it from this install folder), then the locked file is renamed aside so the new one can be written.</summary>
+    private static void WriteReplacing(InstallTarget target, string path, byte[] data)
+    {
+        try
+        {
+            WriteWithRetry(path, data, attempts: 8);
+            return;
+        }
+        catch (IOException ex)
+        {
+            SetupLog.Warn("file in use: " + path + " (" + ex.Message + ")");
+        }
+
+        if (path.EndsWith(".sys", StringComparison.OrdinalIgnoreCase) && StopOwnDriver(target.Dir))
+        {
+            try
+            {
+                WriteWithRetry(path, data, attempts: 8);
+                return;
+            }
+            catch (IOException ex) { SetupLog.Warn("still in use after stopping the driver: " + ex.Message); }
+        }
+
+        // Windows lets a file that is in use be renamed even when it cannot be overwritten. The old copy goes
+        // away at the next reboot, or at the next install if that comes first.
+        var aside = path + SetAsideMark + Guid.NewGuid().ToString("N").Substring(0, 8);
+        try { File.Move(path, aside); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            SetupLog.Warn("could not move the locked file aside: " + ex.Message);
+            throw new IOException(ex.Message + " Close Shabpa (and any other tool that uses WinDivert) or restart Windows, then run setup again.", ex);
+        }
+        SetupLog.Info("moved the locked file aside: " + aside);
+        if (!MoveFileEx(aside, null, MoveFileDelayUntilReboot))
+            SetupLog.Warn("could not schedule " + aside + " for removal at reboot (error " + Marshal.GetLastWin32Error() + ")");
+        WriteWithRetry(path, data);
+    }
+
+    /// <summary>Stops the WinDivert kernel service when its driver file is inside <paramref name="installDir"/>. A service that
+    /// another tool (GoodbyeDPI and friends) loaded from its own folder is left running.</summary>
+    private static bool StopOwnDriver(string installDir)
+    {
+        if (TestHooks.Active) return false;
+        var (code, config) = Run("sc.exe", "qc " + DriverService);
+        if (code != 0) return false;
+        var line = config.Split('\n').FirstOrDefault(l => l.TrimStart().StartsWith("BINARY_PATH_NAME", StringComparison.OrdinalIgnoreCase));
+        var image = line?.Substring(line.IndexOf(':') + 1).Trim().Trim('"');
+        if (image is null || image.IndexOf(Path.GetFullPath(installDir).TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase) < 0)
+        {
+            SetupLog.Info("WinDivert service is not ours (" + (image ?? "no path") + "), leaving it alone");
+            return false;
+        }
+        var (stopCode, stopOutput) = Run("sc.exe", "stop " + DriverService);
+        SetupLog.Info("sc stop " + DriverService + ": " + stopCode + " " + stopOutput.Trim().Replace("\r\n", " | "));
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (DateTime.UtcNow < deadline)
+        {
+            var (_, state) = Run("sc.exe", "query " + DriverService);
+            if (state.IndexOf("STOPPED", StringComparison.OrdinalIgnoreCase) >= 0 || state.IndexOf("1060", StringComparison.Ordinal) >= 0) return true;
+            Thread.Sleep(250);
+        }
+        return stopCode == 0;
+    }
+
+    /// <summary>Service name WinDivert 2.x registers its driver under.</summary>
+    private const string DriverService = "WinDivert";
+
+    private const int MoveFileDelayUntilReboot = 0x4;
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool MoveFileEx(string existing, string? replacement, int flags);
+
+    /// <summary>A just-closed app can hold its files for a moment; retry instead of failing the install.</summary>
+    private static void WriteWithRetry(string path, byte[] data, int attempts = 21)
+    {
+        for (var attempt = 1; ; attempt++)
         {
             try
             {
                 File.WriteAllBytes(path, data);
                 return;
             }
-            catch (IOException) when (attempt < 20)
+            catch (IOException) when (attempt < attempts)
             {
                 Thread.Sleep(250);
             }
-            catch (UnauthorizedAccessException) when (attempt < 20)
+            catch (UnauthorizedAccessException) when (attempt < attempts)
             {
                 Thread.Sleep(250);
             }
