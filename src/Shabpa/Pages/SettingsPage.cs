@@ -149,8 +149,8 @@ public sealed class SettingsPage : PageBase
                 "A small owl sits in the corner of every page; click it to type a command. Turn it off and the shortcut and the tray menu still work.")));
         AssistantDockCheck.Click += (_, _) => Hub.SetAssistantDock(AssistantDockCheck.IsChecked == true);
         behaviourBody.Children.Add(SwitchRow(BidarLifeCheck, L.T("زندگی و پرواز جغد", "Idle life & flights"),
-            L.T("جغد خودش نفس می‌کشه، پلک می‌زنه، اطراف رو نگاه می‌کنه، چرت می‌زنه، به اتفاق‌های برنامه واکنش نشون می‌ده و گاهی به یه گوشه‌ی خالی دیگه پرواز می‌کنه. وسط بازی، تایپ یا وقتی پنجره پنهونه ساکت می‌مونه؛ با «رم کمتر» یا خاموش بودن انیمیشن‌ها کاملاً ثابته.",
-                "The owl breathes, blinks, looks around, dozes, reacts to what happens in the app and now and then flies to another free corner. He stays still while you type, during a game or when the window is hidden, and is fully static with “use less RAM” or animations off.")));
+            L.T("جغد خودش نفس می‌کشه، پلک می‌زنه، اطراف رو نگاه می‌کنه، چرت می‌زنه، به اتفاق‌های برنامه واکنش نشون می‌ده، پایین صفحه قدم می‌زنه و گاهی به یه گوشه‌ی خالی دیگه پرواز می‌کنه؛ وقتی بعد از یه مدت برمی‌گردی بهت سلام می‌کنه. وسط بازی، تایپ یا وقتی پنجره پنهونه ساکت می‌مونه؛ با «رم کمتر» یا خاموش بودن انیمیشن‌ها کاملاً ثابته.",
+                "The owl breathes, blinks, looks around, dozes, reacts to what happens in the app, strolls along the bottom of the page and now and then flies to another free corner; when you come back after a break he waves hello. He stays still while you type, during a game or when the window is hidden, and is fully static with “use less RAM” or animations off.")));
         BidarLifeCheck.Click += (_, _) => Hub.SetBidarIdleLife(BidarLifeCheck.IsChecked == true);
         AssistantKeyBox.Changed += v =>
         {

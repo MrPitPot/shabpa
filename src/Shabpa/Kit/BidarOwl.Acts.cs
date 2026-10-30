@@ -150,11 +150,34 @@ public sealed partial class BidarOwl
         foreach (var dp in new[] { WingLProperty, WingRProperty, TiltProperty, SquashProperty, LiftProperty, BeakProperty, BlinkProperty, LookXProperty, LookYProperty, GlowProperty, HatLiftProperty, HatTiltProperty, SlideProperty, SpinProperty })
             BeginAnimation(dp, null);
         Airborne = false;
+        FeetDown();
+        Lift = 0; // a walk stopped mid-step leaves the bob behind
         LookX = LookY = 0;
         Glow = 0.8;
         HatLift = HatTilt = Slide = Spin = 0;
         SetMood(BidarMood.Idle);
     }
+
+    /// <summary>Applies one walking frame straight to the rig: the lifted foot, the bob, the hip sway and the eyes looking ahead.
+    /// Called from the render clock like a flight frame; the last frame puts both feet down.</summary>
+    public void ApplyWalk(WalkFrame f)
+    {
+        void Set(DependencyProperty dp, double v)
+        {
+            BeginAnimation(dp, null);
+            SetValue(dp, v);
+        }
+        _footL.Y = -f.StepL;
+        _footR.Y = -f.StepR;
+        Set(LiftProperty, f.Bob);
+        Set(TiltProperty, f.Sway);
+        Set(WingLProperty, 14 + 6 * Math.Max(0, f.Sway) / WalkMotion.SwayDegrees);
+        Set(WingRProperty, 14 + 6 * Math.Max(0, -f.Sway) / WalkMotion.SwayDegrees);
+        if (_mood is not (BidarMood.Sleepy or BidarMood.Dizzy)) Set(LookXProperty, 3.2 * f.Look);
+    }
+
+    /// <summary>Both feet back on the ground (a walk ended or was cut short).</summary>
+    private void FeetDown() => _footL.Y = _footR.Y = 0;
 
     /// <summary>Applies one flight frame straight to the rig (no animation objects; the caller drives it from the render clock).</summary>
     public void ApplyFlight(FlightFrame f)
