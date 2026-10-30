@@ -19,6 +19,9 @@ public sealed class PowerSettings
     public double DetGpuIdle { get; set; }
     public double DetBase { get; set; }
     public double DetCpuMax { get; set; }
+    /// <summary>The highest steady draw the card has shown while it was really worked (the figure a play session taught). The maximum
+    /// never stays below it, whatever was detected or typed.</summary>
+    public double SeenPeak { get; set; }
     public string Confidence { get; set; } = "";
     public string DetectedAt { get; set; } = "";
     public string Hardware { get; set; } = "";
@@ -186,7 +189,7 @@ public static class PowerModel
         var p = s.Power;
         return f switch
         {
-            PowerField.GpuMax => PowerLearner.RefineMax(p.DetGpuMax, PowerLearner.LearnedPeak(p.Learn)),
+            PowerField.GpuMax => p.DetGpuMax > 0 ? Math.Max(PowerLearner.RefineMax(p.DetGpuMax, PowerLearner.LearnedPeak(p.Learn)), p.SeenPeak) : p.DetGpuMax,
             PowerField.GpuIdle => PowerLearner.RefineIdle(p.DetGpuIdle, PowerLearner.LearnedIdle(p.Learn)),
             _ => Det(p, f),
         };
@@ -221,6 +224,7 @@ public static class PowerModel
         p.DetBase = r.Other;
         p.DetCpuMax = r.CpuMax;
         p.Confidence = r.Confidence.ToString();
+        if (p.Hardware != r.HardwareKey) p.SeenPeak = 0; // another card: what the old one drew says nothing about it
         p.Hardware = r.HardwareKey;
         p.Parts = [.. r.Parts];
         p.DetectedAt = now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
@@ -287,6 +291,7 @@ public static class PowerModel
         p.DetGpuIdle = Math.Min(Fix(p.DetGpuIdle, 0), p.DetGpuMax > 0 ? p.DetGpuMax : MaxWatts);
         p.DetBase = Fix(p.DetBase, 0);
         p.DetCpuMax = Fix(p.DetCpuMax, 0);
+        p.SeenPeak = Fix(p.SeenPeak, 0);
         s.GpuMaxWatts = Fix(s.GpuMaxWatts, OldGpuMax);
         s.GpuIdleWatts = Math.Min(Fix(s.GpuIdleWatts, OldGpuIdle), s.GpuMaxWatts);
         s.BaseWatts = Fix(s.BaseWatts, OldBase);
@@ -303,6 +308,17 @@ public static class PowerModel
     {
         var ceiling = Math.Max(Math.Max(s.Power.DetGpuMax, s.GpuMaxWatts), 50);
         if (!PowerLearner.Observe(s.Power.Learn, gpuWatts, gpuLoad, ceiling, now, window)) return false;
+        // a finished stretch of real work taught a new peak: remember it, and never keep a maximum below what the card was seen to draw
+        // (this also raises a value that was typed by hand: a maximum under the observed draw is simply wrong)
+        if (s.Power.Learn.Peaks.Count > 0 && s.Power.Learn.Peaks[^1] is var peak && peak > s.Power.SeenPeak && peak <= MaxWatts)
+        {
+            s.Power.SeenPeak = Math.Round(peak);
+            if (s.Power.SeenPeak > s.GpuMaxWatts)
+            {
+                s.GpuMaxWatts = s.Power.SeenPeak;
+                s.Power.GpuMaxManual = false;
+            }
+        }
         Refresh(s);
         return true;
     }

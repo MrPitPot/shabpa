@@ -343,7 +343,7 @@ public class OverlayPlateAndSizeTests
         });
         Assert.Contains("GPU", text); Assert.Contains("CPU", text); Assert.Contains("RAM", text); Assert.Contains("NET", text);
         Assert.Single(System.Text.RegularExpressions.Regex.Matches(text, "GPU"));   // one name for the two GPU readings
-        Assert.True(height >= 50, $"the strip is {height} px tall; the old thin strip was about 40");
+        Assert.InRange(height, 34, 50); // as tall as its text and no more: one line, tight padding
     }
 
     private static IEnumerable<string> AllText(System.Windows.DependencyObject root)

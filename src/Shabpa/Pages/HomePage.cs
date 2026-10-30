@@ -602,8 +602,10 @@ public sealed class HomePage : PageBase
 
         // network
         if (sample) Push("net", s.DownMbps);
-        _net.Set(Fa.N(s.DownMbps, s.DownMbps >= 10 ? 0 : 1), "Mb/s ↓", _history["net"]);
-        _net.ToolTip = L.T($"آپلود {Fa.N(s.UpMbps, s.UpMbps >= 10 ? 0 : 1)} Mb/s", $"Up {s.UpMbps:0.0} Mb/s");
+        var (down, downUnit) = SpeedUnit.Of(s.DownMbps);
+        var (up, upUnit) = SpeedUnit.Of(s.UpMbps);
+        _net.Set(Fa.N(down, down >= 10 ? 0 : 1), downUnit + " ↓", _history["net"]);
+        _net.ToolTip = L.T($"آپلود {Fa.N(up, up >= 10 ? 0 : 1)} {upUnit}", $"Up {up:0.0} {upUnit}");
     }
 
     private void OnVisible()

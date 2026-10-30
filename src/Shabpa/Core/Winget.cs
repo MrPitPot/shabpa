@@ -84,7 +84,12 @@ public static class Winget
         return result;
     }
 
-    public static bool IsAvailable()
+    private static bool? _available;
+
+    /// <summary>Whether winget.exe exists. Looking through every PATH folder can stall on a dead network drive, so it is done once.</summary>
+    public static bool IsAvailable() => _available ??= FindWinget();
+
+    private static bool FindWinget()
     {
         try
         {

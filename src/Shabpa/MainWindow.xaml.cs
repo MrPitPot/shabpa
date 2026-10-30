@@ -9,6 +9,24 @@ namespace Shabpa;
 
 public partial class MainWindow : Window
 {
+    private System.Windows.Threading.DispatcherTimer? _saveTimer;
+
+    /// <summary>Writes the state a moment after the last click instead of during it: the file write (and anything holding the file, like a virus scanner) must never delay a page switch.</summary>
+    private void SaveSoon()
+    {
+        _saveTimer ??= new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(2) };
+        _saveTimer.Tick -= OnSaveSoon;
+        _saveTimer.Tick += OnSaveSoon;
+        _saveTimer.Stop();
+        _saveTimer.Start();
+    }
+
+    private void OnSaveSoon(object? sender, EventArgs e)
+    {
+        _saveTimer?.Stop();
+        Hub.I.Store.Save();
+    }
+
     // Pages are built the first time they are opened: most sessions only ever look at a few of them.
     private readonly Dictionary<string, (RadioButton nav, Func<PageBase> make)> _pages;
     private readonly Dictionary<string, PageBase> _built = [];
@@ -350,7 +368,7 @@ public partial class MainWindow : Window
     {
         if (_pages is null) return;
         var key = _pages.First(p => ReferenceEquals(p.Value.nav, sender)).Key;
-        if (PageUse.Record(Hub.I.State.PageVisits, key)) Hub.I.Store.Save();
+        if (PageUse.Record(Hub.I.State.PageVisits, key)) SaveSoon();
         Show(key, Page(key));
     }
 

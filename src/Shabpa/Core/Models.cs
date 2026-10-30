@@ -139,6 +139,8 @@ public sealed class Settings
     /// <summary>The year the scare was last shown, so it comes once a year.</summary>
     public int HalloweenSeenYear { get; set; }
     public string PingHost { get; set; } = "8.8.8.8";
+    /// <summary>"mbit", "mbyte" or "kbyte": the unit internet speeds are shown in.</summary>
+    public string SpeedUnit { get; set; } = "mbit";
     /// <summary>While a game runs, cap the upload of everything else.</summary>
     public bool GuardEnabled { get; set; }
     public double GuardCapMbps { get; set; } = 1;

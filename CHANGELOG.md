@@ -4,7 +4,25 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
-## [Unreleased]
+## [3.12.1] - 2026-10-31
+
+### Added
+- **Power estimate learns from every play session**: the highest steady draw the card showed is remembered and the maximum never stays below it (even a typed one).
+- **Internet speed unit** in Settings (drop-down): megabit (Mb/s) or megabyte (MB/s). Used by the overlay, Home and Ping stability, whose per-app and in-game caps now use that unit with even-number presets and one custom box (faint hint, tick button).
+- **Own colour for each part of the overlay** (frame rate, GPU, CPU, RAM, NET, clock) with a reset button, and a switch to hide the small part names (LOAD, TEMP, HOT, CLK...) without hiding the group names.
+- **Clock with seconds** in the overlay.
+- 11 more DNS servers (public, secure and family filters).
+- Health: the 7-day error counter now opens its details in a card right under it instead of scrolling to a big card at the bottom.
+
+### Changed
+- Overlay strip: every number has one size and sits on one line with its name and unit; the plate is only as tall as its text; the word FPS sits next to its number. Card, compact, minimal and graph layouts use the same font and size.
+- DNS ping figures are coloured again (green, amber, red) even when the network answers for the servers.
+- Ping stability: the "ping right now" card no longer stretches in a full-screen window.
+
+### Fixed / performance
+- Weather scene animates for everyone: only the in-app animations switch and low-memory mode stop it, no longer Windows' global animation switch or the window being inactive.
+- Page switching no longer waits for a disk write (the visit counter is saved a moment later) or for a PATH scan for winget.
+- The overlay draws at most one frame per sample and never queues several while the window is busy.
 
 ### Added
 - **Halloween theme** in the list of themes (orange and violet), next to the seasonal look.

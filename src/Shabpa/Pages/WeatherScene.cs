@@ -59,12 +59,12 @@ public sealed class WeatherScene : Grid
             // The scene is the one thing that animates all the time, so it only runs while the window is the one in front
             // (and visible, and motion is on): an app left open behind other windows costs nothing.
             _window = Window.GetWindow(this);
-            if (_window is not null) { _window.Activated += OnActivity; _window.Deactivated += OnActivity; }
+            if (_window is not null) { _window.Activated += OnActivity; _window.Deactivated += OnActivity; _window.StateChanged += OnActivity; }
             Toggle();
         };
         Unloaded += (_, _) =>
         {
-            if (_window is not null) { _window.Activated -= OnActivity; _window.Deactivated -= OnActivity; _window = null; }
+            if (_window is not null) { _window.Activated -= OnActivity; _window.Deactivated -= OnActivity; _window.StateChanged -= OnActivity; _window = null; }
             Stop();
         };
         Background = Gradient(Sky.Clear, true);
@@ -123,8 +123,12 @@ public sealed class WeatherScene : Grid
 
     private void Toggle()
     {
-        var inFront = _window is { IsActive: true } || Hub.I is { Demo: true }; // demo and screenshot runs never take focus
-        if (IsVisible && IsLoaded && Motion.Enabled && inFront) Start();
+        // The scene is the point of this page, so it plays whenever the page can be seen. Only the person's own choices stop it
+        // (animations off, low-memory mode); Windows' global "animation effects" switch (often off on remote or weak PCs) and
+        // the window not being the active one no longer hide it. A minimised window draws nothing, so it is stopped.
+        var chosen = Hub.I?.Settings is not ({ Animations: false } or { LowMemory: true });
+        var shown = _window is { WindowState: not WindowState.Minimized } || Hub.I is { Demo: true };
+        if (IsVisible && IsLoaded && chosen && shown) Start();
         else Stop();
     }
 

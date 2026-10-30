@@ -23,6 +23,10 @@ public sealed class OverlaySettings
     public double Y { get; set; } = 24;
     public bool ColorByValue { get; set; } = true;
     public bool ShowLabels { get; set; } = true;
+    /// <summary>The small word in front of a number on the bar (LOAD, TEMP, HOT, CLK...); can be hidden without losing the group names.</summary>
+    public bool ShowPartNames { get; set; } = true;
+    /// <summary>Own colour per group ("fps", "gpu", "cpu", "ram", "net", "time" → "RRGGBB"); a group that is not listed keeps its usual tone.</summary>
+    public Dictionary<string, string> GroupColors { get; set; } = [];
     /// <summary>Optional module: CPU temperature and CPU fan from the motherboard chip (needs admin and the PawnIO driver).</summary>
     public bool BoardSensors { get; set; } = true;
     public bool Shadow { get; set; } = true;
@@ -214,6 +218,12 @@ public static class OverlayMetrics
             return new MetricView(def.Key, Abbrev(def.Key), shown, def.Unit, max is { } m && m > 0 ? Math.Clamp(value.Value / m, 0, 1) : null, Level(def.Key, value.Value));
         }
 
+        MetricView Speed(double mbps)
+        {
+            var (shown, unit) = SpeedUnit.Of(mbps);
+            return new MetricView(def.Key, Abbrev(def.Key), N(shown, shown >= 10 ? 0 : 1), unit, Math.Clamp(mbps / 100, 0, 1), Level(def.Key, mbps));
+        }
+
         var g = s.Gpu;
         return def.Key switch
         {
@@ -248,9 +258,9 @@ public static class OverlayMetrics
                 => Make(s.Board is { } b && b.TryGetValue(def.Key, out var bv) ? bv : null, def.Key is "vcore" or "v12" ? 2 : 0,
                     def.Key switch { "pumprpm" or "sysfanrpm" => 4000, "vcore" => 1.8, "v12" => 13, _ => 110 }),
             "ping" => Make(s.PingMs, 0, 200),
-            "down" => Make(s.DownMbps, s.DownMbps >= 10 ? 0 : 1, 100),
-            "up" => Make(s.UpMbps, s.UpMbps >= 10 ? 0 : 1, 100),
-            "clock" => new MetricView("clock", Abbrev(def.Key), s.Time.ToString("HH:mm", CultureInfo.InvariantCulture), "", null, 0),
+            "down" => Speed(s.DownMbps),
+            "up" => Speed(s.UpMbps),
+            "clock" => new MetricView("clock", Abbrev(def.Key), s.Time.ToString("HH:mm:ss", CultureInfo.InvariantCulture), "", null, 0),
             "gametime" => s.InGame || s.GameTime > TimeSpan.Zero
                 ? new MetricView("gametime", Abbrev(def.Key), $"{(int)s.GameTime.TotalHours}:{s.GameTime.Minutes:00}:{s.GameTime.Seconds:00}", "", null, 0)
                 : new MetricView("gametime", Abbrev(def.Key), "—", "", null, 0),

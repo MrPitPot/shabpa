@@ -408,7 +408,8 @@ public sealed class DnsPage : PageBase
         {
             // when something on the way answers for every server, the number says nothing about this one: shown dimmed with a tilde\r
             box.Text = _intercepted ? $"~{ms:0} ms" : $"{ms:0} ms";
-            box.Foreground = _intercepted ? Res("Muted") : Res(ms < 60 ? "Green" : ms < 150 ? "Gold" : "Red");
+            // lower is greener, higher turns amber and red (also when the network answers for the servers: the "~" already says so)
+            box.Foreground = Res(ms < 60 ? "Green" : ms < 150 ? "Gold" : "Red");
         }
     }
 

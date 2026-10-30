@@ -16,8 +16,14 @@ namespace Shabpa.Pages;
 public sealed class PingPage : PageBase
 {
     private const int MaxRows = 30;
-    private static readonly double[] DownCaps = [0, 1, 2, 5, 10, 20, 50];
-    private static readonly double[] UpCaps = [0, 0.5, 1, 2, 5, 10];
+    // Caps are stored in megabit per second but shown and typed in the unit chosen in Settings; the presets are even numbers.
+    private static bool InMByte => SpeedUnit.Key == SpeedUnit.MByte;
+    private static double PerUnit => InMByte ? 8 : 1;
+    private static string UnitName => InMByte ? L.T("مگابایت", "MByte") : L.T("مگابیت", "Mbit");
+    private static double[] DownCaps => [.. new double[] { 0, 2, 4, 10, 20, 50 }.Select(v => v * PerUnit)];
+    private static double[] UpCaps => [.. (InMByte ? new double[] { 0, 1, 2, 4, 6, 8 } : [0, 2, 4, 6, 8, 10]).Select(v => v * PerUnit)];
+    private static double[] GuardUpCaps => [.. (InMByte ? new double[] { 1, 2, 4, 6 } : [2, 4, 6, 8]).Select(v => v * PerUnit)];
+    private string _unitShown = SpeedUnit.Key;
 
     private sealed class AppRow
     {
@@ -77,7 +83,7 @@ public sealed class PingPage : PageBase
     public override string PageTitle => L.T("پایداری پینگ", "Ping stability");
     public override string PageSubtitle => L.T("ببین کدوم برنامه داره اینترنتت رو می‌خوره و جلوش رو بگیر تا پینگ نوسان نکنه.", "See which app is eating your connection and rein it in so the ping stays steady.");
 
-    private static string Mb(double value) => L.T($"{Fa.Mbit(value)} مگابیت", $"{Fa.Mbit(value)} Mbit");
+    private static string Mb(double mbps) => $"{Fa.Mbit(mbps / PerUnit)} {UnitName}";
 
     public PingPage()
     {
@@ -89,9 +95,16 @@ public sealed class PingPage : PageBase
 
         var root = new NetBlocks(1060, 5);
         root.Add(BuildAdmin(), 0, 0, 12, 0);
-        root.Add(BuildHero(), 1, 0, 8, 1);
-        root.Add(BuildGuard(), 1, 8, 4, 2, rowSpan: 2);
-        root.Add(BuildApps(), 2, 0, 8, 3);
+        // hero and app list share one column so a tall guard card can never stretch the hero (a full-screen window left it with big empty bands)
+        var main = new StackPanel();
+        main.Children.Add(BuildHero());
+        var apps = BuildApps();
+        apps.Margin = new Thickness(apps.Margin.Left, apps.Margin.Top + 14, apps.Margin.Right, apps.Margin.Bottom);
+        main.Children.Add(apps);
+        root.Add(main, 1, 0, 8, 1);
+        var guard = BuildGuard();
+        guard.VerticalAlignment = VerticalAlignment.Top;
+        root.Add(guard, 1, 8, 4, 2);
         var note = K.Text(L.T("روی هر برنامه بزن تا سقف دانلود و آپلودش رو تعیین کنی یا اینترنتش رو کامل ببندی. محدودیت‌ها فقط تا وقتی شب‌پا بازه برقرارن و با بستنش همه‌چی به حالت عادی برمی‌گرده. اگه از فیلترشکن یا پروکسی استفاده می‌کنی، ترافیک هر برنامه هم زیر اسم خودش و هم زیر اسم فیلترشکن دیده می‌شه.",
             "Click an app to set its download and upload caps or to cut it off completely. Limits only hold while Shabpa is running; closing it returns everything to normal. If you use a VPN or proxy client, an app shows up both under its own name and under the client."), "Tip");
         note.TextWrapping = TextWrapping.Wrap;
@@ -99,16 +112,7 @@ public sealed class PingPage : PageBase
         root.Add(note, 3, 0, 12, 4);
         Content = root;
 
-        Chips(_guardChips, new[] { 0.5, 1.0, 2.0, 5.0 }.Select(v => (v, Mb(v))), Hub.Settings.GuardCapMbps, v =>
-        {
-            Hub.Settings.GuardCapMbps = v;
-            Hub.LimitsChanged();
-        });
-        Chips(_guardDownChips, new[] { 0.0, 2.0, 5.0, 10.0, 20.0 }.Select(v => (v, v == 0 ? L.T("آزاد", "Unlimited") : Mb(v))), Hub.Settings.GuardDownCapMbps, v =>
-        {
-            Hub.Settings.GuardDownCapMbps = v;
-            Hub.LimitsChanged();
-        });
+        BuildGuardChips();
         Chips(_sortChips, [(false, L.T("الان", "Now")), (true, L.T("امروز", "Today"))], _sortByToday, v =>
         {
             _sortByToday = v;
@@ -118,6 +122,23 @@ public sealed class PingPage : PageBase
         // While the list is being scrolled (on a weak PC every redraw of 30 lines is a stutter) the numbers wait for the wheel to stop.
         PreviewMouseWheel += (_, _) => _lastWheel = Environment.TickCount64;
         While<Action>(h => Hub.NetTick += h, h => Hub.NetTick -= h, () => { if (IsVisible && Environment.TickCount64 - _lastWheel > 450) UpdateApps(false); });
+    }
+
+    private void BuildGuardChips()
+    {
+        _unitShown = SpeedUnit.Key;
+        _guardChips.Children.Clear();
+        _guardDownChips.Children.Clear();
+        Chips(_guardChips, GuardUpCaps.Select(v => (v, Mb(v))), Hub.Settings.GuardCapMbps, v =>
+        {
+            Hub.Settings.GuardCapMbps = v;
+            Hub.LimitsChanged();
+        });
+        Chips(_guardDownChips, new[] { 0.0, 2.0, 4.0, 10.0, 20.0 }.Select(v => v * PerUnit).Select(v => (v, v == 0 ? L.T("آزاد", "Unlimited") : Mb(v))), Hub.Settings.GuardDownCapMbps, v =>
+        {
+            Hub.Settings.GuardDownCapMbps = v;
+            Hub.LimitsChanged();
+        });
     }
 
     // ---- layout ----------------------------------------------------------------------------------
@@ -254,6 +275,7 @@ public sealed class PingPage : PageBase
     public override void Refresh()
     {
         Hub.Ping.Start();
+        if (_unitShown != SpeedUnit.Key) BuildGuardChips();
         ShowAdmin();
         UpdateApps(true);
     }
@@ -572,20 +594,32 @@ public sealed class PingPage : PageBase
         var panel = new StackPanel();
         panel.Children.Add(new TextBlock { Text = label, Style = St("Label"), Margin = new Thickness(0, 0, 0, 8) });
         var caps = new WrapPanel();
-        Chips(caps, presets.Select(v => (v, v == 0 ? L.T("آزاد", "Unlimited") : Fa.Mbit(v))), current, value => Change(row, l => set(l, value)));
+        Chips(caps, presets.Select(v => (v, v == 0 ? L.T("آزاد", "Unlimited") : Fa.Mbit(v / PerUnit))), current, value => Change(row, l => set(l, value)));
+        // one empty box with a faint hint that disappears while typing, and a tick button that applies the number
         var custom = new TextBox
         {
-            Style = St("Input"), Width = 70, Padding = new Thickness(8, 6, 8, 6), FontSize = 13, TextAlignment = TextAlignment.Center,
-            FlowDirection = FlowDirection.LeftToRight, Margin = new Thickness(6, 0, 8, 6), ToolTip = L.T("عدد دلخواه به مگابیت", "Any value, in Mbit"),
+            Style = St("Input"), Width = 150, Padding = new Thickness(8, 6, 8, 6), FontSize = 13, TextAlignment = TextAlignment.Center,
+            FlowDirection = FlowDirection.LeftToRight, ToolTip = L.T($"هر عدد دلخواه به {UnitName}", $"Any value, in {UnitName}"),
         };
-        if (current > 0 && !presets.Contains(current)) custom.Text = current.ToString("0.##");
-        var apply = new Button { Style = St("Btn"), Content = L.T("دلخواه (مگابیت)", "Custom (Mbit)"), Padding = new Thickness(14, 7, 14, 7), Margin = new Thickness(0, 0, 0, 6) };
+        if (current > 0 && !presets.Contains(current)) custom.Text = (current / PerUnit).ToString("0.##");
+        var hint = new TextBlock
+        {
+            Text = L.T($"مقدار دلخواه ({UnitName})", $"Custom ({UnitName})"), IsHitTestVisible = false, FontSize = 12, Opacity = 0.45,
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+        };
+        hint.SetResourceReference(TextBlock.ForegroundProperty, "Muted");
+        hint.Visibility = custom.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        custom.TextChanged += (_, _) => hint.Visibility = custom.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        var field = new Grid { Margin = new Thickness(6, 0, 6, 6), FlowDirection = FlowDirection.LeftToRight };
+        field.Children.Add(custom);
+        field.Children.Add(hint);
+        var apply = new Button { Style = St("Btn"), Content = "✓  " + L.T("اعمال", "Apply"), Padding = new Thickness(14, 7, 14, 7), Margin = new Thickness(0, 0, 0, 6), ToolTip = L.T("عدد نوشته‌شده رو به‌عنوان سقف ثبت می‌کنه", "Sets the number you typed as the cap") };
         apply.Click += (_, _) =>
         {
             var value = Number(custom, 0, 10000, -1);
-            if (value >= 0) Change(row, l => set(l, value));
+            if (value >= 0) Change(row, l => set(l, value * PerUnit));
         };
-        caps.Children.Add(custom);
+        caps.Children.Add(field);
         caps.Children.Add(apply);
         panel.Children.Add(caps);
         return panel;
@@ -594,14 +628,14 @@ public sealed class PingPage : PageBase
     private void BuildEditor(AppRow row)
     {
         var limit = LimitFor(row);
-        var signature = $"{limit.DownMbps}|{limit.UpMbps}|{limit.Blocked}|{limit.Exempt}|{Hub.CanLimit}";
+        var signature = $"{limit.DownMbps}|{limit.UpMbps}|{limit.Blocked}|{limit.Exempt}|{Hub.CanLimit}|{SpeedUnit.Key}";
         if (signature == row.EditorSignature) return;
         row.EditorSignature = signature;
 
         var panel = new StackPanel { IsEnabled = Hub.CanLimit };
-        panel.Children.Add(CapEditor(row, L.T("سقف دانلود این برنامه (مگابیت):", "Download cap for this app (Mbit):"), DownCaps, limit.DownMbps, (l, v) => l.DownMbps = v));
+        panel.Children.Add(CapEditor(row, L.T("سقف دانلود این برنامه (" + UnitName + "):", "Download cap for this app (" + UnitName + "):"), DownCaps, limit.DownMbps, (l, v) => l.DownMbps = v));
         panel.Children.Add(new Border { Height = 6 });
-        panel.Children.Add(CapEditor(row, L.T("سقف آپلود این برنامه (مگابیت):", "Upload cap for this app (Mbit):"), UpCaps, limit.UpMbps, (l, v) => l.UpMbps = v));
+        panel.Children.Add(CapEditor(row, L.T("سقف آپلود این برنامه (" + UnitName + "):", "Upload cap for this app (" + UnitName + "):"), UpCaps, limit.UpMbps, (l, v) => l.UpMbps = v));
 
         var options = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
         var block = new CheckBox { Style = St("Check"), Content = L.T("اینترنتش رو کامل ببند", "Cut off its internet completely"), IsChecked = limit.Blocked, Margin = new Thickness(0, 0, 8, 6) };

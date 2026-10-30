@@ -158,12 +158,21 @@ public sealed class HealthOverviewPage : PageBase
         }
         _errors.Meter!.Visibility = Visibility.Collapsed;
         // a counter is a door to what it counts
-        foreach (var (stat, target) in new (StatCard, Func<FrameworkElement>)[] { (_problem, () => _checksCard), (_attention, () => _checksCard), (_good, () => _checksCard), (_errors, () => _eventsCard) })
+        foreach (var (stat, target) in new (StatCard, Func<FrameworkElement>)[] { (_problem, () => _checksCard), (_attention, () => _checksCard), (_good, () => _checksCard) })
         {
             stat.Cursor = System.Windows.Input.Cursors.Hand;
             stat.ToolTip = L.T("برای دیدن جزئیات بزن", "Click to see the details");
             stat.MouseLeftButtonUp += (_, _) => Jump(target());
         }
+        // the error counter opens its details right under itself, in the empty space of the left column
+        _errors.Cursor = System.Windows.Input.Cursors.Hand;
+        _errors.ToolTip = L.T("برای دیدن یا بستن جزئیات بزن", "Click to show or hide the details");
+        _errors.MouseLeftButtonUp += (_, _) =>
+        {
+            var open = _eventsCard.Visibility != Visibility.Visible;
+            _eventsCard.Visibility = open ? Visibility.Visible : Visibility.Collapsed;
+            if (open) Motion.Rise(_eventsCard, 0, 8, 0.4);
+        };
         _left.Children.Add(scoreCard);
         _left.Children.Add(counters);
 
@@ -178,10 +187,11 @@ public sealed class HealthOverviewPage : PageBase
         _events.Margin = new Thickness(0, 6, 0, 0);
         e.Children.Add(_events);
         _eventsCard = eCard;
+        eCard.Visibility = Visibility.Collapsed;
+        _left.Children.Add(eCard);
 
         _grid.Children.Add(_left);
         _grid.Children.Add(_checksCard);
-        _grid.Children.Add(_eventsCard);
         Content = _grid;
         SizeChanged += (_, args) => ApplyLayout(args.NewSize.Width > 900);
         ApplyLayout(true);
@@ -192,8 +202,8 @@ public sealed class HealthOverviewPage : PageBase
         if (_wide == wide) return;
         _wide = wide;
         HealthUi.Layout(_grid, wide,
-            [(_left, 0, 0, 5), (_checksCard, 0, 5, 7), (_eventsCard, 1, 0, 12)],
-            [(_left, 0), (_checksCard, 1), (_eventsCard, 2)]);
+            [(_left, 0, 0, 5), (_checksCard, 0, 5, 7)],
+            [(_left, 0), (_checksCard, 1)]);
     }
 
     public override void Refresh()

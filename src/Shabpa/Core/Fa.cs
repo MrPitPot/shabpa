@@ -177,9 +177,9 @@ public static class Fa
     public static string Rate(double mbps)
     {
         if (mbps < 0.001) return "0";
-        return mbps >= 1
-            ? mbps.ToString(mbps >= 100 ? "0" : "0.0", Inv) + " Mb/s"
-            : (mbps * 1000).ToString("0", Inv) + " Kb/s";
+        var (value, unit) = SpeedUnit.Of(mbps);
+        var whole = value >= 100 || unit.StartsWith('K');
+        return value.ToString(whole ? "0" : "0.0", Inv) + " " + unit;
     }
 
     public static string Speed(double mbps) =>

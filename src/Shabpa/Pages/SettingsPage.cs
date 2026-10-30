@@ -65,6 +65,14 @@ public sealed class SettingsPage : PageBase
             s.Language = language;
             Apply();
         });
+        var speedBox = new DropdownBox(SpeedUnit.All.Select(k => (k, SpeedUnit.Title(k))), SpeedUnit.Key, 270) { HorizontalAlignment = HorizontalAlignment.Left };
+        speedBox.Picked += key =>
+        {
+            s.SpeedUnit = key;
+            Hub.Store.Save();
+            Hub.Overlay?.Evaluate();
+        };
+        lookBody.Children.Add(Stacked(L.T("واحد سرعت اینترنت", "Internet speed unit"), speedBox));
         lookBody.Children.Add(Stacked(L.T("تم رنگی", "Colour theme"), ThemePanel));
         BuildThemes();
 

@@ -96,7 +96,14 @@ public sealed class OverlayPage : PageBase
     private CheckBox _board = null!;
     private Slider _scale = null!, _opacity = null!, _offsetX = null!, _offsetY = null!;
     private readonly Dictionary<string, CheckBox> _items = [];
-    private CheckBox _colorByValue = null!, _labels = null!, _shadow = null!, _rounded = null!;
+    private CheckBox _colorByValue = null!, _labels = null!, _shadow = null!, _rounded = null!, _partNames = null!;
+    /// <summary>One colour field per group of the strip (frame rate, GPU, CPU, RAM, network, clock) and the usual tone each one starts with.</summary>
+    private readonly Dictionary<string, OverlayColorField> _groupFields = [];
+    private static readonly (string key, string fa, string en, string fallback)[] ColorSlots =
+    [
+        ("fps", "فریم‌ریت", "Frame rate", "3EE6A0"), ("gpu", "GPU", "GPU", "3EE6A0"), ("cpu", "CPU", "CPU", "7DB4FF"),
+        ("ram", "RAM", "RAM", "F5C25B"), ("net", "NET", "NET", "B39BFA"), ("time", "ساعت", "Clock", "3EE6A0"),
+    ];
     private bool _loading;
     private List<TelemetrySample> _fakeHistory = [];
 
@@ -145,7 +152,9 @@ public sealed class OverlayPage : PageBase
         var (layoutCard, layout) = Ui2.Card(L.T("طرح", "Layout"), L.T("شش طرح متفاوت؛ همه با همین اطلاعات انتخابی کار می‌کنن.", "Six different layouts; all of them show the items you pick."));
         layout.Children.Add(Ui2.Label("", 6, 4));
         layout.Children.Add(_layoutChips);
-        root.Add(layoutCard, 1, 0, 6);
+        var leftColumn = new StackPanel(); // layout, shortcuts and per-game profile share one column so the tall colour card has no empty space beside it
+        leftColumn.Children.Add(layoutCard);
+        root.Add(leftColumn, 1, 0, 6);
 
         // ---- colours -----------------------------------------------------------------------------
         var (lookCard, look) = Ui2.Card(L.T("رنگ و تم", "Colours"));
@@ -158,6 +167,26 @@ public sealed class OverlayPage : PageBase
         customRow.Children.Add(GroupB.Field(L.T("رنگ پس‌زمینه", "Background"), _backBox));
         _custom.Children.Add(customRow);
         look.Children.Add(_custom);
+
+        // a colour of its own for every group of the strip
+        look.Children.Add(Ui2.Label(L.T("رنگ هر بخش (فریم‌ریت، GPU، CPU، RAM، NET، ساعت):", "Colour of each part (frame rate, GPU, CPU, RAM, NET, clock):"), 14, 4));
+        var groupRow = new WrapPanel();
+        foreach (var slot in ColorSlots)
+        {
+            var field = new OverlayColorField();
+            var key = slot.key;
+            field.Picked += v => Change(o => o.GroupColors[key] = v);
+            _groupFields[key] = field;
+            groupRow.Children.Add(GroupB.Field(L.T(slot.fa, slot.en), field));
+        }
+        look.Children.Add(groupRow);
+        var resetColors = new Button { Style = St("Btn"), Content = L.T("برگشت رنگ‌ها به حالت اول", "Reset part colours"), Margin = new Thickness(0, 10, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
+        resetColors.Click += (_, _) =>
+        {
+            Change(o => o.GroupColors.Clear());
+            LoadGroupColors(Hub.Settings.Overlay);
+        };
+        look.Children.Add(resetColors);
         root.Add(lookCard, 1, 6, 6);
 
         // ---- size and opacity --------------------------------------------------------------------------
@@ -192,12 +221,14 @@ public sealed class OverlayPage : PageBase
         var (optionCard, options) = Ui2.Card(L.T("جزئیات ظاهر", "Details"));
         _colorByValue = new Switch();
         _labels = new Switch();
+        _partNames = new Switch();
         _shadow = new Switch();
         _rounded = new Switch();
         var optionRows = new[]
         {
             (L.T("رنگ هشدار (سبز/زرد/قرمز)", "Warning colours (green / amber / red)"), _colorByValue),
             (L.T("نمایش نام هر مورد", "Show item names"), _labels),
+            (L.T("نمایش اسم قطعه‌ها (TEMP، HOT، CLK...)", "Show part names (TEMP, HOT, CLK...)"), _partNames),
             (L.T("سایه‌ی متن", "Text shadow"), _shadow),
             (L.T("گوشه‌های گرد", "Rounded corners"), _rounded),
         };
@@ -338,7 +369,7 @@ public sealed class OverlayPage : PageBase
         _keyNote.TextWrapping = TextWrapping.Wrap;
         _keyNote.Margin = new Thickness(0, 8, 0, 0);
         keys.Children.Add(_keyNote);
-        root.Add(keyCard, 5, 0, 6);
+        leftColumn.Children.Add(keyCard);
 
         // ---- per-game profiles ----------------------------------------------------------------------
         var (profileCard, profiles) = Ui2.Card(L.T("پروفایل هر بازی", "Per-game profiles"),
@@ -359,7 +390,7 @@ public sealed class OverlayPage : PageBase
         _profileNote.Margin = new Thickness(0, 8, 0, 0);
         profiles.Children.Add(_profileNote);
         profiles.Children.Add(_profileList);
-        root.Add(profileCard, 5, 6, 6);
+        leftColumn.Children.Add(profileCard);
 
         // ---- history -----------------------------------------------------------------------------------
         var (historyCard, history) = Ui2.Card(L.T("تاریخچه‌ی بازی‌ها", "Game history"),
@@ -380,7 +411,12 @@ public sealed class OverlayPage : PageBase
         Chips(_modeChips, [(OverlayMode.Off, L.T("خاموش", "Off")), (OverlayMode.InGame, L.T("فقط موقع بازی", "Only while gaming")), (OverlayMode.Always, L.T("همیشه", "Always"))],
             Hub.Settings.Overlay.Mode, v => Change(o => o.Mode = v, pop: true));
         Chips(_layoutChips, OverlayLayouts.All.Select(l => (l.key, L.T(l.fa, l.en))), Hub.Settings.Overlay.Layout, v => Change(o => o.Layout = v, pop: true));
-        Chips(_lookChips, OverlayLook.All.Select(l => (l.Key, l.Name)), Hub.Settings.Overlay.Look, v => Change(o => o.Look = v, pop: true));
+        Chips(_lookChips, OverlayLook.All.Select(l => (l.Key, l.Name)), Hub.Settings.Overlay.Look, v =>
+        {
+            // a ready-made look brings its own colours for every part; the fields follow it
+            Change(o => { o.Look = v; o.GroupColors.Clear(); }, pop: true);
+            LoadGroupColors(Hub.Settings.Overlay);
+        });
         _anchorPicker.Picked += v => { UpdateAnchorName(); Change(o => { (o.X, o.Y) = OverlayPlacement.OffsetsForNewAnchor(o.Anchor, o.X, o.Y); o.Anchor = v; if (OverlayZone.SideOf(v) == ZoneSide.Centre) o.X = 0; }, pop: true);
             _loading = true; // the margin sliders follow the reset margins
             ApplyOffsetKind();
@@ -392,14 +428,23 @@ public sealed class OverlayPage : PageBase
         opacity.slider.ValueChanged += (_, _) => Change(o => o.BackOpacity = Math.Round(opacity.slider.Value, 2));
         offsetX.slider.ValueChanged += (_, _) => Change(o => o.X = offsetX.slider.Value);
         offsetY.slider.ValueChanged += (_, _) => Change(o => o.Y = offsetY.slider.Value);
-        _accentBox.Picked += v => Change(o => o.CustomAccent = v);
+        _accentBox.Picked += v => { Change(o => o.CustomAccent = v); LoadGroupColors(Hub.Settings.Overlay); };
         _textBox.Picked += v => Change(o => o.CustomText = v);
-        _backBox.Picked += v => Change(o => o.CustomBack = v);
+        _backBox.Picked += v => { Change(o => o.CustomBack = v); LoadGroupColors(Hub.Settings.Overlay); };
         _toggleKey.Changed += value => Change(o => o.ToggleKey = value);
         _moveKey.Changed += value => Change(o => o.MoveKey = value);
 
         While<Action<bool>>(h => Hub.OverlayMoving += h, h => Hub.OverlayMoving -= h, _ => Dispatcher.BeginInvoke(UpdateMoveButton));
         IsVisibleChanged += (_, _) => { if (IsVisible) Refresh(); };
+    }
+
+    private void LoadGroupColors(OverlaySettings o)
+    {
+        foreach (var slot in ColorSlots)
+            {
+            var c = OverlayRenderer.EffectiveColor(o, slot.key);
+            _groupFields[slot.key].Set($"{c.R:X2}{c.G:X2}{c.B:X2}");
+        }
     }
 
     private void UpdateAnchorName()
@@ -424,6 +469,7 @@ public sealed class OverlayPage : PageBase
     {
         o.ColorByValue = _colorByValue.IsChecked == true;
         o.ShowLabels = _labels.IsChecked == true;
+        o.ShowPartNames = _partNames.IsChecked == true;
         o.Shadow = _shadow.IsChecked == true;
         o.Rounded = _rounded.IsChecked == true;
     }, pop: true);
@@ -573,6 +619,8 @@ public sealed class OverlayPage : PageBase
         _offsetY.Value = o.Y;
         _colorByValue.IsChecked = o.ColorByValue;
         _labels.IsChecked = o.ShowLabels;
+        _partNames.IsChecked = o.ShowPartNames;
+        LoadGroupColors(o);
         _shadow.IsChecked = o.Shadow;
         _rounded.IsChecked = o.Rounded;
         foreach (var (key, box) in _items) box.IsChecked = o.Items.Contains(key);

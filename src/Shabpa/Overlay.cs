@@ -79,8 +79,34 @@ public static class OverlayRenderer
 
     private static Color ValueColor(OverlaySettings o, Skin c, MetricView m) =>
         o.ColorByValue && m.HasValue && m.Level > 0 ? LevelColor(m.Level, c.Back)
+        : CustomColor(o, ColorKey(m)) is { } own ? own
         : o.ColorByValue && m.HasValue && m.Key is "fps" or "low1" && m.Level == 0 && m.Fraction is > 0 ? LevelColor(0, c.Back)
         : c.Accent;
+
+    /// <summary>The colour a part of the strip really has right now (its own pick, or what the chosen look gives it); the settings page shows this.</summary>
+    internal static Color EffectiveColor(OverlaySettings o, string key)
+    {
+        var c = Resolve(o);
+        if (CustomColor(o, key) is { } own) return own;
+        return key switch
+        {
+            "fps" => o.ColorByValue ? LevelColor(0, c.Back) : c.Accent,
+            "gpu" or "cpu" or "ram" or "net" => GroupColor(o, c, key),
+            _ => c.Accent,
+        };
+    }
+
+    /// <summary>The colour slot a reading belongs to: the frame rate has its own, everything else follows its group.</summary>
+    internal static string ColorKey(MetricView m) => m.Key is "fps" or "low1" or "frame" ? "fps" : OverlayMetrics.Find(m.Key)?.Group ?? "general";
+
+    /// <summary>The colour the user picked for a slot, or null; a damaged value in the settings file is ignored rather than trusted.</summary>
+    internal static Color? CustomColor(OverlaySettings o, string key) =>
+        o.GroupColors.TryGetValue(key, out var hex) && hex is { Length: 6 } && uint.TryParse(hex, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out var rgb)
+            ? Color.FromRgb((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb)
+            : null;
+
+    /// <summary>How far a smaller text must be lifted so its baseline sits on the baseline of a bigger one beside it (both bottom-aligned).</summary>
+    private static double BaselineLift(FontFamily font, double big, double small) => Math.Max(0, (font.LineSpacing - font.Baseline) * (big - small));
 
     /// <summary>Builds the visual for the given settings. <paramref name="history"/> feeds the graph layout.</summary>
     public static FrameworkElement Build(OverlaySettings o, IReadOnlyList<MetricView> metrics, IReadOnlyList<TelemetrySample>? history = null)
@@ -100,7 +126,7 @@ public static class OverlayRenderer
 
         var bar = o.Layout == "bar";
         var padX = o.Layout == "minimal" ? 4 : bar ? 14 : 14;
-        var padY = o.Layout == "minimal" ? 2 : bar ? 10 : 12;
+        var padY = o.Layout == "minimal" ? 2 : bar ? 3 : 12;
         var frame = new Border
         {
             Child = body,
@@ -206,12 +232,12 @@ public static class OverlayRenderer
             var big = i == 0 && m.Key == "fps";
             if (o.ShowLabels)
             {
-                var label = Text(m.Label, 15.5, c.Muted, font, FontWeights.Medium, Sh(o));
-                label.Margin = new Thickness(0, 2, 0, 2);
+                var label = Text(m.Label, 14, GroupColor(o, c, OverlayMetrics.Find(m.Key)?.Group ?? "general"), font, FontWeights.Bold, Sh(o));
+                label.Margin = new Thickness(0, 2, 12, 2);
                 Grid.SetRow(label, i);
                 grid.Children.Add(label);
             }
-            var value = Reading(m, big ? 32 : 20, ValueColor(o, c, m), font, Sh(o));
+            var value = Reading(m, BarValueSize, ValueColor(o, c, m), font, Sh(o));
             value.Margin = new Thickness(0, 2, 0, 2);
             value.HorizontalAlignment = HorizontalAlignment.Right;
             Grid.SetRow(value, i);
@@ -262,26 +288,34 @@ public static class OverlayRenderer
             lastGroup = group;
             var gap = row.Children.Count == 0 ? 0 : newGroup ? 18 : 10;
             var cell = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(gap, 0, 0, 0) };
+            var valueSize = BarValueSize; // one size for every number, so the whole strip sits on a single line
             if (o.ShowLabels && newGroup && GroupName(group) is { Length: > 0 } name && !big)
-                cell.Children.Add(Text(name, 19, GroupColor(c, group), font, FontWeights.Bold, Sh(o)));
-            if (o.ShowLabels && !big && BarLabel(m) is { Length: > 0 } word)
+                {
+                    var title = Text(name, 19, GroupColor(o, c, group), font, FontWeights.Bold, Sh(o));
+                    title.VerticalAlignment = VerticalAlignment.Bottom;
+                    title.Margin = new Thickness(0, 0, 0, BaselineLift(font, valueSize, 19));
+                    cell.Children.Add(title);
+                }
+            if (o.ShowLabels && o.ShowPartNames && !big && BarLabel(m) is { Length: > 0 } word)
             {
-                var small = Text(word, 12.5, Color.FromArgb(0xC8, c.Text.R, c.Text.G, c.Text.B), font, FontWeights.Medium, Sh(o));
-                small.Margin = new Thickness(cell.Children.Count > 0 ? 7 : 0, 0, 0, 0);
+                // on the same line as the number: bottom-aligned and lifted by the difference in descent, so the baselines meet
+                var small = Text(word, 14, Color.FromArgb(0xC8, c.Text.R, c.Text.G, c.Text.B), font, FontWeights.Medium, Sh(o));
+                small.Margin = new Thickness(cell.Children.Count > 0 ? 7 : 0, 0, 0, BaselineLift(font, valueSize, 14));
                 small.VerticalAlignment = VerticalAlignment.Bottom;
-                small.Padding = new Thickness(0, 0, 0, 3);
                 cell.Children.Add(small);
             }
+            var value = Reading(m, valueSize, ValueColor(o, c, m), font, Sh(o), left: !big, compact: true);
+            value.Margin = new Thickness(cell.Children.Count > 0 && !big ? 4 : 0, 0, 0, 0);
+            value.VerticalAlignment = VerticalAlignment.Bottom;
+            cell.Children.Add(value);
             if (big && o.ShowLabels)
             {
-                var fps = Text("FPS", 15, c.Muted, font, FontWeights.Medium, Sh(o));
-                fps.Margin = new Thickness(0, 0, 8, 5);
+                // the word FPS stands to the right of the number, on its baseline
+                var fps = Text("FPS", 17, CustomColor(o, "fps") ?? c.Muted, font, FontWeights.Medium, Sh(o));
+                fps.Margin = new Thickness(2, 0, 0, BaselineLift(font, valueSize, 17));
                 fps.VerticalAlignment = VerticalAlignment.Bottom;
                 cell.Children.Add(fps);
             }
-            var value = Reading(m, big ? 36 : 23, ValueColor(o, c, m), font, Sh(o), left: true, compact: true);
-            value.Margin = new Thickness(cell.Children.Count > 0 && !big ? 4 : 0, 0, 0, 0);
-            cell.Children.Add(value);
             row.Children.Add(cell);
         }
         return row;
@@ -298,8 +332,9 @@ public static class OverlayRenderer
     private static string GroupName(string group) => group switch { "gpu" => "GPU", "cpu" => "CPU", "ram" => "RAM", "net" => "NET", "board" => "BOARD", _ => "" };
 
     /// <summary>One calm tone per group so the eye finds GPU / CPU / RAM / NET at a glance; darker tones on a light plate.</summary>
-    private static Color GroupColor(Skin c, string group)
+    private static Color GroupColor(OverlaySettings o, Skin c, string group)
     {
+        if (CustomColor(o, group) is { } own) return own;
         var luminance = (0.299 * c.Back.R + 0.587 * c.Back.G + 0.114 * c.Back.B) / 255;
         var light = luminance > 0.62;
         return group switch
@@ -324,14 +359,24 @@ public static class OverlayRenderer
 
     // ---- compact: values only, two short rows --------------------------------------------------
 
+    /// <summary>The size of every number in every layout (the strip, the card, the compact list...), so they all read alike.</summary>
+    internal const double BarValueSize = 24;
+
     private static FrameworkElement Compact(OverlaySettings o, Skin c, FontFamily font, IReadOnlyList<MetricView> metrics)
     {
         var panel = new WrapPanel { MaxWidth = 400 };
         foreach (var m in metrics)
         {
             var cell = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 16, 2) };
-            if (o.ShowLabels) cell.Children.Add(Text(Short(m), 14, c.Muted, font, FontWeights.Medium, Sh(o)));
-            var value = Reading(m, 19, ValueColor(o, c, m), font, Sh(o), left: true);
+            if (o.ShowLabels)
+            {
+                var name = Text(Short(m), 14, GroupColor(o, c, OverlayMetrics.Find(m.Key)?.Group ?? "general"), font, FontWeights.Bold, Sh(o));
+                name.VerticalAlignment = VerticalAlignment.Bottom;
+                name.Margin = new Thickness(0, 0, 0, BaselineLift(font, BarValueSize, 14));
+                cell.Children.Add(name);
+            }
+            var value = Reading(m, BarValueSize, ValueColor(o, c, m), font, Sh(o), left: true, compact: true);
+            value.VerticalAlignment = VerticalAlignment.Bottom;
             value.Margin = new Thickness(o.ShowLabels ? 5 : 0, 0, 0, 0);
             cell.Children.Add(value);
             panel.Children.Add(cell);
@@ -349,10 +394,10 @@ public static class OverlayRenderer
             var line = new StackPanel { Orientation = Orientation.Horizontal };
             if (o.ShowLabels) line.Children.Add(new TextBlock
             {
-                Text = Short(m) + " ", FontSize = 16, FontFamily = font, FontWeight = FontWeights.Medium, Foreground = Brush(c.Text), Opacity = 0.75,
+                Text = Short(m) + " ", FontSize = 14, FontFamily = font, FontWeight = FontWeights.Medium, Foreground = Brush(c.Text), Opacity = 0.75,
                 Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 5, ShadowDepth = 1.5, Opacity = 1 },
             });
-            var reading = Reading(m, m.Key == "fps" ? 30 : 20, ValueColor(o, c, m), font, false);
+            var reading = Reading(m, BarValueSize, ValueColor(o, c, m), font, false);
             reading.Effect = new DropShadowEffect { Color = Colors.Black, BlurRadius = 5, ShadowDepth = 1.5, Opacity = 1 };
             line.Children.Add(reading);
             panel.Children.Add(line);
@@ -466,8 +511,8 @@ public static class OverlayRenderer
         var fps = metrics.FirstOrDefault(m => m.Key == "fps");
         if (fps is not null)
             {
-                var line = Text($"{Display(fps)} FPS".Replace(" FPS FPS", " FPS"), 32, ValueColor(o, c, fps), font, FontWeights.Bold, Sh(o));
-                line.Width = Math.Max(Measure(OverlaySlots.NumberPattern("fps").Replace(OverlaySlots.Digit, WidestDigit(font, FontWeights.Bold, 32)) + " FPS", font, FontWeights.Bold, 32), Measure("ADMIN FPS", font, FontWeights.Bold, 32)) + 2;
+                var line = Text($"{Display(fps)} FPS".Replace(" FPS FPS", " FPS"), BarValueSize, ValueColor(o, c, fps), font, FontWeights.Bold, Sh(o));
+                line.Width = Math.Max(Measure(OverlaySlots.NumberPattern("fps").Replace(OverlaySlots.Digit, WidestDigit(font, FontWeights.Bold, BarValueSize)) + " FPS", font, FontWeights.Bold, BarValueSize), Measure("ADMIN FPS", font, FontWeights.Bold, BarValueSize)) + 2;
                 line.TextTrimming = TextTrimming.CharacterEllipsis;
                 root.Children.Add(line);
             }
@@ -538,8 +583,19 @@ public sealed class OverlayWindow : Window
         SnapsToDevicePixels = true;
         Title = "Shabpa overlay";
 
-        hub.Telemetry.Updated += sample => Dispatcher.BeginInvoke(DispatcherPriority.Background, () => Render(sample));
-        hub.Second += Evaluate;
+        // one queued draw at a time, always of the newest sample: a stalled UI thread must not pile up a draw per second
+        hub.Telemetry.Updated += sample =>
+        {
+            _pendingSample = sample;
+            if (_renderQueued) return;
+            _renderQueued = true;
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
+            {
+                _renderQueued = false;
+                if (_pendingSample is { } newest) Render(newest);
+            });
+        };
+        hub.Second += () => Evaluate(fromTimer: true);
         SizeChanged += (_, _) => Place();
         // DragMove runs until the button is released (the mouse-up is swallowed by it), so the spot is saved right after it returns
         MouseLeftButtonDown += (_, _) => { if (!_moving) return; OverlayWin.Drag(DragMove); SavePosition(); };
@@ -602,7 +658,14 @@ public sealed class OverlayWindow : Window
     public IReadOnlyList<string> FailedHotkeys { get; private set; } = [];
 
     /// <summary>Show or hide according to the mode and what is running; also (re)applies settings.</summary>
-    public void Evaluate()
+    public void Evaluate() => Evaluate(fromTimer: false);
+
+    private TelemetrySample? _pendingSample, _lastDrawn;
+    private bool _renderQueued;
+
+    /// <param name="fromTimer">The once-a-second check: the overlay is only drawn again if there is a sample it has not drawn yet
+    /// (the telemetry update draws every sample itself).</param>
+    private void Evaluate(bool fromTimer)
     {
 #if DEBUG || SHABPA_TESTHOOKS
         if (ProbeOnly) return;
@@ -643,7 +706,7 @@ public sealed class OverlayWindow : Window
             BeginAnimation(OpacityProperty, fade);
             foreach (var block in _blocks.Values) block.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(160)) { FillBehavior = FillBehavior.HoldEnd });
         }
-        else if (want)
+        else if (want && !(fromTimer && ReferenceEquals(_hub.Telemetry.Latest, _lastDrawn)))
         {
             Render(_hub.Telemetry.Latest);
         }
@@ -692,6 +755,7 @@ public sealed class OverlayWindow : Window
         if (ProbeOnly) return;
 #endif
         if (!IsVisible) return;
+        _lastDrawn = sample;
         _game = sample.InGame ? sample.Game : "";
         var o = _hub.Settings.Overlay.WithProfile(_game);
         var view = _hub.Demo ? OverlayMetrics.Demo(DateTime.Now) : sample;
