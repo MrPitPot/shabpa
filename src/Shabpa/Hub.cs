@@ -994,6 +994,22 @@ public sealed partial class Hub
         });
     }
 
+    private string _boosted = "";
+
+    /// <summary>The tweak "game gets the processor first": while a game runs its process has High priority; when the game ends or the tweak is
+    /// switched off the priority goes back. Checked every tick, so switching it on during a game works at once.</summary>
+    private void PriorityStep(bool game)
+    {
+        var want = game && Settings.Comfort.GameModePriority ? Snapshot.GameProcess : "";
+        if (want == _boosted) return;
+        var before = _boosted;
+        _boosted = want;
+        _ = Task.Run(() =>
+        {
+            if (before.Length > 0) GamePriority.Set(before, high: false);
+            if (want.Length > 0) GamePriority.Set(want, high: true);
+        });
+    }
     private void RunTriggers(DateTime now)
     {
         // game start / end: edges of the "a game is running" flag
@@ -1001,6 +1017,7 @@ public sealed partial class Hub
         var edge = game != _gameWas;
         _gameWas = game;
         if (edge || GameModeActive) GameModeStep(game);
+        PriorityStep(game);
         var timeCheck = now - _lastTriggerCheck >= TimeSpan.FromSeconds(20);
         if (!edge && !timeCheck) return;
         if (timeCheck) _lastTriggerCheck = now;

@@ -159,7 +159,7 @@ public sealed class Updater
             var s = _settings();
             using var http = Http();
             var sources = UpdateSources.Build(s.ExtraMirrorUrl, s.LastUpdateSource);
-            var result = await new UpdateSources(http, _key).CheckAsync(sources, Current);
+            var result = await Task.Run(() => new UpdateSources(http, _key).CheckAsync(sources, Current)); // off the window thread: proxy lookup can block for seconds
             foreach (var f in result.Failures) Log.Write($"update source {f.SourceId}: {f.Reason}");
             if (result.AllFailed)
             {

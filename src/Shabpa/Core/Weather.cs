@@ -127,7 +127,15 @@ public sealed class WeatherClient
         return http;
     }
 
-    public async Task<List<WeatherCity>> SearchAsync(string query, bool persian, CancellationToken ct = default)
+    // The first part of an HttpClient call (looking for a proxy, resolving the name) runs on the caller's thread before the first await;
+    // a real log showed the window frozen for 21 s inside it. Both calls therefore start on the thread pool.
+    public Task<List<WeatherCity>> SearchAsync(string query, bool persian, CancellationToken ct = default) =>
+        Task.Run(() => SearchCore(query, persian, ct), ct);
+
+    public Task<WeatherReport> ForecastAsync(WeatherCity city, CancellationToken ct = default) =>
+        Task.Run(() => ForecastCore(city, ct), ct);
+
+    private async Task<List<WeatherCity>> SearchCore(string query, bool persian, CancellationToken ct)
     {
         query = query.Trim();
         if (query.Length < 2) return [];
@@ -137,7 +145,7 @@ public sealed class WeatherClient
         return ParseCities(json);
     }
 
-    public async Task<WeatherReport> ForecastAsync(WeatherCity city, CancellationToken ct = default)
+    private async Task<WeatherReport> ForecastCore(WeatherCity city, CancellationToken ct)
     {
         using var http = Http();
         var lat = city.Latitude.ToString("0.####", CultureInfo.InvariantCulture);

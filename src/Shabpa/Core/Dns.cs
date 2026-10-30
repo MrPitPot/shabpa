@@ -89,6 +89,37 @@ public static class DnsProbe
     internal static bool IsAnswer(byte[] reply, int length, ushort id) =>
         length >= 12 && reply[0] == (byte)(id >> 8) && reply[1] == (byte)id && (reply[2] & 0x80) != 0 && (reply[3] & 0x0F) is 0 or 3;
 
+    /// <summary>True when something on this PC or network (a VPN / proxy tunnel with DNS hijack, a router or the ISP) answers
+    /// DNS questions itself, whoever they were sent to. Proof: a question sent to 192.0.2.53 (TEST-NET-1, an address no real
+    /// server can have, RFC 5737) gets an answer. The round-trip times measured in that case are the time to the interceptor,
+    /// not to the server in the list, so they cannot be used to compare servers.</summary>
+    public static async Task<bool> InterceptedAsync(CancellationToken ct = default)
+    {
+        if (await ProbeOnce(IPAddress.Parse("192.0.2.53"), 1200, ct).ConfigureAwait(false) is not null) return true;
+        // a second address of another reserved block, so one odd rule cannot decide it
+        return await ProbeOnce(IPAddress.Parse("198.51.100.53"), 1200, ct).ConfigureAwait(false) is not null;
+    }
+
+    private static async Task<double?> ProbeOnce(IPAddress ip, int timeoutMs, CancellationToken ct)
+    {
+        try
+        {
+            using var udp = new UdpClient(ip.AddressFamily);
+            udp.Connect(ip, 53);
+            var id = (ushort)Random.Shared.Next(1, 65535);
+            var clock = Stopwatch.StartNew();
+            await udp.SendAsync(BuildQuery(id, "www.google.com"), ct).ConfigureAwait(false);
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(timeoutMs);
+            var result = await udp.ReceiveAsync(cts.Token).ConfigureAwait(false);
+            return IsAnswer(result.Buffer, result.Buffer.Length, id) ? clock.Elapsed.TotalMilliseconds : null;
+        }
+        catch (Exception ex) when (ex is SocketException or ObjectDisposedException or OperationCanceledException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>Round-trip time in ms, or null when the server did not answer in time.</summary>
     public static async Task<double?> PingAsync(string server, int timeoutMs = 1500, CancellationToken ct = default)
     {

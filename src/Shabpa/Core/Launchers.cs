@@ -218,7 +218,7 @@ public static class LauncherDetector
         if (!File.Exists(path)) return L.T("این فایل وجود نداره.", "That file does not exist.");
         var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
         if (windows.Length > 0 && path.StartsWith(windows + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-            return L.T("برنامه‌های خود ویندوز به‌عنوان لانچر قبول نمی‌شن.", "Windows' own programs are not accepted as launchers.");
+            return L.T("برنامه‌های خود ویندوز اضافه نمی‌شن.", "Windows' own programs cannot be added.");
         return null;
     }
 
@@ -352,12 +352,39 @@ public static class LauncherDetector
     public static void Open(string exePath)
     {
         exePath = Normalize(exePath);
-        if (Hub.Elevated && Environment.GetFolderPath(Environment.SpecialFolder.Windows) is { Length: > 0 } windows)
+        var folder = Path.GetDirectoryName(exePath) ?? "";
+        // Handing the .exe to explorer.exe as an argument is not reliable: a running Explorer may take it as a place to browse and open
+        // «Documents» instead (reported with the Riot Client). The desktop's own shell view starts the program with the normal
+        // (non-administrator) rights of the person, in the program's own folder, which is what a double click does.
+        if (Hub.Elevated)
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Path.Combine(windows, "explorer.exe"), $"\"{exePath}\"") { UseShellExecute = false });
-            return;
+            if (TryShellExecuteAsUser(exePath, folder)) return;
+            Log.Write("launcher: could not start it with normal rights through the desktop shell; the program was not opened");
+            throw new InvalidOperationException(L.T("برنامه با دسترسی عادی باز نشد. خودت از منوی استارت بازش کن.", "The program could not be opened with normal rights. Open it from the Start menu."));
         }
-        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exePath) { UseShellExecute = true });
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exePath) { UseShellExecute = true, WorkingDirectory = folder });
+    }
+
+    /// <summary>Starts a file through Explorer's desktop view (a process with the user's normal token), so an elevated Shabpa does not pass its own rights on.</summary>
+    private static bool TryShellExecuteAsUser(string file, string folder)
+    {
+        try
+        {
+            var type = Type.GetTypeFromCLSID(new Guid("9BA05972-F6A8-11CF-A442-00A0C90A8F39")); // ShellWindows
+            if (type is null) return false;
+            dynamic windows = Activator.CreateInstance(type)!;
+            object location = 0;                     // CSIDL_DESKTOP
+            object root = System.Reflection.Missing.Value;
+            int handle;
+            dynamic desktop = windows.FindWindowSW(ref location, ref root, 8 /* SCW_DESKTOP */, out handle, 1 /* SWFO_NEEDDISPATCH */);
+            desktop.Document.Application.ShellExecute(file, "", folder, "open", 1);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"launcher: shell start failed ({ex.GetType().Name} {ex.Message})");
+            return false;
+        }
     }
 }
 

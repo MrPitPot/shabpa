@@ -398,8 +398,8 @@ public sealed class DownloadsPage : PageBase
         _manual.Children.Add(ListUi.Hairline());
         _manual.Children.Add(Ui2.Label(Hub.Settings.LaunchersScanned && missing.Count > 0
             ? L.T("پیدا نشدن: ", "Not found: ") + string.Join("، ", missing.Select(m => m.name))
-            : L.T("لانچرت توی فهرست نیست؟ فایل اجراییش (.exe) رو خودت نشون بده.", "Your launcher is not listed? Point at its program file (.exe) yourself."), 14, 8));
-        var pick = ListUi.Btn("plus", L.T("افزودن دستی لانچر…", "Add a launcher by hand…"), "Btn", AddManual);
+            : L.T("لانچر یا برنامه‌ای که دانلودش رو می‌خوای زمان‌بندی کنی توی فهرست نیست؟ فایل اجراییش (.exe) رو خودت نشون بده؛ هر برنامه‌ای می‌شه، حتی غیرلانچر، و می‌تونی بهش یاد بدی کجا کلیک کنه.", "The launcher or program you want to schedule is not listed? Point at its program file (.exe) yourself; any program works, not only launchers, and you can teach it where to click."), 14, 8));
+        var pick = ListUi.Btn("plus", L.T("افزودن لانچر یا برنامه…", "Add a launcher or program…"), "Btn", AddManual);
         pick.HorizontalAlignment = HorizontalAlignment.Left;
         _manual.Children.Add(pick);
         _manual.Margin = new Thickness(0, 8, 0, 0);
@@ -409,7 +409,7 @@ public sealed class DownloadsPage : PageBase
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
-            Title = L.T("فایل اجرایی لانچر رو انتخاب کن", "Pick the launcher's program file"),
+            Title = L.T("فایل اجرایی برنامه رو انتخاب کن", "Pick the program file"),
             Filter = L.T("برنامه (*.exe)|*.exe", "Program (*.exe)|*.exe"), CheckFileExists = true,
         };
         if (dialog.ShowDialog() != true) return;
@@ -419,7 +419,7 @@ public sealed class DownloadsPage : PageBase
             return;
         }
         var info = LauncherDetector.FromFile(dialog.FileName);
-        if (!Ask(L.T("این لانچر اضافه بشه؟", "Add this launcher?"), $"{info.Name}\n{info.ExePath}", L.T("اضافه کن", "Add"))) return;
+        if (!Ask(L.T("این برنامه اضافه بشه؟", "Add this program?"), $"{info.Name}\n{info.ExePath}", L.T("اضافه کن", "Add"))) return;
         Hub.Settings.Launchers.RemoveAll(l => l.Key == info.Key || string.Equals(l.ExePath, info.ExePath, StringComparison.OrdinalIgnoreCase));
         Hub.Settings.Launchers.Add(info);
         Hub.Settings.LaunchersScanned = true;

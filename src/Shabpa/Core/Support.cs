@@ -187,6 +187,7 @@ public sealed class SupportClient
         if (!Available) return (null, L.T("سرور پشتیبانی تنظیم نشده.", "The support server is not set up."));
         try
         {
+            await Task.Run(static () => { }).ConfigureAwait(false); // first request work (proxy lookup, name resolution) must not run on the window thread
             using var http = Http();
             var payload = JsonSerializer.Serialize(new
             {
@@ -219,6 +220,7 @@ public sealed class SupportClient
         if (!Available) return (null, L.T("سرور پشتیبانی تنظیم نشده.", "The support server is not set up."));
         try
         {
+            await Task.Run(static () => { }).ConfigureAwait(false); // first request work (proxy lookup, name resolution) must not run on the window thread
             using var http = Http();
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             if (admin) request.Headers.Add("X-Admin-Key", AdminKey);
@@ -238,6 +240,7 @@ public sealed class SupportClient
         if (!Available || !IsAdmin) return L.T("کلید مدیر یا سرور تنظیم نشده.", "The admin key or the server is not set.");
         try
         {
+            await Task.Run(static () => { }).ConfigureAwait(false); // first request work (proxy lookup, name resolution) must not run on the window thread
             using var http = Http();
             using var request = new HttpRequestMessage(HttpMethod.Post, $"{Endpoint}/admin/tickets/{Uri.EscapeDataString(id)}/reply")
             {
@@ -271,6 +274,7 @@ public sealed class SupportClient
         if (admin && !IsAdmin) return L.T("کلید مدیر وارد نشده.", "No admin key entered.");
         try
         {
+            await Task.Run(static () => { }).ConfigureAwait(false); // first request work (proxy lookup, name resolution) must not run on the window thread
             using var http = Http();
             using var request = new HttpRequestMessage(method, url);
             if (admin) request.Headers.Add("X-Admin-Key", AdminKey);

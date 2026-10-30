@@ -28,6 +28,7 @@ public sealed class DnsPage : PageBase
     private string _group = "all";
     private bool _sortByPing;
     private bool _testing;
+    private bool _intercepted;
     private CancellationTokenSource? _cts;
 
     public override string PageTitle => L.T("دی‌ان‌اس", "DNS");
@@ -405,8 +406,9 @@ public sealed class DnsPage : PageBase
         }
         else
         {
-            box.Text = $"{ms:0} ms";
-            box.Foreground = Res(ms < 60 ? "Green" : ms < 150 ? "Gold" : "Red");
+            // when something on the way answers for every server, the number says nothing about this one: shown dimmed with a tilde\r
+            box.Text = _intercepted ? $"~{ms:0} ms" : $"{ms:0} ms";
+            box.Foreground = _intercepted ? Res("Muted") : Res(ms < 60 ? "Green" : ms < 150 ? "Gold" : "Red");
         }
     }
 
@@ -426,6 +428,7 @@ public sealed class DnsPage : PageBase
         foreach (var e in entries) _pending.Add(Key(e));
         DrawRows();
 
+        _intercepted = !Hub.Demo && await DnsProbe.InterceptedAsync(ct).ConfigureAwait(true);
         var gate = new SemaphoreSlim(10);
         try
         {
@@ -466,7 +469,8 @@ public sealed class DnsPage : PageBase
             NetFx.Spin(_test, false);
             DrawRows(_sortByPing);
             var ok = _ping.Values.Count(v => v is not null);
-            StatusText = L.T($"{Fa.Digits(ok.ToString())} دی‌ان‌اس پاسخ داد.", $"{ok} servers answered.");
+            StatusText = L.T($"{Fa.Digits(ok.ToString())} دی‌ان‌اس پاسخ داد.", $"{ok} servers answered.")
+                + (_intercepted ? L.T(" ⚠ فیلترشکن، پروکسی یا مودم تو همه‌ی درخواست‌های DNS رو خودش جواب می‌ده (حتی به آدرسی که اصلاً وجود نداره)، برای همین این عددها پینگ واقعی هر سرور نیستن و فقط تا همون واسطه رو نشون می‌دن. برای مقایسه‌ی درست، فیلترشکن یا حالت TUN رو موقتاً خاموش کن و دوباره تست کن.", " ⚠ A VPN, proxy or router answers every DNS question itself (even one sent to an address that does not exist), so these numbers are not the real ping of each server; they only show the time to that middle-man. For a fair comparison, switch the VPN / TUN mode off for a moment and test again.") : "");
         }
     }
 

@@ -106,23 +106,28 @@ public sealed class DimController : IDisposable
         if (!on)
         {
             Close();
+            NightLight.Reset();
+            _rampKelvin = 0;
+            _rampOk = false;
             return;
         }
+        KeepWarm();
         // Apply runs every second: the screen list (a native enumeration plus strings) is only looked at again after a display change
         if (_screensStale)
         {
             _screensStale = false;
             _screens = string.Join(';', WF.Screen.AllScreens.Select(s => s.Bounds.ToString()));
         }
-        if (_windows.Count > 0 && Math.Abs(level - _level) < 0.0005 && S.DimWarm == _warm && S.DimKelvin == _kelvin && _screens == _shapeScreens) return;
-        var shape = $"{level:0.000}|{S.DimWarm}|{S.DimKelvin}|{_screens}";
+        if (_windows.Count > 0 && Math.Abs(level - _level) < 0.0005 && S.DimWarm == _warm && S.DimKelvin == _kelvin && _screens == _shapeScreens && _rampOk == _shapeRamp) return;
+        var shape = $"{level:0.000}|{S.DimWarm}|{S.DimKelvin}|{_screens}|{_rampOk}";
         if (shape == _shape && _windows.Count > 0) return;
         Close(); // clears _shape, so remember the new one only afterwards or every call would rebuild the layer
         _shape = shape;
-        (_level, _warm, _kelvin, _shapeScreens) = (level, S.DimWarm, S.DimKelvin, _screens);
+        (_level, _warm, _kelvin, _shapeScreens, _shapeRamp) = (level, S.DimWarm, S.DimKelvin, _screens, _rampOk);
         Builds++;
-        // Warm cover: a hint of amber keeps blue light down on top of simply being darker.
-        var colour = S.DimWarm ? ComfortPresets.Tint(S.DimKelvin) : Colors.Black;
+        // The warmth itself is the display's colour curve (NightLight, like Windows' Night Light); the cover is only darkness.
+        // A screen that refuses the curve gets the old amber cover instead, so the warm setting still does something.
+        var colour = S.DimWarm && !_rampOk ? ComfortPresets.Tint(S.DimKelvin) : Colors.Black;
         foreach (var screen in WF.Screen.AllScreens)
         {
             var window = new Window
@@ -145,6 +150,24 @@ public sealed class DimController : IDisposable
         }
     }
 
+    private int _rampKelvin, _rampTicks;
+    private bool _rampOk, _shapeRamp;
+
+    /// <summary>Sets (and now and then re-sets, because a game or a driver can reset it) the warm colour curve of every screen.</summary>
+    private void KeepWarm()
+    {
+        if (!S.DimWarm || S.DimKelvin >= ComfortPresets.MaxKelvin)
+        {
+            NightLight.Reset();
+            _rampKelvin = 0;
+            _rampOk = false;
+            return;
+        }
+        if (_rampKelvin == S.DimKelvin && ++_rampTicks % 20 != 0) return;
+        _rampKelvin = S.DimKelvin;
+        _rampOk = NightLight.Apply(S.DimKelvin);
+    }
+
     private void Close()
     {
         foreach (var window in _windows) window.Close();
@@ -159,7 +182,7 @@ public sealed class DimController : IDisposable
     private int _kelvin;
     private string _screens = "", _shapeScreens = "";
     private volatile bool _screensStale = true;
-    private void OnDisplayChanged(object? sender, EventArgs e) => _screensStale = true;
+    private void OnDisplayChanged(object? sender, EventArgs e) { _screensStale = true; _rampKelvin = 0; } // a new screen has no warm curve yet
 
     private void RegisterKeys()
     {
@@ -187,6 +210,7 @@ public sealed class DimController : IDisposable
     {
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplayChanged;
         Close();
+        NightLight.Reset();
         if (_sink is null) return;
         if (_registered)
             foreach (var id in new[] { ToggleId, DarkerId, LighterId }) UnregisterHotKey(_sink.Handle, id);

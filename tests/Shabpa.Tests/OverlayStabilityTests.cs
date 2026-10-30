@@ -270,3 +270,91 @@ public class OverlaySizeTests
         Assert.True(report.Count == 0, string.Join("\n", report.Take(10)));
     }
 }
+
+[Collection("Wpf")]
+public class OverlayPlateAndSizeTests
+{
+    private static List<MetricView> Sample() =>
+    [
+        new("fps", "FPS", "165", "", 0.9, 0), new("gpu", "GPU", "38", "%", 0.38, 0), new("gputemp", "GPU", "49", "°C", 0.49, 0),
+        new("cpu", "CPU", "4", "%", 0.04, 0), new("ram", "RAM", "19.1", "GB", 0.5, 0), new("down", "↓", "0.2", "Mb/s", null, 0),
+    ];
+
+    [Fact]
+    public void At_zero_percent_there_is_no_plate_and_no_outline_but_the_numbers_keep_a_shadow()
+    {
+        bool hasBackground = true;
+        System.Windows.Thickness border = default;
+        AnchorPickerFlowTests.OnSta(() =>
+        {
+            AnchorPickerFlowTests.Prepare();
+            var frame = (System.Windows.Controls.Border)OverlayRenderer.Build(new OverlaySettings { Layout = "bar", BackOpacity = 0, Shadow = false }, Sample(), []);
+            (hasBackground, border) = (frame.Background is not null, frame.BorderThickness);
+        });
+        Assert.False(hasBackground);
+        Assert.Equal(new System.Windows.Thickness(0), border);
+        Assert.True(OverlayRenderer.NoPlate(new OverlaySettings { BackOpacity = 0 }));
+        Assert.False(OverlayRenderer.NoPlate(new OverlaySettings { BackOpacity = 0.01 }));
+    }
+
+    [Fact]
+    public void One_percent_of_opacity_is_a_real_plate()
+    {
+        var hasBackground = false;
+        AnchorPickerFlowTests.OnSta(() =>
+        {
+            AnchorPickerFlowTests.Prepare();
+            var frame = (System.Windows.Controls.Border)OverlayRenderer.Build(new OverlaySettings { Layout = "bar", BackOpacity = 0.01 }, Sample(), []);
+            hasBackground = frame.Background is not null;
+        });
+        Assert.True(hasBackground);
+    }
+
+    [Theory]
+    [InlineData(0.01, 0.25)]
+    [InlineData(1.0, 1.0)]
+    [InlineData(1.37, 1.37)]
+    [InlineData(2.0, 2.0)]
+    [InlineData(5.0, 2.0)]
+    public void Size_runs_from_25_to_200_percent_in_single_percent_steps(double asked, double used)
+    {
+        double scale = 0;
+        AnchorPickerFlowTests.OnSta(() =>
+        {
+            AnchorPickerFlowTests.Prepare();
+            var frame = OverlayRenderer.Build(new OverlaySettings { Layout = "bar", Scale = asked }, Sample(), []);
+            scale = ((System.Windows.Media.ScaleTransform)frame.LayoutTransform).ScaleX;
+        });
+        Assert.Equal(used, scale, 3);
+    }
+
+    [Fact]
+    public void The_bar_shows_big_numbers_with_a_coloured_name_per_group_instead_of_a_label_for_every_number()
+    {
+        string text = "";
+        double height = 0;
+        AnchorPickerFlowTests.OnSta(() =>
+        {
+            AnchorPickerFlowTests.Prepare();
+            var frame = OverlayRenderer.Build(new OverlaySettings { Layout = "bar", ShowLabels = true }, Sample(), []);
+            frame.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
+            height = frame.DesiredSize.Height;
+            text = string.Join(" ", AllText(frame));
+        });
+        Assert.Contains("GPU", text); Assert.Contains("CPU", text); Assert.Contains("RAM", text); Assert.Contains("NET", text);
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(text, "GPU"));   // one name for the two GPU readings
+        Assert.True(height >= 50, $"the strip is {height} px tall; the old thin strip was about 40");
+    }
+
+    private static IEnumerable<string> AllText(System.Windows.DependencyObject root)
+    {
+        if (root is System.Windows.Controls.TextBlock tb) yield return tb.Text;
+        for (var i = 0; i < System.Windows.Media.VisualTreeHelper.GetChildrenCount(root); i++)
+            foreach (var s in AllText(System.Windows.Media.VisualTreeHelper.GetChild(root, i))) yield return s;
+        if (root is System.Windows.Controls.Decorator d && d.Child is { } c && System.Windows.Media.VisualTreeHelper.GetChildrenCount(root) == 0)
+            foreach (var s in AllText(c)) yield return s;
+        if (root is System.Windows.Controls.Panel p && System.Windows.Media.VisualTreeHelper.GetChildrenCount(root) == 0)
+            foreach (var child in p.Children.OfType<System.Windows.DependencyObject>())
+                foreach (var s in AllText(child)) yield return s;
+    }
+}

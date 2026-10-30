@@ -44,6 +44,8 @@ public sealed class ComfortSettings
     public bool GameModeOn { get; set; }
     public bool GameModePower { get; set; } = true;
     public bool GameModeRam { get; set; } = true;
+    /// <summary>While a game runs, its process gets High processor priority (the tweak «اولویت پردازنده برای بازی»).</summary>
+    public bool GameModePriority { get; set; }
     public bool GameModeQuiet { get; set; } = true;
     /// <summary>The power plan that was active before game mode changed it; put back at the end (also after a restart).</summary>
     public string PendingPowerPlan { get; set; } = "";

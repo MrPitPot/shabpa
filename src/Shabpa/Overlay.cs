@@ -98,23 +98,36 @@ public static class OverlayRenderer
             _ => Card(o, c, font, metrics, history),
         };
 
+        var bar = o.Layout == "bar";
+        var padX = o.Layout == "minimal" ? 4 : bar ? 20 : 12;
+        var padY = o.Layout == "minimal" ? 2 : bar ? 12 : 10;
         var frame = new Border
         {
             Child = body,
-            CornerRadius = new CornerRadius(o.Rounded ? 14 : 3),
-            Padding = new Thickness(o.Layout == "minimal" ? 4 : 12, o.Layout == "minimal" ? 2 : 10, o.Layout == "minimal" ? 4 : 12, o.Layout == "minimal" ? 2 : 10),
+            CornerRadius = new CornerRadius(o.Rounded ? (bar ? 18 : 14) : 3),
+            Padding = new Thickness(padX, padY, padX, padY),
             FlowDirection = FlowDirection.LeftToRight,
             UseLayoutRounding = true,
         };
-        if (o.Layout != "minimal")
+        // At 0 % there is no plate at all: no fill and no outline, only the numbers (with a shadow, see Sh)
+        if (o.Layout != "minimal" && !NoPlate(o))
         {
-            frame.Background = Brush(Color.FromArgb((byte)Math.Clamp(o.BackOpacity * 255, 0, 255), c.Back.R, c.Back.G, c.Back.B));
+            frame.Background = Brush(Color.FromArgb((byte)Math.Clamp(Math.Round(o.BackOpacity * 255), 0, 255), c.Back.R, c.Back.G, c.Back.B));
             frame.BorderBrush = Brush(Color.FromArgb(0x55, c.Accent.R, c.Accent.G, c.Accent.B));
             frame.BorderThickness = new Thickness(1);
         }
-        frame.LayoutTransform = new ScaleTransform(Math.Clamp(o.Scale, 0.5, 3), Math.Clamp(o.Scale, 0.5, 3));
+        var scale = Math.Clamp(o.Scale, MinScale, MaxScale);
+        frame.LayoutTransform = new ScaleTransform(scale, scale);
         return frame;
     }
+
+    /// <summary>The size slider runs from 25 % to 200 %, one percent at a time.</summary>
+    public const double MinScale = 0.25, MaxScale = 2.0;
+
+    internal static bool NoPlate(OverlaySettings o) => o.BackOpacity <= 0.004;
+
+    /// <summary>Text shadow: what the user chose, and always on when there is no plate behind the numbers (otherwise they vanish on a bright game).</summary>
+    private static bool Sh(OverlaySettings o) => o.Shadow || NoPlate(o);
 
     private static TextBlock Text(string text, double size, Color color, FontFamily font, FontWeight? weight = null, bool shadow = false)
     {
@@ -190,12 +203,12 @@ public static class OverlayRenderer
             var big = i == 0 && m.Key == "fps";
             if (o.ShowLabels)
             {
-                var label = Text(m.Label, 13, c.Muted, font, FontWeights.Medium, o.Shadow);
+                var label = Text(m.Label, 13, c.Muted, font, FontWeights.Medium, Sh(o));
                 label.Margin = new Thickness(0, 1.5, 0, 1.5);
                 Grid.SetRow(label, i);
                 grid.Children.Add(label);
             }
-            var value = Reading(m, big ? 25 : 16, ValueColor(o, c, m), font, o.Shadow);
+            var value = Reading(m, big ? 25 : 16, ValueColor(o, c, m), font, Sh(o));
             value.Margin = new Thickness(0, 1.5, 0, 1.5);
             value.HorizontalAlignment = HorizontalAlignment.Right;
             Grid.SetRow(value, i);
@@ -232,22 +245,54 @@ public static class OverlayRenderer
 
     // ---- bar: one horizontal strip --------------------------------------------------------------
 
+    /// <summary>The strip reads like a dashboard: the frame rate big on the left, then one coloured name per group (GPU, CPU, RAM,
+    /// NET) followed by its numbers at a large size with the unit small beside each. Names are not repeated for every number.</summary>
     private static FrameworkElement Bar(OverlaySettings o, Skin c, FontFamily font, IReadOnlyList<MetricView> metrics)
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal };
-        for (var i = 0; i < metrics.Count; i++)
+        string? lastGroup = null;
+        foreach (var m in metrics)
         {
-            var m = metrics[i];
-            if (i > 0)
-                row.Children.Add(new Border { Width = 1, Height = 16, Background = Brush(Color.FromArgb(0x55, c.Text.R, c.Text.G, c.Text.B)), Margin = new Thickness(10, 0, 10, 0) });
-            var cell = new StackPanel { Orientation = Orientation.Horizontal };
-            if (o.ShowLabels) cell.Children.Add(Text(Short(m), 12.5, c.Muted, font, FontWeights.Medium, o.Shadow));
-            var value = Reading(m, 16, ValueColor(o, c, m), font, o.Shadow);
-            value.Margin = new Thickness(o.ShowLabels ? 6 : 0, 0, 0, 0);
+            var group = OverlayMetrics.Find(m.Key)?.Group ?? "general";
+            var big = m.Key == "fps";
+            var newGroup = group != lastGroup;
+            lastGroup = group;
+            var gap = row.Children.Count == 0 ? 0 : newGroup ? 22 : 12;
+            var cell = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(gap, 0, 0, 0) };
+            if (o.ShowLabels && newGroup && GroupName(group) is { Length: > 0 } name && !big)
+                cell.Children.Add(Text(name, 17, GroupColor(c, group), font, FontWeights.Bold, Sh(o)));
+            else if (o.ShowLabels && group == "general" && !big)
+                cell.Children.Add(Text(Short(m), 14, c.Muted, font, FontWeights.Medium, Sh(o)));
+            var value = Reading(m, big ? 34 : 21, ValueColor(o, c, m), font, Sh(o));
+            value.Margin = new Thickness(cell.Children.Count > 0 ? 8 : 0, 0, 0, 0);
             cell.Children.Add(value);
+            if (big && o.ShowLabels)
+            {
+                var fps = Text("FPS", 14, c.Muted, font, FontWeights.Medium, Sh(o));
+                fps.Margin = new Thickness(5, 0, 0, 0);
+                fps.VerticalAlignment = VerticalAlignment.Bottom;
+                cell.Children.Add(fps);
+            }
             row.Children.Add(cell);
         }
         return row;
+    }
+
+    private static string GroupName(string group) => group switch { "gpu" => "GPU", "cpu" => "CPU", "ram" => "RAM", "net" => "NET", "board" => "BOARD", _ => "" };
+
+    /// <summary>One calm tone per group so the eye finds GPU / CPU / RAM / NET at a glance; darker tones on a light plate.</summary>
+    private static Color GroupColor(Skin c, string group)
+    {
+        var luminance = (0.299 * c.Back.R + 0.587 * c.Back.G + 0.114 * c.Back.B) / 255;
+        var light = luminance > 0.62;
+        return group switch
+        {
+            "gpu" => c.Accent,
+            "cpu" => Hex(light ? "1D4ED8" : "7DB4FF"),
+            "ram" => Hex(light ? "B45309" : "F5C25B"),
+            "net" => Hex(light ? "6D28D9" : "B39BFA"),
+            _ => c.Muted,
+        };
     }
 
     private static string Short(MetricView m) => m.Key switch
@@ -268,8 +313,8 @@ public static class OverlayRenderer
         foreach (var m in metrics)
         {
             var cell = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 1, 12, 1) };
-            if (o.ShowLabels) cell.Children.Add(Text(Short(m), 11.5, c.Muted, font, FontWeights.Medium, o.Shadow));
-            var value = Reading(m, 15, ValueColor(o, c, m), font, o.Shadow);
+            if (o.ShowLabels) cell.Children.Add(Text(Short(m), 11.5, c.Muted, font, FontWeights.Medium, Sh(o)));
+            var value = Reading(m, 15, ValueColor(o, c, m), font, Sh(o));
             value.Margin = new Thickness(o.ShowLabels ? 4 : 0, 0, 0, 0);
             cell.Children.Add(value);
             panel.Children.Add(cell);
@@ -336,7 +381,7 @@ public static class OverlayRenderer
             Data = fraction >= 0.995 ? new EllipseGeometry(new Point(RingSize / 2, RingSize / 2), r, r) : Arc(RingSize, r, fraction),
         });
         var value = m.HasValue ? m.Value : "—";
-        var number = Text(value, FitInCircle(value, font, FontWeights.Bold, free), c.Text, font, FontWeights.Bold, o.Shadow);
+        var number = Text(value, FitInCircle(value, font, FontWeights.Bold, free), c.Text, font, FontWeights.Bold, Sh(o));
         number.HorizontalAlignment = HorizontalAlignment.Center;
         number.TextAlignment = TextAlignment.Center;
         gauge.Children.Add(number);
@@ -353,7 +398,7 @@ public static class OverlayRenderer
         cell.Children.Add(gauge);
         if (label.Length > 0)
         {
-            var text = Text(label, labelSize, c.Muted, font, FontWeights.Medium, o.Shadow);
+            var text = Text(label, labelSize, c.Muted, font, FontWeights.Medium, Sh(o));
             text.HorizontalAlignment = HorizontalAlignment.Center;
             text.Margin = new Thickness(0, 2, 0, 0);
             text.TextTrimming = TextTrimming.CharacterEllipsis;
@@ -404,7 +449,7 @@ public static class OverlayRenderer
         var fps = metrics.FirstOrDefault(m => m.Key == "fps");
         if (fps is not null)
             {
-                var line = Text($"{Display(fps)} FPS".Replace(" FPS FPS", " FPS"), 25, ValueColor(o, c, fps), font, FontWeights.Bold, o.Shadow);
+                var line = Text($"{Display(fps)} FPS".Replace(" FPS FPS", " FPS"), 25, ValueColor(o, c, fps), font, FontWeights.Bold, Sh(o));
                 line.Width = Math.Max(Measure(OverlaySlots.NumberPattern("fps").Replace(OverlaySlots.Digit, WidestDigit(font, FontWeights.Bold, 25)) + " FPS", font, FontWeights.Bold, 25), Measure("ADMIN FPS", font, FontWeights.Bold, 25)) + 2;
                 line.TextTrimming = TextTrimming.CharacterEllipsis;
                 root.Children.Add(line);

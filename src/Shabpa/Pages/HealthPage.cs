@@ -157,6 +157,13 @@ public sealed class HealthOverviewPage : PageBase
             cards[i].Set("—", L.T("مورد", "items"));
         }
         _errors.Meter!.Visibility = Visibility.Collapsed;
+        // a counter is a door to what it counts
+        foreach (var (stat, target) in new (StatCard, Func<FrameworkElement>)[] { (_problem, () => _checksCard), (_attention, () => _checksCard), (_good, () => _checksCard), (_errors, () => _eventsCard) })
+        {
+            stat.Cursor = System.Windows.Input.Cursors.Hand;
+            stat.ToolTip = L.T("برای دیدن جزئیات بزن", "Click to see the details");
+            stat.MouseLeftButtonUp += (_, _) => Jump(target());
+        }
         _left.Children.Add(scoreCard);
         _left.Children.Add(counters);
 
@@ -222,13 +229,57 @@ public sealed class HealthOverviewPage : PageBase
         });
     }
 
+    /// <summary>One error group: the usual list line, and a click opens what Windows actually wrote, when it happened, what it usually means and a button to put it away.</summary>
+    private static FrameworkElement EventRow(EventSummary ev, bool first, Action handled)
+    {
+        var item = ListUi.Item("alarm", ev.Critical ? "HueE" : "HueC",
+            $"{ev.Provider} · #{ev.Id} · ×{Fa.Digits(ev.Count.ToString())}",
+            ev.Meaning + (ev.UsuallyHarmless ? L.T(" (معمولاً بی‌خطره)", " (usually harmless)") : ""), null, first,
+            note: L.T($"آخرین بار: {Fa.DayOf(ev.Last, DateTime.Now)} {Fa.Clock(ev.Last)} · برای دیدن جزئیات بزن", $"Last: {Fa.DayOf(ev.Last, DateTime.Now)} {ev.Last:HH:mm} · click for details"), titleLtr: true);
+        var detail = new StackPanel { Margin = new Thickness(50, 0, 6, 12), Visibility = Visibility.Collapsed };
+        var message = ev.Message.Length > 0 ? ev.Message : L.T("ویندوز متن بیشتری برای این رویداد ننوشته.", "Windows wrote no further text for this event.");
+        detail.Children.Add(new TextBlock { Text = message, Style = K.Style("Body"), TextWrapping = TextWrapping.Wrap, FlowDirection = FlowDirection.LeftToRight, FontSize = 12.5 });
+        var times = string.Join("  ·  ", ev.Times.Select(t => $"{Fa.DayOf(t, DateTime.Now)} {Fa.Clock(t)}"));
+        detail.Children.Add(new TextBlock
+        {
+            Text = L.T($"از دفتر «{ev.Log}» · زمان‌های اخیر: {times}", $"From the “{ev.Log}” log · latest times: {times}"),
+            Style = K.Style("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0),
+        });
+        detail.Children.Add(new TextBlock
+        {
+            Text = ev.UsuallyHarmless
+                ? L.T("معمولاً بی‌خطره‌ست و لازم نیست کاری بکنی؛ اگه خیلی تکرار شد بگرد ببین کدوم برنامه باعثشه.", "Usually harmless; nothing to do unless it repeats a lot, then look for the program that causes it.")
+                : L.T("اگه بعد از ری‌استارت دوباره نیومد، خودش کنار گذاشته می‌شه. اگه تکرار شد، متن بالا رو (یا گزارش همین برنامه) برای جستجو یا پشتیبانی بفرست.", "If it does not come back after a restart it is set aside by itself. If it repeats, search the text above or send it to support."),
+            Style = K.Style("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0),
+        });
+        var done = ListUi.Btn("chk", L.T("رفع شد؛ نشون نده", "Fixed; hide it"), "Btn", handled);
+        done.HorizontalAlignment = HorizontalAlignment.Left;
+        done.Margin = new Thickness(0, 10, 0, 0);
+        detail.Children.Add(done);
+        var box = new StackPanel();
+        var line = new Border { Child = item, Cursor = System.Windows.Input.Cursors.Hand, Background = System.Windows.Media.Brushes.Transparent };
+        line.MouseLeftButtonUp += (_, _) =>
+        {
+            detail.Visibility = detail.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+            if (detail.Visibility == Visibility.Visible) Motion.Rise(detail, 0, 6, 0.4);
+        };
+        box.Children.Add(line);
+        box.Children.Add(detail);
+        return box;
+    }
+
+    private static void Jump(FrameworkElement target)
+    {
+        target.BringIntoView();
+        Motion.Pop(target);
+    }
     private List<HealthCheck> _lastList = [];
     private List<EventSummary> _lastEvents = [];
 
-    private void Show(List<HealthCheck> all, List<EventSummary> events)
+    private void Show(List<HealthCheck> all, List<EventSummary> allEvents)
     {
         _lastList = all;
-        _lastEvents = events;
+        _lastEvents = allEvents;
         var list = all.Where(c => !HealthUi.IsIgnored(c)).ToList();
         var ignored = all.Where(HealthUi.IsIgnored).ToList();
         var problems = list.Count(c => c.State == CheckState.Problem);
@@ -262,6 +313,7 @@ public sealed class HealthOverviewPage : PageBase
         Counter(_good, good, L.T("مورد", "items"), 100.0 * good / total);
         Counter(_attention, attention, L.T("مورد", "items"), 100.0 * attention / total);
         Counter(_problem, problems, L.T("مورد", "items"), 100.0 * problems / total);
+        var (events, over) = Health.SplitResolved(allEvents, Health.LastBoot(), Hub.I.State.EventsHandled);
         Counter(_errors, events.Count, L.T("گروه", "groups"), null);
 
         _checks.Children.Clear();
@@ -277,17 +329,21 @@ public sealed class HealthOverviewPage : PageBase
 
         _events.Children.Clear();
         if (events.Count == 0)
-            _events.Children.Add(new TextBlock { Text = L.T("خطای مهمی ثبت نشده (یا لاگ خونده نشد).", "No notable errors were recorded (or the log could not be read)."), Style = St("Body"), Margin = new Thickness(0, 6, 0, 0) });
+            _events.Children.Add(new TextBlock { Text = L.T("خطای فعالی نیست. ✅", "No active errors. ✅"), Style = St("Body"), Margin = new Thickness(0, 6, 0, 0) });
         var firstEvent = true;
         foreach (var ev in events)
         {
-            _events.Children.Add(_eventMemo.Item($"{ev.Provider}#{ev.Id}", ListUi.Item("alarm", ev.Critical ? "HueE" : "HueC",
-                $"{ev.Provider} · #{ev.Id} · ×{Fa.Digits(ev.Count.ToString())}",
-                ev.Meaning + (ev.UsuallyHarmless ? L.T(" (معمولاً بی‌خطره)", " (usually harmless)") : ""), null, firstEvent,
-                note: L.T($"آخرین بار: {Fa.DayOf(ev.Last, DateTime.Now)} {Fa.Clock(ev.Last)}", $"Last: {Fa.DayOf(ev.Last, DateTime.Now)} {ev.Last:HH:mm}"), titleLtr: true)));
+            var captured = ev;
+            _events.Children.Add(_eventMemo.Item($"{ev.Key}/{ev.Count}/{ev.Last.Ticks}", EventRow(ev, firstEvent, () => { Hub.I.State.EventsHandled[captured.Key] = captured.Last; Hub.I.Store.Save(); Show(_lastList, _lastEvents); })));
             firstEvent = false;
         }
-        _eventMemo.End();
+        if (over.Count > 0)
+            _events.Children.Add(_eventMemo.Item("over" + over.Count, new TextBlock
+            {
+                Text = L.T($"{Fa.Digits(over.Count.ToString())} خطای قدیمی‌تر بعد از آخرین روشن‌شدن ویندوز (یا بعد از اینکه «رفع شد» زدی) دیگه تکرار نشده و کنار گذاشته شد.",
+                    $"{over.Count} older error group(s) did not come back since Windows last started (or since you marked them fixed) and were set aside."),
+                Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 14, 0, 0),
+            }));        _eventMemo.End();
     }
 }
 

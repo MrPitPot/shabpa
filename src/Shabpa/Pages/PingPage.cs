@@ -30,6 +30,9 @@ public sealed class PingPage : PageBase
         public string Path = "";
         public string Name = "";
         public string EditorSignature = "";
+        // what is on screen now: unchanged text and opacity are not written again (a write re-measures the line; an animation restarts)
+        public string ShownTitle = "", ShownSub = "", ShownDown = "", ShownUp = "";
+        public double DownOpacity = -1, UpOpacity = -1;
     }
 
     private readonly Dictionary<string, AppRow> _rows = [];
@@ -39,6 +42,8 @@ public sealed class PingPage : PageBase
     private string _order = "";
     private bool _sparkShown;
     private string _pingTint = "";
+    private long _lastWheel;
+    private string _shownOrder = "";
 
     // hero
     private readonly TextBlock _pingText = new() { FontSize = 34, FontWeight = FontWeights.Bold, Text = "—", Foreground = Res("Green"), LineHeight = 40, LineStackingStrategy = LineStackingStrategy.BlockLineHeight };
@@ -110,7 +115,9 @@ public sealed class PingPage : PageBase
             UpdateApps(true);
         });
         foreach (var chip in _sortChips.Children.OfType<FrameworkElement>()) chip.Margin = new Thickness(0);
-        While<Action>(h => Hub.NetTick += h, h => Hub.NetTick -= h, () => { if (IsVisible) UpdateApps(false); });
+        // While the list is being scrolled (on a weak PC every redraw of 30 lines is a stutter) the numbers wait for the wheel to stop.
+        PreviewMouseWheel += (_, _) => _lastWheel = Environment.TickCount64;
+        While<Action>(h => Hub.NetTick += h, h => Hub.NetTick -= h, () => { if (IsVisible && Environment.TickCount64 - _lastWheel > 450) UpdateApps(false); });
     }
 
     // ---- layout ----------------------------------------------------------------------------------
@@ -423,9 +430,11 @@ public sealed class PingPage : PageBase
         _ticks++;
         var keys = string.Join("|", ordered.Select(a => a.Key).Order());
         var setChanged = keys != _order;
-        if (reorder || setChanged || (_openKey is null && _ticks % 5 == 0 && !_appsPanel.IsMouseOver))
+        var wanted = string.Join("|", ordered.Select(a => a.Key));
+        if (reorder || setChanged || (_openKey is null && _ticks % 5 == 0 && !_appsPanel.IsMouseOver && wanted != _shownOrder))
         {
             _order = keys;
+            _shownOrder = wanted;
             _appsPanel.Children.Clear();
             foreach (var app in ordered)
             {
@@ -623,12 +632,17 @@ public sealed class PingPage : PageBase
     {
         row.Name = app.Title;
         if (app.Path.Length > 0) row.Path = app.Path;
-        row.Title.Text = app.Title;
-        row.Sub.Text = app.DownBytes + app.UpBytes > 0 ? $"↓ {Fa.Bytes(app.DownBytes)}   ↑ {Fa.Bytes(app.UpBytes)}" : app.Key;
-        row.Down.Text = Fa.Rate(app.DownMbps);
-        row.Up.Text = Fa.Rate(app.UpMbps);
-        Fx.Anim(row.Down, UIElement.OpacityProperty, app.DownMbps < 0.001 ? 0.35 : 1, null, 300);
-        Fx.Anim(row.Up, UIElement.OpacityProperty, app.UpMbps < 0.001 ? 0.35 : 1, null, 300);
+        if (row.ShownTitle != app.Title) row.Title.Text = row.ShownTitle = app.Title;
+        var sub = app.DownBytes + app.UpBytes > 0 ? $"↓ {Fa.Bytes(app.DownBytes)}   ↑ {Fa.Bytes(app.UpBytes)}" : app.Key;
+        if (row.ShownSub != sub) row.Sub.Text = row.ShownSub = sub;
+        var down = Fa.Rate(app.DownMbps);
+        if (row.ShownDown != down) row.Down.Text = row.ShownDown = down;
+        var up = Fa.Rate(app.UpMbps);
+        if (row.ShownUp != up) row.Up.Text = row.ShownUp = up;
+        var downOpacity = app.DownMbps < 0.001 ? 0.35 : 1;
+        if (row.DownOpacity != downOpacity) { row.DownOpacity = downOpacity; Fx.Anim(row.Down, UIElement.OpacityProperty, downOpacity, null, 300); }
+        var upOpacity = app.UpMbps < 0.001 ? 0.35 : 1;
+        if (row.UpOpacity != upOpacity) { row.UpOpacity = upOpacity; Fx.Anim(row.Up, UIElement.OpacityProperty, upOpacity, null, 300); }
 
         var planned = Hub.Planned.FirstOrDefault(l => l.Key == app.Key);
         var exempt = Hub.State.NetLimits.Any(l => l.Key == app.Key && l.Exempt);
@@ -650,9 +664,12 @@ public sealed class PingPage : PageBase
         var pending = planned is not null && !Hub.Applied.Contains(planned) && !Hub.Demo;
         var pillShown = pending ? $"{text} …" : text;
         if (row.PillText.Text.Length > 0 && row.PillText.Text != pillShown) Motion.Pop(row.Pill);
-        row.PillText.Text = pillShown;
-        row.PillText.Foreground = Res(tint);
-        row.Pill.Background = Res(tint + "Soft");
+        if (row.PillText.Text != pillShown)
+        {
+            row.PillText.Text = pillShown;
+            row.PillText.Foreground = Res(tint);
+            row.Pill.Background = Res(tint + "Soft");
+        }
 
         if (_openKey == row.Key) BuildEditor(row);
     }

@@ -162,8 +162,9 @@ public sealed class OverlayPage : PageBase
 
         // ---- size and opacity --------------------------------------------------------------------------
         var (sizeCard, size) = Ui2.Card(L.T("اندازه و شفافیت", "Size and opacity"));
-        var scale = Ui2.SliderRow(L.T("اندازه", "Size"), 0.6, 2.2, 0.05, v => $"{v * 100:0}%");
-        var opacity = Ui2.SliderRow(L.T("تیرگی پس‌زمینه", "Background opacity"), 0.1, 1.0, 0.05, v => $"{v * 100:0}%");
+        // one percent per step; the plate is gone completely at 0 %
+        var scale = Ui2.SliderRow(L.T("اندازه", "Size"), OverlayRenderer.MinScale, OverlayRenderer.MaxScale, 0.01, v => $"{Math.Round(v * 100):0}%");
+        var opacity = Ui2.SliderRow(L.T("تیرگی پس‌زمینه", "Background opacity"), 0, 1.0, 0.01, v => $"{Math.Round(v * 100):0}%");
         var offsetX = Ui2.SliderRow(L.T("فاصله از کنار", "Offset from the side"), 0, 600, 4, v => $"{v:0} px");
         var offsetY = Ui2.SliderRow(L.T("فاصله از بالا/پایین", "Offset from top/bottom"), 0, 600, 4, v => $"{v:0} px");
         (_scale, _opacity, _offsetX, _offsetY) = (scale.slider, opacity.slider, offsetX.slider, offsetY.slider);
@@ -385,8 +386,8 @@ public sealed class OverlayPage : PageBase
             _loading = false;
         };
 
-        scale.slider.ValueChanged += (_, _) => Change(o => o.Scale = scale.slider.Value);
-        opacity.slider.ValueChanged += (_, _) => Change(o => o.BackOpacity = opacity.slider.Value);
+        scale.slider.ValueChanged += (_, _) => Change(o => o.Scale = Math.Round(scale.slider.Value, 2));
+        opacity.slider.ValueChanged += (_, _) => Change(o => o.BackOpacity = Math.Round(opacity.slider.Value, 2));
         offsetX.slider.ValueChanged += (_, _) => Change(o => o.X = offsetX.slider.Value);
         offsetY.slider.ValueChanged += (_, _) => Change(o => o.Y = offsetY.slider.Value);
         _accentBox.Picked += v => Change(o => o.CustomAccent = v);

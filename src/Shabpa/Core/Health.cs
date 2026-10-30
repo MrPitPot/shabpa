@@ -50,7 +50,14 @@ public sealed class WindowsRegistryProbe : IRegistryProbe
     }
 }
 
-public sealed record EventSummary(string Provider, int Id, string Log, bool Critical, int Count, DateTime Last, string Meaning, bool UsuallyHarmless);
+public sealed record EventSummary(string Provider, int Id, string Log, bool Critical, int Count, DateTime Last, string Meaning, bool UsuallyHarmless)
+{
+    /// <summary>What Windows wrote in the newest event of this group (first lines only, paths and names kept as they are on this PC).</summary>
+    public string Message { get; init; } = "";
+    /// <summary>When the newest events of this group happened, newest first (at most five).</summary>
+    public IReadOnlyList<DateTime> Times { get; init; } = [];
+    public string Key => $"{Provider}#{Id}@{Log}";
+}
 
 public sealed record StartupItem(string Source, string Name, string Command, bool Enabled, bool CanToggle)
 {
@@ -233,13 +240,15 @@ public static class Health
     public static List<EventSummary> RecentErrors(int days = 7, int top = 25)
     {
         var groups = new Dictionary<(string, int, string), (int count, DateTime last, bool critical)>();
+        var details = new Dictionary<(string, int, string), (string message, List<DateTime> times)>();
         var from = DateTime.UtcNow.AddDays(-days);
         foreach (var log in new[] { "System", "Application" })
         {
             try
             {
+                // newest first: the first event seen of a group is its latest, and only that one has its text read (reading text is slow)
                 var query = new EventLogQuery(log, PathType.LogName,
-                    $"*[System[(Level=1 or Level=2) and TimeCreated[@SystemTime >= '{from:yyyy-MM-ddTHH:mm:ss.000Z}']]]");
+                    $"*[System[(Level=1 or Level=2) and TimeCreated[@SystemTime >= '{from:yyyy-MM-ddTHH:mm:ss.000Z}']]]") { ReverseDirection = true };
                 using var reader = new EventLogReader(query);
                 while (reader.ReadEvent() is { } record)
                 {
@@ -248,6 +257,8 @@ public static class Health
                         var key = (record.ProviderName ?? "?", record.Id, log);
                         var time = record.TimeCreated ?? DateTime.MinValue;
                         var critical = record.Level == 1;
+                        if (!details.TryGetValue(key, out var more)) details[key] = more = (FirstLines(Describe(record)), []);
+                        if (more.times.Count < 5) more.times.Add(time);
                         groups[key] = groups.TryGetValue(key, out var g)
                             ? (g.count + 1, time > g.last ? time : g.last, g.critical || critical)
                             : (1, time, critical);
@@ -265,8 +276,41 @@ public static class Health
             .Select(g =>
             {
                 var (meaning, harmless) = Explain(g.Key.Item1, g.Key.Item2);
-                return new EventSummary(g.Key.Item1, g.Key.Item2, g.Key.Item3, g.Value.critical, g.Value.count, g.Value.last, meaning, harmless);
+                var more = details.GetValueOrDefault(g.Key);
+                return new EventSummary(g.Key.Item1, g.Key.Item2, g.Key.Item3, g.Value.critical, g.Value.count, g.Value.last, meaning, harmless)
+                    { Message = more.message ?? "", Times = more.times ?? [] };
             })];
+    }
+
+    private static string Describe(EventRecord record)
+    {
+        try { return record.FormatDescription() ?? ""; }
+        catch (Exception ex) when (ex is EventLogException or InvalidOperationException) { return ""; }
+    }
+
+    /// <summary>The first few lines of an event text, short enough to read in a list.</summary>
+    internal static string FirstLines(string text, int lines = 4, int max = 420)
+    {
+        var parts = text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Take(lines);
+        var joined = string.Join("\n", parts);
+        return joined.Length <= max ? joined : joined[..max] + "…";
+    }
+
+    /// <summary>When Windows last started (restart, or a cold start; a hibernate-style fast start keeps counting).</summary>
+    public static DateTime LastBoot() => DateTime.Now - TimeSpan.FromMilliseconds(Environment.TickCount64);
+
+    /// <summary>Splits the errors into those still worth showing and those that are over: a group is over when its newest event is older than the last start of Windows (a restart cured it, or it never came back)
+    /// or when the person marked it as handled and nothing newer has happened since.</summary>
+    public static (List<EventSummary> active, List<EventSummary> over) SplitResolved(IEnumerable<EventSummary> events, DateTime lastBoot, IReadOnlyDictionary<string, DateTime> handled)
+    {
+        var active = new List<EventSummary>();
+        var over = new List<EventSummary>();
+        foreach (var e in events)
+        {
+            var done = e.Last < lastBoot || (handled.TryGetValue(e.Key, out var at) && e.Last <= at);
+            (done ? over : active).Add(e);
+        }
+        return (active, over);
     }
 
     // ---- security ---------------------------------------------------------------------------------------

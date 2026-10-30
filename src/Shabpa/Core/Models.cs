@@ -189,6 +189,10 @@ public sealed class AppState
     public List<string> StartupAnnounced { get; set; } = [];
     /// <summary>Ids of the health or security warnings the person chose to ignore (they can bring each back).</summary>
     public List<string> HealthIgnored { get; set; } = [];
+    /// <summary>Error groups of the health page the person marked as handled: key to the time of the newest event then (a newer one shows again).</summary>
+    public Dictionary<string, DateTime> EventsHandled { get; set; } = [];
+    /// <summary>The person's own values of the game tweaks, kept before the first change so turning a tweak off puts exactly them back.</summary>
+    public Dictionary<string, string> TuneBackup { get; set; } = [];
     /// <summary>Work profiles, their triggers and the run history (phase D).</summary>
     public List<WorkProfile> Profiles { get; set; } = [];
     public List<AutomationTrigger> Triggers { get; set; } = [];

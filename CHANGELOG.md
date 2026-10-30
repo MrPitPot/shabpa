@@ -7,6 +7,21 @@ a patch release only fixes bugs, a minor release adds a tested batch of features
 ## [Unreleased]
 
 ### Added
+- **Game tuning (System control → Game tuning)** - ten documented Windows settings in three tabs (processor & memory, Windows & system, graphics), each with an "i" that explains it on hover: game gets the processor first, game scheduling priority, background share of the processor, Windows' own Game Mode, stop Game Bar's hidden recording, keep Store apps asleep, stop sharing updates with others, lift the multimedia network brake, merge service processes, hardware-scheduled graphics (HAGS), keep the PCIe lane awake, windowed/borderless game boost. Each asks first, keeps your own value before changing it and puts exactly that back when switched off; "put everything back" undoes all. Nothing disables a program, service or file. The X3D pinning row only shows whether such a processor exists (not built yet).
+- **Overlay bar layout redesigned** - big numbers with small units, the frame rate large on the left and one coloured name per group (GPU, CPU, RAM, NET) instead of a label on every number.
+- **Overlay size and opacity** - size 25-200 % and background opacity 0-100 % in one-percent steps; at 0 % there is no plate and no outline (the numbers keep a shadow).
+- **Health: error groups are clickable** - a click shows what Windows wrote, when, and what it usually means; the counters jump to their list. Groups that did not come back since Windows last started, or that you marked "fixed", are set aside (they return if a newer event happens).
+- **Downloads:** any program (not only launchers) can be added and taught clicks; the texts say so.
+
+### Changed
+- **Night light warm colour** now warms the display's colour curve like Windows' Night Light (the amber plate over the screen greyed the picture). The darkness stays a separate layer. A screen that refuses the curve falls back to the old plate. The curve is put back on switch-off and on exit.
+
+### Fixed
+- **DNS ping numbers were wrong behind a VPN/proxy** - with a tunnel client (or a router/ISP) that answers every DNS question itself, all servers, even a non-existent one, showed under 30 ms. The test now detects this (a question to the reserved address 192.0.2.53 gets an answer) and shows the numbers dimmed with "~" and an explanation.
+- **Window freezes of many seconds** - the first network request of the weather, support and update pages ran on the window thread (proxy lookup and name resolution took up to 21 s in a real log); they now start on a background thread.
+- **Ping stability list scrolled slowly on weak PCs** - unchanged text and animations are no longer rewritten every second, the list is not rebuilt unless its order really changed, and numbers wait while the wheel is turning.
+- **Launchers (for example the Riot Client) opened the Documents folder** - they are now started through Explorer's desktop shell, with normal rights, in their own folder.
+### Added (earlier, same release)
 - **Command box (assistant, phase 0)** - type a command in Persian or English («یه ساعت و ربع دیگه خاموش کن»، «ساعت ۲ و نیم شب بخوابون»، «وقتی دانلود تموم شد خاموش کن»، "remind me at 5pm to call mom"). It works fully offline with no language model: shutdown, sleep, hibernate, restart, lock, cancel, wake timers, reminders, focus timer, night light, sleep mode and the list of what is scheduled, plus the conditions the rules already have (download or upload done, idle, a program closed, heavy work done). Every command shows a card with the exact time first; anything unclear (2 o'clock morning or afternoon?, a question, «خاموش نکن») offers choices instead and runs nothing. Open it from the tray menu or with Ctrl+Alt+Space (changeable in Settings). Bidar the owl shows what it is doing.
 - **Telegram:** the app understands a new `text` bot command with the same parser, so free text sent to the bot can be routed to it once the bot server forwards it.
 
