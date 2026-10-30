@@ -134,6 +134,8 @@ public sealed class Settings
     public BirthdaySettings Birthday { get; set; } = new();
     /// <summary>The Halloween look and the first-open jump scare with a greeting (28 October to 1 November). On by default.</summary>
     public bool Halloween { get; set; } = true;
+    /// <summary>Lighting (RGB) of the PC's fans, memory, strips and so on. Off until the person turns it on.</summary>
+    public RgbSettings Rgb { get; set; } = new();
     /// <summary>The year the scare was last shown, so it comes once a year.</summary>
     public int HalloweenSeenYear { get; set; }
     public string PingHost { get; set; } = "8.8.8.8";
@@ -203,4 +205,53 @@ public sealed class AppState
     public List<RunLogEntry> RunLog { get; set; } = [];
     /// <summary>Tickets sent from this PC.</summary>
     public List<TicketRecord> Tickets { get; set; } = [];
+}
+
+/// <summary>What one group of lights shows.</summary>
+public sealed class RgbZoneSetting
+{
+    public string Key { get; set; } = "";
+    public string Effect { get; set; } = "static";
+    public string Color { get; set; } = "FF2D55";
+    /// <summary>1 to 100 percent.</summary>
+    public int Brightness { get; set; } = 85;
+    /// <summary>1 (slow) to 10 (fast), 5 is the effect's own pace.</summary>
+    public int Speed { get; set; } = 5;
+}
+
+/// <summary>An effect the person made: two to five colours moved in one of a few ways.</summary>
+public sealed class RgbCustomEffect
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8];
+    public string Name { get; set; } = "";
+    public List<string> Colors { get; set; } = ["FF2D55", "8B5CF6"];
+    public string Pattern { get; set; } = "Wave";
+}
+
+public sealed class RgbSettings
+{
+    /// <summary>The lights are driven by Shabpa while this is on (and it is running).</summary>
+    public bool Enabled { get; set; }
+    /// <summary>One look for every group; off lets each group have its own.</summary>
+    public bool Sync { get; set; } = true;
+    public string Host { get; set; } = "127.0.0.1";
+    public int Port { get; set; } = 6742;
+    public RgbZoneSetting All { get; set; } = new() { Key = "all" };
+    public List<RgbZoneSetting> Zones { get; set; } = [];
+    public List<RgbCustomEffect> Custom { get; set; } = [];
+
+    public const int MaxCustom = 12;
+
+    /// <summary>The setting of one zone, made on first use as a copy of the "all" look.</summary>
+    public RgbZoneSetting ZoneSetting(string key)
+    {
+        var z = Zones.FirstOrDefault(x => x.Key == key);
+        if (z is not null) return z;
+        z = new RgbZoneSetting { Key = key, Effect = All.Effect, Color = All.Color, Brightness = All.Brightness, Speed = All.Speed };
+        Zones.Add(z);
+        return z;
+    }
+
+    /// <summary>The look a zone uses right now: the shared one when synced, its own otherwise.</summary>
+    public RgbZoneSetting For(string key) => Sync ? All : ZoneSetting(key);
 }

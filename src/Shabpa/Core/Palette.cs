@@ -187,6 +187,13 @@ public sealed record Palette(string Key, string Fa, string En, bool Light, IRead
             Gold=865600 GoldSoft=FFEFC7 Green=0A7349 GreenSoft=D8F4E7 Red=BE2340 RedSoft=FFDFE5 RedLine=F0A8B4
             Hero=E4DAFB Hero2=DCE6FD Thumb=B8BDD0 Glow=000000 Halo=8839EF
             """),
+        Make("halloween", "هالووین", "Halloween", false, """
+            Bg=140A1C Bg2=24102E Side=190D23 Side2=2A1236 Panel=1F1229 Panel2=2B1A38 Panel3=392349 Line=4B2F5E
+            Text=FFF1E0 Muted=DCC3D9 Faint=B9A0BA
+            Accent=FF8A1F Accent1=FF7A00 Accent2=A855F7 AccentSoft=4A2208 OnAccent=1A0B00
+            Gold=FFC764 GoldSoft=3A2F17 Green=7BE06E GreenSoft=173818 Red=FF6B7F RedSoft=45182A RedLine=73283A
+            Hero=5A2606 Hero2=34165E Thumb=5B3A70 Glow=FFFFFF Halo=FF7A00
+            """),
     ];
 
     public static Palette Find(string? key) => All.FirstOrDefault(p => p.Key == key) ?? All[0];

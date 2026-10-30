@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Shabpa.Core;
 
 /// <summary>What a typed command asks for.</summary>
-public enum CommandIntent { None, Power, Cancel, Wake, Reminder, Focus, NightLight, SleepMode, ListSchedules }
+public enum CommandIntent { None, Power, Cancel, Wake, Reminder, Focus, NightLight, SleepMode, ListSchedules, OpenPage, Overlay, Theme, Rgb, MemoryClean, GameMode, Info }
 
 /// <summary>How sure the parser is. Only <see cref="Ready"/> may be offered for confirmation; everything else asks first
 /// and runs nothing.</summary>
@@ -40,6 +40,16 @@ public sealed record AssistantCommand
     public int Level { get; init; }
     /// <summary>Reminder title.</summary>
     public string Title { get; init; } = "";
+    /// <summary>OpenPage: the page key («settings», «system:tune»).</summary>
+    public string Page { get; init; } = "";
+    /// <summary>Overlay, theme, lights, info: what exactly («mode:Off», «layout:bar», «size:120», a theme key, an effect key, an info topic).</summary>
+    public string Value { get; init; } = "";
+    /// <summary>Lights: the colour asked for, «RRGGBB», or empty.</summary>
+    public string Color { get; init; } = "";
+
+    /// <summary>Answers at once, without a confirmation card: it only shows or tells, or changes something the person can see and undo on the spot.</summary>
+    public bool Immediate => Intent is CommandIntent.ListSchedules or CommandIntent.OpenPage or CommandIntent.Info or CommandIntent.Overlay or CommandIntent.Theme or CommandIntent.Rgb or CommandIntent.MemoryClean or CommandIntent.GameMode;
+
     /// <summary>Part of the time was filled in («فردا صبح» → 8:00), so the card says it plainly.</summary>
     public bool Defaulted { get; init; }
 
@@ -111,6 +121,20 @@ public sealed record AssistantCommand
                     $"Sleep mode starts{(Minutes > 0 ? $"; in {Minutes} minutes" : "")}{(Action is { } se ? $" {Fa.ActionSentence(se)}" : "")}.");
             case CommandIntent.ListSchedules:
                 return L.T("دستورهای زمان‌بندی‌شده رو نشون می‌دم.", "Showing what is scheduled.");
+            case CommandIntent.OpenPage:
+                return L.T($"صفحه‌ی «{CommandFeatures.PageName(Page)}» باز می‌شه.", $"Opening “{CommandFeatures.PageName(Page)}”.");
+            case CommandIntent.Overlay:
+                return L.T($"اورلی: {Value}", $"Overlay: {Value}");
+            case CommandIntent.Theme:
+                return L.T($"تم عوض می‌شه: {Palette.Find(Value).Fa}", $"Theme changes to {Palette.Find(Value).En}");
+            case CommandIntent.Rgb:
+                return L.T("نورپردازی تغییر می‌کنه.", "The lighting changes.");
+            case CommandIntent.MemoryClean:
+                return L.T("رم خالی می‌شه.", "Memory is freed.");
+            case CommandIntent.GameMode:
+                return On ? L.T("حالت بازی روشن می‌شه.", "Game mode turns on.") : L.T("حالت بازی خاموش می‌شه.", "Game mode turns off.");
+            case CommandIntent.Info:
+                return L.T("جواب می‌دم.", "I will answer.");
             default:
                 return "";
         }
@@ -236,6 +260,16 @@ public static class CommandParser
         P(Cue.Render, 1, "رندر*", "render*", "encode*", "انکد*", "کار سنگین");
         P(Cue.Game, 1, "بازی*", "گیم", "game*");
         P(Cue.Now, 1, "الان", "همین الان", "فوری", "فورا", "سریع", "now", "right now", "immediately", "asap");
+        // ---- more ways to say the same things ---------------------------------------------------------------------
+        P(Cue.Shutdown, 1, "بخوابونش و خاموش", "سیستمو خاموش", "کامپیوتر رو خاموش", "برق سیستم", "power it down", "power the pc down", "turn the pc off", "kill the pc", "shut the system down", "shut everything down", "close the pc down", "end the session");
+        P(Cue.Sleep, 1, "چرت بزن", "بخوابونش", "بزارش بخوابه", "بذارش بخوابه", "برو تو خواب", "go to bed", "put it to sleep", "nap", "take a nap", "snooze it", "zzz");
+        P(Cue.Restart, 1.1, "بوت مجدد", "بوت دوباره", "از اول روشن", "ریست کن", "reset the pc", "power cycle", "cycle the pc", "restart it", "boot again", "reboot it");
+        P(Cue.Lock, 1, "قفلش کن", "صفحه رو قفل", "lock the screen", "lock screen", "lock it", "secure the pc", "lock my pc");
+        P(Cue.Cancel, 1.05, "ولش کن", "ولش", "اشتباه شد", "اشتباه گرفتم", "نمیخوام دیگه", "نه نه", "oops", "scratch that", "take it back", "no wait", "wrong one", "disregard", "dismiss");
+        P(Cue.Reminder, 1.3, "بهم بگو", "خبرم کن", "اعلام کن", "صدام کن", "ping me", "alert me", "notify me", "let me know", "don't let me forget", "dont let me forget", "note to self");
+        P(Cue.Focus, 1.3, "درس بخونم", "کار کنم", "تمرکز کنم", "مطالعه", "study", "deep work", "work session", "concentrate", "work timer", "study timer");
+        P(Cue.NightLight, 1.3, "چشمام درد", "چشم درد", "بلو لایت", "نور آبی", "کمنورتر", "روشنایی کم", "eye strain", "too bright", "screen is bright", "dim the screen", "lower the brightness", "reduce brightness", "easier on the eyes");
+        P(Cue.Now, 1, "هم‌اکنون", "هماکنون", "دم", "بی‌درنگ", "بیدرنگ", "this second", "this instant", "straight away", "right away", "at once");
         // longest first, so «خواب عمیق» wins over «خواب» and «حالت شب خواب» over «خواب»
         return [.. list.OrderByDescending(p => p.Words.Length).ThenByDescending(p => p.Words.Sum(w => w.Length))];
     }
@@ -336,6 +370,9 @@ public static class CommandParser
         var norm = CommandText.Normalize(text);
         if (tokens.Count == 0)
             return CommandResult.Unknown(L.T("چیزی ننوشتی. مثلاً بنویس «یه ساعت دیگه خاموش کن».", "Nothing was typed. Try “shut down in an hour”."));
+
+        // the rest of the app (pages, overlay, theme, lights, memory, questions) has its own reader; it answers only when its own words are there
+        if (CommandFeatures.TryParse(tokens) is { } feature) return feature;
 
         var used = new bool[tokens.Count];
         var hits = Find(tokens, used);

@@ -27,7 +27,7 @@ public class PageRebuildTests
         ("ping", () => new PingPage()), ("space", () => new SpacePage()), ("duplicates", () => new DuplicatesPage()), ("backup", () => new BackupPage()),
         ("cleanup", () => new CleanupPage()), ("todo", () => new TodoPage()), ("focus", () => new FocusPage()), ("weekly", () => new WeeklyReportPage()),
         ("profile-list", () => new ProfileListPage()), ("automation", () => new AutomationPage()), ("run-history", () => new RunHistoryPage()),
-        ("app-updates", () => new AppUpdatesPage()), ("drivers", () => new DriversPage()), ("game-tune", () => new GameTunePage()),
+        ("app-updates", () => new AppUpdatesPage()), ("drivers", () => new DriversPage()), ("game-tune", () => new GameTunePage()), ("rgb", () => new RgbPage()),
     ];
 
     private static Window OffScreen(UIElement content) => new()

@@ -41,6 +41,7 @@ public static class Halloween
     public static Palette Tint(Palette basePalette)
     {
         if (basePalette.BaseKey is { } real) basePalette = Palette.Find(real);
+        if (basePalette.Key == "halloween") return basePalette;   // the Halloween theme is already festive
         lock (Tints)
         {
             if (Tints.TryGetValue(basePalette.Key, out var cached)) return cached;

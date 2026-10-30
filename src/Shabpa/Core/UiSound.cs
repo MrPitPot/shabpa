@@ -42,14 +42,66 @@ public static class UiSound
         return data;
     }
 
+    /// <summary>A mono 16-bit WAV from samples in -1..1, with a 2 ms fade at the end so nothing clicks where it stops.</summary>
+    internal static byte[] Wav(double[] samples, int rate = 44100)
+    {
+        var count = samples.Length;
+        var data = new byte[44 + count * 2];
+        void Text(int at, string s) { for (var i = 0; i < s.Length; i++) data[at + i] = (byte)s[i]; }
+        void Int(int at, int v) => BitConverter.GetBytes(v).CopyTo(data, at);
+        void Short(int at, short v) => BitConverter.GetBytes(v).CopyTo(data, at);
+        Text(0, "RIFF"); Int(4, data.Length - 8); Text(8, "WAVE"); Text(12, "fmt "); Int(16, 16); Short(20, 1); Short(22, 1);
+        Int(24, rate); Int(28, rate * 2); Short(32, 2); Short(34, 16); Text(36, "data"); Int(40, count * 2);
+        var fade = Math.Max(1, rate * 2 / 1000);
+        for (var i = 0; i < count; i++)
+        {
+            var v = Math.Clamp(samples[i], -1, 1) * Math.Min(1, (count - i) / (double)fade);
+            Short(44 + i * 2, (short)Math.Round(v * short.MaxValue));
+        }
+        return data;
+    }
+
+    /// <summary>One physical-sounding "tick": a sharp, very short bright transient (the click of a switch) on top of a small tuned body whose pitch drops
+    /// quickly and fades (the little "tock" under it). Generated from maths; <paramref name="bodyHz"/> to <paramref name="bodyEndHz"/> is the pitch fall,
+    /// <paramref name="click"/> the loudness of the transient against the body.</summary>
+    internal static double[] Tick(double bodyHz, double bodyEndHz, double milliseconds, double click, double volume, int rate = 44100, int seed = 7)
+    {
+        var count = (int)(rate * milliseconds / 1000);
+        var samples = new double[count];
+        var rng = new Random(seed);
+        double phase = 0, previous = 0;
+        var decay = 5.0 / (milliseconds / 1000);
+        for (var i = 0; i < count; i++)
+        {
+            var t = i / (double)rate;
+            var f = bodyEndHz + (bodyHz - bodyEndHz) * Math.Exp(-t * 90);
+            phase += 2 * Math.PI * f / rate;
+            var body = Math.Sin(phase) * Math.Exp(-t * decay) * Math.Min(1, i / (rate * 0.0008));
+            var noise = rng.NextDouble() * 2 - 1;
+            var bright = noise - previous;                              // a differentiator keeps only the high, crisp part of the noise
+            previous = noise;
+            samples[i] = (body * 0.8 + bright * 0.5 * click * Math.Exp(-t * 1400)) * volume;
+        }
+        return samples;
+    }
+
+    private static double[] Then(double[] first, double[] second, double gapMs, int rate = 44100)
+    {
+        var offset = (int)(rate * gapMs / 1000);
+        var result = new double[Math.Max(first.Length, offset + second.Length)];
+        first.CopyTo(result, 0);
+        for (var i = 0; i < second.Length; i++) result[offset + i] += second[i];
+        return result;
+    }
     private static (byte[], GCHandle) Make(Kind kind)
     {
+        // satisfying, not beepy: tiny switch-like ticks. Hover is the lightest, a click is a soft "thock", on rises and off falls as a pair of ticks.
         var data = kind switch
         {
-            Kind.Hover => Tone(2300, 26, 0.045, 2100),
-            Kind.Click => Tone(1500, 38, 0.10, 1100),
-            Kind.On => Tone(1250, 70, 0.11, 1900),
-            Kind.Off => Tone(1500, 70, 0.10, 950),
+            Kind.Hover => Wav(Tick(3300, 2300, 18, 1.0, 0.075)),
+            Kind.Click => Wav(Tick(1100, 420, 52, 1.0, 0.16)),
+            Kind.On => Wav(Then(Tick(1500, 900, 40, 0.9, 0.13), Tick(2300, 1500, 46, 0.9, 0.14), 46)),
+            Kind.Off => Wav(Then(Tick(2300, 1500, 40, 0.9, 0.13), Tick(1300, 760, 52, 0.9, 0.14), 46)),
             _ => Tone(880, 220, 0.14, 1320),
         };
         return (data, GCHandle.Alloc(data, GCHandleType.Pinned));

@@ -8,7 +8,8 @@ public static class Greetings
     public enum Part { Dawn, Morning, Noon, Afternoon, Evening, Night, Late }
 
     private static readonly Random Dice = new();
-    private static (Part part, int index)? _chosen;
+    private static string? _chosenKey;
+    private static string _chosenText = "";
 
     public static Part PartOf(DateTime now) => now.Hour switch
     {
@@ -21,19 +22,85 @@ public static class Greetings
         _ => Part.Late,
     };
 
-    /// <summary>Same line for the whole session while the part of the day stays the same.</summary>
-    public static string Pick(DateTime now)
+    /// <summary>The line of the home page. It stays the same while nothing it depends on changes (the part of the day, the day, the game being played
+    /// or last logged, the hours played today, the language), and is a fresh draw when one of those changes.</summary>
+    public static string Pick(DateTime now, GreetingContext? context = null) => Pick(now, context ?? GreetingContext.None, Dice);
+
+    internal static string Pick(DateTime now, GreetingContext ctx, Random dice)
     {
-        var part = PartOf(now);
-        var lines = L.En ? English[part] : Persian[part];
-        if (_chosen is not { } c || c.part != part) _chosen = c = (part, Dice.Next(Persian[part].Length));
-        return (L.En ? English[part] : Persian[part])[c.index % lines.Length];
+        var english = L.En;
+        var key = $"{PartOf(now)}|{now:yyyyMMdd}|{ctx.Current}|{ctx.Last}|{ctx.PlayedRecently}|{(int)(ctx.TodayMinutes / 60)}|{english}";
+        if (key == _chosenKey) return _chosenText;
+        _chosenKey = key;
+        _chosenText = Draw(now, ctx, english, dice);
+        return _chosenText;
     }
 
     /// <summary>For tests and the self-screenshots: start over so the next Pick is a fresh draw.</summary>
-    public static void Reset() => _chosen = null;
+    public static void Reset() => _chosenKey = null;
 
-    public static readonly IReadOnlyDictionary<Part, string[]> Persian = new Dictionary<Part, string[]>
+    private static string Pick1(string[] lines, Random dice) => lines[dice.Next(lines.Length)];
+
+    /// <summary>Every kind of line that fits this moment, with how much weight each kind has: most of the time a line about the hour, often one about
+    /// the season or the day of the week, on a special day that first, and when a game is on or was just played, one about it.</summary>
+    internal static List<(string kind, string[] lines, int weight)> Pools(DateTime now, GreetingContext ctx, bool english)
+    {
+        var pools = new List<(string, string[], int)>
+        {
+            ("time", (english ? English : Persian)[PartOf(now)], 40),
+            ("season", english ? GreetingLines.Seasons[GreetingLines.SeasonOf(now)].en : GreetingLines.Seasons[GreetingLines.SeasonOf(now)].fa, 20),
+            ("weekday", english ? GreetingLines.Weekdays[now.DayOfWeek].en : GreetingLines.Weekdays[now.DayOfWeek].fa, 12),
+        };
+        if (GreetingLines.SpecialDay(now) is { } special)
+            pools.Add(("special", english ? GreetingLines.Special[special].en : GreetingLines.Special[special].fa, 60));
+        var game = ctx.Playing ? ctx.Current : ctx.PlayedRecently ? ctx.Last : "";
+        if (ctx.Playing) pools.Add(("playing", Fill(english ? GreetingLines.PlayingNow.en : GreetingLines.PlayingNow.fa, ctx.Current), 50));
+        if (ctx.PlayedRecently) pools.Add(("after", Fill(english ? GreetingLines.AfterGame.en : GreetingLines.AfterGame.fa, ctx.Last), 45));
+        if (game.Length > 0 && PerGameLines(game, english) is { Length: > 0 } own) pools.Add(("game", own, 40));
+        if (ctx.TodayMinutes >= 120)
+        {
+            var hours = Math.Max(2, (int)Math.Round(ctx.TodayMinutes / 60.0, MidpointRounding.AwayFromZero));
+            pools.Add(("longday", Fill(english ? GreetingLines.LongDay.en : GreetingLines.LongDay.fa, english ? hours.ToString() : Fa.Digits(hours.ToString())), 25));
+        }
+        if (ctx.PlayedRecently && ctx.LastMaxGpuTemp >= 82)
+            pools.Add(("hot", Fill(english ? GreetingLines.HotGame.en : GreetingLines.HotGame.fa, ctx.Last), 18));
+        return pools;
+    }
+
+    private static string[] Fill(string[] templates, string value) => [.. templates.Select(t => t.Replace("{0}", value))];
+
+    internal static string[] PerGameLines(string game, bool english)
+    {
+        var lower = game.ToLowerInvariant();
+        foreach (var (keys, fa, en) in GreetingLines.PerGame)
+            if (keys.Any(k => lower.Contains(k))) return english ? en : fa;
+        return [];
+    }
+
+    private static string Draw(DateTime now, GreetingContext ctx, bool english, Random dice)
+    {
+        var pools = Pools(now, ctx, english).Where(p => p.lines.Length > 0).ToList();
+        var total = pools.Sum(p => p.weight);
+        var roll = dice.Next(total);
+        foreach (var (_, lines, weight) in pools)
+        {
+            if (roll < weight) return Pick1(lines, dice);
+            roll -= weight;
+        }
+        return Pick1(pools[0].lines, dice);
+    }
+
+    /// <summary>The lines of each part of the day (the first set is the original, the second set the newer additions; both languages have the same count).</summary>
+    private static IReadOnlyDictionary<Part, string[]>? _persian, _english;
+
+    public static IReadOnlyDictionary<Part, string[]> Persian => _persian ??= Merge(PersianBase, GreetingMore.Persian);
+
+    public static IReadOnlyDictionary<Part, string[]> English => _english ??= Merge(EnglishBase, GreetingMore.English);
+
+    private static IReadOnlyDictionary<Part, string[]> Merge(IReadOnlyDictionary<Part, string[]> a, IReadOnlyDictionary<Part, string[]> b) =>
+        a.ToDictionary(p => p.Key, p => (string[])[.. p.Value, .. b[p.Key].Where(x => !p.Value.Contains(x))]);
+
+    public static readonly IReadOnlyDictionary<Part, string[]> PersianBase = new Dictionary<Part, string[]>
     {
         [Part.Dawn] =
         [
@@ -81,7 +148,7 @@ public static class Greetings
         ],
     };
 
-    public static readonly IReadOnlyDictionary<Part, string[]> English = new Dictionary<Part, string[]>
+    public static readonly IReadOnlyDictionary<Part, string[]> EnglishBase = new Dictionary<Part, string[]>
     {
         [Part.Dawn] =
         [

@@ -91,10 +91,12 @@ public sealed class AssistantPanel : StackPanel
         _result.Children.Clear();
         switch (result.Status)
         {
-            case CommandStatus.Ready when result.Command is { Intent: CommandIntent.ListSchedules }:
-                // read-only: nothing to confirm
-                Mood?.Invoke(BidarMood.Happy);
-                _result.Children.Add(Line(Hub.I.ScheduleText(DateTime.Now)));
+            case CommandStatus.Ready when result.Command is { Immediate: true } instant:
+                // shows or tells, or changes something visible and undoable on the spot: no card to confirm
+                var reply = Hub.I.RunAssistant(instant, "box");
+                Mood?.Invoke(reply.Ok ? BidarMood.Happy : BidarMood.Worried);
+                _result.Children.Add(Line(L.En ? reply.En : reply.Fa, reply.Ok ? "Text" : "Red"));
+                if (reply.Ok && instant.Intent != CommandIntent.Info) _input.Clear();
                 Spoke?.Invoke();
                 break;
             case CommandStatus.Ready when result.Command is { } command:

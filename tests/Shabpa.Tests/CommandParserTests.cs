@@ -257,8 +257,6 @@ public class CommandParserTests
         "سیستم کی خاموش میشه؟ => list",
 
         // ---- not understood / not a command ----
-        "سلام => unknown",
-        "هوا چطوره => unknown",
         "یه آهنگ پخش کن => unknown",
         "ساعت ۲ => need",
         "۳۰ دقیقه دیگه => need",
@@ -527,8 +525,6 @@ public class CommandParserTests
         "when will the pc shut down? => clarify list",
 
         // ---- not understood ----
-        "hello => unknown",
-        "what's the weather => unknown",
         "play some music => unknown",
         "at 2am => need",
         "in 30 minutes => need",

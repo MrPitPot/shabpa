@@ -133,11 +133,172 @@ public sealed partial class Hub
             }
             case CommandIntent.ListSchedules:
                 return Reply(true, ScheduleText(now));
-            default:
+            case CommandIntent.OpenPage:
+            {
+                if (origin == "bot") return Reply(false, L.T("باز کردن صفحه فقط از خود برنامه ممکنه.", "Opening a page works only inside the app."));
+                RequestPage(command.Page);
+                Application.Current?.Dispatcher.BeginInvoke(() => (Application.Current as App)?.ShowWindow());
+                return Reply(true, L.T($"صفحه‌ی «{CommandFeatures.PageName(command.Page)}» باز شد.", $"“{CommandFeatures.PageName(command.Page)}” is open."));
+            }
+            case CommandIntent.Overlay:
+                return RunOverlay(command);
+            case CommandIntent.Theme:
+            {
+                if (origin == "bot") return Reply(false, L.T("تم رو فقط از خود برنامه می‌شه عوض کرد.", "The theme can only be changed inside the app."));
+                var key = Palette.Find(command.Value).Key;
+                Application.Current?.Dispatcher.BeginInvoke(() => (Application.Current.MainWindow as MainWindow)?.SwitchTheme(key));
+                return Reply(true, L.T($"تم شد «{Palette.Find(key).Fa}».", $"Theme is now {Palette.Find(key).En}."));
+            }
+            case CommandIntent.Rgb:
+                return RunRgb(command);
+            case CommandIntent.MemoryClean:
+                CleanMemory(cache: false);
+                return Reply(true, L.T("رم خالی شد (برنامه‌هایی که الان لازم نیستن کوچیک شدن).", "Memory was freed (programs that are not in use were trimmed)."));
+            case CommandIntent.GameMode:
+                Settings.Comfort.GameModeOn = command.On;
+                Store.Save();
+                ComfortChanged();
+                return Reply(true, command.On ? L.T("حالت بازی روشن شد.", "Game mode is on.") : L.T("حالت بازی خاموش شد.", "Game mode is off."));
+            case CommandIntent.Info:
+                return Reply(true, InfoText(command.Value, now));            default:
                 return Reply(false, L.T("این دستور رو نمی‌شناسم.", "Unknown command."));
         }
     }
 
+    private RemoteReply RunOverlay(AssistantCommand command)
+    {
+        var o = Settings.Overlay;
+        var (kind, arg) = command.Value.Split(':', 2) is [var k, var a] ? (k, a) : (command.Value, "");
+        string said;
+        switch (kind)
+        {
+            case "mode":
+                o.Mode = Enum.TryParse<OverlayMode>(arg, out var mode) ? mode : OverlayMode.InGame;
+                said = o.Mode switch
+                {
+                    OverlayMode.Off => L.T("اورلی خاموش شد.", "The overlay is off."),
+                    OverlayMode.Always => L.T("اورلی همیشه نشون داده می‌شه.", "The overlay shows all the time."),
+                    _ => L.T("اورلی فقط موقع بازی نشون داده می‌شه.", "The overlay shows only while gaming."),
+                };
+                break;
+            case "layout":
+                o.Layout = OverlayLayouts.All.Any(l => l.key == arg) ? arg : o.Layout;
+                said = L.T($"طرح اورلی شد «{OverlayLayouts.All.First(l => l.key == o.Layout).fa}».", $"Overlay layout is now {OverlayLayouts.All.First(l => l.key == o.Layout).en}.");
+                break;
+            case "size":
+                o.Scale = Math.Round(Math.Clamp((int.TryParse(arg, out var pct) ? pct : 100) / 100.0, OverlayRenderer.MinScale, OverlayRenderer.MaxScale), 2);
+                said = L.T($"اندازه‌ی اورلی {Fa.Digits(Math.Round(o.Scale * 100).ToString())}٪ شد.", $"Overlay size is now {Math.Round(o.Scale * 100)}%.");
+                break;
+            default:
+                return Reply(false, L.T("این دستور اورلی رو نفهمیدم.", "I did not understand that overlay command."));
+        }
+        Store.Save();
+        OverlayChanged();
+        return Reply(true, said);
+    }
+
+    private RemoteReply RunRgb(AssistantCommand command)
+    {
+        var rgb = Settings.Rgb;
+        if (command.Value == "off")
+        {
+            rgb.Enabled = false;
+            Store.Save();
+            Rgb.Refresh();
+            Rgb.BlackOut();
+            return Reply(true, L.T("نورپردازی خاموش شد.", "The lights are off."));
+        }
+        if (command.Value == "on") rgb.Enabled = true;
+        else
+        {
+            rgb.Enabled = true;
+            var all = new[] { rgb.All }.Concat(rgb.Zones).ToList();
+            foreach (var s in all)
+            {
+                if (command.Value.Length > 0) s.Effect = command.Value;
+                if (command.Color.Length > 0) s.Color = command.Color;
+                if (command.Level >= 0) s.Brightness = command.Level;
+            }
+            if (command.Value.Length == 0 && command.Color.Length > 0 && !RgbEffects.Find(rgb.All.Effect).UsesColor)
+                foreach (var s in all) s.Effect = "static";               // a colour asked for on a fixed-palette look means "just this colour"
+        }
+        Store.Save();
+        Rgb.Refresh();
+        var link = Rgb.Link;
+        var note = link is RgbLink.NoServer or RgbLink.NoDevices
+            ? L.T(" (ولی الان به نورها نمی‌رسه؛ صفحه‌ی نورپردازی رو ببین.)", " (but it cannot reach the lights right now; see the Lighting page.)")
+            : "";
+        return Reply(true, L.T("نورپردازی تنظیم شد.", "The lighting is set.") + note);
+    }
+
+    /// <summary>Answers to quick questions and small talk.</summary>
+    internal string InfoText(string kind, DateTime now)
+    {
+        var s = Snapshot;
+        var t = Telemetry.Latest;
+        switch (kind)
+        {
+            case "help": return CommandFeatures.HelpText(L.En);
+            case "time": return L.T($"ساعت {Fa.Clock(now)} ـه.", $"It is {now:HH:mm}.");
+            case "date": return L.T($"امروز {Fa.DayOf(now, now)} ـه.", $"Today is {now:dddd, d MMMM yyyy}.");
+            case "cpu":
+                return t.CpuTempC is { } c
+                    ? L.T($"دمای پردازنده {Fa.Digits(Math.Round(c).ToString())} درجه‌ست.", $"The processor is at {Math.Round(c)} °C.")
+                    : L.T($"دمای پردازنده رو نمی‌تونم بخونم؛ مصرفش {Fa.Digits(Math.Round(s.CpuLoad).ToString())}٪ه.", $"I cannot read the processor temperature; its load is {Math.Round(s.CpuLoad)}%.");
+            case "gpu":
+                return t.Gpu.TempC is { } g
+                    ? L.T($"دمای کارت گرافیک {Fa.Digits(Math.Round(g).ToString())} درجه‌ست.", $"The graphics card is at {Math.Round(g)} °C.")
+                    : L.T("دمای کارت گرافیک رو نمی‌تونم بخونم.", "I cannot read the graphics card temperature.");
+            case "ram":
+            {
+                var m = MemoryCleaner.Read();
+                return m.Total > 0 ? L.T($"رم {Fa.Digits(Math.Round(m.UsedPercent).ToString())}٪ پره.", $"Memory is {Math.Round(m.UsedPercent)}% full.") : L.T("مصرف رم رو نمی‌تونم بخونم.", "I cannot read the memory use.");
+            }
+            case "ping":
+                return Ping.Samples.LastOrDefault() is { } ms
+                    ? L.T($"پینگ {Fa.Digits(Math.Round(ms).ToString())} میلی‌ثانیه‌ست.", $"The ping is {Math.Round(ms)} ms.")
+                    : L.T("هنوز پینگی نسنجیدم؛ صفحه‌ی «پایداری پینگ» رو باز کن.", "I have not measured the ping yet; open the Ping stability page.");
+            case "status":
+            {
+                var parts = new List<string> { L.T($"پردازنده {Fa.Digits(Math.Round(s.CpuLoad).ToString())}٪", $"CPU {Math.Round(s.CpuLoad)}%") };
+                if (t.CpuTempC is { } ct) parts.Add(L.T($"{Fa.Digits(Math.Round(ct).ToString())} درجه", $"{Math.Round(ct)} °C"));
+                parts.Add(L.T($"کارت گرافیک {Fa.Digits(Math.Round(s.GpuLoad).ToString())}٪", $"GPU {Math.Round(s.GpuLoad)}%"));
+                if (MemoryCleaner.Read() is { Total: > 0 } m) parts.Add(L.T($"رم {Fa.Digits(Math.Round(m.UsedPercent).ToString())}٪", $"RAM {Math.Round(m.UsedPercent)}%"));
+                parts.Add(L.T($"دانلود {Fa.Rate(s.DownMbps)}", $"down {Fa.Rate(s.DownMbps)}"));
+                return string.Join(L.T("، ", ", "), parts) + (s.GameRunning ? L.T(" — الان داری بازی می‌کنی.", " — you are gaming right now.") : ".");
+            }
+            case "hello": return Greeting(now);
+            case "goodnight": return L.T("شب بخیر! 🌙 اگه خواستی، بگو سیستم رو بعد از چند دقیقه خاموش کنم.", "Good night! 🌙 If you like, tell me to shut the PC down in a few minutes.");
+            case "thanks": return L.T("قابل نداشت! 🦉", "You are welcome! 🦉");
+            case "howareyou": return L.T("من بیدارم و سرحالم 🦉 تو چطوری؟", "Wide awake and happy 🦉 and you?");
+            case "who": return L.T("من بیدارم، جغد شب‌پا 🦉 کارم اینه که سیستمت رو سر وقت خاموش کنم و هر کاری از شب‌پا رو برات انجام بدم. «چه کارایی بلدی» رو بنویس.", "I am Bidar, Shabpa's owl 🦉 I switch your PC off on time and do anything Shabpa can do for you. Type “what can you do”.");
+            case "joke": return Jokes[(now.Minute + now.Second) % Jokes.Length];
+            case "version": return L.T($"نسخه‌ی شب‌پا {Updater.Current.ToString(3)} ـه.", $"Shabpa version {Updater.Current.ToString(3)}.");
+            default: return L.T("نمی‌دونم چی بگم.", "I do not know what to say.");
+        }
+    }
+
+    private static readonly string[] Jokes =
+    [
+        "چرا کامپیوتر سرما نمی‌خوره؟ چون همیشه ویندوزش بازه! 🪟",
+        "Why do programmers prefer dark mode? Because light attracts bugs. 🐛",
+        "به کامپیوتر گفتم خسته شدی؟ گفت نه، فقط یه کم هنگ کردم. 😅",
+        "There are 10 kinds of people: those who understand binary and those who do not. 🦉",
+        "پینگم ۹۹۹ بود؛ بازی گفت: «بیا یه استراحت کوتاه کنیم.» 🎮",
+        "Why did the PC go to sleep? It had too many tabs open. 😴",
+    ];
+
+    private string Greeting(DateTime now)
+    {
+        var h = now.Hour;
+        return h switch
+        {
+            < 5 => L.T("سلام شب‌زنده‌دار! 🦉 دیروقته؛ بگم سیستم رو بخوابونم؟", "Hello, night owl! 🦉 It is late; shall I put the PC to sleep?"),
+            < 12 => L.T("سلام، صبح بخیر! ☀️", "Hello, good morning! ☀️"),
+            < 18 => L.T("سلام! 🦉 در خدمتم.", "Hello! 🦉 At your service."),
+            _ => L.T("سلام، عصر بخیر! 🌙", "Hello, good evening! 🌙"),
+        };
+    }
     private static RemoteReply Reply(bool ok, string text) => new(ok, text, text);
 
     /// <summary>Everything that is waiting: queued commands, the conditional rule, wake timers and sleep mode.</summary>

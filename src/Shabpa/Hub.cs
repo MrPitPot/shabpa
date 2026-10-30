@@ -40,6 +40,9 @@ public sealed partial class Hub
     /// <summary>Support tickets (GitHub link or the project server).</summary>
     public SupportClient Support { get; }
     public Telemetry Telemetry { get; }
+
+    /// <summary>The lights of the PC (fans, memory, strips...): effects worked out here and sent to a running OpenRGB.</summary>
+    public RgbService Rgb { get; }
     private readonly GameSessionRecorder _gameRecorder = new();
     /// <summary>Every recorded game session (local file games.json).</summary>
     public GameLogStore GameLog { get; }
@@ -96,6 +99,7 @@ public sealed partial class Hub
         Traffic = new TrafficMeter(_resolver.Resolve);
         Ping = new PingMeter(() => Settings.PingHost);
         Telemetry = new Telemetry(() => Sensors.Latest, () => Ping.Samples);
+        Rgb = new RgbService(() => Settings, () => Telemetry.Latest.CpuTempC, () => Snapshot.CpuLoad);
         Telemetry.UseBoardSensors = Settings.Overlay.BoardSensors && !demo;
         if (!demo) GpuProbe.PrefetchCard();
         Telemetry.LogWhileGameAlive = Settings.GameLog && !demo;
@@ -245,6 +249,7 @@ public sealed partial class Hub
         {
             Dim = new DimController(this);
             Dim.Apply();
+            Rgb.Refresh();                                  // lights that were on when Shabpa closed come back with it
             AssistantKey = new AssistantHotkey();
             AssistantKey.Apply(Settings.AssistantKey);
             // Sleep mode lowered the volume and the PC was switched off before it could be put back.
@@ -283,6 +288,7 @@ public sealed partial class Hub
             Settings.Comfort.PendingVolume = null;
         }
         Dim?.Dispose();
+        Rgb.Dispose();
         AssistantKey?.Dispose();
         _wake.Dispose();
         Sensors.Dispose();

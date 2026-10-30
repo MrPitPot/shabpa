@@ -1,0 +1,311 @@
+using System.IO;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+using Shabpa.Core;
+using Xunit;
+
+namespace Shabpa.Tests;
+
+public class RgbEngineTests
+{
+    [Fact]
+    public void Every_effect_makes_a_valid_frame_at_any_moment_in_both_languages()
+    {
+        foreach (var e in RgbEffects.All)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(e.Fa) || string.IsNullOrWhiteSpace(e.En), e.Key);
+            foreach (var leds in new[] { 1, 2, 8, 12, 36 })
+            foreach (var t in new[] { 0.0, 0.31, 1.7, 9.99, 123.4 })
+            foreach (var level in new[] { 0.0, 0.5, 1.0 })
+            {
+                var frame = RgbEngine.Frame(new RgbLook(e, new Rgb(255, 45, 85), 1, 1), leds, t, level);
+                Assert.Equal(leds, frame.Length);
+            }
+        }
+    }
+
+    [Fact]
+    public void Effect_keys_are_unique_and_every_special_effect_is_in_a_known_group()
+    {
+        var all = RgbEffects.All;
+        Assert.Equal(all.Count, all.Select(e => e.Key).Distinct().Count());
+        Assert.All(RgbEffects.Special, e => Assert.Contains(e.Group, RgbEffects.Groups));
+        Assert.All(RgbEffects.Special, e => Assert.NotEmpty(e.Palette));
+        Assert.True(RgbEffects.Basic.Count >= 14, "the basic list should cover the usual lighting-program modes");
+        Assert.True(RgbEffects.Special.Count >= 24);
+        Assert.All(RgbEffects.All.SelectMany(e => e.Palette), hex => Assert.True(Rgb.TryParse(hex, out _), hex));
+    }
+
+    [Fact]
+    public void Zero_brightness_is_dark_and_full_brightness_is_not()
+    {
+        foreach (var e in RgbEffects.Basic.Where(e => e.Pattern is not (RgbPattern.Flash or RgbPattern.DoubleFlash)))
+        {
+            var dark = RgbEngine.Frame(new RgbLook(e, new Rgb(255, 0, 0), 0, 1), 12, 0.7, 0.8);
+            Assert.All(dark, c => Assert.Equal(Rgb.Black, c));
+        }
+        var lit = RgbEngine.Frame(new RgbLook(RgbEffects.Find("static"), new Rgb(10, 200, 30), 1, 1), 5, 3);
+        Assert.All(lit, c => Assert.Equal(new Rgb(10, 200, 30), c));
+        var half = RgbEngine.Frame(new RgbLook(RgbEffects.Find("static"), new Rgb(200, 100, 50), 0.5, 1), 3, 0);
+        Assert.Equal(new Rgb(100, 50, 25), half[0]);
+    }
+
+    [Fact]
+    public void The_same_inputs_give_the_same_frame_and_time_moves_the_moving_effects()
+    {
+        var look = new RgbLook(RgbEffects.Find("rainbow"), Rgb.Black, 1, 1);
+        Assert.Equal(RgbEngine.Frame(look, 20, 2.5), RgbEngine.Frame(look, 20, 2.5));
+        Assert.NotEqual(RgbEngine.Frame(look, 20, 0), RgbEngine.Frame(look, 20, 4));
+        var staticFrame = RgbEngine.Frame(new RgbLook(RgbEffects.Find("static"), new Rgb(1, 2, 3), 1, 1), 4, 0);
+        Assert.Equal(staticFrame, RgbEngine.Frame(new RgbLook(RgbEffects.Find("static"), new Rgb(1, 2, 3), 1, 1), 4, 77));
+    }
+
+    [Fact]
+    public void Rainbow_goes_through_different_hues_along_the_strip()
+    {
+        var frame = RgbEngine.Frame(new RgbLook(RgbEffects.Find("rainbow"), Rgb.Black, 1, 1), 24, 0);
+        Assert.True(frame.Select(c => c.Hex).Distinct().Count() > 12);
+    }
+
+    [Fact]
+    public void Temperature_turns_from_green_to_red_and_music_follows_the_level()
+    {
+        var temp = RgbEffects.Find("temp");
+        var cool = RgbEngine.Frame(new RgbLook(temp, Rgb.Black, 1, 1), 10, 0, 0.0)[0];
+        var hot = RgbEngine.Frame(new RgbLook(temp, Rgb.Black, 1, 1), 10, 0, 1.0)[0];
+        Assert.True(cool.G > cool.R && hot.R > hot.G, $"{cool} -> {hot}");
+        var music = RgbEffects.Find("music");
+        int Lit(double level) => RgbEngine.Frame(new RgbLook(music, new Rgb(255, 0, 80), 1, 1), 20, 0, level).Count(c => c.R + c.G + c.B > 120);
+        Assert.True(Lit(1.0) > Lit(0.2));
+        Assert.True(Lit(0.2) >= Lit(0.0));
+    }
+
+    [Fact]
+    public void A_frame_can_be_stretched_to_any_led_count()
+    {
+        var frame = new[] { new Rgb(0, 0, 0), new Rgb(100, 100, 100), new Rgb(200, 200, 200) };
+        var more = RgbEngine.Resample(frame, 5);
+        Assert.Equal(5, more.Length);
+        Assert.Equal(frame[0], more[0]);
+        Assert.Equal(frame[2], more[4]);
+        Assert.Equal(new Rgb(50, 50, 50), more[1]);
+        Assert.Single(RgbEngine.Resample(frame, 1));
+        Assert.Equal(7, RgbEngine.Resample([], 7).Length);
+    }
+
+    [Fact]
+    public void Colours_round_trip_through_text_and_hue()
+    {
+        Assert.True(Rgb.TryParse("#FF8A1F", out var c));
+        Assert.Equal(new Rgb(255, 138, 31), c);
+        Assert.Equal("FF8A1F", c.Hex);
+        Assert.False(Rgb.TryParse("nope", out _));
+        Assert.Equal(0.0, new Rgb(255, 0, 0).Hue, 3);
+        Assert.Equal(1 / 3.0, new Rgb(0, 255, 0).Hue, 3);
+        Assert.Equal(new Rgb(0, 0, 255), Rgb.FromHsv(2 / 3.0, 1, 1));
+    }
+
+    [Fact]
+    public void The_look_of_a_zone_follows_sync_own_settings_and_custom_effects()
+    {
+        var rgb = new RgbSettings();
+        rgb.All.Effect = "rainbow"; rgb.All.Brightness = 40;
+        Assert.Equal("rainbow", RgbService.LookOf(rgb, "fans").Effect.Key);
+        Assert.Equal(0.4, RgbService.LookOf(rgb, "ram").Brightness, 3);
+        rgb.Sync = false;
+        rgb.ZoneSetting("ram").Effect = "static";
+        rgb.ZoneSetting("ram").Brightness = 100;
+        Assert.Equal("static", RgbService.LookOf(rgb, "ram").Effect.Key);
+        Assert.Equal("rainbow", RgbService.LookOf(rgb, "fans").Effect.Key);          // a zone never touched starts as a copy of "all"
+        var mine = new RgbCustomEffect { Name = "x", Colors = ["FF0000", "0000FF"], Pattern = "Chase" };
+        rgb.Custom.Add(mine);
+        rgb.ZoneSetting("gpu").Effect = "custom:" + mine.Id;
+        var look = RgbService.LookOf(rgb, "gpu");
+        Assert.Equal(RgbPattern.Chase, look.CustomPattern);
+        Assert.Equal(2, look.CustomPalette!.Length);
+        Assert.Equal(12, RgbEngine.Frame(look, 12, 1).Length);
+        rgb.ZoneSetting("keys").Effect = "custom:gone";                              // a deleted custom effect falls back, never crashes
+        Assert.Equal("static", RgbService.LookOf(rgb, "keys").Effect.Key);
+    }
+
+    [Fact]
+    public void Old_settings_files_load_with_lighting_off_and_synced()
+    {
+        var s = System.Text.Json.JsonSerializer.Deserialize<Settings>("{}")!;
+        Assert.False(s.Rgb.Enabled);
+        Assert.True(s.Rgb.Sync);
+        Assert.Equal(6742, s.Rgb.Port);
+    }
+}
+
+public class RgbRivalTests
+{
+    [Fact]
+    public void Known_lighting_programs_are_found_by_process_or_service_whatever_the_spacing_or_case()
+    {
+        var found = RgbRivals.Find(["chrome", "MSI Center", "icue", "notepad", "Armoury-Crate"], ["Mystic_Light_Service", "wuauserv"]);
+        var names = found.Select(f => f.rival.Name).ToList();
+        Assert.Contains(names, n => n.Contains("MSI"));
+        Assert.Contains(names, n => n.Contains("Corsair"));
+        Assert.DoesNotContain(names, n => n.Contains("Razer"));
+        var msi = found.First(f => f.rival.Name.Contains("MSI"));
+        Assert.Contains("Mystic_Light_Service", msi.services);
+        Assert.Contains("MSI Center", msi.processes);
+    }
+
+    [Fact]
+    public void A_clean_system_shows_nothing()
+    {
+        Assert.Empty(RgbRivals.Find(["explorer", "chrome", "Shabpa", "OpenRGB"], ["Dnscache"]));      // OpenRGB is the helper, not a rival
+    }
+}
+
+/// <summary>A tiny stand-in for OpenRGB's SDK server, speaking the packet format Shabpa uses, to check the client end to end without hardware.
+/// It proves Shabpa agrees with itself about the format; the real program still has to be tried by hand.</summary>
+public class OpenRgbClientTests
+{
+    private static byte[] Str(string s) { var b = Encoding.UTF8.GetBytes(s + "\0"); return [.. BitConverter.GetBytes((ushort)b.Length), .. b]; }
+
+    private static byte[] Controller(int type, string name, int leds, bool withModesAndZones = true)
+    {
+        var body = new List<byte>();
+        body.AddRange(BitConverter.GetBytes(type));
+        body.AddRange(Str(name));
+        body.AddRange(Str("Vendor"));
+        body.AddRange(Str("description")); body.AddRange(Str("1.0")); body.AddRange(Str("serial")); body.AddRange(Str("location"));
+        body.AddRange(BitConverter.GetBytes((ushort)(withModesAndZones ? 2 : 0)));       // modes
+        body.AddRange(BitConverter.GetBytes(0));                                          // active mode
+        if (withModesAndZones)
+            foreach (var mode in new[] { "Direct", "Static" })
+            {
+                body.AddRange(Str(mode));
+                body.AddRange(new byte[4 * 4]);                                           // value, flags, speed min/max
+                body.AddRange(new byte[8]);                                               // brightness min/max (protocol 3)
+                body.AddRange(new byte[12]);                                              // colours min/max, speed
+                body.AddRange(new byte[4]);                                               // brightness
+                body.AddRange(new byte[8]);                                               // direction, colour mode
+                body.AddRange(BitConverter.GetBytes((ushort)1));
+                body.AddRange(new byte[4]);                                               // one mode colour
+            }
+        body.AddRange(BitConverter.GetBytes((ushort)(withModesAndZones ? 1 : 0)));        // zones
+        if (withModesAndZones)
+        {
+            body.AddRange(Str("Zone 1"));
+            body.AddRange(BitConverter.GetBytes(1)); body.AddRange(BitConverter.GetBytes(0)); body.AddRange(BitConverter.GetBytes(leds)); body.AddRange(BitConverter.GetBytes(leds));
+            body.AddRange(BitConverter.GetBytes((ushort)0));
+        }
+        body.AddRange(BitConverter.GetBytes((ushort)leds));
+        for (var i = 0; i < leds; i++) { body.AddRange(Str("LED " + i)); body.AddRange(BitConverter.GetBytes(i)); }
+        body.AddRange(BitConverter.GetBytes((ushort)leds));
+        body.AddRange(new byte[leds * 4]);
+        return [.. BitConverter.GetBytes(body.Count + 4), .. body];
+    }
+
+    [Fact]
+    public void Controller_records_give_the_right_device_zone_and_led_count()
+    {
+        var ram = OpenRgbClient.ParseController(1, Controller(1, "Corsair Vengeance RGB", 10), 3)!;
+        Assert.Equal(("ram", 10, "Corsair Vengeance RGB"), (ram.Zone, ram.Leds, ram.Name));
+        var fan = OpenRgbClient.ParseController(2, Controller(3, "Lian Li Uni Fan", 48), 3)!;
+        Assert.Equal(("fans", 48), (fan.Zone, fan.Leds));
+        var pump = OpenRgbClient.ParseController(3, Controller(3, "NZXT Kraken X73 pump", 24), 3)!;
+        Assert.Equal("cooler", pump.Zone);
+        Assert.Equal("board", OpenRgbClient.ParseController(4, Controller(0, "MSI MPG Z790", 6), 3)!.Zone);
+        Assert.Equal("gpu", OpenRgbClient.ParseController(5, Controller(2, "ASUS ROG GPU", 4), 3)!.Zone);
+        Assert.Equal("keys", OpenRgbClient.ParseController(6, Controller(5, "Keyboard", 104), 3)!.Zone);
+        Assert.Equal("strip", OpenRgbClient.ParseController(7, Controller(4, "LED strip", 60), 3)!.Zone);
+    }
+
+    [Fact]
+    public void A_record_the_walk_cannot_follow_still_gives_its_led_count_from_the_closing_colour_list()
+    {
+        var data = Controller(1, "Some DIMM", 9, withModesAndZones: true).ToList();
+        data.InsertRange(60, new byte[] { 0xAA, 0xBB, 0xCC });                                  // a field a newer server added somewhere in the middle
+        var device = OpenRgbClient.ParseController(0, [.. data], 3);
+        Assert.NotNull(device);
+        Assert.Equal(9, device!.Leds);
+    }
+
+    [Fact]
+    public void Nonsense_never_throws()
+    {
+        Assert.Null(OpenRgbClient.ParseController(0, [], 3));
+        Assert.Null(OpenRgbClient.ParseController(0, [1, 2, 3, 4, 5], 3));
+        Assert.Null(OpenRgbClient.ParseController(0, new byte[40], 3));
+    }
+
+    private sealed class FakeServer : IDisposable
+    {
+        private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
+        public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
+        public readonly List<(uint device, uint id, byte[] payload)> Seen = [];
+        private readonly Task _loop;
+        public FakeServer((int type, string name, int leds)[] devices)
+        {
+            _listener.Start();
+            _loop = Task.Run(() =>
+            {
+                try
+                {
+                    using var client = _listener.AcceptTcpClient();
+                    using var stream = client.GetStream();
+                    while (true)
+                    {
+                        var header = Read(stream, 16);
+                        var device = BitConverter.ToUInt32(header, 4);
+                        var id = BitConverter.ToUInt32(header, 8);
+                        var payload = Read(stream, (int)BitConverter.ToUInt32(header, 12));
+                        lock (Seen) Seen.Add((device, id, payload));
+                        void Reply(uint rid, byte[] data) { var p = new List<byte>("ORGB"u8.ToArray()); p.AddRange(BitConverter.GetBytes(device)); p.AddRange(BitConverter.GetBytes(rid)); p.AddRange(BitConverter.GetBytes((uint)data.Length)); p.AddRange(data); stream.Write([.. p]); }
+                        if (id == 40) Reply(40, BitConverter.GetBytes(3u));
+                        else if (id == 0) Reply(0, BitConverter.GetBytes((uint)devices.Length));
+                        else if (id == 1) Reply(1, Controller(devices[device].type, devices[device].name, devices[device].leds));
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or SocketException or ObjectDisposedException or InvalidOperationException) { }
+            });
+        }
+        private static byte[] Read(NetworkStream s, int n) { var b = new byte[n]; var r = 0; while (r < n) { var k = s.Read(b, r, n - r); if (k <= 0) throw new IOException(); r += k; } return b; }
+        public void Dispose() { _listener.Stop(); try { _loop.Wait(500); } catch (AggregateException) { } }
+    }
+
+    [Fact]
+    public void The_client_lists_the_devices_and_sends_each_one_its_zone_frame_stretched_to_its_led_count()
+    {
+        using var server = new FakeServer([(1, "RAM stick", 5), (3, "Case fan", 12)]);
+        using var client = new OpenRgbClient();
+        Assert.True(client.Connect("127.0.0.1", server.Port), client.LastError);
+        Assert.Equal(2, client.Devices.Count);
+        Assert.Equal(["ram", "fans"], client.Devices.Select(d => d.Zone));
+
+        var ok = client.Update(zone => zone == "ram" ? [new Rgb(255, 0, 0), new Rgb(0, 0, 255)] : zone == "fans" ? [new Rgb(1, 2, 3)] : null);
+        Assert.True(ok);
+        Thread.Sleep(150);
+        List<(uint device, uint id, byte[] payload)> updates;
+        lock (server.Seen) updates = [.. server.Seen.Where(s => s.id == 1050)];
+        Assert.Equal(2, updates.Count);
+        var ram = updates.First(u => u.device == 0).payload;
+        Assert.Equal(4 + 2 + 5 * 4, ram.Length);
+        Assert.Equal(5, BitConverter.ToUInt16(ram, 4));
+        Assert.Equal((255, 0, 0), (ram[6], ram[7], ram[8]));                               // first LED red
+        Assert.Equal((0, 0, 255), (ram[6 + 16], ram[7 + 16], ram[8 + 16]));                // last LED blue
+        var fan = updates.First(u => u.device == 1).payload;
+        Assert.Equal(12, BitConverter.ToUInt16(fan, 4));
+        Assert.Equal((1, 2, 3), (fan[6], fan[7], fan[8]));
+        lock (server.Seen) Assert.Equal(2, server.Seen.Count(s => s.id == 1100));          // both devices were put in direct control
+    }
+
+    [Fact]
+    public void Nothing_listening_means_not_connected_and_no_exception()
+    {
+        var port = new TcpListener(IPAddress.Loopback, 0);
+        port.Start();
+        var free = ((IPEndPoint)port.LocalEndpoint).Port;
+        port.Stop();
+        using var client = new OpenRgbClient();
+        Assert.False(client.Connect("127.0.0.1", free, 400));
+        Assert.False(client.Connected);
+        Assert.False(client.Update(_ => [Rgb.Black]));
+    }
+}

@@ -77,7 +77,7 @@ public class TourTests
     public void Steps_have_unique_ids_texts_in_both_languages_and_a_sane_order()
     {
         var steps = TourSteps.All;
-        Assert.InRange(steps.Count, 8, 20);
+        Assert.InRange(steps.Count, 8, 26);
         Assert.Equal(steps.Count, steps.Select(s => s.Id).Distinct().Count());
         foreach (var s in steps)
         {
@@ -151,7 +151,7 @@ public class TourTests
             Assert.True(i + 1 < steps.Count);
             Assert.Equal(steps[i].ClickPage, steps[i + 1].Page);
         }
-        Assert.Equal(3, steps.Count(s => s.NeedsClick)); // system, game overlay, settings
+        Assert.Equal(4, steps.Count(s => s.NeedsClick)); // system, game overlay, lighting, settings
     }
 
     [Fact]

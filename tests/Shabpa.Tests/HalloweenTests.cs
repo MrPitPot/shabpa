@@ -85,3 +85,36 @@ public class HalloweenTests
         Assert.Equal(wav, Halloween.ScreamWav());             // the same sound every time
     }
 }
+
+public class UiSoundTickTests
+{
+    private static int Peak(byte[] wav) { var p = 0; for (var i = 44; i + 1 < wav.Length; i += 2) p = Math.Max(p, Math.Abs((int)BitConverter.ToInt16(wav, i))); return p; }
+
+    [Fact]
+    public void The_ticks_are_short_valid_sounds_and_stay_quiet()
+    {
+        foreach (var samples in new[] { UiSound.Tick(3300, 2300, 18, 1.0, 0.075), UiSound.Tick(1100, 420, 52, 1.0, 0.16) })
+        {
+            var wav = UiSound.Wav(samples);
+            Assert.Equal("RIFF", System.Text.Encoding.ASCII.GetString(wav, 0, 4));
+            Assert.InRange(samples.Length / 44100.0 * 1000, 10, 80);
+            Assert.InRange(Peak(wav) / 32767.0, 0.02, 0.45);          // audible but never loud
+        }
+    }
+
+    [Fact]
+    public void A_hover_is_lighter_than_a_click_and_the_sound_is_always_the_same()
+    {
+        var hover = UiSound.Wav(UiSound.Tick(3300, 2300, 18, 1.0, 0.075));
+        var click = UiSound.Wav(UiSound.Tick(1100, 420, 52, 1.0, 0.16));
+        Assert.True(Peak(hover) < Peak(click));
+        Assert.Equal(hover, UiSound.Wav(UiSound.Tick(3300, 2300, 18, 1.0, 0.075)));
+    }
+
+    [Fact]
+    public void The_last_sample_is_faded_to_nothing_so_the_sound_does_not_pop_at_its_end()
+    {
+        var wav = UiSound.Wav(UiSound.Tick(1100, 420, 52, 1.0, 0.16));
+        Assert.True(Math.Abs((int)BitConverter.ToInt16(wav, wav.Length - 2)) < 60);
+    }
+}

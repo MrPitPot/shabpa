@@ -1,0 +1,437 @@
+using System.Diagnostics;
+using System.IO;
+using System.Net.Sockets;
+using System.Runtime.InteropServices;
+using System.Text;
+
+namespace Shabpa.Core;
+
+/// <summary>One thing with lights that a lighting server knows about, and the Shabpa zone its lights are driven as.</summary>
+public sealed record RgbDevice(int Index, string Name, string Vendor, int Type, int Leds, string Zone);
+
+/// <summary>Talks to a running OpenRGB program (its "SDK Server", TCP port 6742 on this PC) so Shabpa can light the fans, memory, strips,
+/// motherboard and graphics card that program supports. Shabpa itself ships no vendor code and no driver: if OpenRGB is not running, nothing
+/// is sent and the page says so. Only localhost is ever used unless the person typed another address.</summary>
+public sealed class OpenRgbClient : IDisposable
+{
+    private const uint MagicRequestControllerCount = 0, RequestControllerData = 1, RequestProtocolVersion = 40, SetClientName = 50, UpdateLeds = 1050, SetCustomMode = 1100;
+    private const uint ClientProtocol = 3;
+
+    private TcpClient? _tcp;
+    private NetworkStream? _stream;
+    private uint _protocol = 1;
+
+    public IReadOnlyList<RgbDevice> Devices { get; private set; } = [];
+    public bool Connected => _tcp is { Connected: true } && _stream is not null;
+    public string LastError { get; private set; } = "";
+
+    /// <summary>Opens the connection and reads the device list. False (with <see cref="LastError"/>) when nothing answers.</summary>
+    public bool Connect(string host, int port, int timeoutMs = 700)
+    {
+        Close();
+        try
+        {
+            var tcp = new TcpClient { NoDelay = true, ReceiveTimeout = 2000, SendTimeout = 2000 };
+            var connect = tcp.ConnectAsync(host, port);
+            if (!connect.Wait(timeoutMs) || !tcp.Connected)
+            {
+                tcp.Dispose();
+                LastError = "no answer";
+                return false;
+            }
+            _tcp = tcp;
+            _stream = tcp.GetStream();
+            Send(0, SetClientName, Encoding.ASCII.GetBytes("Shabpa\0"));
+            Send(0, RequestProtocolVersion, BitConverter.GetBytes(ClientProtocol));
+            var version = Receive(RequestProtocolVersion);
+            _protocol = Math.Min(ClientProtocol, version.Length >= 4 ? BitConverter.ToUInt32(version, 0) : 0);
+            Send(0, MagicRequestControllerCount, []);
+            var count = BitConverter.ToUInt32(Receive(MagicRequestControllerCount), 0);
+            var list = new List<RgbDevice>();
+            for (var i = 0; i < Math.Min(count, 64u); i++)
+            {
+                Send((uint)i, RequestControllerData, _protocol >= 1 ? BitConverter.GetBytes(_protocol) : []);
+                if (ParseController(i, Receive(RequestControllerData), _protocol) is { } device)
+                {
+                    list.Add(device);
+                    Send((uint)i, SetCustomMode, []);              // the device now takes colours straight from us
+                }
+            }
+            Devices = list;
+            LastError = "";
+            return true;
+        }
+        catch (Exception ex) when (ex is SocketException or IOException or AggregateException or ObjectDisposedException or InvalidOperationException or InvalidDataException)
+        {
+            LastError = ex is AggregateException a ? a.InnerException?.Message ?? ex.Message : ex.Message;
+            Close();
+            return false;
+        }
+    }
+
+    /// <summary>Sets every LED of the devices of a zone. <paramref name="frameFor"/> gives the zone's frame; it is stretched to each device's LED count.</summary>
+    public bool Update(Func<string, Rgb[]?> frameFor)
+    {
+        if (!Connected) return false;
+        try
+        {
+            foreach (var device in Devices)
+            {
+                if (frameFor(device.Zone) is not { Length: > 0 } frame) continue;
+                var leds = RgbEngine.Resample(frame, device.Leds);
+                var payload = new byte[4 + 2 + leds.Length * 4];
+                BitConverter.GetBytes(payload.Length).CopyTo(payload, 0);
+                BitConverter.GetBytes((ushort)leds.Length).CopyTo(payload, 4);
+                for (var i = 0; i < leds.Length; i++)
+                {
+                    payload[6 + i * 4] = leds[i].R;
+                    payload[7 + i * 4] = leds[i].G;
+                    payload[8 + i * 4] = leds[i].B;
+                }
+                Send((uint)device.Index, UpdateLeds, payload);
+            }
+            return true;
+        }
+        catch (Exception ex) when (ex is SocketException or IOException or ObjectDisposedException or InvalidOperationException)
+        {
+            LastError = ex.Message;
+            Close();
+            return false;
+        }
+    }
+
+    private void Send(uint device, uint id, byte[] payload)
+    {
+        var packet = new byte[16 + payload.Length];
+        "ORGB"u8.CopyTo(packet);
+        BitConverter.GetBytes(device).CopyTo(packet, 4);
+        BitConverter.GetBytes(id).CopyTo(packet, 8);
+        BitConverter.GetBytes((uint)payload.Length).CopyTo(packet, 12);
+        payload.CopyTo(packet, 16);
+        _stream!.Write(packet, 0, packet.Length);
+    }
+
+    private byte[] Receive(uint expectedId)
+    {
+        for (var attempt = 0; attempt < 8; attempt++)
+        {
+            var header = ReadExactly(16);
+            if (header[0] != 'O' || header[1] != 'R' || header[2] != 'G' || header[3] != 'B') throw new InvalidDataException("not an OpenRGB answer");
+            var id = BitConverter.ToUInt32(header, 8);
+            var size = BitConverter.ToUInt32(header, 12);
+            if (size > 4 * 1024 * 1024) throw new InvalidDataException("answer too big");
+            var body = ReadExactly((int)size);
+            if (id == expectedId) return body;                   // anything else (a "device list changed" note) is skipped
+        }
+        throw new InvalidDataException("no answer to the request");
+    }
+
+    private byte[] ReadExactly(int count)
+    {
+        var buffer = new byte[count];
+        var read = 0;
+        while (read < count)
+        {
+            var n = _stream!.Read(buffer, read, count - read);
+            if (n <= 0) throw new IOException("connection closed");
+            read += n;
+        }
+        return buffer;
+    }
+
+    // ---- controller data ------------------------------------------------------------------------------------------
+
+    private sealed class Reader(byte[] data)
+    {
+        public int Pos;
+        public uint U32() { var v = BitConverter.ToUInt32(data, Pos); Pos += 4; return v; }
+        public ushort U16() { var v = BitConverter.ToUInt16(data, Pos); Pos += 2; return v; }
+        public string Str()
+        {
+            var n = U16();
+            var s = n <= 1 ? "" : Encoding.UTF8.GetString(data, Pos, n - 1);
+            Pos += n;
+            return s;
+        }
+        public void Skip(int n) => Pos += n;
+        public bool AtEnd => Pos == data.Length;
+    }
+
+    /// <summary>Reads one controller description: its type, name, vendor and the number of LEDs. The LED count comes from walking the whole record
+    /// (modes, zones, LEDs); when that walk does not end exactly at the end of the record (a newer server) the count is taken from the colour
+    /// list that always closes the record, which is the same number.</summary>
+    internal static RgbDevice? ParseController(int index, byte[] data, uint protocol)
+    {
+        try
+        {
+            var r = new Reader(data);
+            r.U32();                                              // size of the record
+            var type = (int)r.U32();
+            var name = r.Str();
+            var vendor = protocol >= 1 ? r.Str() : "";
+            var afterIdentity = r.Pos;
+            var leds = WalkLeds(data, afterIdentity, protocol) ?? TailLeds(data);
+            if (leds <= 0) return null;
+            return new RgbDevice(index, name, vendor, type, leds, ZoneFor(type, name));
+        }
+        catch (Exception ex) when (ex is ArgumentException or IndexOutOfRangeException or OverflowException)
+        {
+            return null;
+        }
+    }
+
+    private static int? WalkLeds(byte[] data, int start, uint protocol)
+    {
+        try
+        {
+            var r = new Reader(data) { Pos = start };
+            r.Str(); r.Str(); r.Str(); r.Str();                   // description, version, serial, location
+            var modes = r.U16();
+            r.U32();                                              // the active mode
+            for (var m = 0; m < modes; m++)
+            {
+                r.Str();
+                r.Skip(4 + 4 + 4 + 4);                            // value, flags, speed min, speed max
+                if (protocol >= 3) r.Skip(8);                     // brightness min, max
+                r.Skip(4 + 4 + 4);                                // colours min, max, speed
+                if (protocol >= 3) r.Skip(4);                     // brightness
+                r.Skip(4 + 4);                                    // direction, colour mode
+                var colours = r.U16();
+                r.Skip(colours * 4);
+            }
+            var zones = r.U16();
+            for (var z = 0; z < zones; z++)
+            {
+                r.Str();
+                r.Skip(4 + 4 + 4 + 4);                            // type, leds min, max, count
+                var matrix = r.U16();
+                r.Skip(matrix);
+            }
+            var leds = r.U16();
+            for (var l = 0; l < leds; l++) { r.Str(); r.Skip(4); }
+            var colourCount = r.U16();
+            r.Skip(colourCount * 4);
+            return r.AtEnd && colourCount == leds ? leds : null;
+        }
+        catch (Exception ex) when (ex is ArgumentException or IndexOutOfRangeException or OverflowException)
+        {
+            return null;
+        }
+    }
+
+    private static int TailLeds(byte[] data)
+    {
+        for (var n = 1; n <= 2048; n++)
+        {
+            var at = data.Length - 2 - n * 4;
+            if (at < 0) break;
+            if (BitConverter.ToUInt16(data, at) == n) return n;
+        }
+        return 0;
+    }
+
+    /// <summary>OpenRGB device types: 0 motherboard, 1 memory, 2 graphics card, 3 cooler, 4 LED strip, 5 keyboard, 6 mouse, 7 mouse mat, 8 headset,
+    /// 9 headset stand, 10 gamepad, 11 light, 12 speaker, 13 virtual, 14 storage, 15 case, 16 microphone, 17 accessory, 18 keypad, 19 laptop.</summary>
+    internal static string ZoneFor(int type, string name)
+    {
+        var n = name.ToLowerInvariant();
+        return type switch
+        {
+            0 => "board",
+            1 => "ram",
+            2 => "gpu",
+            3 => n.Contains("pump") || n.Contains("aio") || n.Contains("kraken") || n.Contains("liquid") || n.Contains("cpu") ? "cooler" : "fans",
+            4 or 11 => "strip",
+            5 or 6 or 7 or 8 or 9 or 10 or 12 or 16 or 17 or 18 or 19 => "keys",
+            14 => "board",
+            15 => "fans",
+            _ => "strip",
+        };
+    }
+
+    public void Close()
+    {
+        try { _stream?.Dispose(); } catch (IOException) { }
+        try { _tcp?.Dispose(); } catch (SocketException) { }
+        _stream = null;
+        _tcp = null;
+    }
+
+    public void Dispose() => Close();
+}
+
+/// <summary>A program (or Windows service) that also drives the lights of this PC and will fight Shabpa for them.</summary>
+public sealed record RgbRival(string Name, string[] Processes, string[] Services);
+
+public static class RgbRivals
+{
+    public static readonly IReadOnlyList<RgbRival> Known =
+    [
+        new("MSI Center / Mystic Light", ["MSI Center", "MSI.CentralServer", "MysticLight", "Mystic_Light", "MSI_Center", "DragonCenter", "Dragon Center", "MSI Dragon Center"], ["Mystic_Light_Service", "MSI_Central_Service", "MSI_Case_Service", "LightKeeperService"]),
+        new("ASUS Armoury Crate / Aura", ["ArmouryCrate.UserSessionHelper", "ArmouryCrate", "LightingService", "AuraService", "AuraWallpaperService", "ArmourySocketServer"], ["LightingService", "AsusAppService", "ArmouryCrateService", "ArmouryCrateControlInterface"]),
+        new("Corsair iCUE", ["iCUE", "iCUEDevicePluginHost", "Corsair.Service"], ["CorsairService", "CorsairLLAService", "CorsairGamingAudioConfig"]),
+        new("Razer Synapse / Chroma", ["RazerCentral", "Razer Synapse 3", "RazerCortex", "Razer Synapse Service"], ["Razer Chroma SDK Service", "RzActionSvc", "Razer Synapse Service"]),
+        new("Gigabyte RGB Fusion / Control Center", ["RGBFusion", "GCC", "GigabyteControlCenter"], ["GigabyteUpdateService", "GCC_Service"]),
+        new("NZXT CAM", ["NZXT CAM", "NZXTCAM"], ["NZXT CAM Service"]),
+        new("Lian Li L-Connect", ["L-Connect 3", "LConnect3", "L-Connect"], []),
+        new("SignalRGB", ["SignalRgb", "SignalRgbLauncher"], []),
+        new("Logitech G HUB", ["lghub", "lghub_agent", "lghub_system_tray"], ["LGHUB Updater Service"]),
+        new("HyperX NGENUITY", ["NGENUITY", "HyperX NGENUITY"], []),
+        new("ASRock Polychrome", ["ASRRGBLED", "Polychrome RGB"], []),
+        new("Thermaltake TT RGB Plus", ["TT RGB Plus", "TTRGBPlus"], []),
+        new("Cooler Master MasterPlus", ["MasterPlus", "MasterPlus+"], []),
+        new("Govee / Wooting / other lighting tools", ["GoveeDesktop", "Wootility"], []),
+    ];
+
+    private static string Norm(string s) => s.ToLowerInvariant().Replace(" ", "").Replace("-", "").Replace("_", "").Replace(".", "");
+
+    /// <summary>Which known lighting programs are running among <paramref name="runningProcesses"/> (names without .exe) and which of their services
+    /// are running. Matching ignores case, spaces and dashes.</summary>
+    public static List<(RgbRival rival, List<string> processes, List<string> services)> Find(IEnumerable<string> runningProcesses, IEnumerable<string> runningServices)
+    {
+        var procs = runningProcesses.Select(p => (name: p, key: Norm(p))).ToList();
+        var svcs = runningServices.Select(s => (name: s, key: Norm(s))).ToList();
+        var found = new List<(RgbRival, List<string>, List<string>)>();
+        foreach (var rival in Known)
+        {
+            var wantedProcs = rival.Processes.Select(Norm).ToHashSet();
+            var wantedSvcs = rival.Services.Select(Norm).ToHashSet();
+            var p = procs.Where(x => wantedProcs.Contains(x.key)).Select(x => x.name).Distinct().ToList();
+            var s = svcs.Where(x => wantedSvcs.Contains(x.key)).Select(x => x.name).Distinct().ToList();
+            if (p.Count > 0 || s.Count > 0) found.Add((rival, p, s));
+        }
+        return found;
+    }
+
+    /// <summary>Reads what is running now (process names and running service names).</summary>
+    public static List<(RgbRival rival, List<string> processes, List<string> services)> Scan()
+    {
+        var procs = new List<string>();
+        try { foreach (var p in Process.GetProcesses()) { using (p) procs.Add(p.ProcessName); } }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { /* a partial list is fine */ }
+        return Find(procs, RunningServices());
+    }
+
+    private static List<string> RunningServices()
+    {
+        var names = new List<string>();
+        try
+        {
+            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services");
+            if (key is null) return names;
+            var wanted = Known.SelectMany(k => k.Services).Select(Norm).ToHashSet();
+            foreach (var name in key.GetSubKeyNames())
+                if (wanted.Contains(Norm(name)) && ServiceRunning(name)) names.Add(name);
+        }
+        catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException) { /* no list: processes only */ }
+        return names;
+    }
+
+    private static bool ServiceRunning(string name)
+    {
+        try
+        {
+            using var info = Process.Start(new ProcessStartInfo("sc.exe", $"query \"{name}\"") { UseShellExecute = false, RedirectStandardOutput = true, CreateNoWindow = true, StandardOutputEncoding = Encoding.ASCII });
+            var text = info?.StandardOutput.ReadToEnd() ?? "";
+            info?.WaitForExit(1500);
+            return text.Contains("RUNNING", StringComparison.Ordinal);
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { return false; }
+    }
+
+    /// <summary>Asks the program's windows to close, and ends what is left after a moment; then stops its running services (administrator needed for those).
+    /// Returns how many things were stopped. The person pressed a button naming exactly this program, nothing else is touched.</summary>
+    public static int Close(RgbRival rival, IEnumerable<string> processNames, IEnumerable<string> serviceNames)
+    {
+        var stopped = 0;
+        var wanted = processNames.Select(Norm).ToHashSet();
+        var victims = new List<Process>();
+        try
+        {
+            foreach (var p in Process.GetProcesses())
+            {
+                if (wanted.Contains(Norm(p.ProcessName))) victims.Add(p);
+                else p.Dispose();
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { }
+        foreach (var p in victims)
+        {
+            using (p)
+            {
+                try
+                {
+                    if (p.MainWindowHandle != IntPtr.Zero) p.CloseMainWindow();
+                    if (!p.WaitForExit(1500)) p.Kill(entireProcessTree: true);
+                    stopped++;
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException) { /* protected process: left running, the page tells */ }
+            }
+        }
+        foreach (var service in serviceNames)
+        {
+            try
+            {
+                using var stop = Process.Start(new ProcessStartInfo("sc.exe", $"stop \"{service}\"") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true });
+                stop?.WaitForExit(4000);
+                if (stop is { ExitCode: 0 }) stopped++;
+            }
+            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { }
+        }
+        Log.Write($"rgb: closed {rival.Name}: {stopped} item(s)");
+        return stopped;
+    }
+}
+
+/// <summary>The loudness of what the PC is playing (0 to 1), for the music effect.</summary>
+public static class AudioPeak
+{
+    [ComImport, Guid("BCDE0395-E52F-467C-8E3D-C4579291692E")]
+    private class MMDeviceEnumeratorClass { }
+
+    [ComImport, Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IMMDeviceEnumerator
+    {
+        int EnumAudioEndpoints(int dataFlow, int stateMask, out IntPtr devices);
+        int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice device);
+    }
+
+    [ComImport, Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IMMDevice
+    {
+        int Activate(ref Guid iid, int clsCtx, IntPtr activationParams, [MarshalAs(UnmanagedType.IUnknown)] out object endpoint);
+    }
+
+    [ComImport, Guid("C02216F6-8C67-4B5B-9D00-D008E73E0064"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IAudioMeterInformation
+    {
+        int GetPeakValue(out float peak);
+    }
+
+    private static IAudioMeterInformation? _meter;
+    private static long _triedAt;
+
+    /// <summary>The loudest recent sound on the default speakers, or null when there is no audio device. Call it from a worker thread.</summary>
+    public static double? Read()
+    {
+        try
+        {
+            if (_meter is null)
+            {
+                if (Environment.TickCount64 - _triedAt < 5000) return null;       // no device: look again every few seconds, not every frame
+                _triedAt = Environment.TickCount64;
+                var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorClass();
+                if (enumerator.GetDefaultAudioEndpoint(0, 1, out var device) != 0) return null;
+                var iid = typeof(IAudioMeterInformation).GUID;
+                device.Activate(ref iid, 23, IntPtr.Zero, out var endpoint);
+                _meter = endpoint as IAudioMeterInformation;
+            }
+            return _meter is not null && _meter.GetPeakValue(out var peak) == 0 ? Math.Clamp(peak, 0, 1) : null;
+        }
+        catch (Exception ex) when (ex is COMException or InvalidCastException or InvalidComObjectException)
+        {
+            _meter = null;
+            return null;
+        }
+    }
+}

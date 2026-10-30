@@ -339,7 +339,13 @@ public sealed class HomePage : PageBase
 
     private void UpdateTitles(DateTime now)
     {
-        var greeting = Hub.BirthdayToday ? Birthday.HomeLine(Hub.Settings.Birthday.Name) : Friendly.Greeting(now, Hub.Settings.Birthday.Name) ?? Greetings.Pick(now);
+        // the line knows the hour, the season, the weekday, special days and the games on this PC (the running one and the last one in the log)
+        var snapshot = Hub.Snapshot;
+        var context = GreetingContext.From(Hub.State.GameHistory, snapshot.GameName.Length > 0 ? snapshot.GameName : snapshot.GameProcess, snapshot.GameSince, now);
+        var named = Friendly.Greeting(now, Hub.Settings.Birthday.Name);
+        // with a saved name, about every other part of the day uses the name; the rest of the lines are the full variety
+        var useName = named is not null && (now.DayOfYear + (int)Greetings.PartOf(now)) % 2 == 0;
+        var greeting = Hub.BirthdayToday ? Birthday.HomeLine(Hub.Settings.Birthday.Name) : useName ? named! : Greetings.Pick(now, context);
         var date = L.T($"{Fa.DayName(now.DayOfWeek)} {Fa.Date(now)} · ساعت {Fa.Clock(now)}", $"{Fa.DayName(now.DayOfWeek)}, {Fa.Date(now)} · {Fa.Clock(now)}");
         var up = _onSince is { } since ? L.T($" — از آخرین روشن‌شدن {Fa.Duration(now - since)}", $" — up for {Fa.Duration(now - since)}") : "";
         var sub = date + up;
