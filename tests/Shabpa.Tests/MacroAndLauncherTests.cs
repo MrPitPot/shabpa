@@ -348,7 +348,7 @@ public sealed class GlassTests
 
 public sealed class GameRuleTests
 {
-    private static bool Decide(int state = 0, double gpu = 0, bool covers = false, bool graphics = false, string? path = null, string process = "somegame", params string[] user) =>
+    private static bool Decide(int state = 0, double gpu = 0, bool covers = false, bool? graphics = false, string? path = null, string process = "somegame", params string[] user) =>
         GameRules.Decide(state, gpu, covers, graphics, path, process, user);
 
     [Fact]
@@ -368,6 +368,17 @@ public sealed class GameRuleTests
         Assert.True(Decide(covers: true, graphics: true, gpu: 40)); // borderless, unknown folder
         Assert.False(Decide(covers: true, graphics: false, gpu: 90)); // fills the screen but loads no game graphics
         Assert.False(Decide(path: @"D:\steamapps\common\x\x.exe", graphics: true, gpu: 0)); // folder alone, card idle
+    }
+
+    [Fact]
+    public void A_game_guarded_by_anti_cheat_is_found_although_its_libraries_cannot_be_read()
+    {
+        // Valorant under Vanguard: the library list is refused, the file comes from a limited handle, the card is barely busy
+        Assert.True(Decide(path: @"C:\Riot Games\VALORANT\live\ShooterGame\Binaries\Win64\VALORANT-Win64-Shipping.exe", graphics: null, gpu: 22, process: "valorant-win64-shipping"));
+        Assert.True(Decide(path: @"D:\SteamLibrary\steamapps\common\Counter-Strike Global Offensive\game\bin\win64\cs2.exe", graphics: null, gpu: 12, process: "cs2"));
+        Assert.True(Decide(covers: true, graphics: null, gpu: 50)); // fills the screen, unknown folder, card working hard
+        Assert.False(Decide(covers: true, graphics: null, gpu: 20)); // an elevated full-screen program that is not busy
+        Assert.False(Decide(path: @"D:\steamapps\common\x\x.exe", graphics: false, gpu: 40)); // known to load no game graphics
     }
 
     [Fact]
@@ -391,6 +402,45 @@ public sealed class GameRuleTests
         Assert.Equal("05:09", GameRules.Elapsed(TimeSpan.FromSeconds(309)));
         Assert.Equal("1:02:03", GameRules.Elapsed(TimeSpan.FromSeconds(3723)));
         Assert.Equal("00:00", GameRules.Elapsed(TimeSpan.FromSeconds(-5)));
+    }
+}
+
+public sealed class ExclusiveFullscreenTests
+{
+    [Fact]
+    public void The_compatibility_box_is_read_among_other_flags()
+    {
+        Assert.True(ExclusiveFullscreen.FlagDisables("~ DISABLEDXMAXIMIZEDWINDOWEDMODE"));
+        Assert.True(ExclusiveFullscreen.FlagDisables("~ HIGHDPIAWARE disabledxmaximizedwindowedmode RUNASADMIN"));
+        Assert.False(ExclusiveFullscreen.FlagDisables("~ HIGHDPIAWARE"));
+        Assert.False(ExclusiveFullscreen.FlagDisables(null));
+    }
+
+    [Fact]
+    public void Undoing_the_box_keeps_the_other_flags_and_drops_an_empty_value()
+    {
+        Assert.Equal("~ HIGHDPIAWARE", ExclusiveFullscreen.WithoutFlag("~ DISABLEDXMAXIMIZEDWINDOWEDMODE HIGHDPIAWARE"));
+        Assert.Null(ExclusiveFullscreen.WithoutFlag("~ DISABLEDXMAXIMIZEDWINDOWEDMODE"));
+        Assert.Null(ExclusiveFullscreen.WithoutFlag("DISABLEDXMAXIMIZEDWINDOWEDMODE"));
+    }
+
+    [Fact]
+    public void Only_the_switches_Windows_obeys_count_as_off_for_every_game()
+    {
+        Assert.True(ExclusiveFullscreen.GlobalOff(2, 1, null));
+        Assert.True(ExclusiveFullscreen.GlobalOff(null, null, 2));
+        Assert.False(ExclusiveFullscreen.GlobalOff(2, 0, 0));
+        Assert.False(ExclusiveFullscreen.GlobalOff(0, 1, 0));
+        Assert.False(ExclusiveFullscreen.GlobalOff(null, null, null));
+    }
+
+    [Fact]
+    public void Only_a_Direct3D_full_screen_with_the_optimizations_off_is_called_blocked()
+    {
+        Assert.True(ExclusiveFullscreen.Blocks(3, ExclusiveFullscreen.Why.ThisGame));
+        Assert.True(ExclusiveFullscreen.Blocks(3, ExclusiveFullscreen.Why.AllGames));
+        Assert.False(ExclusiveFullscreen.Blocks(3, ExclusiveFullscreen.Why.None)); // full screen through the optimizations: the overlay shows
+        Assert.False(ExclusiveFullscreen.Blocks(2, ExclusiveFullscreen.Why.ThisGame)); // borderless: the box changes nothing
     }
 }
 

@@ -445,6 +445,14 @@ public sealed class OverlayWindow : Window
     [DllImport("user32.dll")]
     private static extern bool UnregisterHotKey(IntPtr hwnd, int id);
 
+    private delegate void WinEventProc(IntPtr hook, uint evt, IntPtr hwnd, int idObject, int idChild, uint thread, uint time);
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetWinEventHook(uint min, uint max, IntPtr module, WinEventProc proc, uint process, uint thread, uint flags);
+    [DllImport("user32.dll")]
+    private static extern bool UnhookWinEvent(IntPtr hook);
+
+    private const uint EventSystemForeground = 0x0003, WinEventOutOfContext = 0x0000, WinEventSkipOwnProcess = 0x0002;
+
     private const int HotToggle = 0xB011, HotMove = 0xB012;
     private const uint ModNoRepeat = 0x4000;
 
@@ -459,6 +467,9 @@ public sealed class OverlayWindow : Window
     private string _hotkeys = "";
     private string _game = "";
     private readonly Dictionary<string, OverlayBlockWindow> _blocks = [];
+    private WinEventProc? _foregroundProc; // kept alive: Windows calls it for as long as the hook lives
+    private IntPtr _foregroundHook;
+    private string _exclusiveChecked = "";
 
     public OverlayWindow(Hub hub)
     {
@@ -492,6 +503,54 @@ public sealed class OverlayWindow : Window
         SetWindowLongPtr(_handle, GwlExStyle, (IntPtr)style);
         HwndSource.FromHwnd(_handle)?.AddHook(WndProc);
         RegisterHotkeys();
+        // the moment a game comes to the front (started, or alt-tabbed back into) it may sit above the overlay; waiting for
+        // the next one-second tick left the HUD hidden behind it for a while, or for good with a game that keeps taking the top
+        _foregroundProc = (_, _, _, _, _, _, _) => Dispatcher.BeginInvoke(DispatcherPriority.Send, TakeTop);
+        _foregroundHook = SetWinEventHook(EventSystemForeground, EventSystemForeground, IntPtr.Zero, _foregroundProc, 0, 0, WinEventOutOfContext | WinEventSkipOwnProcess);
+    }
+
+    /// <summary>Puts the overlay (and every separate block) back on top of all other top-most windows.</summary>
+    private void KeepAllOnTop()
+    {
+        OverlayWin.KeepOnTop(_handle);
+        foreach (var block in _blocks.Values) OverlayWin.KeepOnTop(new WindowInteropHelper(block).Handle);
+    }
+
+    /// <summary>A new window came to the front: back on top, on the monitor that window is on.</summary>
+    private void TakeTop()
+    {
+        if (!IsVisible || _fadingOut) return;
+        KeepAllOnTop();
+        Place();
+    }
+
+    /// <summary>The game in front is in true exclusive full screen with fullscreen optimizations off, so no window can be
+    /// drawn over it; null otherwise. Shown on the gaming page with a way out.</summary>
+    public ExclusiveGame? Exclusive { get; private set; }
+
+    /// <summary>Looks (once per game and full-screen state) whether the game in front shuts every window out, and says so once.</summary>
+    private void CheckExclusive(bool want)
+    {
+        var s = _hub.Snapshot;
+        var key = want && s.GameRunning ? s.GameKey + "|" + s.FullScreenState : "";
+        if (key == _exclusiveChecked) return;
+        _exclusiveChecked = key;
+        if (key.Length == 0 || s.FullScreenState != 3) return;
+        var why = ExclusiveFullscreen.Reason(s.GamePath);
+        if (!ExclusiveFullscreen.Blocks(s.FullScreenState, why))
+        {
+            if (Exclusive?.Process == s.GameKey) Exclusive = null;
+            return;
+        }
+        var name = s.GameName.Length > 0 ? s.GameName : s.GameKey;
+        var first = Exclusive?.Process != s.GameKey;
+        Exclusive = new ExclusiveGame(s.GameKey, name, s.GamePath, why);
+        Log.Write($"overlay: {s.GameKey} is in exclusive full screen with fullscreen optimizations off ({why}); no window can show over it");
+        if (first)
+            _hub.Notify(L.T("اورلی روی این بازی دیده نمی‌شه", "The overlay cannot show over this game"),
+                L.T($"{name} تمام‌صفحه‌ی اختصاصی اجرا شده و Fullscreen optimizations براش خاموشه، پس ویندوز هیچ پنجره‌ای رو روش نمی‌کشه. تو تنظیمات بازی حالت نمایش رو Borderless / Windowed Fullscreen کن، یا از صفحه‌ی بازی شب‌پا اون گزینه رو دوباره روشن کن.",
+                    $"{name} runs in exclusive full screen with fullscreen optimizations turned off, so Windows draws no window over it. Set the game's display mode to Borderless / Windowed Fullscreen, or turn the optimizations back on from Shabpa's gaming page."),
+                "gaming");
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -586,11 +645,8 @@ public sealed class OverlayWindow : Window
             Render(_hub.Telemetry.Latest);
         }
         // a game that goes borderless-fullscreen (or takes the top spot itself) can slip in above the overlay: take the top back
-        if (IsVisible && !_fadingOut)
-        {
-            OverlayWin.KeepOnTop(_handle);
-            foreach (var block in _blocks.Values) OverlayWin.KeepOnTop(new WindowInteropHelper(block).Handle);
-        }
+        if (IsVisible && !_fadingOut) KeepAllOnTop();
+        CheckExclusive(want);
     }
 
     private bool _fadingOut;
@@ -799,6 +855,8 @@ public sealed class OverlayWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        if (_foregroundHook != IntPtr.Zero) UnhookWinEvent(_foregroundHook);
+        _foregroundHook = IntPtr.Zero;
         if (_registered && _handle != IntPtr.Zero)
         {
             UnregisterHotKey(_handle, HotToggle);
@@ -809,6 +867,9 @@ public sealed class OverlayWindow : Window
         base.OnClosed(e);
     }
 }
+
+/// <summary>A game that keeps every window off its screen: its program, a readable name, its file and why.</summary>
+public sealed record ExclusiveGame(string Process, string Name, string? Path, ExclusiveFullscreen.Why Why);
 
 /// <summary>One group of readings (GPU, CPU, RAM, network, time...) that sits apart from the main overlay block.
 /// Like the main block it never takes focus or input, except while the user is moving the overlay.</summary>

@@ -108,6 +108,7 @@ public static class Diagnostics
         Line("idle seconds", () => s.IdleSeconds.ToString("0"));
         Line("processes seen", () => s.Processes.Count.ToString());
         Line("game / recording", () => $"{s.GameRunning} / {s.Recording}");
+        Line("full-screen state / optimizations off", () => $"{s.FullScreenState} / {(s.GameRunning ? ExclusiveFullscreen.Reason(s.GamePath).ToString() : "no game")}");
 
         Line("power history (7 days)", () =>
         {

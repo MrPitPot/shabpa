@@ -83,6 +83,8 @@ public sealed class OverlayPage : PageBase
     private readonly OverlayColorField _accentBox = new(), _textBox = new(), _backBox = new();
     private readonly HotkeyBox _toggleKey = new(), _moveKey = new();
     private readonly TextBlock _keyNote = new();
+    private readonly TextBlock _exclusiveNote = new();
+    private readonly Button _exclusiveFix = new();
     private readonly Border _adminBanner = new();
     private readonly Dictionary<string, WrapPanel> _groupWraps = [];
     private OverlayEditor _editor = null!;
@@ -365,12 +367,31 @@ public sealed class OverlayPage : PageBase
         history.Children.Add(_historyList);
         root.Add(historyCard, 6, 0, 12);
 
-        var footer = new TextBlock
+        // a game that shuts every window out: what is going on and the one-click way back
+        _exclusiveNote.Style = St("Body");
+        _exclusiveNote.TextWrapping = TextWrapping.Wrap;
+        _exclusiveNote.Foreground = Res("Gold");
+        _exclusiveFix.Style = St("Btn");
+        _exclusiveFix.Content = L.T("روشن کردن دوباره‌ی Fullscreen optimizations برای این بازی", "Turn fullscreen optimizations back on for this game");
+        _exclusiveFix.Margin = new Thickness(0, 10, 0, 0);
+        _exclusiveFix.HorizontalAlignment = HorizontalAlignment.Left;
+        _exclusiveFix.Click += (_, _) =>
         {
-            Style = St("Label"), Margin = new Thickness(4, 4, 4, 0), TextWrapping = TextWrapping.Wrap,
-            Text = L.T("اورلی روی بازی‌های «بدون کادر» و «پنجره‌ای» نشون داده می‌شه؛ بازی‌های تمام‌صفحه‌ی اختصاصی (exclusive) پنجره‌ی روی خودشون رو اجازه نمی‌دن. چیزی داخل بازی تزریق نمی‌شه، پس با آنتی‌چیت مشکلی نداره.",
-                "The overlay shows over borderless and windowed games; true exclusive full-screen games do not allow a window over them. Nothing is injected into any game, so anti-cheat has nothing to object to."),
+            if (Hub.Overlay?.Exclusive is not { Path: { } path }) return;
+            _exclusiveNote.Text = ExclusiveFullscreen.Reenable(path)
+                ? L.T("روشن شد. بازی رو یه بار ببند و دوباره باز کن تا اورلی روش بیاد.", "Done. Close the game and start it again for the overlay to show over it.")
+                : L.T("نشد عوضش کرد. تو تنظیمات بازی حالت نمایش رو Borderless / Windowed Fullscreen کن.", "This could not be changed. Set the game's display mode to Borderless / Windowed Fullscreen.");
+            _exclusiveFix.Visibility = Visibility.Collapsed;
         };
+        var footer = new StackPanel { Margin = new Thickness(4, 4, 4, 0) };
+        footer.Children.Add(_exclusiveNote);
+        footer.Children.Add(_exclusiveFix);
+        footer.Children.Add(new TextBlock
+        {
+            Style = St("Label"), Margin = new Thickness(0, 8, 0, 0), TextWrapping = TextWrapping.Wrap,
+            Text = L.T("اورلی یه پنجره‌ی شفافه که روی بازی می‌شینه و چیزی داخل بازی تزریق نمی‌کنه، پس با آنتی‌چیت (Vanguard، FACEIT، VAC) مشکلی نداره. روی بازی‌های «بدون کادر» (Borderless / Windowed Fullscreen) و «پنجره‌ای» همیشه دیده می‌شه. «تمام‌صفحه» هم معمولاً دیده می‌شه، چون ویندوز با Fullscreen optimizations همچنان پنجره‌ها رو روی بازی می‌کشه؛ ولی اگه این گزینه برای بازی (یا با برنامه‌های «بهینه‌ساز» برای همه‌ی بازی‌ها) خاموش شده باشه، بازی صفحه رو کامل در اختیار می‌گیره و هیچ پنجره‌ای روش دیده نمی‌شه. برای همینه که روی یه سیستم هست و روی یکی دیگه نه.",
+                "The overlay is a transparent window over the game and injects nothing into it, so anti-cheat (Vanguard, FACEIT, VAC) has nothing to object to. It always shows over borderless (windowed fullscreen) and windowed games. Full screen usually works too, because Windows still draws windows over the game through fullscreen optimizations; but when those are turned off for the game (or for every game, by an “optimizer” tool) the game takes the screen over and no window can show on it. That is why it works on one PC and not on another."),
+        });
         root.Add(footer, 7, 0, 12);
         // the grid's own margin pulls its blocks to the page edge; the footer needs no card gap below it
         Content = root;
@@ -583,6 +604,7 @@ public sealed class OverlayPage : PageBase
             : "";
         _keyNote.Foreground = Res("Gold");
         _keyNote.Visibility = _keyNote.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        UpdateExclusiveNote();
         UpdateMoveButton();
         UpdateVisibility();
         UpdatePreview();
@@ -590,6 +612,22 @@ public sealed class OverlayPage : PageBase
         ShowProfiles();
         ShowHistory();
         _editor.Rebuild();
+    }
+
+    private void UpdateExclusiveNote()
+    {
+        var game = Hub.Overlay?.Exclusive;
+        _exclusiveNote.Text = game is null ? "" : game.Why switch
+        {
+            ExclusiveFullscreen.Why.AllGames => L.T($"اورلی روی {game.Name} دیده نمی‌شه: بازی تمام‌صفحه‌ی اختصاصیه و Fullscreen optimizations برای همه‌ی بازی‌ها خاموش شده (معمولاً کار یه برنامه‌ی «بهینه‌ساز»). تو تنظیمات بازی حالت نمایش رو Borderless / Windowed Fullscreen کن.",
+                $"The overlay cannot show over {game.Name}: the game is in exclusive full screen and fullscreen optimizations are off for every game (usually done by an “optimizer” tool). Set the game's display mode to Borderless / Windowed Fullscreen."),
+            ExclusiveFullscreen.Why.ThisGameAllUsers => L.T($"اورلی روی {game.Name} دیده نمی‌شه: بازی تمام‌صفحه‌ی اختصاصیه و تو Properties فایل بازی، تب Compatibility، تیک «Disable fullscreen optimizations» برای همه‌ی کاربرها خورده. اون تیک رو بردار یا تو تنظیمات بازی حالت نمایش رو Borderless / Windowed Fullscreen کن.",
+                $"The overlay cannot show over {game.Name}: the game is in exclusive full screen and “Disable fullscreen optimizations” is ticked for all users in the game file's Properties → Compatibility. Untick it, or set the game's display mode to Borderless / Windowed Fullscreen."),
+            _ => L.T($"اورلی روی {game.Name} دیده نمی‌شه: بازی تمام‌صفحه‌ی اختصاصیه و «Disable fullscreen optimizations» براش روشنه. با دکمه‌ی زیر خاموشش کن، یا تو تنظیمات بازی حالت نمایش رو Borderless / Windowed Fullscreen کن.",
+                $"The overlay cannot show over {game.Name}: the game is in exclusive full screen and “Disable fullscreen optimizations” is on for it. Undo that with the button below, or set the game's display mode to Borderless / Windowed Fullscreen."),
+        };
+        _exclusiveNote.Visibility = game is null ? Visibility.Collapsed : Visibility.Visible;
+        _exclusiveFix.Visibility = game is { Why: ExclusiveFullscreen.Why.ThisGame, Path: not null } ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void UpdateBoardNote()

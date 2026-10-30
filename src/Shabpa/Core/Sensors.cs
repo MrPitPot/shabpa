@@ -22,6 +22,10 @@ public sealed record SensorSnapshot
     public DateTime? GameSince { get; init; }
     /// <summary>The program of the recognised game while it lives (also when another window is in front), or "".</summary>
     public string GameKey { get; init; } = "";
+    /// <summary>The file of that game's program when Windows told it, else null.</summary>
+    public string? GamePath { get; init; }
+    /// <summary>SHQueryUserNotificationState: 2 a full-screen program, 3 a Direct3D program holding the screen, 5 the desktop.</summary>
+    public int FullScreenState { get; init; }
     public bool Recording { get; init; }
     public double CpuWatts { get; init; }
     public double GpuWatts { get; init; }
@@ -129,6 +133,8 @@ public sealed class SensorHub : IDisposable
             GameName = _watcher.Current?.Name ?? "",
             GameSince = _watcher.Current?.Start,
             GameKey = _watcher.Current?.Process ?? "",
+            GamePath = _watcher.Current?.Path,
+            FullScreenState = state,
             Recording = recording,
             CpuWatts = cpuWatts.Value,
             GpuWatts = gpuWatts,
