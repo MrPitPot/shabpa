@@ -8,6 +8,9 @@ namespace Shabpa.Core;
 /// keep reading exactly as before. Pure logic.</summary>
 public static class CommandFeatures
 {
+    /// <summary>The lighting (RGB) page is not in this version of the app; its commands wait for the update that brings it back.</summary>
+    public static readonly bool Lights = false;
+
     // ---- vocabulary ---------------------------------------------------------------------------------------------------
 
     /// <summary>Pages by every name a person might use. Keys are MainWindow's page keys ("system:tune" opens a tab).</summary>
@@ -102,7 +105,7 @@ public static class CommandFeatures
         var flat = padded.Trim();
 
         // the lights
-        if (Any(padded, "rgb", "ار جی بی", "آر جی بی", "نورپردازی", "نور پردازی", "ال ای دی", "led*", "lighting", "چراغ کیس", "نور کیس", "نور فن", "نور رم", "رنگ کیس", "نور قطعه*", "افکت نوری", "pc lights", "case lights", "rgb lights"))
+        if (Lights && Any(padded, "rgb", "ار جی بی", "آر جی بی", "نورپردازی", "نور پردازی", "ال ای دی", "led*", "lighting", "چراغ کیس", "نور کیس", "نور فن", "نور رم", "رنگ کیس", "نور قطعه*", "افکت نوری", "pc lights", "case lights", "rgb lights"))
             return Rgb(padded, flat);
 
         // the overlay
@@ -246,7 +249,7 @@ public static class CommandFeatures
     private static CommandResult? OpenPageCommand(IReadOnlyList<CommandToken> tokens, string padded)
     {
         var verb = Any(padded, OpenVerbs);
-        var best = Pages.Select(p => (p, hit: p.words.Where(w => Contains(padded, w)).OrderByDescending(w => w.Length).FirstOrDefault()))
+        var best = Pages.Where(p => p.key != "rgb" || Lights).Select(p => (p, hit: p.words.Where(w => Contains(padded, w)).OrderByDescending(w => w.Length).FirstOrDefault()))
             .Where(x => x.hit is not null).OrderByDescending(x => x.hit!.Length).FirstOrDefault();
         if (best.hit is null) return null;
         var content = tokens.Count(t => t.Norm.Length > 1);
@@ -262,7 +265,7 @@ public static class CommandFeatures
 
     public static string PageName(string key) => Pages.FirstOrDefault(p => p.key == key) is { key: not null } p ? L.T(p.fa, p.en) : key;
 
-    public static IEnumerable<string> PageKeys => Pages.Select(p => p.key);
+    public static IEnumerable<string> PageKeys => Pages.Where(p => p.key != "rgb" || Lights).Select(p => p.key);
 
     /// <summary>What Bidar can do, one line each, for «چه کارایی بلدی؟».</summary>
     public static string HelpText(bool english) => english
@@ -270,9 +273,8 @@ public static class CommandFeatures
             "• Conditions: “shut down when the download ends”, “when Steam closes”, “if I'm idle for 20 minutes”",
             "• Reminders and focus: “remind me at 5pm to call mom”, “focus 25 minutes”",
             "• Screen: “night light on”, “night light 40%”, “sleep mode”",
-            "• Pages: “open settings”, “go to DNS”, “show game tuning”, “open lighting”",
+            "• Pages: “open settings”, “go to DNS”, “show game tuning”",
             "• Overlay: “overlay on”, “overlay only in game”, “overlay bar”, “overlay size 120%”",
-            "• Lights: “rgb off”, “rgb red”, “lights rainbow”, “rgb brightness 40%”, “rgb music”",
             "• Theme: “theme halloween”, “dark mode”, “light mode”",
             "• PC: “free ram”, “game mode on”, “cpu temp?”, “ram usage?”, “my ping?”, “system status”",
             "• Anything else: “what time is it?”, “tell me a joke”")
@@ -280,9 +282,8 @@ public static class CommandFeatures
             "• شرطی: «وقتی دانلود تموم شد خاموش کن»، «وقتی استیم بسته شد»، «اگه ۲۰ دقیقه بیکار بودم»",
             "• یادآوری و تمرکز: «ساعت ۵ یادم بنداز به مامان زنگ بزنم»، «۲۵ دقیقه تمرکز»",
             "• صفحه: «نور شب روشن»، «نور شب ۴۰٪»، «حالت شب‌خواب»",
-            "• صفحه‌ها: «برو تنظیمات»، «دی‌ان‌اس رو باز کن»، «بهینه‌سازی بازی رو نشون بده»، «نورپردازی»",
+            "• صفحه‌ها: «برو تنظیمات»، «دی‌ان‌اس رو باز کن»، «بهینه‌سازی بازی رو نشون بده»",
             "• اورلی: «اورلی رو روشن کن»، «اورلی فقط موقع بازی»، «اورلی نوار»، «اورلی اندازه ۱۲۰٪»",
-            "• نور قطعه‌ها: «آر جی بی خاموش»، «نورپردازی قرمز»، «آر جی بی رنگین کمان»، «روشنایی ۴۰٪»، «آر جی بی موسیقی»",
             "• تم: «تم هالووین»، «حالت تاریک»، «حالت روشن»",
             "• سیستم: «رم رو خالی کن»، «حالت بازی روشن»، «دمای پردازنده چنده؟»، «مصرف رم؟»، «پینگم؟»، «وضعیت سیستم»",
             "• بقیه: «ساعت چنده؟»، «یه جوک بگو»");

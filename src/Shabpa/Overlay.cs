@@ -143,7 +143,7 @@ public static class OverlayRenderer
 
     /// <summary>The number at the full size and its unit (%, °C, MHz...) a little smaller next to it, as MSI Afterburner does.
     /// It sits in a slot of fixed width (right-aligned), so a changing value never changes the size of the overlay.</summary>
-    private static TextBlock Reading(MetricView m, double size, Color color, FontFamily font, bool shadow, bool left = false)
+    private static TextBlock Reading(MetricView m, double size, Color color, FontFamily font, bool shadow, bool left = false, bool compact = false)
     {
         var block = Text(m.HasValue ? m.Value : "—", size, color, font, FontWeights.Bold, shadow);
         if (m.HasValue)
@@ -151,29 +151,30 @@ public static class OverlayRenderer
             var unit = UnitText(m);
             if (unit.Length > 0) block.Inlines.Add(new System.Windows.Documents.Run(unit) { FontSize = Math.Round(size * UnitScale, 1), FontWeight = FontWeights.SemiBold });
         }
-        block.Width = SlotWidth(m, size, font);
+        block.Width = SlotWidth(m, size, font, compact);
         block.TextAlignment = left ? TextAlignment.Left : TextAlignment.Right;
         block.TextTrimming = TextTrimming.CharacterEllipsis;
         block.TextWrapping = TextWrapping.NoWrap;
         return block;
     }
 
-    private static readonly Dictionary<(string key, string unit, double size), double> SlotCache = [];
+    private static readonly Dictionary<(string key, string unit, double size, bool compact), double> SlotCache = [];
 
     /// <summary>The width of the widest text this reading can show: its digit pattern in the widest digit, plus its widest unit,
     /// and never less than the words that stand in for a missing value.</summary>
-    internal static double SlotWidth(MetricView m, double size, FontFamily font)
+    internal static double SlotWidth(MetricView m, double size, FontFamily font, bool compact = false)
     {
         var unitRaw = OverlaySlots.UnitPattern(m.Key, OverlayMetrics.Find(m.Key)?.Unit ?? m.Unit);
-        if (SlotCache.TryGetValue((m.Key, unitRaw, size), out var known)) return known;
+        if (SlotCache.TryGetValue((m.Key, unitRaw, size, compact), out var known)) return known;
         var digit = WidestDigit(font, FontWeights.Bold, size);
-        var number = OverlaySlots.NumberPattern(m.Key).Replace(OverlaySlots.Digit, digit);
+        var number = (compact ? OverlaySlots.CompactPattern(m.Key) : OverlaySlots.NumberPattern(m.Key)).Replace(OverlaySlots.Digit, digit);
         var unit = UnitText(unitRaw);
         var width = Measure(number, font, FontWeights.Bold, size) + (unit.Length > 0 ? Measure(unit, font, FontWeights.SemiBold, Math.Round(size * UnitScale, 1)) : 0);
         // the word ADMIN only has to fit where a reading can really be replaced by it; elsewhere it would just leave a wide empty gap
-        var floor = OverlayMetrics.NeedsAdmin(m.Key) ? Measure("ADMIN", font, FontWeights.Bold, size) : 0;
+        // (and when Shabpa runs as administrator it never appears at all)
+        var floor = OverlayMetrics.NeedsAdmin(m.Key) && (!compact || !Hub.Elevated) ? Measure("ADMIN", font, FontWeights.Bold, size) : 0;
         width = Math.Max(width, Math.Max(floor, Measure("—", font, FontWeights.Bold, size)));
-        return SlotCache[(m.Key, unitRaw, size)] = Math.Ceiling(width) + 1;
+        return SlotCache[(m.Key, unitRaw, size, compact)] = Math.Ceiling(width) + 1;
     }
 
     private static char WidestDigit(FontFamily font, FontWeight weight, double size) =>
@@ -259,14 +260,14 @@ public static class OverlayRenderer
             var big = m.Key == "fps";
             var newGroup = group != lastGroup;
             lastGroup = group;
-            var gap = row.Children.Count == 0 ? 0 : newGroup ? 24 : 14;
+            var gap = row.Children.Count == 0 ? 0 : newGroup ? 18 : 10;
             var cell = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(gap, 0, 0, 0) };
             if (o.ShowLabels && newGroup && GroupName(group) is { Length: > 0 } name && !big)
                 cell.Children.Add(Text(name, 19, GroupColor(c, group), font, FontWeights.Bold, Sh(o)));
             if (o.ShowLabels && !big && BarLabel(m) is { Length: > 0 } word)
             {
                 var small = Text(word, 12.5, Color.FromArgb(0xC8, c.Text.R, c.Text.G, c.Text.B), font, FontWeights.Medium, Sh(o));
-                small.Margin = new Thickness(cell.Children.Count > 0 ? 9 : 0, 0, 0, 0);
+                small.Margin = new Thickness(cell.Children.Count > 0 ? 7 : 0, 0, 0, 0);
                 small.VerticalAlignment = VerticalAlignment.Bottom;
                 small.Padding = new Thickness(0, 0, 0, 3);
                 cell.Children.Add(small);
@@ -278,8 +279,8 @@ public static class OverlayRenderer
                 fps.VerticalAlignment = VerticalAlignment.Bottom;
                 cell.Children.Add(fps);
             }
-            var value = Reading(m, big ? 36 : 23, ValueColor(o, c, m), font, Sh(o), left: true);
-            value.Margin = new Thickness(cell.Children.Count > 0 && !big ? 5 : 0, 0, 0, 0);
+            var value = Reading(m, big ? 36 : 23, ValueColor(o, c, m), font, Sh(o), left: true, compact: true);
+            value.Margin = new Thickness(cell.Children.Count > 0 && !big ? 4 : 0, 0, 0, 0);
             cell.Children.Add(value);
             row.Children.Add(cell);
         }
@@ -746,7 +747,7 @@ public sealed class OverlayWindow : Window
         var next = new Dictionary<string, int>();
         var placed = new List<PxBox>();
 
-        void Put(Window window, string anchor, double x, double y, double offsetX, double offsetY)
+        void Put(Window window, string anchor, double x, double y, double offsetX, double offsetY, bool shiftCentre = false)
         {
             var handle = new WindowInteropHelper(window).EnsureHandle();
             if (!OverlayWin.Rect(handle, out var now) || now.W <= 0 || now.H <= 0) return;
@@ -762,7 +763,7 @@ public sealed class OverlayWindow : Window
             else
             {
                 var edge = next.TryGetValue(anchor, out var used) ? used : OverlayPlacement.SafeOffset(offsetY, area.H - height);
-                (left, top) = OverlayPlacement.AtZone(anchor, width, height, area, (int)Math.Round(offsetX), edge);
+                (left, top) = OverlayPlacement.AtZone(anchor, width, height, area, (int)Math.Round(offsetX), edge, shiftCentre);
                 var bottom = anchor is "bl" or "br" or "bc";
                 // never sit on top of a block that is already placed (for example the main block, which may have been
                 // dragged to a free spot): slide away from the corner until the space is clear
@@ -779,7 +780,7 @@ public sealed class OverlayWindow : Window
             if (spot.X != now.X || spot.Y != now.Y) OverlayWin.MoveTo(handle, spot.X, spot.Y);
         }
 
-        Put(this, o.Anchor, o.X, o.Y, o.X * scale, o.Y * scale);
+        Put(this, o.Anchor, o.X, o.Y, o.X * scale, o.Y * scale, shiftCentre: true);
         foreach (var (group, block) in _blocks.OrderBy(b => o.OrderOf(b.Key)))
         {
             var place = o.PlaceOf(group);

@@ -22,8 +22,6 @@ public class CommandFeaturesTests
     [InlineData("دی ان اس رو باز کن", "dns")]
     [InlineData("بهینه سازی بازی رو نشون بده", "system:tune")]
     [InlineData("show game tuning", "system:tune")]
-    [InlineData("open lighting", "rgb")]
-    [InlineData("نورپردازی رو باز کن", "rgb")]
     [InlineData("میکروفون", "mic")]
     [InlineData("آب و هوا", "weather")]
     [InlineData("open the health page", "health")]
@@ -63,6 +61,7 @@ public class CommandFeaturesTests
     [InlineData("نورپردازی رو روشن کن", true, "on")]
     public void The_lights_switch_on_and_off(string text, bool on, string value)
     {
+        if (!CommandFeatures.Lights) return;                       // the lighting page waits for a later version
         var c = Read(text);
         Assert.Equal(CommandIntent.Rgb, c.Intent);
         Assert.Equal((on, value), (c.On, c.Value));
@@ -77,6 +76,7 @@ public class CommandFeaturesTests
     [InlineData("led lights green", "22E06B")]
     public void The_lights_take_a_colour_by_name(string text, string hex)
     {
+        if (!CommandFeatures.Lights) return;                       // the lighting page waits for a later version
         var c = Read(text);
         Assert.Equal((CommandIntent.Rgb, hex), (c.Intent, c.Color));
     }
@@ -93,6 +93,7 @@ public class CommandFeaturesTests
     [InlineData("rgb lava flow", "lava")]
     public void The_lights_take_an_effect_by_name_in_either_language(string text, string key)
     {
+        if (!CommandFeatures.Lights) return;                       // the lighting page waits for a later version
         var c = Read(text);
         Assert.Equal((CommandIntent.Rgb, key), (c.Intent, c.Value));
     }
@@ -100,6 +101,7 @@ public class CommandFeaturesTests
     [Fact]
     public void Brightness_is_read_from_the_text()
     {
+        if (!CommandFeatures.Lights) return;                       // the lighting page waits for a later version
         Assert.Equal(40, Read("rgb brightness 40%").Level);
         Assert.Equal(40, Read("نورپردازی روشنایی ۴۰ درصد").Level);
         Assert.Equal(100, Read("rgb 250 percent").Level);          // clamped
@@ -189,6 +191,7 @@ public class CommandFeaturesTests
     [Fact]
     public void The_cpu_temperature_effect_of_the_lights_is_not_a_question()
     {
+        if (!CommandFeatures.Lights) return;                       // the lighting page waits for a later version
         var c = Read("rgb cpu temperature");
         Assert.Equal((CommandIntent.Rgb, "temp"), (c.Intent, c.Value));
     }
@@ -219,6 +222,18 @@ public class CommandFeaturesTests
     public void More_ways_to_say_the_old_commands_are_understood(string text, CommandIntent intent) => Assert.Equal(intent, Read(text).Intent);
 
     [Fact]
+    public void The_lighting_words_do_nothing_while_the_page_is_not_in_the_app()
+    {
+        Assert.False(CommandFeatures.Lights);
+        foreach (var text in new[] { "rgb red", "نورپردازی رو خاموش کن", "open lighting" })
+        {
+            var r = CommandParser.Parse(text, Now);
+            Assert.DoesNotContain(r.Command?.Intent, new CommandIntent?[] { CommandIntent.Rgb, CommandIntent.OpenPage });
+        }
+        Assert.DoesNotContain("rgb", CommandFeatures.PageKeys.Where(_ => CommandFeatures.Lights));
+    }
+
+    [Fact]
     public void Help_lists_every_kind_of_command_in_both_languages()
     {
         foreach (var english in new[] { true, false })
@@ -232,7 +247,7 @@ public class CommandFeaturesTests
     public void Every_page_the_reader_can_open_is_a_real_page_of_the_window()
     {
         var keys = CommandFeatures.PageKeys.Select(k => k.Split(':')[0]).Distinct().ToList();
-        var known = new[] { "home", "system", "comfort", "profiles", "gaming", "rgb", "playtime", "ping", "dns", "download", "files", "health", "tasks", "mic", "weather", "support", "update", "settings" };
+        var known = new[] { "home", "system", "comfort", "profiles", "gaming", "playtime", "ping", "dns", "download", "files", "health", "tasks", "mic", "weather", "support", "update", "settings" };
         Assert.All(keys, k => Assert.Contains(k, known));
     }
 }

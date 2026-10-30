@@ -54,8 +54,8 @@ public static class TourSteps
 
         new("home", TourTargets.PagePrefix + "0", "home",
             "خانه، یک نگاه به همه‌چیز", "Home, everything at a glance",
-            "کارت اصلی خونه: کار زمان‌بندی‌شده‌ی بعدی و شمارش معکوسش. پایین‌تر مصرف زنده‌ی سخت‌افزار و اقدام‌های سریع رو می‌بینی. جغد «بیدار» هم گوشه‌ی پنجره‌ست: بهش بنویس «برو تنظیمات»، «نورپردازی قرمز»، «اورلی فقط موقع بازی»، «چه کارایی بلدی؟» و کلی چیز دیگه.",
-            "The main card of Home: the next scheduled task and its countdown. Below it: live hardware load and quick actions. Bidar the owl sits in the corner: type “open settings”, “rgb red”, “overlay only in game”, “what can you do?” and much more."),
+            "کارت اصلی خونه: کار زمان‌بندی‌شده‌ی بعدی و شمارش معکوسش. پایین‌تر مصرف زنده‌ی سخت‌افزار و اقدام‌های سریع رو می‌بینی. جغد «بیدار» هم گوشه‌ی پنجره‌ست: بهش بنویس «برو تنظیمات»، «تم هالووین»، «اورلی فقط موقع بازی»، «چه کارایی بلدی؟» و کلی چیز دیگه.",
+            "The main card of Home: the next scheduled task and its countdown. Below it: live hardware load and quick actions. Bidar the owl sits in the corner: type “open settings”, “theme halloween”, “overlay only in game”, “what can you do?” and much more."),
 
         new("system", TourTargets.NavPrefix + "system", "home",
             "کنترل سیستم، خاموشی زمان‌بندی‌شده", "System control, scheduled shutdown",
@@ -92,17 +92,6 @@ public static class TourSteps
             "ظاهر و جای اورلی", "Look and place of the overlay",
             "این‌جا انتخاب می‌کنی چی نشون داده بشه، کجای صفحه بشینه و چه رنگی داشته باشه. اندازه (۲۵ تا ۲۰۰٪) و تیرگی پس‌زمینه (روی ۰٪ پس‌زمینه کلاً حذف می‌شه) یک‌درصد یک‌درصد جابه‌جا می‌شن. یه کلید میان‌بر هم برای روشن و خاموش کردنش داری.",
             "Choose what it shows, where it sits and its colour. Size (25-200 %) and background opacity (at 0 % the plate disappears completely) move one percent at a time. There is also a hotkey to switch it on and off."),
-
-        new("rgb", TourTargets.NavPrefix + "rgb", "gaming",
-            "نورپردازی (RGB)", "Lighting (RGB)",
-            "نور فن‌ها، رم، کولر و بقیه‌ی قطعه‌ها رو از همین‌جا تنظیم می‌کنی؛ همه با هم (همگام) یا هر کدوم جدا.",
-            "Set the light of your fans, memory, cooler and other parts here, all together (sync) or one by one.",
-            ClickPage: "rgb", ClickFa: "روی «نورپردازی» کلیک کن", ClickEn: "Click “Lighting”"),
-
-        new("rgb-page", TourTargets.PagePrefix + "1", "rgb",
-            "افکت، رنگ و روشنایی", "Effect, colour and brightness",
-            "پیش‌نمایش زنده‌ی کیس رو می‌بینی. افکت‌های پایه، افکت‌های ویژه (آرام، طبیعت، فضا، ایرانی...) و «افکت‌های من» رو انتخاب کن و رنگ و روشنایی رو یک‌درصد یک‌درصد تنظیم کن. اگه برنامه‌ی دیگه‌ای مثل MSI Center هم نور رو کنترل کنه، بالای صفحه بهت می‌گه و می‌تونی همون‌جا ببندیش.",
-            "Watch the live preview of your case. Pick basic effects, special looks (calm, nature, space, Persian...) or “My effects”, and set colour and brightness one percent at a time. If another program such as MSI Center also drives the lights, the top of the page tells you and lets you close it right there."),
 
         new("playtime", TourTargets.PagePrefix + "1", "playtime",
             "زمان بازی", "Playtime",

@@ -24,6 +24,26 @@ public static class OverlaySlots
         _ => "#####",
     };
 
+    /// <summary>The tighter rooms of the horizontal bar, where every slot's empty tail shows as a gap between neighbours: the widest value that can
+    /// really appear (100 %, 999 fps, 4-digit MHz, 99.9 Mb/s) and no more.</summary>
+    public static string CompactPattern(string key) => key switch
+    {
+        "fps" or "low1" => "###",
+        "frame" => "##.#",
+        "hz" or "ping" => "###",
+        "gpuclock" or "memclock" or "cpufreq" => "####",
+        "gpupower" or "cpuwatts" or "gpuvolt" => "###",
+        "gpu" or "cpu" or "ram" or "gpufan" or "cpufan" => "###",
+        "gputemp" or "hotspot" or "memtemp" or "cputemp" or "systemp" or "sockettemp" or "vrmtemp" or "pchtemp" => "###",
+        "gpufanrpm" or "cpufanrpm" or "pumprpm" or "sysfanrpm" => "####",
+        "down" or "up" => "##.#",
+        "vram" or "ramused" => "##.#",
+        "vcore" or "v12" => "#.##",
+        "clock" => "##:##",
+        "gametime" => "#:##:##",
+        _ => NumberPattern(key),
+    };
+
     /// <summary>The widest unit that can follow the number (the VRAM reading carries its total: "/ 16 GB").</summary>
     public static string UnitPattern(string key, string unit) => key == "vram" ? "/ ## GB" : unit;
 

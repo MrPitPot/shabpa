@@ -39,14 +39,16 @@ public static class OverlayPlacement
     /// <summary>The top-left of a box of the given size at a screen zone ("tl", "tc", "tr", "bl", "bc", "br"), <paramref name="offX"/> from the side
     /// and <paramref name="offY"/> from the top or bottom. Left and right are screen directions in pixels: nothing here knows about
     /// the language or the flow direction of the app.</summary>
-    public static (int x, int y) AtZone(string zone, int w, int h, PxBox area, int offX, int offY)
+    public static (int x, int y) AtZone(string zone, int w, int h, PxBox area, int offX, int offY, bool shiftCentre = false)
     {
-        offX = SafeOffset(offX, area.W - w);
+        var free = Math.Max(0, area.W - w);
+        // on a side the margin is the distance from that side; in the middle it is, for the main block (<paramref name="shiftCentre"/>), a shift away from the
+        // centre (negative = to the left), so the "distance from the side" slider does something for the top-centre and bottom-centre zones too
         var x = OverlayZone.SideOf(zone) switch
         {
-            ZoneSide.Right => area.Right - w - offX,
-            ZoneSide.Centre => area.X + (area.W - w) / 2,
-            _ => area.X + offX,
+            ZoneSide.Right => area.Right - w - SafeOffset(offX, free),
+            ZoneSide.Centre => area.X + free / 2 + (shiftCentre ? Math.Clamp(offX, -(free / 2), free / 2) : 0),
+            _ => area.X + SafeOffset(offX, free),
         };
         var y = OverlayZone.IsBottom(zone) ? area.Bottom - h - offY : area.Y + offY;
         return (x, y);

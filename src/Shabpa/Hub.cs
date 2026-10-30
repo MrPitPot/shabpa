@@ -249,7 +249,6 @@ public sealed partial class Hub
         {
             Dim = new DimController(this);
             Dim.Apply();
-            Rgb.Refresh();                                  // lights that were on when Shabpa closed come back with it
             AssistantKey = new AssistantHotkey();
             AssistantKey.Apply(Settings.AssistantKey);
             // Sleep mode lowered the volume and the PC was switched off before it could be put back.

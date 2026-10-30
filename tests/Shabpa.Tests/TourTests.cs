@@ -151,7 +151,7 @@ public class TourTests
             Assert.True(i + 1 < steps.Count);
             Assert.Equal(steps[i].ClickPage, steps[i + 1].Page);
         }
-        Assert.Equal(4, steps.Count(s => s.NeedsClick)); // system, game overlay, lighting, settings
+        Assert.Equal(3, steps.Count(s => s.NeedsClick)); // system, game overlay, settings
     }
 
     [Fact]

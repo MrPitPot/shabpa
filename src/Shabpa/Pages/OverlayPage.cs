@@ -168,6 +168,7 @@ public sealed class OverlayPage : PageBase
         var offsetX = Ui2.SliderRow(L.T("فاصله از کنار", "Offset from the side"), 0, 600, 4, v => $"{v:0} px");
         var offsetY = Ui2.SliderRow(L.T("فاصله از بالا/پایین", "Offset from top/bottom"), 0, 600, 4, v => $"{v:0} px");
         (_scale, _opacity, _offsetX, _offsetY) = (scale.slider, opacity.slider, offsetX.slider, offsetY.slider);
+        _offsetXLabel = (TextBlock)offsetX.row.Children[0];
         scale.row.Margin = new Thickness(0, 12, 0, 0);
         foreach (var row in new[] { scale.row, opacity.row, offsetX.row, offsetY.row }) size.Children.Add(row);
         root.Add(sizeCard, 2, 0, 7);
@@ -380,8 +381,9 @@ public sealed class OverlayPage : PageBase
             Hub.Settings.Overlay.Mode, v => Change(o => o.Mode = v, pop: true));
         Chips(_layoutChips, OverlayLayouts.All.Select(l => (l.key, L.T(l.fa, l.en))), Hub.Settings.Overlay.Layout, v => Change(o => o.Layout = v, pop: true));
         Chips(_lookChips, OverlayLook.All.Select(l => (l.Key, l.Name)), Hub.Settings.Overlay.Look, v => Change(o => o.Look = v, pop: true));
-        _anchorPicker.Picked += v => { UpdateAnchorName(); Change(o => { (o.X, o.Y) = OverlayPlacement.OffsetsForNewAnchor(o.Anchor, o.X, o.Y); o.Anchor = v; }, pop: true);
+        _anchorPicker.Picked += v => { UpdateAnchorName(); Change(o => { (o.X, o.Y) = OverlayPlacement.OffsetsForNewAnchor(o.Anchor, o.X, o.Y); o.Anchor = v; if (OverlayZone.SideOf(v) == ZoneSide.Centre) o.X = 0; }, pop: true);
             _loading = true; // the margin sliders follow the reset margins
+            ApplyOffsetKind();
             (_offsetX.Value, _offsetY.Value) = (Hub.Settings.Overlay.X, Hub.Settings.Overlay.Y);
             _loading = false;
         };
@@ -549,12 +551,24 @@ public sealed class OverlayPage : PageBase
 
     private void UpdateVisibility() => _custom.Visibility = Hub.Settings.Overlay.Look == "custom" ? Visibility.Visible : Visibility.Collapsed;
 
+    private TextBlock _offsetXLabel = null!;
+
+    /// <summary>On a side the first margin is the distance from that side (0 to 600 px); in the top-centre and bottom-centre zones there is no side,
+    /// so the same slider shifts the overlay left or right of the centre (-600 to 600 px) and says so.</summary>
+    private void ApplyOffsetKind()
+    {
+        var centre = OverlayZone.SideOf(Hub.Settings.Overlay.Anchor) == ZoneSide.Centre;
+        _offsetX.Minimum = centre ? -600 : 0;
+        _offsetXLabel.Text = centre ? L.T("جابه‌جایی از وسط", "Shift from the centre") : L.T("فاصله از کنار", "Offset from the side");
+    }
+
     public override void Refresh()
     {
         _loading = true;
         var o = Hub.Settings.Overlay;
         _scale.Value = o.Scale;
         _opacity.Value = o.BackOpacity;
+        ApplyOffsetKind();
         _offsetX.Value = o.X;
         _offsetY.Value = o.Y;
         _colorByValue.IsChecked = o.ColorByValue;
@@ -631,9 +645,16 @@ public sealed class OverlayPage : PageBase
         string GroupOf(MetricView m) => OverlayMetrics.Find(m.Key)?.Group ?? "general";
         var metrics = all.OrderBy(m => o.OrderOf(GroupOf(m))).Where(m => o.PlaceOf(GroupOf(m)).Anchor == "main").ToList();
         var element = OverlayRenderer.Build(o, metrics, _fakeHistory);
-        var host = new Grid { Margin = new Thickness(14) };
-        element.HorizontalAlignment = OverlayZone.SideOf(o.Anchor) switch { ZoneSide.Right => HorizontalAlignment.Right, ZoneSide.Centre => HorizontalAlignment.Center, _ => HorizontalAlignment.Left };
-        element.VerticalAlignment = OverlayZone.IsBottom(o.Anchor) ? VerticalAlignment.Bottom : VerticalAlignment.Top;
+        // the margins show in the preview too, at the size of the miniature screen (about a fifth of the real pixels)
+        const double miniature = 0.2;
+        var side = OverlayZone.SideOf(o.Anchor);
+        var across = Math.Clamp(o.X, -600, 600) * miniature;
+        var down = Math.Clamp(o.Y, 0, 600) * miniature;
+        var bottom = OverlayZone.IsBottom(o.Anchor);
+        var host = new Grid { Margin = new Thickness(14 + (side == ZoneSide.Left ? across : 0), 14 + (bottom ? 0 : down), 14 + (side == ZoneSide.Right ? across : 0), 14 + (bottom ? down : 0)) };
+        element.HorizontalAlignment = side switch { ZoneSide.Right => HorizontalAlignment.Right, ZoneSide.Centre => HorizontalAlignment.Center, _ => HorizontalAlignment.Left };
+        element.VerticalAlignment = bottom ? VerticalAlignment.Bottom : VerticalAlignment.Top;
+        if (side == ZoneSide.Centre) element.RenderTransform = new TranslateTransform(across, 0);
         host.Children.Add(element);
         _previewHost.Child = host;
         if (pop) Motion.Pop(element);
