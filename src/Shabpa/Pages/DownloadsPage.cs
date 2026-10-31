@@ -215,7 +215,7 @@ public sealed class DownloadsPage : PageBase
 
     private void RefreshNight()
     {
-        var n = Hub.Settings.Night;
+        var n = Hub.Settings.NightNet;
         if (n.Enabled && Hub.NightPlan is null) { n.Enabled = false; Hub.Store.Save(); } // the plan was deleted from the list below
         if (!_nightSeeded)
         {

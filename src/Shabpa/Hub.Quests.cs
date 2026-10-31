@@ -175,9 +175,9 @@ public sealed partial class Hub
             EndMinute = endMinute, ActAtEnd = true, WakeUp = true, Action = then, QuietMinutes = 10, Night = true,
         };
         State.DownloadPlans.Add(plan);
-        Settings.Night.StartMinute = startMinute;
-        Settings.Night.EndMinute = endMinute;
-        Settings.Night.Enabled = true;
+        Settings.NightNet.StartMinute = startMinute;
+        Settings.NightNet.EndMinute = endMinute;
+        Settings.NightNet.Enabled = true;
         Store.Save();
         Changed?.Invoke();
         return true;
@@ -190,7 +190,7 @@ public sealed partial class Hub
             if (p.State == PlanState.Running && State.ActiveRule is not null) DeactivateRule();
             State.DownloadPlans.Remove(p);
         }
-        Settings.Night.Enabled = false;
+        Settings.NightNet.Enabled = false;
         if (!save) return;
         Store.Save();
         Changed?.Invoke();
@@ -198,12 +198,12 @@ public sealed partial class Hub
 
     /// <summary>What came in during the night window that ended on this morning, from the hourly usage Shabpa records (needs administrator rights).</summary>
     public (long down, long up) NightUsage(DateOnly morning) =>
-        NightWindow.Night(day => Usage.Hourly(day), morning, Settings.Night.StartMinute, Settings.Night.EndMinute);
+        NightWindow.Night(day => Usage.Hourly(day), morning, Settings.NightNet.StartMinute, Settings.NightNet.EndMinute);
 
     /// <summary>The first tick after the window ends: tells the person how much the night brought.</summary>
     private void NightMorningReport(DateTime now)
     {
-        var n = Settings.Night;
+        var n = Settings.NightNet;
         if (!n.Enabled || !n.MorningReport) return;
         var today = DateOnly.FromDateTime(now);
         var key = today.ToString("yyyy-MM-dd");

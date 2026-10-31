@@ -169,7 +169,7 @@ public sealed class Settings
     /// <summary>The power-cut guard: the schedule of expected cuts, typed in by hand, and what to do before one.</summary>
     public OutageSettings Outage { get; set; } = new();
     /// <summary>The hours of the night internet window (usage is split by them) and the morning report.</summary>
-    public NightSettings Night { get; set; } = new();
+    public NightSettings NightNet { get; set; } = new();
     /// <summary>The person says they support Shabpa (honour system, nothing is checked): the golden cap for Bidar. Looks only.</summary>
     public bool Supporter { get; set; }
     /// <summary>Feathers, daily quests and levels are off: nothing is counted and the page is hidden.</summary>

@@ -28,6 +28,7 @@ public class PageRebuildTests
         ("cleanup", () => new CleanupPage()), ("todo", () => new TodoPage()), ("focus", () => new FocusPage()), ("weekly", () => new WeeklyReportPage()),
         ("profile-list", () => new ProfileListPage()), ("automation", () => new AutomationPage()), ("run-history", () => new RunHistoryPage()),
         ("app-updates", () => new AppUpdatesPage()), ("drivers", () => new DriversPage()), ("game-tune", () => new GameTunePage()), ("rgb", () => new RgbPage()),
+        ("quests", () => new QuestsPage()), ("outage", () => new OutagePage()),
     ];
 
     private static Window OffScreen(UIElement content) => new()
