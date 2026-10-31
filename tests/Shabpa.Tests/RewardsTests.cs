@@ -240,105 +240,53 @@ public class RewardsTests
     }
 }
 
-public class NightTests
+public class LegacyNightTests
 {
     private static Hub NewHub() =>
         new(new Store(Path.Combine(Path.GetTempPath(), "shabpa-night-" + Guid.NewGuid().ToString("N"))) { ReadOnly = true }, dryRun: true, demo: true);
 
-    private static LauncherInfo Launcher(string key) => new() { Key = key, Name = key, ExePath = $@"C:\{key}.exe", Process = key };
-
     [Fact]
-    public void Night_internet_makes_a_daily_wake_the_plans_and_the_end_of_window_command()
+    public void An_upgrade_removes_exactly_what_the_old_night_page_made()
     {
         var hub = NewHub();
-        var error = hub.Night.EnableInternet(1, 30, 7, 0, [Launcher("steam"), Launcher("epic")], PowerAction.Sleep);
-        Assert.Null(error);
+        var mine = hub.Queue.Add(PowerAction.Shutdown, DateTime.Now.AddHours(3), source: "mine");
+        var myPlan = new DownloadPlan { LauncherKey = "steam", LauncherName = "Steam", ExePath = @"C:\steam.exe" };
+        hub.State.DownloadPlans.Add(myPlan);
+        var myWake = new WakeSchedule { Hour = 7, Minute = 30 };
+        hub.State.WakeSchedules.Add(myWake);
+
         var s = hub.Settings.Overnight;
-        Assert.True(s.InternetOn);
-        Assert.Single(hub.State.WakeSchedules);
-        Assert.Equal((1, 30), (hub.State.WakeSchedules[0].Hour, hub.State.WakeSchedules[0].Minute));
+        var plan = new DownloadPlan { LauncherKey = "epic", LauncherName = "Epic", ExePath = @"C:\epic.exe" };
+        var wake = new WakeSchedule { Hour = 1, Minute = 0 };
+        hub.State.DownloadPlans.Add(plan);
+        hub.State.WakeSchedules.Add(wake);
+        var end = hub.Queue.Add(PowerAction.Sleep, DateTime.Now.AddHours(5), source: "night");
+        var slot = new OutageSlot { Hour = 14 };
+        hub.Queue.Add(PowerAction.Hibernate, DateTime.Now.AddHours(2), source: slot.Source);
+        (s.InternetOn, s.WakeId) = (true, wake.Id);
+        s.PlanIds.Add(plan.Id);
+        s.CommandIds.Add(end.Id);
+        s.Outages.Add(slot);
 
-        var plans = hub.State.DownloadPlans;
-        Assert.Equal(2, plans.Count);
-        Assert.True(plans[0].OpenOnly && plans[0].LauncherKey == "epic"); // helpers first: the main plan starts the one rule that may run
-        Assert.False(plans[1].OpenOnly);
-        Assert.Equal("steam", plans[1].LauncherKey);
-        Assert.All(plans, p => { Assert.True(p.Repeats); Assert.Equal(PowerAction.Sleep, p.Action); Assert.Equal(1, p.StartAt.Hour); });
+        Assert.True(LegacyNight.HasLeftovers(s));
+        Assert.True(LegacyNight.Cleanup(hub));
 
-        var end = Assert.Single(hub.State.Queue);
-        Assert.Equal((PowerAction.Sleep, 7, true), (end.Action, end.DueAt.Hour, end.Repeats));
+        Assert.False(LegacyNight.HasLeftovers(hub.Settings.Overnight));
+        Assert.Equal(mine.Id, Assert.Single(hub.State.Queue).Id);
+        Assert.Equal(myPlan.Id, Assert.Single(hub.State.DownloadPlans).Id);
+        Assert.Equal(myWake.Id, Assert.Single(hub.State.WakeSchedules).Id);
+        Assert.False(LegacyNight.Cleanup(hub)); // nothing left to do the second time
     }
 
     [Fact]
-    public void Turning_night_internet_off_removes_everything_it_made_and_nothing_else()
+    public void A_state_file_from_3_13_0_with_night_settings_still_loads()
     {
-        var hub = NewHub();
-        hub.Queue.Add(PowerAction.Shutdown, DateTime.Now.AddHours(3), source: "mine"); // the person's own command
-        hub.Night.EnableInternet(2, 0, 6, 0, [Launcher("steam")], PowerAction.Hibernate);
-        hub.Night.DisableInternet();
-        Assert.False(hub.Settings.Overnight.InternetOn);
-        Assert.Empty(hub.State.DownloadPlans);
-        Assert.Empty(hub.State.WakeSchedules);
-        Assert.Equal("mine", Assert.Single(hub.State.Queue).Source);
-    }
-
-    [Fact]
-    public void Enabling_again_replaces_the_old_setup_instead_of_doubling_it()
-    {
-        var hub = NewHub();
-        hub.Night.EnableInternet(1, 0, 7, 0, [Launcher("steam")], PowerAction.Sleep);
-        hub.Night.EnableInternet(3, 0, 8, 0, [Launcher("steam")], PowerAction.Sleep);
-        Assert.Single(hub.State.DownloadPlans);
-        Assert.Single(hub.State.WakeSchedules);
-        Assert.Single(hub.State.Queue);
-        Assert.Equal(8, hub.State.Queue[0].DueAt.Hour);
-    }
-
-    [Fact]
-    public void Night_internet_needs_a_launcher_and_a_real_window()
-    {
-        var hub = NewHub();
-        Assert.NotNull(hub.Night.EnableInternet(1, 0, 7, 0, [], PowerAction.Sleep));
-        Assert.NotNull(hub.Night.EnableInternet(1, 0, 1, 0, [Launcher("steam")], PowerAction.Sleep));
-        Assert.False(hub.Settings.Overnight.InternetOn);
-        Assert.Empty(hub.State.WakeSchedules);
-    }
-
-    [Fact]
-    public void A_power_cut_hibernates_two_minutes_before_and_is_removed_with_its_command()
-    {
-        var hub = NewHub();
-        var slot = new OutageSlot { Hour = 14, Minute = 0, DurationMinutes = 120, Days = [DayOfWeek.Saturday, DayOfWeek.Monday] };
-        hub.Night.AddOutage(slot);
-        var cmd = Assert.Single(hub.State.Queue);
-        Assert.Equal(PowerAction.Hibernate, cmd.Action);
-        Assert.Equal((13, 58), (cmd.DueAt.Hour, cmd.DueAt.Minute));
-        Assert.Equal(slot.Source, cmd.Source);
-        Assert.Equal(2, cmd.RepeatDays.Count);
-
-        hub.Night.RemoveOutage(slot.Id);
-        Assert.Empty(hub.State.Queue);
-        Assert.Empty(hub.Settings.Overnight.Outages);
-    }
-
-    [Fact]
-    public void The_ten_minute_warning_comes_once_a_day()
-    {
-        var hub = NewHub();
-        var slot = new OutageSlot { Hour = 14, Minute = 0, Days = [] };
-        hub.Settings.Overnight.Outages.Add(slot);
-        var day = new DateTime(2026, 11, 2);
-        var warned = () => hub.Settings.Overnight.LastWarned; // what the warning leaves behind (the notice list is filled on the UI thread)
-        hub.Night.Tick(day.AddHours(13).AddMinutes(49)); // too early
-        Assert.Equal("", warned());
-        hub.Night.Tick(day.AddHours(13).AddMinutes(50).AddSeconds(2));
-        Assert.Equal($"20261102:{slot.Id:N}", warned());
-        var first = warned();
-        hub.Night.Tick(day.AddHours(13).AddMinutes(50).AddSeconds(30)); // still inside the minute: the same mark, no second warning
-        Assert.Equal(first, warned());
-        hub.Night.Tick(day.AddHours(14).AddMinutes(5)); // after the slot has started: nothing
-        Assert.Equal(first, warned());
-        hub.Night.Tick(day.AddDays(1).AddHours(13).AddMinutes(50).AddSeconds(2)); // next day: again
-        Assert.Equal($"20261103:{slot.Id:N}", warned());
+        var folder = Path.Combine(Path.GetTempPath(), "shabpa-night-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "state.json"), "{\"Settings\":{\"Overnight\":{\"InternetOn\":true,\"Outages\":[{\"Hour\":14}]}}}");
+        var store = new Store(folder);
+        store.Load();
+        Assert.True(store.State.Settings.Overnight.InternetOn);
+        Assert.Equal(14, store.State.Settings.Overnight.Outages[0].Hour);
     }
 }

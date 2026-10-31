@@ -19,7 +19,7 @@ public class PageRebuildTests
         ("overlay", () => new OverlayPage()), ("playtime", () => new GameLogPage()), ("network", () => new NetworkPage()), ("dns", () => new DnsPage()),
         ("downloads", () => new DownloadsPage()), ("files", () => new FilesPage()), ("health", () => new HealthPage()), ("tasks", () => new TasksPage()),
         ("mic", () => new MicrophonePage()), ("weather", () => new WeatherPage()), ("support", () => new SupportPage()), ("update", () => new UpdatePage()),
-        ("settings", () => new SettingsPage()), ("kit", () => new KitPage()), ("rewards", () => new RewardsPage()), ("night", () => new NightPage()),
+        ("settings", () => new SettingsPage()), ("kit", () => new KitPage()), ("rewards", () => new RewardsPage()),
         // leaves that sit inside the tab pages above, built on their own as well
         ("security", () => new SecurityPage()), ("health-overview", () => new HealthOverviewPage()), ("health-report", () => new HealthReportPage()),
         ("energy", () => new EnergyPage()), ("history", () => new HistoryPage()), ("memory", () => new MemoryPage()), ("power", () => new PowerPage()),

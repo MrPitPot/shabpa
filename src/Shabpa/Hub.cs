@@ -21,7 +21,6 @@ public sealed partial class Hub
 
     public Store Store { get; }
     public RewardsEngine Rewards { get; private set; } = null!;
-    public NightManager Night { get; private set; } = null!;
     public AppState State => Store.State;
     public Settings Settings => State.Settings;
     public SensorHub Sensors { get; }
@@ -97,7 +96,6 @@ public sealed partial class Hub
             TasksChanged?.Invoke();
         };
         Focus.PhaseChanged += (_, _) => TasksChanged?.Invoke();
-        Night = new NightManager(this);
         Rewards = new RewardsEngine(this);
         Sensors = new SensorHub(() => Settings);
         Traffic = new TrafficMeter(_resolver.Resolve);
@@ -266,7 +264,7 @@ public sealed partial class Hub
         if (!Demo && Settings.Comfort.PendingPowerPlan.Length > 0) RestorePowerPlan();
         _clock.Tick += (_, _) => OnSecond();
         _clock.Start();
-        if (!Demo) _ = Task.Delay(TimeSpan.FromSeconds(25)).ContinueWith(_ => Application.Current?.Dispatcher.BeginInvoke(Night.ReportGap));
+        if (!Demo) LegacyNight.Cleanup(this); // 3.13.0's night page is gone; remove what it may have set up
         if (Demo) Rewards.SeedDemo();
         Rewards.Start();
         Bot.Restart();
@@ -317,7 +315,6 @@ public sealed partial class Hub
         var now = DateTime.Now;
         if (!Demo)
         {
-            Night.Tick(now);
             RunTasks(now);
             RunBackups(now);
             RunTriggers(now);

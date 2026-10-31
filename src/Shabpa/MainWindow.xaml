@@ -123,7 +123,6 @@
                             <RadioButton Style="{StaticResource Nav}" Tag="game" Content="{s:Tr 'زمان بازی', 'Playtime'}" x:Name="NavPlaytime" Checked="OnNav"/>
                             <RadioButton Style="{StaticResource Nav}" Tag="net" Content="{s:Tr 'پایداری پینگ', 'Ping stability'}" x:Name="NavPing" Checked="OnNav"/>
                             <RadioButton Style="{StaticResource Nav}" Tag="globe" Content="{s:Tr 'دی‌ان‌اس', 'DNS'}" x:Name="NavDns" Checked="OnNav"/>
-                            <RadioButton Style="{StaticResource Nav}" Tag="moon" Content="{s:Tr 'شب و قطعی برق', 'Night &amp; power cuts'}" x:Name="NavNight" Checked="OnNav"/>
                             <RadioButton Style="{StaticResource Nav}" Tag="dl" Content="{s:Tr 'دانلود زمان‌بندی‌شده', 'Scheduled download'}" x:Name="NavDownload" Checked="OnNav"/>
                             <TextBlock Text="{s:Tr 'نگهداری', 'Maintenance'}" Style="{StaticResource NavGroup}"/>
                             <RadioButton Style="{StaticResource Nav}" Tag="folder" Content="{s:Tr 'فایل و پشتیبان', 'Files &amp; backup'}" x:Name="NavFiles" Checked="OnNav"/>

@@ -4,6 +4,12 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [3.13.1] - 2026-10-31
+
+### Removed
+- The **«شب و قطعی برق» / "Night & power cuts" page** shipped in 3.13.0 is taken out again; it is not ready. If you had turned anything on there, the update removes exactly what that page had set up (its wake-up, its download plans and its queued commands) and nothing of yours.
+- Two medals that depended on that page («اینترنت شبانه», «آماده‌باش»); there are 82 medals now. Medals already earned stay earned.
+
 ## [3.13.0] - 2026-10-31
 
 ### Added

@@ -127,8 +127,6 @@ public static class RewardsCatalog
         new("backups3", "folder", MedalTier.Silver, false, "پشتیبان‌ساز", "Backup keeper", "۳ تا پشتیبان‌گیری تنظیم کردی.", "You set up 3 backups.", c => Cnt(c.S.Backups.Count, 3)),
         new("morningcall", "alarm", MedalTier.Bronze, false, "زنگ صبح", "Morning call", "اولین بیدارباش رو گذاشتی.", "You set your first wake-up.", c => Cnt(c.S.WakeSchedules.Count, 1)),
         new("telegram", "bell", MedalTier.Silver, false, "رفیق تلگرامی", "Telegram friend", "ربات تلگرام رو وصل کردی.", "You linked the Telegram bot.", c => Flag(c.S.Settings.BotEnabled)),
-        new("nightnet", "moon", MedalTier.Silver, false, "اینترنت شبانه", "Night traffic", "پنجره‌ی اینترنت شبانه رو روشن کردی.", "You turned the night internet window on.", c => Flag(c.S.Settings.Overnight.InternetOn)),
-        new("standby", "bolt", MedalTier.Bronze, false, "آماده‌باش", "On standby", "اولین قطعی برق رو ثبت کردی.", "You added your first power cut.", c => Cnt(c.S.Settings.Overnight.Outages.Count, 1)),
         new("showoff", "share", MedalTier.Bronze, false, "نمایش مدال", "Show-off", "یه مدال رو به‌صورت تصویر ساختی.", "You made an image of a medal.", c => Cnt(c.Counter("shared"), 1)),
 
         new("streak7", "flame", MedalTier.Silver, false, "هفته‌ی بی‌وقفه", "Unbroken week", "۷ روز پیاپی با شبپا بودی.", "You were with Shabpa 7 days in a row.", c => Cnt(c.R.BestStreak, 7)),
