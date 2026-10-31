@@ -92,9 +92,10 @@ public sealed partial class Hub
         Tasks.Changed += () =>
         {
             Store.Save();
+            MedalSoon();
             TasksChanged?.Invoke();
         };
-        Focus.PhaseChanged += (_, _) => TasksChanged?.Invoke();
+        Focus.PhaseChanged += (_, _) => { MedalSoon(); TasksChanged?.Invoke(); };
         Sensors = new SensorHub(() => Settings);
         Traffic = new TrafficMeter(_resolver.Resolve);
         Ping = new PingMeter(() => Settings.PingHost);
@@ -379,6 +380,7 @@ public sealed partial class Hub
             Store.Save();
             if (!Store.ReadOnly && !Demo) Usage.Save(UsageFile);
         }
+        MedalSecond(now);
         Second?.Invoke();
     }
 
@@ -451,6 +453,7 @@ public sealed partial class Hub
             {
                 _cleaning = false;
                 if (!Demo) Memory = MemoryCleaner.Read();
+                if (!GameModeActive) MedalCount(Medals.CleanCounter); // the automatic clean of game mode is not the person's
                 MemoryCleaned?.Invoke(result, cache);
             });
         });
@@ -622,6 +625,7 @@ public sealed partial class Hub
         });
         if (State.GameHistory.Count > 60) State.GameHistory.RemoveRange(0, State.GameHistory.Count - 60);
         Store.Save();
+        MedalSoon();
         ComfortUpdated?.Invoke();
         if (!Settings.GameReports) { Log.Write($"game report {f.Name}: skipped (game reports are off in Settings)"); return; }
         var text = GameMessage.Plain(f);

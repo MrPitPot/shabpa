@@ -4,6 +4,12 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [Unreleased]
+
+### Added
+- **Medals**: 30 medals to collect (bronze, silver, gold and violet special ones, five of them secret) for first steps, games, tasks and focus, memory cleaning, schedules, downloads, backups, days with Shabpa and a few surprises (midnight, birthday, Halloween). A new «مدال‌ها» page shows the collection with how to earn each one. Judged on this PC only; nothing is sent.
+- **Medal pop-up**: a new medal rises out of the taskbar in the bottom-right corner, sits on its edge for five seconds with a little four-note jingle, then sinks back under it. It never takes focus, waits while a game runs, and a click opens the medals page. People updating from an older version get one pop-up for everything they already deserved. Two switches in Settings turn the pop-up and its sound off.
+
 ## [3.12.1] - 2026-10-31
 
 ### Added

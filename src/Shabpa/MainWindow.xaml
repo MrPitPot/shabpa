@@ -132,6 +132,7 @@
                             <RadioButton Style="{StaticResource Nav}" Tag="mic" Content="{s:Tr 'میکروفون', 'Microphone'}" x:Name="NavMic" Checked="OnNav"/>
                             <RadioButton Style="{StaticResource Nav}" Tag="cloud" Content="{s:Tr 'آب و هوا', 'Weather'}" x:Name="NavWeather" Checked="OnNav"/>
                             <TextBlock Text="{s:Tr 'برنامه', 'App'}" Style="{StaticResource NavGroup}"/>
+                            <RadioButton Style="{StaticResource Nav}" Tag="star" Content="{s:Tr 'مدال‌ها', 'Medals'}" x:Name="NavMedals" Checked="OnNav"/>
                             <RadioButton Style="{StaticResource Nav}" Tag="life" Content="{s:Tr 'پشتیبانی', 'Support'}" x:Name="NavSupport" Checked="OnNav"/>
                             <RadioButton Style="{StaticResource Nav}" Tag="refresh" Content="{s:Tr 'به‌روزرسانی', 'Updates'}" x:Name="NavUpdate" Checked="OnNav"/>
                             <RadioButton Style="{StaticResource Nav}" Tag="set" Content="{s:Tr 'تنظیمات', 'Settings'}" x:Name="NavSettings" Checked="OnNav"/>

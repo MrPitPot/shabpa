@@ -18,7 +18,7 @@ public class PageRebuildTests
         ("home", () => new HomePage()), ("system", () => new SystemPage()), ("comfort", () => new ComfortPage()), ("profiles", () => new ProfilesPage()),
         ("overlay", () => new OverlayPage()), ("playtime", () => new GameLogPage()), ("network", () => new NetworkPage()), ("dns", () => new DnsPage()),
         ("downloads", () => new DownloadsPage()), ("files", () => new FilesPage()), ("health", () => new HealthPage()), ("tasks", () => new TasksPage()),
-        ("mic", () => new MicrophonePage()), ("weather", () => new WeatherPage()), ("support", () => new SupportPage()), ("update", () => new UpdatePage()),
+        ("mic", () => new MicrophonePage()), ("weather", () => new WeatherPage()), ("support", () => new SupportPage()), ("update", () => new UpdatePage()), ("medals", () => new MedalsPage()),
         ("settings", () => new SettingsPage()), ("kit", () => new KitPage()),
         // leaves that sit inside the tab pages above, built on their own as well
         ("security", () => new SecurityPage()), ("health-overview", () => new HealthOverviewPage()), ("health-report", () => new HealthReportPage()),

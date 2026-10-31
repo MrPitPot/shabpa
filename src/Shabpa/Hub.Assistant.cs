@@ -41,6 +41,7 @@ public sealed partial class Hub
     public RemoteReply RunAssistant(AssistantCommand command, string origin)
     {
         var now = DateTime.Now;
+        MedalCount(Medals.AssistantCounter);
         Log.Write($"assistant {origin}: {command.Intent} {command.Action} at={command.At:yyyy-MM-dd HH:mm} rule={command.Condition?.Kind}");
         // a card that waited on screen past its own time must not run late
         if (command.At is { } late && late <= now && command.Intent is CommandIntent.Power or CommandIntent.Reminder && command.Repeat.Count == 0)

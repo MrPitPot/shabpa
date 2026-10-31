@@ -25,7 +25,7 @@ public sealed class SettingsPage : PageBase
     private readonly FrameworkElement GlassLevelRow;
 
     // behaviour
-    private readonly Switch AutostartCheck = new(), ConfirmCheck = new(), ReportCheck = new(), GameLogCheck = new(), AnimCheck = new(), SoundCheck = new(), SoftwareCheck = new(), LowMemoryCheck = new(), MinimizedCheck = new();
+    private readonly Switch AutostartCheck = new(), ConfirmCheck = new(), ReportCheck = new(), GameLogCheck = new(), AnimCheck = new(), SoundCheck = new(), MedalToastCheck = new(), MedalSoundCheck = new(), SoftwareCheck = new(), LowMemoryCheck = new(), MinimizedCheck = new();
     private readonly TextBlock AutostartHint = new() { Style = St("Label"), FontSize = 11.5, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 2) };
 
     // power estimate
@@ -143,6 +143,10 @@ public sealed class SettingsPage : PageBase
             L.T("حرکت نرم صفحه‌ها و دکمه‌ها. اگه ویندوز انیمیشن‌ها رو خاموش کرده باشه، این‌جا هم خاموش می‌مونن.", "Smooth motion for pages and buttons. If Windows has animations turned off, they stay off here too.")));
         behaviourBody.Children.Add(SwitchRow(SoundCheck, L.T("صدای ریز موقع حرکت ماوس (آزمایشی)", "Tiny sounds on hover (experimental)"),
             L.T("یه تیک خیلی آروم موقع رفتن ماوس روی گزینه‌ها، یه کلیک و یه زنگ کوتاه برای اعلان‌ها. موقع بازی و در حالت «رم کمتر» ساکته.", "A very soft tick when the mouse moves over options, a click and a short chime for notices. Silent during games and in “Use less RAM” mode.")));
+        behaviourBody.Children.Add(SwitchRow(MedalToastCheck, L.T("پاپ‌آپ مدال جدید", "New medal pop-up"),
+            L.T("وقتی مدال می‌گیری، یه کارت کوچیک چند ثانیه پایین سمت راست، لب تسکبار، بالا میاد. موقع بازی صبر می‌کنه تا بازی تموم شه.", "When you earn a medal, a small card rises above the taskbar in the bottom-right corner for a few seconds. During a game it waits until the game ends.")));
+        behaviourBody.Children.Add(SwitchRow(MedalSoundCheck, L.T("صدای مدال", "Medal sound"),
+            L.T("یه دینگ کوتاه و بامزه همراه پاپ‌آپ مدال. موقع بازی و در حالت «رم کمتر» ساکته.", "A short, cheerful ding with the medal pop-up. Silent during games and in “Use less RAM” mode.")));
         behaviourBody.Children.Add(SwitchRow(SoftwareCheck, L.T("رسم ظاهر با کارت گرافیک (GPU)", "Draw the window with the graphics card (GPU)"),
             L.T("روشن (پیش‌فرض): ظاهر برنامه با شتاب سخت‌افزاری کشیده می‌شه، روان‌تره. خاموش: پردازنده می‌کشه و کارت گرافیک و حدود ۴۵ مگ رم آزاد می‌مونه، با کمی کار بیشتر برای پردازنده. حالت «رم کمتر» این رو خودش خاموش می‌کنه و علاوه بر اون انیمیشن و صدا رو هم قطع می‌کنه. برنامه دوباره باز می‌شه.",
                 "On (default): the window is drawn with hardware acceleration, smoother. Off: the processor draws it, leaving the graphics card and about 45 MB of RAM free, at a little more CPU. “Use less RAM” turns this off by itself and also stops animations and sounds. The app restarts.")));
@@ -166,7 +170,7 @@ public sealed class SettingsPage : PageBase
             Hub.Store.Save();
             Hub.AssistantKey?.Apply(v);
         };
-        foreach (var sw in new[] { AutostartCheck, ConfirmCheck, ReportCheck, GameLogCheck, AnimCheck, SoundCheck, MinimizedCheck }) sw.Click += OnBehaviour;
+        foreach (var sw in new[] { AutostartCheck, ConfirmCheck, ReportCheck, GameLogCheck, AnimCheck, SoundCheck, MedalToastCheck, MedalSoundCheck, MinimizedCheck }) sw.Click += OnBehaviour;
         SoftwareCheck.Click += OnSoftware;
         LowMemoryCheck.Click += OnLowMemory;
         SoftwareCheck.IsChecked = !s.SoftwareRender && !s.LowMemory; // on = the graphics card draws the window
@@ -425,6 +429,8 @@ public sealed class SettingsPage : PageBase
         RefreshNotices();
         AnimCheck.IsChecked = Hub.Settings.Animations;
         SoundCheck.IsChecked = Hub.Settings.UiSounds;
+        MedalToastCheck.IsChecked = Hub.Settings.MedalToasts;
+        MedalSoundCheck.IsChecked = Hub.Settings.MedalSound;
         LowMemoryCheck.IsChecked = Hub.Settings.LowMemory;
         AutostartHint.Text = Hub.Elevated
             ? L.T("برنامه الان با دسترسی ادمین بازه؛ اگه این رو روشن کنی، دفعه‌های بعد هم با همین دسترسی بالا میاد.", "The app is running as administrator now; turn this on and it will start that way next time too.")
@@ -549,6 +555,8 @@ public sealed class SettingsPage : PageBase
         Hub.Telemetry.LogWhileGameAlive = Hub.Settings.GameLog;
         Hub.Settings.Animations = AnimCheck.IsChecked == true;
         Hub.Settings.UiSounds = SoundCheck.IsChecked == true;
+        Hub.Settings.MedalToasts = MedalToastCheck.IsChecked == true;
+        Hub.Settings.MedalSound = MedalSoundCheck.IsChecked == true;
         Hub.Store.Save();
         if (Hub.Demo) return;
         var wanted = AutostartCheck.IsChecked == true;
