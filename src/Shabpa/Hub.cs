@@ -21,6 +21,8 @@ public sealed partial class Hub
 
     public Store Store { get; }
     public RewardsEngine Rewards { get; private set; } = null!;
+    /// <summary>The optional account and cloud save; hidden until a server address is set.</summary>
+    public AccountService Account { get; private set; } = null!;
     public AppState State => Store.State;
     public Settings Settings => State.Settings;
     public SensorHub Sensors { get; }
@@ -97,6 +99,7 @@ public sealed partial class Hub
         };
         Focus.PhaseChanged += (_, _) => TasksChanged?.Invoke();
         Rewards = new RewardsEngine(this);
+        Account = new AccountService(this);
         Sensors = new SensorHub(() => Settings);
         Traffic = new TrafficMeter(_resolver.Resolve);
         Ping = new PingMeter(() => Settings.PingHost);
@@ -267,6 +270,7 @@ public sealed partial class Hub
         if (!Demo) LegacyNight.Cleanup(this); // 3.13.0's night page is gone; remove what it may have set up
         if (Demo) Rewards.SeedDemo();
         Rewards.Start();
+        if (!Demo) Account.Start();
         Bot.Restart();
 
         // The wake tasks point at this exe; re-registering keeps them valid if the app was moved.

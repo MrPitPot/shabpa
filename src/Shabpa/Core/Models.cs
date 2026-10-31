@@ -211,6 +211,8 @@ public sealed class AppState
     public List<TicketRecord> Tickets { get; set; } = [];
     /// <summary>Feathers, quests and medals (phase 1 of the growth plan). Local only.</summary>
     public RewardsState Rewards { get; set; } = new();
+    /// <summary>The optional cloud account (login with Telegram). Empty unless the person chose it.</summary>
+    public CloudState Cloud { get; set; } = new();
 }
 
 /// <summary>What one group of lights shows.</summary>

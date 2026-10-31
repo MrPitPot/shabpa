@@ -19,7 +19,9 @@ public sealed class RewardsPage : PageBase
     private TextBlock _shopFeathers = new();
 
     private readonly StackPanel _root = new();
-    private readonly StackPanel _hero = new(), _quests = new();
+    private readonly StackPanel _hero = new(), _quests = new(), _cloud = new();
+    private FrameworkElement _cloudCard = new();
+    private CancellationTokenSource? _loginCts;
     private readonly WrapPanel _medals = new() { Margin = new Thickness(-6, 8, -6, 0) };
     private readonly StackPanel _filterHost = new();
     private readonly TextBlock _count = new() { Style = (Style)Application.Current.Resources["Label"] };
@@ -28,8 +30,8 @@ public sealed class RewardsPage : PageBase
     private bool _primed;
 
     public override string PageTitle => L.T("مدال‌ها و مأموریت‌ها", "Medals & quests");
-    public override string PageSubtitle => L.T("هر کاری که با شبپا می‌کنی پَر و مدال می‌ده. همه‌چیزش فقط روی همین کامپیوتره.",
-        "Everything you do with Shabpa earns feathers and medals. It all stays on this PC.");
+    public override string PageSubtitle => L.T("هر کاری که با شبپا می‌کنی پَر و مدال می‌ده. همه‌چیزش روی همین کامپیوتره، مگه اینکه خودت ذخیره‌ی ابری رو روشن کنی.",
+        "Everything you do with Shabpa earns feathers and medals. It all stays on this PC unless you turn on cloud save yourself.");
 
     public RewardsPage()
     {
@@ -42,8 +44,8 @@ public sealed class RewardsPage : PageBase
         _root.Children.Add(heroCard);
 
         var (qCard, qBody) = K.Card(L.T("مأموریت‌ها", "Quests"),
-            L.T("هر روز سه تا مأموریت کوچیک و هر هفته یه مأموریت بزرگ. پَرها وقتی کار تموم شد خودکار می‌رسن.",
-                "Three small quests a day and one big one a week. Feathers arrive by themselves when the job is done."));
+            L.T("هر روز سه تا مأموریت کوچیک و هر هفته سه تا مأموریت (آسون، متوسط، سخت). اگه همه‌شون رو انجام بدی پَر هدیه هم می‌گیری.",
+                "Three small quests a day and three a week (easy, medium, hard). Finish them all and you get bonus feathers."));
         qCard.Margin = new Thickness(0, 16, 0, 0);
         qBody.Children.Add(_quests);
         _root.Children.Add(qCard);
@@ -81,7 +83,18 @@ public sealed class RewardsPage : PageBase
         _root.Children.Add(shopCard);
         _shopFeathers = (TextBlock)shop.Children[^1];
 
-        var cabinet = new FrameworkElement[] { heroCard, qCard, mCard };
+        // the optional cloud account; hidden until the server address is set
+        var (cloudCard, cloudBody) = K.Card(L.T("ذخیره‌ی ابری (اختیاری)", "Cloud save (optional)"),
+            L.T("اگه می‌خوای با نصب دوباره‌ی ویندوز پیشرفتت نپره، با تلگرام وارد شو. بدون اون هم همه‌چیز کامل کار می‌کنه.",
+                "To keep your progress through a Windows reinstall, log in with Telegram. Everything works fine without it."));
+        cloudCard.Margin = new Thickness(0, 16, 0, 0);
+        cloudBody.Children.Add(_cloud);
+        cloudCard.Visibility = Hub.Account.Available ? Visibility.Visible : Visibility.Collapsed;
+        _root.Children.Insert(_root.Children.IndexOf(qCard), cloudCard);
+        _cloudCard = cloudCard;
+        Hub.Account.Changed += () => Dispatcher.BeginInvoke(() => { if (IsVisible) BuildCloud(); });
+
+        var cabinet = new FrameworkElement[] { heroCard, cloudCard, qCard, mCard };
         void ShowTab(bool shopTab)
         {
             foreach (var c in cabinet) c.Visibility = shopTab ? Visibility.Collapsed : Visibility.Visible;
@@ -103,6 +116,7 @@ public sealed class RewardsPage : PageBase
         var engine = Hub.Rewards;
         BuildHero(engine);
         BuildQuests(engine);
+        BuildCloud();
         BuildFilter();
         BuildMedals(engine);
         _primed = true;
@@ -171,6 +185,68 @@ public sealed class RewardsPage : PageBase
         {
             Background = K.Brush(tint + "Soft"), CornerRadius = new CornerRadius(14), Padding = new Thickness(11, 6, 12, 6), Margin = new Thickness(0, 0, 8, 6), Child = row,
         };
+    }
+
+    private void BuildCloud()
+    {
+        var account = Hub.Account;
+        _cloudCard.Visibility = account.Available ? Visibility.Visible : Visibility.Collapsed;
+        _cloud.Children.Clear();
+        if (!account.Available) return;
+        _cloud.Margin = new Thickness(0, 10, 0, 0);
+        void Line(string text, Brush? brush = null) => _cloud.Children.Add(new TextBlock { Text = text, Style = St("Body"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8), Foreground = brush ?? Res("Muted") });
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
+        Button Btn(string text, Action click, bool primary = false)
+        {
+            var b = new Button { Style = St(primary ? "BtnPrimary" : "Btn"), Content = text, Margin = new Thickness(0, 0, 8, 0) };
+            b.Click += (_, _) => click();
+            row.Children.Add(b);
+            return b;
+        }
+        if (account.SignedIn)
+        {
+            Line(account.LastSync is { } at
+                ? L.T($"پیشرفتت ذخیره شده. آخرین همگام‌سازی: {Fa.Clock(at)}", $"Your progress is saved. Last sync: {at:HH:mm}")
+                : L.T("وارد شدی؛ همگام‌سازی در راهه…", "Logged in; syncing…"), Res("Green"));
+            if (account.Problem.Length > 0) Line(account.Problem, Res("Gold"));
+            Line(L.T("فقط پَر، مدال و شمارنده‌ها ذخیره می‌شن؛ نه اسم، نه مسیر فایل، نه چیزی از کارهایی که می‌کنی.", "Only feathers, medals and counters are saved; no name, no file paths, nothing about what you do."));
+            Btn(L.T("همگام‌سازی الان", "Sync now"), () => _ = account.SyncAsync(), primary: true);
+            Btn(L.T("خروج", "Log out"), () => _ = account.SignOut());
+            Btn(L.T("حذف حساب و داده‌های سرور", "Delete account and server data"), () =>
+            {
+                if (Ask(L.T("حساب و داده‌های ابری حذف بشه؟", "Delete the account and cloud data?"),
+                        L.T("همه‌چیز از سرور پاک می‌شه. پیشرفت روی این کامپیوتر می‌مونه.", "Everything is removed from the server. The progress on this PC stays."), L.T("حذف کن", "Delete"), danger: true))
+                    _ = account.DeleteAccount();
+            });
+        }
+        else if (_loginCts is not null)
+        {
+            Line(L.T("تلگرام باز شد. توی بات «Start» رو بزن؛ همین‌جا منتظرم…", "Telegram opened. Press Start in the bot; I am waiting here…"), Res("Gold"));
+            Btn(L.T("انصراف", "Cancel"), () => { _loginCts?.Cancel(); _loginCts = null; BuildCloud(); });
+        }
+        else
+        {
+            if (account.Problem.Length > 0) Line(account.Problem, Res("Gold"));
+            Line(L.T("با تلگرام وارد می‌شی، بدون ایمیل و رمز. هر وقت خواستی می‌تونی بیرون بیای یا همه‌چیز رو از سرور پاک کنی.", "You log in with Telegram, no email or password. You can log out or erase everything from the server at any time."));
+            Btn(L.T("ورود با تلگرام", "Log in with Telegram"), StartLogin, primary: true);
+        }
+        _cloud.Children.Add(row);
+    }
+
+    private async void StartLogin()
+    {
+        var account = Hub.Account;
+        var begin = await account.BeginLogin();
+        if (begin is null) { BuildCloud(); return; }
+        try { Process.Start(new ProcessStartInfo(begin.Value.Url) { UseShellExecute = true }); }
+        catch { /* the link is also shown below if Telegram cannot be opened */ }
+        _loginCts = new CancellationTokenSource();
+        var cts = _loginCts;
+        BuildCloud();
+        var ok = await account.FinishLogin(begin.Value.Code, cts.Token);
+        if (ReferenceEquals(_loginCts, cts)) _loginCts = null;
+        if (ok) Hub.Notify(L.T("ذخیره‌ی ابری روشن شد", "Cloud save is on"), L.T("از حالا پیشرفتت خودکار ذخیره می‌شه.", "Your progress is now saved automatically."), "rewards");
+        BuildCloud();
     }
 
     private void BuildQuests(RewardsEngine engine)

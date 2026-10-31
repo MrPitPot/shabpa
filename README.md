@@ -24,7 +24,7 @@ your data on your PC, and speaks Persian and English with 21 colour themes.
 ## Why Shabpa
 
 - **One light app instead of five.** Shutdown timer, game overlay, per-app network limits, to-do and focus timer, backup and a health check, in the tray.
-- **Private by design.** No account, no telemetry, no ads. Everything stays in `%AppData%\Shabpa`.
+- **Private by design.** No account is needed, no telemetry, no ads. Everything stays in `%AppData%\Shabpa`. An optional cloud save (log in with Telegram) can keep your feathers and medals through a Windows reinstall; it is off unless you turn it on.
 - **Safe by default.** Every schedule or clean-up shows its exact effect first; files only go to the Recycle Bin.
 - **Free and open source (MIT).** Read the code, build it yourself, or send a pull request.
 - **Persian and English**, with 21 themes.
@@ -69,7 +69,7 @@ as a network tool. All source is here to read and build.
 
 ## Privacy and safety
 
-- Everything is stored locally in `%AppData%\Shabpa`. There is no account and no telemetry.
+- Everything is stored locally in `%AppData%\Shabpa`. There is no telemetry and no account is needed. If you choose the optional cloud save, only your feathers, medals and counters are sent (no name, no file paths, no usage details); you can log out or delete it from the server at any time. See `server/account-worker`.
 - Only things you switch on use the internet: the update check (GitHub), weather (Open-Meteo), the Telegram link
   and support tickets.
 - Telegram control is opt-in. The app asks for a one-time code; it never sees a Telegram token.

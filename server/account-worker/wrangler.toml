@@ -1,0 +1,11 @@
+name = "shabpa-account"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+# Create the namespace once with: wrangler kv namespace create ACCOUNTS   then paste its id here.
+[[kv_namespaces]]
+binding = "ACCOUNTS"
+id = "REPLACE_WITH_NAMESPACE_ID"
+
+[vars]
+BOT_USERNAME = "ShabPa_Bot"

@@ -378,6 +378,14 @@ public sealed class RewardsEngine
 
     public RewardsState State => _hub.State.Rewards;
 
+    /// <summary>Takes in progress merged from the cloud copy (see <see cref="RewardsMerge"/>).</summary>
+    public void Adopt(RewardsState merged)
+    {
+        _hub.State.Rewards = merged;
+        _dirty = true;
+        Evaluate();
+    }
+
     /// <summary>A medal was earned, a quest was paid or the level changed (the page redraws).</summary>
     public event Action? Changed;
     /// <summary>A new medal, to show on the desktop.</summary>
