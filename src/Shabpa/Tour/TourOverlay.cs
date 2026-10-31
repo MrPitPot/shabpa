@@ -376,9 +376,9 @@ public sealed class TourOverlay : Grid
     {
         if (_closing) return;
         var step = _session.Current;
-        if (TourSteps.NeedsPage(step, _host.ActiveKey))
+        if (TourSteps.NeedsPage(step, _host.ActiveKey) || TourSteps.WantsTab(step))
         {
-            _host.GoTo(step.Page);
+            _host.GoTo(step.Page); // once per step: the page, and the tab inside it when the step names one
             _holdUntil = DateTime.UtcNow.AddMilliseconds(Motion.Enabled ? 260 : 40); // the old page is still leaving
         }
 

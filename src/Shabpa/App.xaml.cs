@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Shabpa.Core;
+using Shabpa.Kit;
 
 namespace Shabpa;
 
@@ -433,6 +434,23 @@ public partial class App : Application
         if (demo && args.Contains("--empty-games")) hub.GameLog.Seed([]); // test aid: the empty state of the Playtime page
         hub.Start();
         hub.Rewards.MedalEarned += MedalToast.Show;
+        if (Value(e.Args, "--picker-test") is { } pickerOut)
+        {
+            StoryPicker.Preview(RewardsCatalog.Find(Value(e.Args, "--medal") ?? "marathon")!, pickerOut);
+            Shutdown();
+            return;
+        }
+        if (Value(e.Args, "--story-test") is { } storyDir)
+        {
+            // test aid: draw every story design of a medal (--medal id) into the folder and quit
+            var medal = RewardsCatalog.Find(Value(e.Args, "--medal") ?? "marathon")!;
+            var data = MedalStory.DataFor(medal, DateTime.Now);
+            MedalStory.SaveSheet(data, System.IO.Path.Combine(storyDir, $"sheet-{(L.En ? "en" : "fa")}.png"));
+            foreach (var design in MedalStory.Designs)
+                MedalStory.Save(MedalStory.Build(design.Key, data), System.IO.Path.Combine(storyDir, $"story-{design.Key}-{(L.En ? "en" : "fa")}.png"));
+            Shutdown();
+            return;
+        }
         if (Value(e.Args, "--toast-test") is { } toastOut)
         {
             // test aid: draw the medal notice into a PNG and quit (no window is shown)

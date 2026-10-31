@@ -363,6 +363,19 @@ public class TourTests
     }
 
     [Fact]
+    public void A_step_that_names_a_tab_does_not_reopen_its_page_on_every_tick()
+    {
+        // «system:tune» is a tab inside the page «system»; the window's active key is just «system». Comparing the whole text made
+        // the tour call GoTo again and again, and the game-tuning step flickered.
+        var step = new TourStep("x", "page:0", "system:tune", "t", "t", "x", "x");
+        Assert.False(TourSteps.NeedsPage(step, "system"));
+        Assert.True(TourSteps.NeedsPage(step, "home"));
+        Assert.True(TourSteps.WantsTab(step)); // the tab is picked once, when the step starts
+        Assert.False(TourSteps.WantsTab(step with { Page = "dns" }));
+        Assert.All(TourSteps.All.Where(s => s.Page.Contains(':')), s => Assert.False(TourSteps.NeedsPage(s, s.Page.Split(':')[0])));
+    }
+
+    [Fact]
     public void The_window_hooks_keep_the_tour_safe()
     {
         var code = Source("MainWindow.Tour.cs");

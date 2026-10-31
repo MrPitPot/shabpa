@@ -286,7 +286,7 @@ public sealed class RewardsPage : PageBase
         {
             Width = 172, Margin = new Thickness(6), Padding = new Thickness(12, 16, 12, 12), CornerRadius = new CornerRadius(18), Background = Res("Panel2"),
             BorderBrush = earned ? TierBrush(m.Tier) : Res("Line"), BorderThickness = new Thickness(1), Child = body, Opacity = earned ? 1 : 0.85, Cursor = earned ? System.Windows.Input.Cursors.Hand : System.Windows.Input.Cursors.Arrow,
-            ToolTip = earned ? L.T("بزن تا از این مدال یه تصویر برای اشتراک بسازی", "Click to make an image of this medal to share") : null,
+            ToolTip = earned ? L.T("بزن تا از این مدال یه استوری بسازی", "Click to make a story picture of this medal") : null,
         };
         if (earned) card.MouseLeftButtonUp += (_, _) => MakeCard(m, ctx.R.Medals[m.Id]);
         return card;
@@ -303,65 +303,9 @@ public sealed class RewardsPage : PageBase
         _ => new SolidColorBrush(Color.FromRgb(0xBB, 0xA3, 0xFF)),
     };
 
-    // ---- the share card -------------------------------------------------------------------------------------------
+    // ---- the story picture ------------------------------------------------------------------------------------------
 
-    private void MakeCard(MedalDef m, DateTime when)
-    {
-        var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Shabpa");
-        var file = Path.Combine(folder, $"shabpa-medal-{m.Id}.png");
-        if (!Ask(L.T("تصویر مدال ساخته بشه؟", "Make the medal image?"),
-                L.T($"یه تصویر از مدال «{m.Name}» با آدرس shabpa.ir توی پوشه‌ی تصاویر، زیر Shabpa ذخیره می‌شه. چیزی جایی فرستاده نمی‌شه.",
-                    $"An image of the “{m.Name}” medal with shabpa.ir is saved in your Pictures folder under Shabpa. Nothing is sent anywhere."),
-                L.T("بساز", "Make it"), detail: file))
-            return;
-        try
-        {
-            Directory.CreateDirectory(folder);
-            RenderShareCard(m, when, file);
-            Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{file}\"") { UseShellExecute = true });
-            Hub.Rewards.Count("shared");
-            Hub.Notify(L.T("تصویر ساخته شد", "Image made"), file);
-        }
-        catch (Exception ex)
-        {
-            Log.Write($"medal card failed: {ex.Message}");
-            Hub.Notify(L.T("تصویر ساخته نشد", "Could not make the image"), L.T("پوشه‌ی تصاویر قابل نوشتن نبود.", "The Pictures folder could not be written."));
-        }
-    }
-
-    /// <summary>A 1080x1350 card (story / Telegram size) drawn off screen: the medal, its name, the date and the site.</summary>
-    public static void RenderShareCard(MedalDef m, DateTime when, string path)
-    {
-        const double w = 540, h = 675;
-        var bg = new LinearGradientBrush(Color.FromRgb(0x1B, 0x1E, 0x58), Color.FromRgb(0x0B, 0x0D, 0x26), new Point(0.2, 0), new Point(0.8, 1));
-        var root = new Grid { Width = w, Height = h, Background = bg, FlowDirection = Ui.Flow };
-        TextElement.SetFontFamily(root, (FontFamily)Application.Current.Resources["Ui"]);
-        var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
-        stack.Children.Add(new TextBlock { Text = L.T("مدال جدید", "New medal"), FontSize = 20, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0xD5, 0x6E)), HorizontalAlignment = HorizontalAlignment.Center });
-        stack.Children.Add(new MedalGlyph(m, true, 250) { Margin = new Thickness(0, 22, 0, 22), HorizontalAlignment = HorizontalAlignment.Center });
-        stack.Children.Add(new TextBlock { Text = m.Name, FontSize = 40, FontWeight = FontWeights.Bold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center });
-        stack.Children.Add(new TextBlock
-        {
-            Text = m.Desc, FontSize = 18, Foreground = new SolidColorBrush(Color.FromRgb(0xB6, 0xBA, 0xE6)), Margin = new Thickness(40, 10, 40, 0), TextAlignment = TextAlignment.Center,
-            TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Center,
-        });
-        stack.Children.Add(new TextBlock { Text = $"{m.TierName} · {Fa.Date(when)}", FontSize = 16, Foreground = new SolidColorBrush(Color.FromRgb(0x8E, 0x93, 0xC9)), Margin = new Thickness(0, 14, 0, 0), HorizontalAlignment = HorizontalAlignment.Center });
-        root.Children.Add(stack);
-        root.Children.Add(new TextBlock
-        {
-            Text = L.T("شبپا · shabpa.ir", "Shabpa · shabpa.ir"), FontSize = 20, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, Opacity = 0.9,
-            VerticalAlignment = VerticalAlignment.Bottom, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 0, 0, 34),
-        });
-        root.Measure(new Size(w, h));
-        root.Arrange(new Rect(0, 0, w, h));
-        root.UpdateLayout();
-        var bmp = new RenderTargetBitmap(1080, 1350, 192, 192, PixelFormats.Pbgra32);
-        bmp.Render(root);
-        var enc = new PngBitmapEncoder();
-        enc.Frames.Add(BitmapFrame.Create(bmp));
-        using var fs = File.Create(path);
-        enc.Save(fs);
-    }
+    private static void MakeCard(MedalDef m, DateTime when) => StoryPicker.Open(m, when);
 
     private bool Ask(string title, string message, string yes, string? detail = null) => ConfirmWindow.Ask(title, message, yes, detail: detail);
 }

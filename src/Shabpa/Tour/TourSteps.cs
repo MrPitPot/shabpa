@@ -144,8 +144,14 @@ public static class TourSteps
             "Got a problem or an idea? Write it here and read the reply. That was the tour: go set up your first schedule. Good night."),
     ];
 
-    /// <summary>The step wants a page that is not the open one.</summary>
-    public static bool NeedsPage(TourStep step, string activeKey) => step.Page.Length > 0 && !string.Equals(activeKey, step.Page, StringComparison.Ordinal);
+    /// <summary>The step wants a page that is not the open one. A step may name a tab too («system:tune»); the window's active key is the page
+    /// only («system»), so only the page part is compared (comparing the whole key made the tour re-open the page on every tick, and the lit
+    /// area flickered). Picking the tab is done once, when the step starts: <see cref="WantsTab"/>.</summary>
+    public static bool NeedsPage(TourStep step, string activeKey) =>
+        step.Page.Length > 0 && !string.Equals(activeKey, step.Page.Split(':')[0], StringComparison.Ordinal);
+
+    /// <summary>The step points at a tab inside a page.</summary>
+    public static bool WantsTab(TourStep step) => step.Page.Contains(':');
 
     /// <summary>The page keys of MainWindow the steps may open or ask to be clicked.</summary>
     public static IEnumerable<string> PagesUsed => All.SelectMany(s => new[] { s.Page, s.ClickPage }).Where(p => p.Length > 0).Distinct();
