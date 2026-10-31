@@ -13,17 +13,22 @@ internal static class BoofiArt
 {
     private static readonly ConcurrentDictionary<(string, int), BitmapImage> Cache = new();
 
-    private static BitmapImage Load(string file, int width) => Cache.GetOrAdd((file, width), k =>
+    private static BitmapImage? Load(string file, int width)
     {
-        var img = new BitmapImage();
-        img.BeginInit();
-        img.UriSource = new Uri($"pack://application:,,,/Assets/boofi/{k.Item1}", UriKind.Absolute);
-        img.DecodePixelWidth = k.Item2;
-        img.CacheOption = BitmapCacheOption.OnLoad;
-        img.EndInit();
-        img.Freeze();
-        return img;
-    });
+        if (Cache.TryGetValue((file, width), out var hit)) return hit;
+        try
+        {
+            var img = new BitmapImage();
+            img.BeginInit();
+            img.UriSource = new Uri($"pack://application:,,,/Assets/boofi/{file}", UriKind.Absolute);
+            img.DecodePixelWidth = width;
+            img.CacheOption = BitmapCacheOption.OnLoad;
+            img.EndInit();
+            img.Freeze();
+            return Cache[(file, width)] = img;
+        }
+        catch { return null; } // no application resources (tests, design time): the picture is simply left out
+    }
 
     /// <summary>A square picture of <paramref name="size"/> pixels showing the part of the frame given by <paramref name="focus"/>.</summary>
     public static FrameworkElement Make(IReadOnlyDictionary<string, string> worn, (double X, double Y, double W) focus, double size)
@@ -34,7 +39,8 @@ internal static class BoofiArt
         var canvas = new Canvas { Width = size, Height = size, ClipToBounds = true, IsHitTestVisible = false };
         foreach (var file in BoofiCatalog.Layers(worn))
         {
-            var image = new Image { Source = Load(file, decode), Width = side, Height = side, Stretch = Stretch.Fill };
+            if (Load(file, decode) is not { } source) continue;
+            var image = new Image { Source = source, Width = side, Height = side, Stretch = Stretch.Fill };
             RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
             Canvas.SetLeft(image, (-20 - (focus.X - focus.W / 2)) * s);
             Canvas.SetTop(image, (-20 - (focus.Y - focus.W / 2)) * s);
