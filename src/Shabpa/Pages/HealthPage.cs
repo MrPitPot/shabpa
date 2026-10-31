@@ -288,6 +288,7 @@ public sealed class HealthOverviewPage : PageBase
 
     private void Show(List<HealthCheck> all, List<EventSummary> allEvents)
     {
+        if (!Hub.Demo && HealthWatch.Fixed(Hub.HealthSeen, all) is > 0 and var fixedNow) Hub.Earn(QuestEvent.HealthFixed, fixedNow);
         _lastList = all;
         _lastEvents = allEvents;
         var list = all.Where(c => !HealthUi.IsIgnored(c)).ToList();

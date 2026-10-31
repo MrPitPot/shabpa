@@ -39,7 +39,7 @@ public partial class MainWindow : Window
 
     /// <summary>Every screen worth a screenshot, including the tabs inside «کنترل سیستم».</summary>
     public IEnumerable<string> CaptureKeys =>
-        ["home", .. SystemPage.TabKeys.Select(t => $"system:{t}"), .. NetworkPage.TabKeys.Select(t => $"ping:{t}"), "gaming", "playtime", "playtime:eldenring", "weather", "dns", "download", "comfort", "tasks", .. TasksPage.TabKeys.Select(t => $"tasks:{t}"), "files", .. FilesPage.TabKeys.Select(t => $"files:{t}"), "health", .. HealthPage.TabKeys.Select(t => $"health:{t}"), "profiles", .. ProfilesPage.TabKeys.Select(t => $"profiles:{t}"), "mic", "support", "update", "settings", "kit"];
+        ["home", .. SystemPage.TabKeys.Select(t => $"system:{t}"), .. NetworkPage.TabKeys.Select(t => $"ping:{t}"), "gaming", "playtime", "playtime:eldenring", "weather", "dns", "download", "comfort", "tasks", .. TasksPage.TabKeys.Select(t => $"tasks:{t}"), "files", .. FilesPage.TabKeys.Select(t => $"files:{t}"), "health", .. HealthPage.TabKeys.Select(t => $"health:{t}"), "profiles", .. ProfilesPage.TabKeys.Select(t => $"profiles:{t}"), "mic", "support", "update", "quests", "settings", "kit"];
 
     public FrameworkElement CaptureRoot => Root;
 
@@ -92,6 +92,7 @@ public partial class MainWindow : Window
             ["weather"] = (NavWeather, () => new WeatherPage()),
             ["support"] = (NavSupport, () => new SupportPage()),
             ["update"] = (NavUpdate, () => new UpdatePage()),
+            ["quests"] = (NavQuests, () => new QuestsPage()),
             ["settings"] = (NavSettings, () => new SettingsPage()),
             ["kit"] = (NavKit, () => new KitPage()),
         };

@@ -40,6 +40,13 @@ public sealed partial class Hub
     /// a condition becomes the active rule. Returns what happened, in the current language.</summary>
     public RemoteReply RunAssistant(AssistantCommand command, string origin)
     {
+        var reply = RunAssistantCore(command, origin);
+        if (reply.Ok) Earn(QuestEvent.AssistantCommand);
+        return reply;
+    }
+
+    private RemoteReply RunAssistantCore(AssistantCommand command, string origin)
+    {
         var now = DateTime.Now;
         Log.Write($"assistant {origin}: {command.Intent} {command.Action} at={command.At:yyyy-MM-dd HH:mm} rule={command.Condition?.Kind}");
         // a card that waited on screen past its own time must not run late

@@ -114,6 +114,8 @@ public sealed partial class Hub
         {
             Execute = (type, args) => OnUi(() => ExecuteRemote(type, args)),
         }, outboxFile: demo ? null : System.IO.Path.Combine(Store.Folder, "bot-outbox.json"));
+        // linking the bot to a Telegram chat is a one-time quest (the state is seen on every change, so only the first counts)
+        Bot.Changed += () => { if (!demo && Bot.State == BotState.Connected && Bot.Chats > 0) EarnOnce(QuestEvent.BotLinked, "o-bot"); };
     }
 
     /// <summary>The power figures changed (detected, re-detected, or refined by the sensors); raised on the UI thread.</summary>
@@ -208,6 +210,7 @@ public sealed partial class Hub
         Traffic.Load(State.NetUsage, DateTime.Now);
         if (Demo) Usage.FillDemo(DateTime.Now);
         else Usage.Load(UsageFile);
+        LoadQuests();
         if (!Demo)
         {
             // Starting the Windows trace session takes a moment (longer when a crashed run left one behind): off the window's thread.
@@ -301,6 +304,7 @@ public sealed partial class Hub
         Shaper.Dispose();
         Store.Save();
         if (!Store.ReadOnly && !Demo) Usage.Save(UsageFile);
+        SaveQuests(force: true);
     }
 
     private string UsageFile => System.IO.Path.Combine(Store.Folder, "usage.json");
@@ -370,6 +374,7 @@ public sealed partial class Hub
         CheckForUpdates(now);
         CheckBudget(now);
         RunDownloadPlans(now);
+        QuestsSecond(now);
         RunComfort(now);
 
         if (now - _lastSave > TimeSpan.FromMinutes(1))
@@ -605,6 +610,7 @@ public sealed partial class Hub
     private void FinishSession(FinishedSession done)
     {
         GameLog.Add(done);
+        Earn(QuestEvent.GameMinutes, done.Record.Seconds / 60.0);
         Application.Current?.Dispatcher.BeginInvoke(() => AnnounceSession(done));
     }
 
@@ -814,6 +820,7 @@ public sealed partial class Hub
         if (job.History.Count > 10) job.History.RemoveRange(0, job.History.Count - 10);
         Store.Save();
         BackupsChanged?.Invoke();
+        if (result.Ok) Earn(QuestEvent.BackupVerified);
         Notify(L.T("پشتیبان‌گیری", "Backup"),
             result.Ok
                 ? L.T($"«{job.Name}»: {Fa.Digits(result.Copied.ToString())} فایل ({Fa.Bytes(result.Bytes)}) کپی و تأیید شد.", $"“{job.Name}”: {result.Copied} file(s) ({Fa.Bytes(result.Bytes)}) copied and verified.")
@@ -1101,6 +1108,7 @@ public sealed partial class Hub
         if (Focus.Tick(now) is { } ended)
         {
             Store.Save();
+            if (ended == FocusPhase.Focus) Earn(QuestEvent.FocusRound);
             Notify(
                 ended == FocusPhase.Focus
                     ? Friendly.Notice(Settings.Birthday.Name, "تمرکزت تموم شد 🎉", "Focus session done 🎉", "آفرین {name}! تمرکزت تموم شد 🎉", "Nice one, {name}! Focus session done 🎉")
@@ -1466,7 +1474,11 @@ public sealed partial class Hub
                         L.T($"{Fa.Digits(plan.GiveUpMinutes.ToString())} دقیقه بعد از باز شدن «{plan.LauncherName}» هیچ دانلودی شروع نشد؛ سیستم خاموش نمی‌شه.",
                             $"No download started within {plan.GiveUpMinutes} minutes of opening “{plan.LauncherName}”; the PC will not be shut down."));
                 }
-                if (finishedOrCancelled && !neverStarted && plan.StartedAt is not null) CueBidar(BidarCue.DownloadDone);
+                if (finishedOrCancelled && !neverStarted && plan.StartedAt is not null)
+                {
+                    CueBidar(BidarCue.DownloadDone);
+                    if (plan.Night) Earn(QuestEvent.NightPlanRan);
+                }
                 if (finishedOrCancelled || neverStarted) EndPlan(plan, now);
             }
         }
@@ -1490,11 +1502,13 @@ public sealed partial class Hub
         _countdownOrigin = origin;
         window.Closed += (_, _) =>
         {
+            var scheduled = _countdownOrigin.Length > 0; // a queued command, a rule, a plan or the guard: not a button pressed by hand
             _countdown = null;
             _countdownOrigin = "";
             switch (window.Outcome)
             {
                 case CountdownOutcome.Run:
+                    if (scheduled && action != PowerAction.Lock) Earn(QuestEvent.PowerRan); // before: the PC may be gone a moment later
                     Run(action);
                     break;
                 case CountdownOutcome.Later:

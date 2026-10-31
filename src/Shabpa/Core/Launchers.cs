@@ -417,6 +417,8 @@ public sealed class DownloadPlan
     public bool WakeUp { get; set; } = true;
     /// <summary>Replay the clicks the person taught for this launcher, when there are any.</summary>
     public bool UseMacro { get; set; } = true;
+    /// <summary>Made by the night-internet card (only one such plan exists).</summary>
+    public bool Night { get; set; }
 
     public bool Repeats => RepeatDays.Count > 0;
 
