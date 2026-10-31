@@ -475,6 +475,7 @@ public sealed class MicrophonePage : PageBase
     {
         if (_testing) return;
         _testing = true;
+        Hub.Rewards.Count("micTest");
         _noise.IsEnabled = _speech.IsEnabled = false;
         NetFx.Say(_result, speech ? L.T("حرف بزن…", "Speak now…") : L.T("ساکت باش…", "Stay quiet…"));
         _meter.Value = 0;

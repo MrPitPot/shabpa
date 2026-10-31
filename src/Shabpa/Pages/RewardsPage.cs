@@ -186,7 +186,7 @@ public sealed class RewardsPage : PageBase
         Section(L.T("امروز", "Today"));
         foreach (var q in RewardsCatalog.DailyFor(now)) _quests.Children.Add(QuestRow(q, ctx));
         Section(L.T("این هفته", "This week"));
-        _quests.Children.Add(QuestRow(RewardsCatalog.WeeklyFor(now), ctx));
+        foreach (var q in RewardsCatalog.WeeklyFor(now)) _quests.Children.Add(QuestRow(q, ctx));
         var open = RewardsCatalog.Once.Where(q => !ctx.R.Claimed.Contains(q.Id)).ToList();
         if (open.Count > 0)
         {

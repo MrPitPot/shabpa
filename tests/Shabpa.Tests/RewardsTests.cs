@@ -155,6 +155,37 @@ public class RewardsTests
     }
 
     [Fact]
+    public void Daily_quests_never_pair_two_of_one_family()
+    {
+        var day = new DateTime(2026, 11, 2);
+        for (var i = 0; i < 120; i++)
+        {
+            var fams = RewardsCatalog.DailyFor(day.AddDays(i)).Select(q => q.Family).Where(f => f.Length > 0).ToList();
+            Assert.Equal(fams.Count, fams.Distinct().Count());
+        }
+    }
+
+    [Fact]
+    public void Each_week_has_one_easy_one_medium_and_one_hard_quest()
+    {
+        var day = new DateTime(2026, 11, 2);
+        for (var i = 0; i < 20; i++)
+            Assert.Equal([0, 1, 2], RewardsCatalog.WeeklyFor(day.AddDays(i * 7)).Select(q => q.Tier));
+        var seen = Enumerable.Range(0, 20).SelectMany(i => RewardsCatalog.WeeklyFor(day.AddDays(i * 7))).Select(q => q.Id).Distinct().Count();
+        Assert.Equal(9, seen);
+    }
+
+    [Fact]
+    public void The_quest_tables_match_the_economy_plan()
+    {
+        Assert.Equal(22, RewardsCatalog.Once.Count);
+        Assert.Equal(222, RewardsCatalog.Once.Sum(q => q.Reward));
+        Assert.Equal(4, RewardsCatalog.DailyBonus);
+        Assert.Equal(15, RewardsCatalog.WeeklyBonus);
+        Assert.All(RewardsCatalog.Once, q => Assert.Equal(q.Id, RewardsCatalog.ClaimKey(q, DateTime.Now))); // one-time quests are paid once, ever
+    }
+
+    [Fact]
     public void A_finished_quest_pays_once_and_the_next_day_starts_fresh()
     {
         var (hub, e, _, set) = Engine(new DateTime(2026, 11, 2, 12, 0, 0));

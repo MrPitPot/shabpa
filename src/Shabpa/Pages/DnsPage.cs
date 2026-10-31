@@ -421,6 +421,7 @@ public sealed class DnsPage : PageBase
             return;
         }
         _testing = true;
+        Hub.Rewards.Count("dnsTest", day: "net");
         _cts = new CancellationTokenSource();
         var ct = _cts.Token;
         _testLabel.Text = L.T("توقف تست", "Stop");

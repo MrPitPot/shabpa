@@ -27,6 +27,9 @@ public sealed class RewardsState
     public string DayKey { get; set; } = "";
     public Dictionary<string, int> DayCounters { get; set; } = [];
     public List<string> DayPages { get; set; } = [];
+    /// <summary>The Persian week (starting Saturday) the weekly counters belong to, and what was counted in it.</summary>
+    public string WeekKey { get; set; } = "";
+    public Dictionary<string, int> WeekCounters { get; set; } = [];
     /// <summary>Quests and streak rewards already paid, so each is paid once.</summary>
     public List<string> Claimed { get; set; } = [];
     public List<string> DoneTasks { get; set; } = [];
@@ -45,6 +48,7 @@ public sealed record RewardsContext(RewardsState R, AppState S, DateTime Now, in
 {
     public int Counter(string key) => R.Counters.GetValueOrDefault(key);
     public int DayCounter(string key) => R.DayCounters.GetValueOrDefault(key);
+    public int WeekCounter(string key) => R.WeekCounters.GetValueOrDefault(key);
 }
 
 public sealed record MedalDef(string Id, string Icon, MedalTier Tier, bool Hidden, string NameFa, string NameEn, string DescFa, string DescEn,
@@ -65,7 +69,7 @@ public sealed record MedalDef(string Id, string Icon, MedalTier Tier, bool Hidde
     };
 }
 
-public sealed record QuestDef(string Id, QuestKind Kind, string Fa, string En, int Reward, double Target, Func<RewardsContext, double> Value)
+public sealed record QuestDef(string Id, QuestKind Kind, string Fa, string En, int Reward, double Target, Func<RewardsContext, double> Value, string Family = "", int Tier = 0)
 {
     public string Text => L.T(Fa, En);
 }
@@ -222,29 +226,98 @@ public static class RewardsCatalog
 
     // ---- quests ------------------------------------------------------------------------------------------
 
+    // The numbers come from the economy plan (economy/quests-and-referrals.md): a regular person earns about 20 feathers a day,
+    // the daily ceiling is about 34. Quests of the same Family never show on the same day.
+    private static QuestDef D(string id, string fa, string en, int reward, double target, Func<RewardsContext, double> v, string family = "")
+        => new(id, QuestKind.Daily, fa, en, reward, target, v, family);
+
+    private static double FocusToday(RewardsContext c) => c.S.FocusLog.Count(f => f.Completed && f.Start.Date == c.Now.Date);
+
     private static readonly QuestDef[] DailyPool =
     [
-        new("d.game", QuestKind.Daily, "یه ساعت بازی کن", "Play for an hour", 8, 60, c => c.DayCounter("gameMin")),
-        new("d.focus", QuestKind.Daily, "یه نوبت تمرکز رو کامل کن", "Complete a focus session", 4, 1, c => c.S.FocusLog.Count(f => f.Completed && f.Start.Date == c.Now.Date)),
-        new("d.task", QuestKind.Daily, "یه کار از لیستت رو تموم کن", "Finish one task from your list", 4, 1, c => c.DayCounter("task")),
-        new("d.ram", QuestKind.Daily, "رم رو یه بار خالی کن", "Free up RAM once", 3, 1, c => c.DayCounter("ram")),
-        new("d.power", QuestKind.Daily, "یه دستور زمان‌بندی‌شده بذار", "Set a scheduled command", 5, 1, c => c.DayCounter("power")),
-        new("d.explore", QuestKind.Daily, "۴ بخش مختلف برنامه رو باز کن", "Open 4 different parts of the app", 3, 4, c => c.R.DayPages.Count),
+        D("d.game", "یه ساعت بازی کن", "Play for an hour", 8, 60, c => c.DayCounter("gameMin"), "game"),
+        D("d.game2", "دو ساعت بازی کن", "Play for two hours", 12, 120, c => c.DayCounter("gameMin"), "game"),
+        D("d.focus", "یه نوبت تمرکز رو کامل کن", "Complete a focus session", 5, 1, FocusToday, "focus"),
+        D("d.focus2", "دو نوبت تمرکز رو کامل کن", "Complete two focus sessions", 9, 2, FocusToday, "focus"),
+        D("d.task", "یه کار از لیستت رو تموم کن", "Finish one task from your list", 4, 1, c => c.DayCounter("task"), "task"),
+        D("d.task3", "سه کار رو تموم کن", "Finish three tasks", 8, 3, c => c.DayCounter("task"), "task"),
+        D("d.ram", "رم رو یه بار خالی کن", "Free up RAM once", 3, 1, c => c.DayCounter("ram")),
+        D("d.power", "یه دستور زمان‌بندی‌شده بذار", "Set a scheduled command", 5, 1, c => c.DayCounter("power")),
+        D("d.explore", "۴ بخش مختلف برنامه رو باز کن", "Open 4 different parts of the app", 3, 4, c => c.R.DayPages.Count),
+        D("d.chat", "سه پیام با بوفی حرف بزن", "Say three things to Boofi", 4, 3, c => c.DayCounter("bidar")),
+        D("d.net", "پینگ یا دی‌ان‌اس رو تست کن", "Test your ping or DNS", 4, 1, c => c.DayCounter("net") + (c.R.DayPages.Contains("ping") ? 1 : 0)),
+        D("d.night", "بعد از ۱۱ شب یه ساعت شبپا رو باز نگه دار", "Keep Shabpa open for an hour after 11 pm", 6, 60, c => c.DayCounter("nightMin")),
     ];
 
-    private static readonly QuestDef[] WeeklyPool =
+    /// <summary>Everything done today pays a little extra.</summary>
+    public const int DailyBonus = 4;
+    /// <summary>All three weekly quests pay a bonus.</summary>
+    public const int WeeklyBonus = 15;
+
+    private static QuestDef W(string id, int tier, string fa, string en, int reward, double target, Func<RewardsContext, double> v)
+        => new(id, QuestKind.Weekly, fa, en, reward, target, v, "", tier);
+
+    private static double FocusThisWeek(RewardsContext c) => c.S.FocusLog.Count(f => f.Completed && f.Start.Date >= WeekStart(c.Now));
+
+    // one easy, one medium, one hard quest each week
+    private static readonly QuestDef[][] WeeklyPool =
     [
-        new("w.focus", QuestKind.Weekly, "این هفته ۵ نوبت تمرکز رو کامل کن", "Complete 5 focus sessions this week", 15, 5,
-            c => c.S.FocusLog.Count(f => f.Completed && f.Start.Date >= WeekStart(c.Now))),
-        new("w.days", QuestKind.Weekly, "این هفته ۵ روز مختلف شبپا رو باز کن", "Open Shabpa on 5 different days this week", 15, 5,
-            c => c.R.Days.Count(d => DateTime.TryParseExact(d, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var t) && t >= WeekStart(c.Now))),
+        [
+            W("w.days", 0, "این هفته ۵ روز مختلف شبپا رو باز کن", "Open Shabpa on 5 different days this week", 12, 5,
+                c => c.R.Days.Count(d => DateTime.TryParseExact(d, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var t) && t >= WeekStart(c.Now))),
+            W("w.focus3", 0, "این هفته ۳ نوبت تمرکز رو کامل کن", "Complete 3 focus sessions this week", 12, 3, FocusThisWeek),
+            W("w.chat", 0, "این هفته با بوفی ۱۰ بار حرف بزن", "Talk to Boofi 10 times this week", 12, 10, c => c.WeekCounter("bidar")),
+        ],
+        [
+            W("w.focus", 1, "این هفته ۵ نوبت تمرکز رو کامل کن", "Complete 5 focus sessions this week", 18, 5, FocusThisWeek),
+            W("w.task", 1, "این هفته ۱۰ کار از لیستت رو تموم کن", "Finish 10 tasks this week", 18, 10, c => c.WeekCounter("task")),
+            W("w.game6", 1, "این هفته ۶ ساعت بازی ثبت کن", "Log 6 hours of games this week", 18, 360, c => c.WeekCounter("gameMin")),
+        ],
+        [
+            W("w.game12", 2, "این هفته ۱۲ ساعت بازی ثبت کن", "Log 12 hours of games this week", 30, 720, c => c.WeekCounter("gameMin")),
+            W("w.focus10", 2, "این هفته ۱۰ نوبت تمرکز رو کامل کن", "Complete 10 focus sessions this week", 30, 10, FocusThisWeek),
+            W("w.streak", 2, "هر ۷ شب پیاپی با شبپا باش", "Be with Shabpa 7 nights in a row", 30, 7, c => RewardsEngine.StreakOf(c.R, c.Now)),
+        ],
     ];
 
+    private static QuestDef O(string id, string fa, string en, int reward, double target, Func<RewardsContext, double> v)
+        => new(id, QuestKind.Once, fa, en, reward, target, v);
+
+    private static double Yes(bool b) => b ? 1 : 0;
+
+    // 22 one-time quests that walk a new person through the app (222 feathers). Two more (change Boofi's look in «بوفی من», buy a first
+    // store item, 20 feathers) join when the store ships; see FutureOnce.
     private static readonly QuestDef[] OncePool =
     [
-        new("o.backup", QuestKind.Once, "اولین پشتیبان‌گیری رو تنظیم کن", "Set up your first backup", 20, 1, c => c.S.Backups.Count > 0 ? 1 : 0),
-        new("o.download", QuestKind.Once, "یه برنامه‌ی دانلود شبانه بساز", "Make a night download plan", 12, 1, c => c.S.DownloadPlans.Count + c.Counter("downloadPlans") > 0 ? 1 : 0),
-        new("o.bot", QuestKind.Once, "ربات تلگرام رو وصل کن", "Link the Telegram bot", 20, 1, c => c.S.Settings.BotEnabled ? 1 : 0),
+        O("o.tour", "تور آشنایی رو تا آخر برو", "Finish the intro tour", 5, 1, c => Yes(c.R.TourDone)),
+        O("o.birthday", "تاریخ تولدت رو بگذار", "Set your birthday", 10, 1, c => Yes(c.S.Settings.Birthday is { HasDate: true })),
+        O("o.theme", "تم برنامه رو عوض کن", "Change the app theme", 8, 1, c => Yes(c.S.Settings.Theme != Palette.Default)),
+        O("o.backup", "اولین پشتیبان‌گیری رو تنظیم کن", "Set up your first backup", 20, 1, c => Yes(c.S.Backups.Count > 0)),
+        O("o.download", "اولین برنامه‌ی دانلود شبانه رو بساز", "Make your first night download plan", 12, 1, c => Yes(c.S.DownloadPlans.Count + c.Counter("downloadPlans") > 0)),
+        O("o.bot", "ربات تلگرام رو وصل کن", "Link the Telegram bot", 20, 1, c => Yes(c.S.Settings.BotEnabled)),
+        O("o.power", "اولین دستور زمان‌بندی‌شده رو بگذار", "Set your first scheduled command", 10, 1, c => Yes(c.Counter("powerScheduled") > 0)),
+        O("o.wake", "اولین بیدارباش رو بگذار", "Set your first wake-up", 8, 1, c => Yes(c.S.WakeSchedules.Count > 0)),
+        O("o.overlay", "اورلی بازی رو روشن کن", "Visit the game overlay", 10, 1, c => Yes(c.R.Pages.Contains("gaming"))),
+        O("o.game", "اولین نوبت بازی ثبت بشه", "Get your first game session logged", 8, 1, c => Yes(c.Counter("gameSessions") > 0)),
+        O("o.focus", "اولین نوبت تمرکز رو کامل کن", "Complete your first focus session", 8, 1, c => Yes(c.S.FocusLog.Any(f => f.Completed))),
+        O("o.task", "اولین کار رو تیک بزن", "Tick off your first task", 5, 1, c => Yes(c.Counter("tasksDone") > 0)),
+        O("o.ram", "رم رو یک بار خالی کن", "Free up RAM once", 5, 1, c => Yes(c.Counter("ramFreed") > 0)),
+        O("o.ping", "پینگ رو تست کن", "Look at your ping", 6, 1, c => Yes(c.R.Pages.Contains("ping"))),
+        O("o.dns", "دی‌ان‌اس رو تست کن", "Run a DNS test", 8, 1, c => Yes(c.Counter("dnsTest") > 0)),
+        O("o.health", "سلامت سیستم رو ببین", "Check your PC's health", 6, 1, c => Yes(c.R.Pages.Contains("health"))),
+        O("o.mic", "میکروفون رو تست کن", "Test your microphone", 5, 1, c => Yes(c.Counter("micTest") > 0)),
+        O("o.weather", "شهر هواشناسی رو بگذار", "Pick your weather city", 5, 1, c => Yes(c.S.Settings.WeatherCity is not null)),
+        O("o.launcher", "به لانچر یاد بده یه برنامه رو باز کنه", "Teach the launcher to open an app", 15, 1, c => Yes(c.S.Macros.Count > 0)),
+        O("o.chat", "با بوفی ۱۰ بار حرف بزن", "Talk to Boofi 10 times", 10, 10, c => c.Counter("bidar")),
+        O("o.share", "یه مدال رو به‌صورت تصویر بساز", "Make an image of a medal", 8, 1, c => Yes(c.Counter("shared") > 0)),
+        O("o.days3", "شبپا رو در ۳ روز مختلف باز کن", "Open Shabpa on 3 different days", 15, 3, c => c.R.Days.Count),
+    ];
+
+    /// <summary>Waiting for the store: not shown or paid yet.</summary>
+    public static readonly IReadOnlyList<QuestDef> FutureOnce =
+    [
+        O("o.wardrobe", "در «بوفی من» کلاه، عینک و رنگ پر رو یک بار عوض کن", "Change Boofi's hat, glasses and fur once", 10, 3, c => c.Counter("wardrobe")),
+        O("o.firstbuy", "اولین قطعه‌ی فروشگاه رو بخر", "Buy your first store item", 10, 1, c => c.Counter("storeBuy")),
     ];
 
     /// <summary>Saturday is the first day of the Persian week; the English interface uses Monday.</summary>
@@ -256,21 +329,26 @@ public static class RewardsCatalog
 
     public static string WeekKey(DateTime now) => WeekStart(now).ToString("yyyyMMdd", CultureInfo.InvariantCulture);
 
-    /// <summary>Three daily quests, picked from the date so they are the same all day and after a restart.</summary>
+    /// <summary>Three daily quests, picked from the date so they are the same all day and after a restart. Two of one family never meet.</summary>
     public static IReadOnlyList<QuestDef> DailyFor(DateTime now)
     {
         var seed = (int)(now.Date.Ticks / TimeSpan.TicksPerDay);
         var picks = new List<QuestDef>();
-        for (var i = 0; picks.Count < 3; i++)
+        for (var i = 0; picks.Count < 3 && i < 60; i++)
         {
-            var q = DailyPool[(seed * 5 + i * 2 + i / 3) % DailyPool.Length];
-            if (!picks.Contains(q)) picks.Add(q);
-            if (i > 20) break;
+            var q = DailyPool[(seed * 5 + i * 7) % DailyPool.Length];
+            if (picks.Contains(q) || (q.Family.Length > 0 && picks.Any(p => p.Family == q.Family))) continue;
+            picks.Add(q);
         }
         return picks;
     }
 
-    public static QuestDef WeeklyFor(DateTime now) => WeeklyPool[(int)((WeekStart(now).Ticks / TimeSpan.TicksPerDay) / 7 % WeeklyPool.Length)];
+    /// <summary>Three weekly quests: one easy, one medium, one hard.</summary>
+    public static IReadOnlyList<QuestDef> WeeklyFor(DateTime now)
+    {
+        var week = (int)(WeekStart(now).Ticks / TimeSpan.TicksPerDay / 7);
+        return [.. WeeklyPool.Select((tier, i) => tier[(week + i) % tier.Length])];
+    }
 
     public static IReadOnlyList<QuestDef> Once => OncePool;
 
@@ -318,16 +396,15 @@ public sealed class RewardsEngine
         Evaluate();
     }
 
-    public int Streak
+    public int Streak => StreakOf(State, _now());
+
+    public static int StreakOf(RewardsState r, DateTime now)
     {
-        get
-        {
-            var day = _now().Date;
-            if (State.Active.GetValueOrDefault(Key(day)) < 1) day = day.AddDays(-1); // today may not have started yet
-            var n = 0;
-            while (State.Active.GetValueOrDefault(Key(day)) >= 1) { n++; day = day.AddDays(-1); }
-            return n;
-        }
+        var day = now.Date;
+        if (r.Active.GetValueOrDefault(Key(day)) < 1) day = day.AddDays(-1); // today may not have started yet
+        var n = 0;
+        while (r.Active.GetValueOrDefault(Key(day)) >= 1) { n++; day = day.AddDays(-1); }
+        return n;
     }
 
     public LevelDef Level => RewardsCatalog.LevelFor(State.TotalFeathers);
@@ -352,7 +429,7 @@ public sealed class RewardsEngine
     {
         RollDay();
         State.Counters[key] = State.Counters.GetValueOrDefault(key) + by;
-        if (day is not null) State.DayCounters[day] = State.DayCounters.GetValueOrDefault(day) + by;
+        if (day is not null) AddDay(day, by);
         _dirty = true;
         Evaluate();
     }
@@ -373,7 +450,7 @@ public sealed class RewardsEngine
         RollDay();
         Count("gameSessions");
         State.Counters["gameMinutes"] = State.Counters.GetValueOrDefault("gameMinutes") + (int)Math.Round(minutes);
-        State.DayCounters["gameMin"] = State.DayCounters.GetValueOrDefault("gameMin") + (int)Math.Round(minutes);
+        AddDay("gameMin", (int)Math.Round(minutes));
         if (game.Length > 0 && !State.Games.Contains(game) && State.Games.Count < 60) State.Games.Add(game);
         State.LongestGameMinutes = Math.Max(State.LongestGameMinutes, minutes);
         if (start.Hour is >= 2 and < 5) State.NightOwl = true;
@@ -392,7 +469,7 @@ public sealed class RewardsEngine
             if (State.DoneTasks.Count > 400) State.DoneTasks.RemoveAt(0);
             // a task that was already done when this started does not count as new work today
             State.Counters["tasksDone"] = State.Counters.GetValueOrDefault("tasksDone") + 1;
-            State.DayCounters["task"] = State.DayCounters.GetValueOrDefault("task") + 1;
+            AddDay("task", 1);
             changed = true;
         }
         if (changed) { _dirty = true; Evaluate(); }
@@ -409,14 +486,25 @@ public sealed class RewardsEngine
         {
             var day = Key(now);
             State.Active[day] = State.Active.GetValueOrDefault(day) + 1;
+            if (now.Hour >= 23 || now.Hour < 4) AddDay("nightMin", 1); // «keep Shabpa open after 11 pm»
             _dirty = true;
         }
         Evaluate();
     }
 
+    /// <summary>Counts toward today's quests and this week's.</summary>
+    private void AddDay(string key, int by)
+    {
+        RollDay();
+        State.DayCounters[key] = State.DayCounters.GetValueOrDefault(key) + by;
+        State.WeekCounters[key] = State.WeekCounters.GetValueOrDefault(key) + by;
+    }
+
     private void RollDay()
     {
         var now = _now();
+        var week = RewardsCatalog.WeekKey(now);
+        if (State.WeekKey != week) { State.WeekKey = week; State.WeekCounters.Clear(); _dirty = true; }
         var today = Key(now);
         if (State.DayKey == today) return;
         State.DayKey = today;
@@ -469,15 +557,33 @@ public sealed class RewardsEngine
         }
 
         var ctxQ = new RewardsContext(State, _hub.State, now, PageCount);
-        foreach (var q in RewardsCatalog.DailyFor(now).Append(RewardsCatalog.WeeklyFor(now)).Concat(RewardsCatalog.Once))
+        var daily = RewardsCatalog.DailyFor(now);
+        var weekly = RewardsCatalog.WeeklyFor(now);
+        foreach (var q in daily.Concat(weekly).Concat(RewardsCatalog.Once))
         {
             var key = RewardsCatalog.ClaimKey(q, now);
             if (State.Claimed.Contains(key) || q.Value(ctxQ) < q.Target) continue;
-            State.Claimed.Add(key);
-            if (State.Claimed.Count > 300) State.Claimed.RemoveAt(0);
+            Claim(key);
             Pay(q.Reward);
             State.Counters["questsDone"] = State.Counters.GetValueOrDefault("questsDone") + 1;
             _hub.Notify(L.T("مأموریت انجام شد", "Quest done"), $"{q.Text} · +{Fa.N(q.Reward)} {L.T("پَر", "feathers")}");
+            changed = true;
+        }
+        // all three of the day / the week: a little extra
+        var dayMark = $"bonus.d:{now.ToString("yyyyMMdd", CultureInfo.InvariantCulture)}";
+        if (!State.Claimed.Contains(dayMark) && daily.All(q => State.Claimed.Contains(RewardsCatalog.ClaimKey(q, now))))
+        {
+            Claim(dayMark);
+            Pay(RewardsCatalog.DailyBonus);
+            _hub.Notify(L.T("هر سه مأموریت امروز انجام شد", "All of today's quests done"), $"+{Fa.N(RewardsCatalog.DailyBonus)} {L.T("پَر هدیه", "bonus feathers")}");
+            changed = true;
+        }
+        var weekMark = $"bonus.w:{RewardsCatalog.WeekKey(now)}";
+        if (!State.Claimed.Contains(weekMark) && weekly.All(q => State.Claimed.Contains(RewardsCatalog.ClaimKey(q, now))))
+        {
+            Claim(weekMark);
+            Pay(RewardsCatalog.WeeklyBonus);
+            _hub.Notify(L.T("هر سه مأموریت این هفته انجام شد", "All of this week's quests done"), $"+{Fa.N(RewardsCatalog.WeeklyBonus)} {L.T("پَر هدیه", "bonus feathers")}");
             changed = true;
         }
 
@@ -489,7 +595,7 @@ public sealed class RewardsEngine
             var mark = $"streak:{today}";
             if (!State.Claimed.Contains(mark))
             {
-                State.Claimed.Add(mark);
+                Claim(mark);
                 Pay(10);
                 _hub.Notify(L.T("هفت شب پیاپی", "Seven nights in a row"), L.T("۱۰ پَر هدیه گرفتی.", "You got 10 feathers."));
                 changed = true;
@@ -512,6 +618,15 @@ public sealed class RewardsEngine
             Changed?.Invoke();
         }
         FlushToasts();
+    }
+
+    /// <summary>Remember a payment so it is made once. Only dated entries are ever forgotten; a one-time quest must never be paid twice.</summary>
+    private void Claim(string key)
+    {
+        State.Claimed.Add(key);
+        if (State.Claimed.Count <= 400) return;
+        var old = State.Claimed.FindIndex(k => k.Contains(':'));
+        if (old >= 0) State.Claimed.RemoveAt(old);
     }
 
     private void Pay(int feathers)

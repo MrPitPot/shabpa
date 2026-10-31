@@ -7,6 +7,7 @@ a patch release only fixes bugs, a minor release adds a tested batch of features
 ## [Unreleased]
 
 ### Changed
+- **Feathers are easier to earn and the quests are richer.** The daily pool has 12 quests (three a day, never two of the same kind, e.g. one hour or two hours of games), with +4 feathers extra when all three are done. Every week now has three quests (one easy, one medium, one hard, from 9) with +15 extra for all three. There are 22 one-time quests that walk a new person through the app (222 feathers), and a regular person earns about 20 feathers a day. New counters are kept on this PC only. Paid one-time quests are never forgotten, even in a very long history.
 - The owl is now called **Boofi** («بوفی», from «بوف», the Persian word for owl) instead of Bidar, everywhere in the app: the assistant, medals, levels, the settings switch, the tour and the medal story pictures. Typing «بوفی» to it is understood as a friendly hello. Saved progress is not affected.
 
 ## [3.13.0] - 2026-10-31
