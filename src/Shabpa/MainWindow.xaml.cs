@@ -39,7 +39,7 @@ public partial class MainWindow : Window
 
     /// <summary>Every screen worth a screenshot, including the tabs inside «کنترل سیستم».</summary>
     public IEnumerable<string> CaptureKeys =>
-        ["home", .. SystemPage.TabKeys.Select(t => $"system:{t}"), .. NetworkPage.TabKeys.Select(t => $"ping:{t}"), "gaming", "playtime", "playtime:eldenring", "weather", "dns", "download", "comfort", "tasks", .. TasksPage.TabKeys.Select(t => $"tasks:{t}"), "files", .. FilesPage.TabKeys.Select(t => $"files:{t}"), "health", .. HealthPage.TabKeys.Select(t => $"health:{t}"), "profiles", .. ProfilesPage.TabKeys.Select(t => $"profiles:{t}"), "mic", "support", "update", "settings", "kit"];
+        ["home", .. SystemPage.TabKeys.Select(t => $"system:{t}"), .. NetworkPage.TabKeys.Select(t => $"ping:{t}"), "gaming", "playtime", "playtime:eldenring", "weather", "dns", "download", "comfort", "tasks", .. TasksPage.TabKeys.Select(t => $"tasks:{t}"), "files", .. FilesPage.TabKeys.Select(t => $"files:{t}"), "health", .. HealthPage.TabKeys.Select(t => $"health:{t}"), "profiles", .. ProfilesPage.TabKeys.Select(t => $"profiles:{t}"), "mic", "medals", "support", "update", "settings", "kit"];
 
     public FrameworkElement CaptureRoot => Root;
 
@@ -90,6 +90,7 @@ public partial class MainWindow : Window
             ["tasks"] = (NavTasks, () => new TasksPage()),
             ["mic"] = (NavMic, () => new MicrophonePage()),
             ["weather"] = (NavWeather, () => new WeatherPage()),
+            ["medals"] = (NavMedals, () => new MedalsPage()),
             ["support"] = (NavSupport, () => new SupportPage()),
             ["update"] = (NavUpdate, () => new UpdatePage()),
             ["settings"] = (NavSettings, () => new SettingsPage()),
@@ -369,6 +370,7 @@ public partial class MainWindow : Window
         if (_pages is null) return;
         var key = _pages.First(p => ReferenceEquals(p.Value.nav, sender)).Key;
         if (PageUse.Record(Hub.I.State.PageVisits, key)) SaveSoon();
+        Hub.I.MedalPage(key);
         Show(key, Page(key));
     }
 

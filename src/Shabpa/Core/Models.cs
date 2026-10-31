@@ -77,6 +77,10 @@ public sealed class Settings
     public bool Animations { get; set; } = true;
     /// <summary>Tiny interface sounds on hover, click and notices (experimental).</summary>
     public bool UiSounds { get; set; } = true;
+    /// <summary>A new medal slides up in the corner above the taskbar for a few seconds.</summary>
+    public bool MedalToasts { get; set; } = true;
+    /// <summary>The little jingle that comes with a new medal (silent during games and in "Use less RAM" mode).</summary>
+    public bool MedalSound { get; set; } = true;
     /// <summary>Windows 11 backdrop behind the window: "off", "mica" (soft, follows the wallpaper) or "acrylic" (frosted glass).</summary>
     public string Glass { get; set; } = "off";
     /// <summary>How dark the glass is, 0 (clearest) to 1.</summary>
@@ -207,6 +211,8 @@ public sealed class AppState
     public List<RunLogEntry> RunLog { get; set; } = [];
     /// <summary>Tickets sent from this PC.</summary>
     public List<TicketRecord> Tickets { get; set; } = [];
+    /// <summary>Medals earned and their counters. Local only.</summary>
+    public MedalState Medals { get; set; } = new();
 }
 
 /// <summary>What one group of lights shows.</summary>

@@ -11,7 +11,7 @@ namespace Shabpa.Core;
 /// person turned them off in Settings.</summary>
 public static class UiSound
 {
-    public enum Kind { Hover, Click, On, Off, Notice }
+    public enum Kind { Hover, Click, On, Off, Notice, Medal }
 
     private static readonly Dictionary<Kind, (byte[] data, GCHandle pin)> Cache = [];
     private static long _lastHover;
@@ -93,6 +93,34 @@ public static class UiSound
         for (var i = 0; i < second.Length; i++) result[offset + i] += second[i];
         return result;
     }
+    /// <summary>One small bell note: a sine with a soft, inharmonic overtone (what makes it sound like a bell, not a beep), a 3 ms
+    /// attack and an exponential fade.</summary>
+    internal static double[] Bell(double hz, double milliseconds, double volume, int rate = 44100)
+    {
+        var count = (int)(rate * milliseconds / 1000);
+        var samples = new double[count];
+        var decay = 4.5 / (milliseconds / 1000);
+        for (var i = 0; i < count; i++)
+        {
+            var t = i / (double)rate;
+            var envelope = Math.Min(1, i / (rate * 0.003)) * Math.Exp(-t * decay);
+            var tone = Math.Sin(2 * Math.PI * hz * t) + 0.35 * Math.Sin(2 * Math.PI * hz * 2.76 * t) * Math.Exp(-t * 18) + 0.12 * Math.Sin(2 * Math.PI * hz * 4 * t);
+            samples[i] = tone / 1.47 * envelope * volume;
+        }
+        return samples;
+    }
+
+    /// <summary>The medal jingle: a quick rising "ta-da" of four bell notes (C E G C), the last one left to ring, with a
+    /// tiny high sparkle on top. About 0.8 s.</summary>
+    internal static double[] Jingle()
+    {
+        double[] notes = [1046.5, 1318.5, 1568.0, 2093.0];
+        var mix = Bell(notes[0], 260, 0.15);
+        for (var i = 1; i < notes.Length; i++)
+            mix = Then(mix, Bell(notes[i], i == notes.Length - 1 ? 620 : 260, i == notes.Length - 1 ? 0.17 : 0.14), 80 * i);
+        return Then(mix, Bell(4186, 300, 0.035), 300);
+    }
+
     private static (byte[], GCHandle) Make(Kind kind)
     {
         // satisfying, not beepy: tiny switch-like ticks. Hover is the lightest, a click is a soft "thock", on rises and off falls as a pair of ticks.
@@ -102,6 +130,7 @@ public static class UiSound
             Kind.Click => Wav(Tick(1100, 420, 52, 1.0, 0.16)),
             Kind.On => Wav(Then(Tick(1500, 900, 40, 0.9, 0.13), Tick(2300, 1500, 46, 0.9, 0.14), 46)),
             Kind.Off => Wav(Then(Tick(2300, 1500, 40, 0.9, 0.13), Tick(1300, 760, 52, 0.9, 0.14), 46)),
+            Kind.Medal => Wav(Jingle()),
             _ => Tone(880, 220, 0.14, 1320),
         };
         return (data, GCHandle.Alloc(data, GCHandleType.Pinned));
@@ -112,11 +141,15 @@ public static class UiSound
 
     private const uint Memory = 0x4, Async = 0x1, NoDefault = 0x2;
 
+    /// <summary>The medal jingle has its own switch (on by default), so turning off the hover ticks does not silence it; it
+    /// still stays quiet during games and in "Use less RAM" mode.</summary>
+    public static bool MedalEnabled => Hub.I is { } hub && hub.Settings.MedalSound && !Halloween.Playing && !hub.Settings.LowMemory && hub.Snapshot.GameProcess.Length == 0;
+
     public static void Play(Kind kind)
     {
         try
         {
-            if (!Enabled) return;
+            if (!(kind == Kind.Medal ? MedalEnabled : Enabled)) return;
             if (!Cache.TryGetValue(kind, out var entry)) Cache[kind] = entry = Make(kind);
             PlaySound(entry.pin.AddrOfPinnedObject(), IntPtr.Zero, Memory | Async | NoDefault);
         }

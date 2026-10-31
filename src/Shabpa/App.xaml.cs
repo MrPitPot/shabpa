@@ -532,6 +532,8 @@ public partial class App : Application
 
         _tray = new Tray(ShowWindow, Quit);
         hub.Notified += (title, text) => { if (_window?.ShowToast(title, text) != true) _tray?.Balloon(title, text); };
+        hub.MedalEarned += MedalToast.Enqueue;
+        hub.MedalsCaughtUp += MedalToast.EnqueueMany;
         hub.Changed += () => _tray.Refresh();
         _tray.Refresh();
 
