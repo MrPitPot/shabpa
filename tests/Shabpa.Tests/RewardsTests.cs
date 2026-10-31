@@ -179,7 +179,7 @@ public class RewardsTests
     public void The_quest_tables_match_the_economy_plan()
     {
         Assert.Equal(22, RewardsCatalog.Once.Count);
-        Assert.Equal(222, RewardsCatalog.Once.Sum(q => q.Reward));
+        Assert.Equal(207, RewardsCatalog.Once.Sum(q => q.Reward));
         Assert.Equal(4, RewardsCatalog.DailyBonus);
         Assert.Equal(15, RewardsCatalog.WeeklyBonus);
         Assert.All(RewardsCatalog.Once, q => Assert.Equal(q.Id, RewardsCatalog.ClaimKey(q, DateTime.Now))); // one-time quests are paid once, ever
@@ -199,6 +199,12 @@ public class RewardsTests
                 case "d.ram": e.Count("ramFreed", day: "ram"); break;
                 case "d.power": e.Count("powerScheduled", day: "power"); break;
                 case "d.explore": foreach (var p in new[] { "home", "system", "gaming", "tasks" }) e.Visit(p); break;
+                case "d.game2": e.GameFinished("X", 125, DateTime.Now.AddHours(-3)); break;
+                case "d.task3": e.Count("tasksDone", 3, day: "task"); break;
+                case "d.chat": e.Count("bidar", 3, day: "bidar"); break;
+                case "d.net": e.Count("dnsTest", day: "net"); break;
+                case "d.night": e.Count("nightMinTest", 60, day: "nightMin"); break;
+                case "d.focus2": for (var i = 0; i < 2; i++) hub.State.FocusLog.Add(new FocusSession { Start = new DateTime(2026, 11, 2, 9 + i, 0, 0), Minutes = 25, Completed = true }); e.Evaluate(); break;
                 case "d.focus": hub.State.FocusLog.Add(new FocusSession { Start = new DateTime(2026, 11, 2, 9, 0, 0), Minutes = 25, Completed = true }); e.Evaluate(); break;
             }
         }

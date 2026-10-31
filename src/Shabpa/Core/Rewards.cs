@@ -285,7 +285,7 @@ public static class RewardsCatalog
 
     private static double Yes(bool b) => b ? 1 : 0;
 
-    // 22 one-time quests that walk a new person through the app (222 feathers). Two more (change Boofi's look in «بوفی من», buy a first
+    // 22 one-time quests that walk a new person through the app (207 feathers). Two more (change Boofi's look in «بوفی من», buy a first
     // store item, 20 feathers) join when the store ships; see FutureOnce.
     private static readonly QuestDef[] OncePool =
     [
