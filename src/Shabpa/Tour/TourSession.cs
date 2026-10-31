@@ -61,5 +61,9 @@ public sealed class TourSession(IReadOnlyList<TourStep> steps)
     }
 
     /// <summary>Records how the tour ended (or that it started) in the settings; callers save the store afterwards.</summary>
-    public static void Record(Settings settings, TourEnd how) => settings.TourStatus = how == TourEnd.Done ? TourState.Done : TourState.Skipped;
+    public static void Record(Settings settings, TourEnd how)
+    {
+        settings.TourStatus = how == TourEnd.Done ? TourState.Done : TourState.Skipped;
+        if (how == TourEnd.Done) Hub.I?.Rewards.FinishTour(); // the «راه‌بلد» medal
+    }
 }

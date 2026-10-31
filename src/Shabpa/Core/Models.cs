@@ -154,6 +154,8 @@ public sealed class Settings
     public bool AutoUpdateCheck { get; set; } = true;
     /// <summary>The newest version the user was already told about, so each release is announced once.</summary>
     public string AnnouncedVersion { get; set; } = "";
+    /// <summary>Night internet window and power-cut standby (phase 1 of the growth plan).</summary>
+    public NightSettings Overnight { get; set; } = new();
     /// <summary>Advanced: an extra update mirror (https address of a folder holding latest.json), tried after the built-in ones.</summary>
     public string ExtraMirrorUrl { get; set; } = "";
     /// <summary>Id of the update source that worked last; it is tried first next time.</summary>
@@ -207,6 +209,8 @@ public sealed class AppState
     public List<RunLogEntry> RunLog { get; set; } = [];
     /// <summary>Tickets sent from this PC.</summary>
     public List<TicketRecord> Tickets { get; set; } = [];
+    /// <summary>Feathers, quests and medals (phase 1 of the growth plan). Local only.</summary>
+    public RewardsState Rewards { get; set; } = new();
 }
 
 /// <summary>What one group of lights shows.</summary>

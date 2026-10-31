@@ -44,6 +44,9 @@ public sealed class CommandQueue(List<ScheduledCommand> items)
     /// fired late: nobody wants the PC to shut down the moment they log in.</summary>
     public static readonly TimeSpan MissedAfter = TimeSpan.FromMinutes(2);
 
+    /// <summary>A command was put in the queue (the rewards count it).</summary>
+    public event Action<ScheduledCommand>? Added;
+
     public IReadOnlyList<ScheduledCommand> Items => items;
 
     public ScheduledCommand? Next => items.MinBy(c => c.DueAt);
@@ -52,6 +55,7 @@ public sealed class CommandQueue(List<ScheduledCommand> items)
     {
         var cmd = new ScheduledCommand { Action = action, DueAt = dueAt, RepeatDays = repeat?.Distinct().ToList() ?? [], Source = source };
         items.Add(cmd);
+        Added?.Invoke(cmd);
         return cmd;
     }
 

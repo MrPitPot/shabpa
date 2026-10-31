@@ -23,6 +23,9 @@ public enum CommandStatus
 /// <see cref="Summary"/> and only runs it after the person confirms.</summary>
 public sealed record AssistantCommand
 {
+    /// <summary>The language the person wrote this in (true = English); Bidar answers in it. Null = the app language.</summary>
+    public bool? ChatEnglish { get; init; }
+
     public CommandIntent Intent { get; init; }
     /// <summary>Power: what to do. Sleep mode: the action at the end (null = the one in the settings).</summary>
     public PowerAction? Action { get; init; }
@@ -364,7 +367,30 @@ public static class CommandParser
     };
 
     /// <summary>Reads one command. <paramref name="now"/> is the local time the command is read at.</summary>
+    private const string CalcChars = @"[\d\s\.\+\-\*/x×÷\(\)٫۰-۹٠-٩]+?";
+
+    private static readonly System.Text.RegularExpressions.Regex Calc = new(
+        @"^\s*(?:(?:حساب\s*کن|محاسبه(?:\s*کن)?|calc(?:ulate)?|what\s*is|what's|=)\s*:?\s*(?<e>" + CalcChars + @")|(?<e>" + CalcChars + @")\s*(?:حساب\s*کن|چنده|چند میشه|چند می‌شه|=))\s*[=؟?]?\s*$",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    /// <summary>Reads what the person typed. The reply language follows the language of the text (Persian in, Persian out;
+    /// English in, English out), whatever the app's own language is.</summary>
     public static CommandResult Parse(string? text, DateTime now)
+    {
+        var english = BidarJokes.IsEnglish(text);
+        using var _ = L.Scope(english);
+        if (text is not null && Calc.Match(text) is { Success: true } calc && Hub.CalcText(calc.Groups["e"].Value) is not null)
+            return new(CommandStatus.Ready, new AssistantCommand { Intent = CommandIntent.Info, Value = "calc:" + calc.Groups["e"].Value.Trim(), ChatEnglish = english }, [], "", 1);
+        var result = ParseCore(text, now);
+        if (english is null) return result;
+        return result with
+        {
+            Command = result.Command is null ? null : result.Command with { ChatEnglish = english },
+            Choices = result.Choices.Select(c => c with { ChatEnglish = english }).ToList(),
+        };
+    }
+
+    private static CommandResult ParseCore(string? text, DateTime now)
     {
         var tokens = CommandText.Tokenize(text);
         var norm = CommandText.Normalize(text);

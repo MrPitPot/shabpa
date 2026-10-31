@@ -20,6 +20,8 @@ public sealed partial class Hub
     private string _countdownOrigin = "";
 
     public Store Store { get; }
+    public RewardsEngine Rewards { get; private set; } = null!;
+    public NightManager Night { get; private set; } = null!;
     public AppState State => Store.State;
     public Settings Settings => State.Settings;
     public SensorHub Sensors { get; }
@@ -95,6 +97,8 @@ public sealed partial class Hub
             TasksChanged?.Invoke();
         };
         Focus.PhaseChanged += (_, _) => TasksChanged?.Invoke();
+        Night = new NightManager(this);
+        Rewards = new RewardsEngine(this);
         Sensors = new SensorHub(() => Settings);
         Traffic = new TrafficMeter(_resolver.Resolve);
         Ping = new PingMeter(() => Settings.PingHost);
@@ -262,6 +266,9 @@ public sealed partial class Hub
         if (!Demo && Settings.Comfort.PendingPowerPlan.Length > 0) RestorePowerPlan();
         _clock.Tick += (_, _) => OnSecond();
         _clock.Start();
+        if (!Demo) _ = Task.Delay(TimeSpan.FromSeconds(25)).ContinueWith(_ => Application.Current?.Dispatcher.BeginInvoke(Night.ReportGap));
+        if (Demo) Rewards.SeedDemo();
+        Rewards.Start();
         Bot.Restart();
 
         // The wake tasks point at this exe; re-registering keeps them valid if the app was moved.
@@ -310,6 +317,7 @@ public sealed partial class Hub
         var now = DateTime.Now;
         if (!Demo)
         {
+            Night.Tick(now);
             RunTasks(now);
             RunBackups(now);
             RunTriggers(now);
@@ -615,6 +623,7 @@ public sealed partial class Hub
     {
         var r = f.Record;
         var fps = r.Stat(GameMetric.Fps);
+        Rewards.GameFinished(f.Name, r.Seconds / 60.0, r.Start);
         State.GameHistory.Add(new GameLogEntry
         {
             Game = f.Name, Start = r.Start, Minutes = r.Seconds / 60.0, AvgFps = fps?.Avg ?? 0, MaxGpuTemp = r.Stat(GameMetric.GpuTemp)?.Max ?? 0,

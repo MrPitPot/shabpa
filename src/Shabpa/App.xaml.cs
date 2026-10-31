@@ -432,6 +432,14 @@ public partial class App : Application
         if (demo) hub.FillDemo();
         if (demo && args.Contains("--empty-games")) hub.GameLog.Seed([]); // test aid: the empty state of the Playtime page
         hub.Start();
+        hub.Rewards.MedalEarned += MedalToast.Show;
+        if (Value(e.Args, "--toast-test") is { } toastOut)
+        {
+            // test aid: draw the medal notice into a PNG and quit (no window is shown)
+            MedalToast.RenderPreview(RewardsCatalog.Find(Value(e.Args, "--medal") ?? "marathon")!, toastOut);
+            Shutdown();
+            return;
+        }
         // test aid: --demo-games writes fake sessions into the data folder, but only into a scratch one (SHABPA_DATA), never the real %AppData%
         if (!demo && args.Contains("--demo-games") && Environment.GetEnvironmentVariable("SHABPA_DATA") is { Length: > 0 }) hub.SeedGameLog(DateTime.Now, save: true);
 

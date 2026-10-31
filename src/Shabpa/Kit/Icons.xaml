@@ -46,4 +46,10 @@
     <StreamGeometry x:Key="I.hib" po:Freeze="True">M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9.5 4.5L12 6.5l2.5-2M9.5 19.5l2.5-2 2.5 2</StreamGeometry>
     <StreamGeometry x:Key="I.warn" po:Freeze="True">M12 4l9 16H3zM12 10v4M12 17.2v.1</StreamGeometry>
     <StreamGeometry x:Key="I.copy" po:Freeze="True">M9 9h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2zM15 9V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1</StreamGeometry>
+    <StreamGeometry x:Key="I.pad" po:Freeze="True">M7 8h10a4 4 0 0 1 4 4v2a3 3 0 0 1-5.2 2L14.5 15h-5l-1.3 1A3 3 0 0 1 3 14v-2a4 4 0 0 1 4-4zM8 10.5v3M6.5 12h3M16 11.5h.01M18 13h.01</StreamGeometry>
+    <StreamGeometry x:Key="I.medal" po:Freeze="True">M12 3l2.1 3.8 4.3.8-3 3.2.5 4.4L12 13l-3.9 2.2.5-4.4-3-3.2 4.3-.8zM8 16.5L6.5 21 12 18.7 17.5 21 16 16.5</StreamGeometry>
+    <StreamGeometry x:Key="I.share" po:Freeze="True">M4 13v6h16v-6M12 15V4M8 8l4-4 4 4</StreamGeometry>
+    <StreamGeometry x:Key="I.feather" po:Freeze="True">M20 4c-8 0-14 5-14 12v4M20 4c0 8-5 12-12 12M6 20L14 12</StreamGeometry>
+    <StreamGeometry x:Key="I.flame" po:Freeze="True">M12 21c-4 0-6.5-2.7-6.5-6 0-3 2-4.8 3.5-7 .5 1.5 1.5 2.3 2.5 2.5C11.5 7 13 4.5 14 3c1 3 4.5 5 4.5 9.5C18.5 18 16 21 12 21z</StreamGeometry>
+    <StreamGeometry x:Key="I.bag" po:Freeze="True">M6 8h12l-1 12H7zM9 8a3 3 0 0 1 6 0</StreamGeometry>
 </ResourceDictionary>

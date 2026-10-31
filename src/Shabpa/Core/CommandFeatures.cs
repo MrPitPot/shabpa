@@ -237,8 +237,28 @@ public static class CommandFeatures
             kind = "howareyou";
         else if (Any(padded, "کی هستی", "تو کی هستی", "اسمت چیه", "اسمت چی", "who are you", "what is your name", "what's your name", "your name"))
             kind = "who";
-        else if (Any(padded, "جوک", "بگو خنده", "شوخی", "joke", "tell me a joke", "make me laugh", "funny"))
+        else if (Any(padded, "جوک", "بگو خنده", "شوخی", "joke", "tell me a joke", "make me laugh", "funny", "یه خنده", "بخندون"))
             kind = "joke";
+        else if (Any(padded, "فکت", "چیز جالب", "اطلاعات جالب", "میدونستی", "fun fact", "interesting fact", "tell me a fact", "did you know", "random fact"))
+            kind = "fact";
+        else if (Any(padded, "یه نکته", "نکته بگو", "نکته ای", "نصیحت", "یه توصیه", "tip", "give me a tip", "any advice", "advice", "a tip"))
+            kind = "tip";
+        else if (Any(padded, "انگیزه", "روحیه بده", "دلگرمم کن", "دلم گرفته", "motivate me", "cheer me up", "encourage me", "i'm sad"))
+            kind = "pep";
+        else if (Any(padded, "هو هو", "هوهو", "hoot", "hoo hoo", "هوووو"))
+            kind = "hoot";
+        else if (Any(padded, "سطحم", "سطح من", "لول من", "مدالام", "مدالهام", "مدال هام", "مدالای من", "پرهام", "چند تا پر", "شب پیاپی", "امتیازم", "my level", "my medals", "my feathers", "my streak", "how many medals", "show my progress"))
+            kind = "medals";
+        else if (Any(padded, "کارای امروز", "کارهای امروز", "کار امروز", "چه کاری دارم", "چه کارایی دارم", "لیست کارها", "تسکام", "my tasks", "my to do", "what do i have today", "tasks today", "todo list"))
+            kind = "tasks";
+        else if (Any(padded, "چند وقته روشنه", "چند ساعته روشنه", "آپتایم", "uptime", "how long has my pc been on", "how long on"))
+            kind = "uptime";
+        else if (Any(padded, "فضای دیسک", "فضای خالی", "چقدر جا دارم", "هارد چقدر", "disk space", "free space", "storage left", "how much space"))
+            kind = "disk";
+        else if (Any(padded, "شیر یا خط", "سکه بنداز", "flip a coin", "coin flip", "heads or tails"))
+            kind = "coin";
+        else if (Any(padded, "تاس بنداز", "تاس", "roll a dice", "roll a die", "roll the dice", "dice"))
+            kind = "dice";
         else if (Any(padded, "نسخه برنامه", "نسخه ی برنامه", "نسخه شب پا", "چه نسخه", "ورژن", "version", "which version", "what version", "about shabpa") && !Any(padded, "جدید", "new", "latest", "update", "آپدیت", "به روز*"))
             kind = "version";
         return kind is null ? null : Ready(new AssistantCommand { Intent = CommandIntent.Info, Value = kind });
@@ -277,7 +297,9 @@ public static class CommandFeatures
             "• Overlay: “overlay on”, “overlay only in game”, “overlay bar”, “overlay size 120%”",
             "• Theme: “theme halloween”, “dark mode”, “light mode”",
             "• PC: “free ram”, “game mode on”, “cpu temp?”, “ram usage?”, “my ping?”, “system status”",
-            "• Anything else: “what time is it?”, “tell me a joke”")
+            "• Fun and facts: “tell me a joke”, “tell me a fact”, “give me a tip”, “cheer me up”, “calc 12*3”, “flip a coin”, “roll a dice”",
+            "• About you: “my level”, “my tasks”, “how long has my PC been on?”, “disk space”",
+            "• Anything else: “what time is it?”")
         : string.Join("\n", "• برق: «یه ساعت دیگه خاموش کن»، «ساعت ۲:۳۰ بخوابون»، «ده دقیقه دیگه ری‌استارت»، «لغو»",
             "• شرطی: «وقتی دانلود تموم شد خاموش کن»، «وقتی استیم بسته شد»، «اگه ۲۰ دقیقه بیکار بودم»",
             "• یادآوری و تمرکز: «ساعت ۵ یادم بنداز به مامان زنگ بزنم»، «۲۵ دقیقه تمرکز»",
@@ -286,5 +308,7 @@ public static class CommandFeatures
             "• اورلی: «اورلی رو روشن کن»، «اورلی فقط موقع بازی»، «اورلی نوار»، «اورلی اندازه ۱۲۰٪»",
             "• تم: «تم هالووین»، «حالت تاریک»، «حالت روشن»",
             "• سیستم: «رم رو خالی کن»، «حالت بازی روشن»، «دمای پردازنده چنده؟»، «مصرف رم؟»، «پینگم؟»، «وضعیت سیستم»",
-            "• بقیه: «ساعت چنده؟»، «یه جوک بگو»");
+            "• سرگرمی و اطلاعات: «یه جوک بگو»، «یه فکت بگو»، «یه نکته بگو»، «روحیه بده»، «۱۲*۳ حساب کن»، «شیر یا خط»، «تاس بنداز»",
+            "• خودت: «سطحم چنده؟»، «کارای امروزم»، «سیستم چند وقته روشنه؟»، «فضای دیسک»",
+            "• بقیه: «ساعت چنده؟»");
 }

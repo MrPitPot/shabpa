@@ -42,6 +42,7 @@ public static class SettingsBackup
         s.Support.DeviceId = "";
         s.Support.AdminKeyProtected = "";
         s.WindowPlacement = "";
+        s.Overnight = new(); // the wake task, plans and commands of the night window exist only on this PC
         s.Birthday = new(); // a name and a birthday are personal: a shared settings file does not carry them
     }
 
@@ -94,6 +95,7 @@ public static class SettingsBackup
         incoming.Support.DeviceId = keep.Support.DeviceId;
         incoming.Support.AdminKeyProtected = keep.Support.AdminKeyProtected;
         incoming.WindowPlacement = keep.WindowPlacement;
+        incoming.Overnight = keep.Overnight;
         incoming.Birthday = keep.Birthday;
         // values that would be unsafe or senseless are brought back into range
         incoming.CountdownSeconds = Math.Clamp(incoming.CountdownSeconds, 5, 600);

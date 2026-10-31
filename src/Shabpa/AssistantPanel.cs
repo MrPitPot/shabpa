@@ -86,6 +86,7 @@ public sealed class AssistantPanel : StackPanel
     {
         var text = _input.Text;
         if (string.IsNullOrWhiteSpace(text)) return;
+        using var chat = L.Scope(BidarJokes.IsEnglish(text)); // the card and the answer are in the language the person writes in
         var result = CommandParser.Parse(text, DateTime.Now);
         Log.Write($"assistant parse: {result.Status} {result.Command?.Intent} conf={result.Confidence:0.00}"); // never the text itself: it can be personal
         _result.Children.Clear();
@@ -118,6 +119,7 @@ public sealed class AssistantPanel : StackPanel
     /// <summary>The confirmation card: the exact time in words, then a confirm button. Power actions use the danger style.</summary>
     private void Confirm(AssistantCommand command)
     {
+        using var chat = L.Scope(command.ChatEnglish);
         Mood?.Invoke(BidarMood.Think);
         _result.Children.Clear();
         var now = DateTime.Now;
@@ -140,6 +142,7 @@ public sealed class AssistantPanel : StackPanel
 
     private void Run(AssistantCommand command)
     {
+        using var chat = L.Scope(command.ChatEnglish);
         var reply = Hub.I.RunAssistant(command, "box");
         _result.Children.Clear();
         Mood?.Invoke(reply.Ok ? BidarMood.Happy : BidarMood.Worried);

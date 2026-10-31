@@ -40,7 +40,9 @@ public sealed partial class Hub
     /// a condition becomes the active rule. Returns what happened, in the current language.</summary>
     public RemoteReply RunAssistant(AssistantCommand command, string origin)
     {
+        using var _ = L.Scope(command.ChatEnglish); // the answer is in the language the person wrote in
         var now = DateTime.Now;
+        if (origin is "box" or "bot") Rewards.BidarSpoke();
         Log.Write($"assistant {origin}: {command.Intent} {command.Action} at={command.At:yyyy-MM-dd HH:mm} rule={command.Condition?.Kind}");
         // a card that waited on screen past its own time must not run late
         if (command.At is { } late && late <= now && command.Intent is CommandIntent.Power or CommandIntent.Reminder && command.Repeat.Count == 0)
@@ -272,13 +274,48 @@ public sealed partial class Hub
             case "thanks": return L.T("قابل نداشت! 🦉", "You are welcome! 🦉");
             case "howareyou": return L.T("من بیدارم و سرحالم 🦉 تو چطوری؟", "Wide awake and happy 🦉 and you?");
             case "who": return L.T("من بیدارم، جغد شب‌پا 🦉 کارم اینه که سیستمت رو سر وقت خاموش کنم و هر کاری از شب‌پا رو برات انجام بدم. «چه کارایی بلدی» رو بنویس.", "I am Bidar, Shabpa's owl 🦉 I switch your PC off on time and do anything Shabpa can do for you. Type “what can you do”.");
-            case "joke": return Jokes[(now.Minute + now.Second) % Jokes.Length];
+            case "joke": return BidarJokes.Joke(L.En);
+            case "fact": return BidarJokes.Fact(L.En);
+            case "tip": return BidarJokes.Tip(L.En);
+            case "pep": return BidarJokes.Pep(L.En);
+            case "hoot": return BidarJokes.Hoot(L.En);
+            case "coin": return Random.Shared.Next(2) == 0 ? L.T("شیر 🪙", "Heads 🪙") : L.T("خط 🪙", "Tails 🪙");
+            case "dice": return L.T($"تاس: {Fa.Digits((Random.Shared.Next(6) + 1).ToString())} 🎲", $"Dice: {Random.Shared.Next(6) + 1} 🎲");
+            case "uptime": return L.T($"سیستم {Fa.Duration(TimeSpan.FromMilliseconds(Environment.TickCount64))} روشنه.", $"The PC has been on for {Fa.Duration(TimeSpan.FromMilliseconds(Environment.TickCount64))}.");
+            case "disk":
+            {
+                try
+                {
+                    var root = System.IO.Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\";
+                    var d = new System.IO.DriveInfo(root);
+                    return L.T($"روی {root.TrimEnd('\\')} {Fa.Bytes(d.AvailableFreeSpace)} خالی مونده از {Fa.Bytes(d.TotalSize)}.", $"{Fa.Bytes(d.AvailableFreeSpace)} free of {Fa.Bytes(d.TotalSize)} on {root.TrimEnd('\\')}.");
+                }
+                catch { return L.T("فضای دیسک رو نتونستم بخونم.", "I could not read the disk space."); }
+            }
+            case "tasks":
+            {
+                var open = State.Tasks.Where(t => !t.Done).OrderBy(t => t.Due ?? DateTime.MaxValue).ToList();
+                if (open.Count == 0) return L.T("هیچ کار بازی نداری؛ آفرین! 🎉", "You have no open tasks; well done! 🎉");
+                var today = open.Count(t => t.Due?.Date == now.Date);
+                var lines = open.Take(4).Select(t => "• " + t.Title + (t.Due is { } due ? $" ({Fa.Clock(due)})" : ""));
+                return L.T($"{Fa.N(open.Count)} کار باز داری ({Fa.N(today)} تاش برای امروزه):", $"You have {open.Count} open tasks ({today} due today):") + "\n" + string.Join("\n", lines);
+            }
+            case "medals":
+            {
+                var r = Rewards;
+                var lv = r.Level;
+                var next = r.NextLevel;
+                return L.T($"سطح {Fa.N(lv.Level)} «{lv.Name}» · {Fa.N(r.State.Feathers)} پَر · {Fa.N(r.Streak)} شب پیاپی · {Fa.N(r.State.Medals.Count)} مدال.", $"Level {lv.Level} “{lv.Name}” · {r.State.Feathers} feathers · {r.Streak}-night streak · {r.State.Medals.Count} medals.")
+                    + (next is null ? "" : L.T($" تا سطح بعد {Fa.N(next.From - r.State.TotalFeathers)} پَر مونده.", $" {next.From - r.State.TotalFeathers} feathers to the next level."));
+            }
+            case var calcKind when calcKind.StartsWith("calc:"):
+                return CalcText(calcKind[5..]) is { } answer ? $"{calcKind[5..].Trim()} = {Fa.Digits(answer)}" : L.T("این رو نتونستم حساب کنم.", "I could not work that out.");
             case "version": return L.T($"نسخه‌ی شب‌پا {Updater.Current.ToString(3)} ـه.", $"Shabpa version {Updater.Current.ToString(3)}.");
             default: return L.T("نمی‌دونم چی بگم.", "I do not know what to say.");
         }
     }
 
-    private static readonly string[] Jokes =
+    private static readonly string[] OldJokes =
     [
         "چرا کامپیوتر سرما نمی‌خوره؟ چون همیشه ویندوزش بازه! 🪟",
         "Why do programmers prefer dark mode? Because light attracts bugs. 🐛",
@@ -301,6 +338,20 @@ public sealed partial class Hub
     }
     private static RemoteReply Reply(bool ok, string text) => new(ok, text, text);
 
+    /// <summary>The value of a plain arithmetic expression («۱۲*3+4»), or null if it is not one. Only digits and + - * / x ÷ ( ) are read; nothing is run.</summary>
+    internal static string? CalcText(string expression)
+    {
+        var e = new string(expression.Select(ch => ch is >= '۰' and <= '۹' ? (char)('0' + (ch - '۰')) : ch is >= '٠' and <= '٩' ? (char)('0' + (ch - '٠')) : ch).ToArray()).Replace('×', '*').Replace('x', '*').Replace('X', '*').Replace('÷', '/').Replace('٫', '.').Trim();
+        if (e.Length == 0 || e.Length > 60 || !e.Any(char.IsDigit) || e.Any(ch => !(char.IsDigit(ch) || " .+-*/()".Contains(ch)))) return null;
+        try
+        {
+            var value = Convert.ToDouble(new System.Data.DataTable().Compute(e, null), System.Globalization.CultureInfo.InvariantCulture);
+            if (double.IsNaN(value) || double.IsInfinity(value)) return null;
+            return Math.Round(value, 6).ToString("0.######", System.Globalization.CultureInfo.InvariantCulture);
+        }
+        catch { return null; }
+    }
+
     /// <summary>Everything that is waiting: queued commands, the conditional rule, wake timers and sleep mode.</summary>
     public string ScheduleText(DateTime now)
     {
@@ -321,6 +372,7 @@ public sealed partial class Hub
     /// (power still shows its on-screen countdown); anything unclear is answered with the choices, and nothing runs.</summary>
     internal RemoteReply ExecuteText(string text)
     {
+        using var _ = L.Scope(BidarJokes.IsEnglish(text));
         var now = DateTime.Now;
         var result = CommandParser.Parse(text, now);
         // a guessed time (the person gave no clock) never runs unseen: there is no card to confirm it on here

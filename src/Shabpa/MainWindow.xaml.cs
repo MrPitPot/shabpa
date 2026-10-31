@@ -39,7 +39,7 @@ public partial class MainWindow : Window
 
     /// <summary>Every screen worth a screenshot, including the tabs inside «کنترل سیستم».</summary>
     public IEnumerable<string> CaptureKeys =>
-        ["home", .. SystemPage.TabKeys.Select(t => $"system:{t}"), .. NetworkPage.TabKeys.Select(t => $"ping:{t}"), "gaming", "playtime", "playtime:eldenring", "weather", "dns", "download", "comfort", "tasks", .. TasksPage.TabKeys.Select(t => $"tasks:{t}"), "files", .. FilesPage.TabKeys.Select(t => $"files:{t}"), "health", .. HealthPage.TabKeys.Select(t => $"health:{t}"), "profiles", .. ProfilesPage.TabKeys.Select(t => $"profiles:{t}"), "mic", "support", "update", "settings", "kit"];
+        ["home", .. SystemPage.TabKeys.Select(t => $"system:{t}"), .. NetworkPage.TabKeys.Select(t => $"ping:{t}"), "gaming", "playtime", "playtime:eldenring", "weather", "dns", "night", "download", "comfort", "rewards", "tasks", .. TasksPage.TabKeys.Select(t => $"tasks:{t}"), "files", .. FilesPage.TabKeys.Select(t => $"files:{t}"), "health", .. HealthPage.TabKeys.Select(t => $"health:{t}"), "profiles", .. ProfilesPage.TabKeys.Select(t => $"profiles:{t}"), "mic", "support", "update", "settings", "kit"];
 
     public FrameworkElement CaptureRoot => Root;
 
@@ -88,6 +88,8 @@ public partial class MainWindow : Window
             ["files"] = (NavFiles, () => new FilesPage()),
             ["health"] = (NavHealth, () => new HealthPage()),
             ["tasks"] = (NavTasks, () => new TasksPage()),
+            ["rewards"] = (NavRewards, () => new RewardsPage()),
+            ["night"] = (NavNight, () => new NightPage()),
             ["mic"] = (NavMic, () => new MicrophonePage()),
             ["weather"] = (NavWeather, () => new WeatherPage()),
             ["support"] = (NavSupport, () => new SupportPage()),
@@ -96,6 +98,7 @@ public partial class MainWindow : Window
             ["kit"] = (NavKit, () => new KitPage()),
         };
 
+        RewardsEngine.PageCount = _pages.Count - 1; // every page but the hidden design kit
         var hub = Hub.I;
         DryRunPill.Visibility = hub.DryRun ? Visibility.Visible : Visibility.Collapsed;
         // Nobody sees a hidden window, so it is not redrawn every second; showing it again refreshes everything.
@@ -378,6 +381,7 @@ public partial class MainWindow : Window
     {
         var previous = _current;
         _current = page;
+        Hub.I.Rewards.Visit(key);
         RunMarker.Note($"page {key}");
         _tour?.PageOpened(key);
         PlacePill(true);
