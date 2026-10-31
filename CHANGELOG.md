@@ -4,24 +4,17 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
-## [3.13.1] - 2026-10-31
-
-### Removed
-- The **«شب و قطعی برق» / "Night & power cuts" page** shipped in 3.13.0 is taken out again; it is not ready. If you had turned anything on there, the update removes exactly what that page had set up (its wake-up, its download plans and its queued commands) and nothing of yours.
-- Two medals that depended on that page («اینترنت شبانه», «آماده‌باش»); there are 82 medals now. Medals already earned stay earned.
-
 ## [3.13.0] - 2026-10-31
 
 ### Added
 - **Medals, feathers and levels** (new page «مدال‌ها و مأموریت‌ها» / "Medals & quests"). Everything you do with Shabpa earns feathers and medals and makes Bidar grow
   through 100 levels. There is no daily cap, but every level costs more than the one before (level 10 is about a month of ordinary use, level 100 a goal for years).
   All of it is counted and kept on this PC only; nothing is sent anywhere.
-  - 84 medals in tiers from bronze through silver, gold, platinum and diamond to legendary (the top rungs take years), plus 8 hidden ones (true owl, midnight, birthday, Halloween, early bird, Nowruz, Yalda...).
+  - 82 medals in tiers from bronze through silver, gold, platinum and diamond to legendary (the top rungs take years), plus 8 hidden ones (true owl, midnight, birthday, Halloween, early bird, Nowruz, Yalda...).
   - Daily, weekly and one-time quests, and a night streak (7 nights in a row pays a bonus).
   - A small notice above the taskbar when a medal is earned (it never takes focus and waits while game mode is quiet).
   - A medal becomes a **story picture** (1080×1920) in one of 10 designs you choose from (spotlight, collector card, Bidar's cheer, minimal poster, constellation, month in review, Persian tile, arcade, screen photo, certificate); the text is in the app's language only. Nothing is sent anywhere.
   - A «فروشگاه / Shop» tab that says "coming soon".
-- **Night & power cuts** page: a daily night-internet window (wake the PC, open the launcher and resume the download, sleep at the end) and power-cut standby (warning 10 minutes before, hibernate 2 minutes before, a notice with the time the PC was off). Both go through the usual confirmation and cancellable countdown.
 - **Bidar answers in the language you write in** (Persian in, Persian out; English in, English out), whatever the app's language is.
 - **Bidar is funnier and can do more**: about 60 new jokes without repeats, true facts, tips, a pep talk, a calculator («۱۲*۳ حساب کن», "calc 12*3"), coin and dice, and answers about your level, today's tasks, uptime and disk space. The «what can you do» list is updated.
 
@@ -29,7 +22,7 @@ a patch release only fixes bugs, a minor release adds a tested batch of features
 - The tour's game-tuning step no longer flickers: the tour used to re-open the page on every tick because the step names a tab inside it.
 
 ### Notes
-- New settings data (`Rewards`, `Overnight`) are additive; older files load unchanged. The night-window settings belong to this PC and are left out of an exported settings file.
+- The new settings data (`Rewards`) is additive; older files load unchanged.
 
 ## [3.12.1] - 2026-10-31
 
