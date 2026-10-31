@@ -42,6 +42,9 @@ public sealed class RewardsState
     public int LastLevel { get; set; } = 1;
     /// <summary>The longest run of days in a row with real use (kept, because the daily list is trimmed).</summary>
     public int BestStreak { get; set; }
+    /// <summary>Boofi's wardrobe: the parts bought with feathers (the free fur is always owned) and what is worn now (slot → part id).</summary>
+    public List<string> Owned { get; set; } = [];
+    public Dictionary<string, string> Worn { get; set; } = [];
 }
 
 public sealed record RewardsContext(RewardsState R, AppState S, DateTime Now, int AllPages)
@@ -285,8 +288,7 @@ public static class RewardsCatalog
 
     private static double Yes(bool b) => b ? 1 : 0;
 
-    // 22 one-time quests that walk a new person through the app (207 feathers). Two more (change Boofi's look in «بوفی من», buy a first
-    // store item, 20 feathers) join when the store ships; see FutureOnce.
+    // 24 one-time quests that walk a new person through the app (227 feathers), the last two through Boofi's wardrobe.
     private static readonly QuestDef[] OncePool =
     [
         O("o.tour", "تور آشنایی رو تا آخر برو", "Finish the intro tour", 5, 1, c => Yes(c.R.TourDone)),
@@ -311,12 +313,7 @@ public static class RewardsCatalog
         O("o.chat", "با بوفی ۱۰ بار حرف بزن", "Talk to Boofi 10 times", 10, 10, c => c.Counter("bidar")),
         O("o.share", "یه مدال رو به‌صورت تصویر بساز", "Make an image of a medal", 8, 1, c => Yes(c.Counter("shared") > 0)),
         O("o.days3", "شبپا رو در ۳ روز مختلف باز کن", "Open Shabpa on 3 different days", 15, 3, c => c.R.Days.Count),
-    ];
-
-    /// <summary>Waiting for the store: not shown or paid yet.</summary>
-    public static readonly IReadOnlyList<QuestDef> FutureOnce =
-    [
-        O("o.wardrobe", "در «بوفی من» کلاه، عینک و رنگ پر رو یک بار عوض کن", "Change Boofi's hat, glasses and fur once", 10, 3, c => c.Counter("wardrobe")),
+        O("o.wardrobe", "در «بوفی من» ۳ بار چیزی تنش کن یا رنگ پرش رو عوض کن", "Change Boofi's look three times in «My Boofi»", 10, 3, c => c.Counter("wardrobe")),
         O("o.firstbuy", "اولین قطعه‌ی فروشگاه رو بخر", "Buy your first store item", 10, 1, c => c.Counter("storeBuy")),
     ];
 
@@ -377,6 +374,33 @@ public sealed class RewardsEngine
     }
 
     public RewardsState State => _hub.State.Rewards;
+
+    public bool Owns(string id) => BoofiCatalog.Find(id) is { } p && (p.Free || State.Owned.Contains(id));
+
+    public enum BuyResult { Ok, Unknown, AlreadyOwned, NotEnough }
+
+    /// <summary>Spends feathers on a part. Total feathers (the level) do not go down.</summary>
+    public BuyResult Buy(string id)
+    {
+        if (BoofiCatalog.Find(id) is not { } p) return BuyResult.Unknown;
+        if (Owns(id)) return BuyResult.AlreadyOwned;
+        if (State.Feathers < p.Price) return BuyResult.NotEnough;
+        State.Feathers -= p.Price;
+        State.Owned.Add(id);
+        Count("storeBuy");
+        return BuyResult.Ok;
+    }
+
+    /// <summary>Wears an owned part, or takes the slot's part off (id = null; the fur goes back to the free one).</summary>
+    public bool Wear(string slot, string? id)
+    {
+        if (id is not null && (!Owns(id) || BoofiCatalog.Find(id)?.Slot != slot)) return false;
+        if (id is null || (slot == "fur" && id == BoofiCatalog.DefaultFur)) { if (!State.Worn.Remove(slot)) return true; }
+        else if (State.Worn.GetValueOrDefault(slot) == id) return true;
+        else State.Worn[slot] = id;
+        Count("wardrobe");
+        return true;
+    }
 
     /// <summary>Takes in progress merged from the cloud copy (see <see cref="RewardsMerge"/>).</summary>
     public void Adopt(RewardsState merged)

@@ -21,6 +21,8 @@ public sealed class RewardsPage : PageBase
     private readonly StackPanel _root = new();
     private readonly StackPanel _hero = new(), _quests = new(), _cloud = new();
     private FrameworkElement _cloudCard = new();
+    private BoofiStoreView? _storeView;
+    private BoofiWardrobeView? _wardView;
     private CancellationTokenSource? _loginCts;
     private readonly WrapPanel _medals = new() { Margin = new Thickness(-6, 8, -6, 0) };
     private readonly StackPanel _filterHost = new();
@@ -63,25 +65,20 @@ public sealed class RewardsPage : PageBase
 
         _root.Children.Add(mCard);
 
-        var (shopCard, shop) = K.Card(null, null);
-        shopCard.Padding = new Thickness(30, 44, 30, 44);
-        shop.HorizontalAlignment = HorizontalAlignment.Center;
-        shop.Children.Add(new IconBadge("bag", "HueC", 72, 36, 22) { HorizontalAlignment = HorizontalAlignment.Center });
-        shop.Children.Add(new TextBlock { Text = L.T("فروشگاه پَر", "Feather shop"), Style = St("H1"), FontSize = 24, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 18, 0, 0) });
-        shop.Children.Add(new TextBlock { Text = L.T("به‌زودی...", "Coming soon..."), Style = St("H2"), FontSize = 18, Foreground = Res("Gold"), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 8, 0, 0) });
-        shop.Children.Add(new TextBlock
-        {
-            Text = L.T("پَرهایی که جمع می‌کنی اینجا خرج می‌شن: کلاه و لباس برای بوفی، تم‌ها و طرح‌های تازه‌ی اورلی. فعلاً فقط جمعشون کن.",
-                "The feathers you collect will be spent here: hats and outfits for Boofi, new themes and overlay looks. For now, just keep collecting."),
-            Style = St("Body"), TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, MaxWidth = 440, Margin = new Thickness(0, 12, 0, 0),
-        });
-        shop.Children.Add(new TextBlock
-        {
-            Text = L.T($"الان {Fa.N(Hub.Rewards.State.Feathers)} پَر داری.", $"You have {Hub.Rewards.State.Feathers} feathers."), Style = St("Label"), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 14, 0, 0),
-        });
+        // the feather store and Boofi's wardrobe
+        var (shopCard, shopBody) = K.Card(L.T("فروشگاه پَر", "Feather shop"),
+            L.T("با پَرهایی که جمع کردی برای بوفی کلاه، عینک، ساعت، فانوس و رنگ پر بخر. خرج کردن سطحت رو پایین نمی‌آره.",
+                "Spend your feathers on hats, glasses, watches, lanterns and fur colours for Boofi. Spending never lowers your level."));
+        _storeView = new BoofiStoreView(Hub);
+        shopBody.Children.Add(_storeView);
         shopCard.Visibility = Visibility.Collapsed;
         _root.Children.Add(shopCard);
-        _shopFeathers = (TextBlock)shop.Children[^1];
+        var (wardCard, wardBody) = K.Card(L.T("بوفی من", "My Boofi"),
+            L.T("هر چی خریدی رو اینجا تنش کن یا دربیار. هر تغییر خودکار ذخیره می‌شه.", "Put on or take off whatever you bought. Every change is saved by itself."));
+        _wardView = new BoofiWardrobeView(Hub);
+        wardBody.Children.Add(_wardView);
+        wardCard.Visibility = Visibility.Collapsed;
+        _root.Children.Add(wardCard);
 
         // the optional cloud account; hidden until the server address is set
         var (cloudCard, cloudBody) = K.Card(L.T("ذخیره‌ی ابری (اختیاری)", "Cloud save (optional)"),
@@ -95,18 +92,20 @@ public sealed class RewardsPage : PageBase
         Hub.Account.Changed += () => Dispatcher.BeginInvoke(() => { if (IsVisible) BuildCloud(); });
 
         var cabinet = new FrameworkElement[] { heroCard, cloudCard, qCard, mCard };
-        void ShowTab(bool shopTab)
+        void ShowTab(int tab)
         {
-            foreach (var c in cabinet) c.Visibility = shopTab ? Visibility.Collapsed : Visibility.Visible;
-            shopCard.Visibility = shopTab ? Visibility.Visible : Visibility.Collapsed;
-            if (shopTab) Motion.Pop(shopCard);
+            foreach (var c in cabinet) c.Visibility = tab == 0 ? Visibility.Visible : Visibility.Collapsed;
+            shopCard.Visibility = tab == 1 ? Visibility.Visible : Visibility.Collapsed;
+            wardCard.Visibility = tab == 2 ? Visibility.Visible : Visibility.Collapsed;
+            if (tab == 1) { _storeView?.Refresh(); Motion.Pop(shopCard); }
+            if (tab == 2) { _wardView?.Refresh(); Motion.Pop(wardCard); }
         }
-        Chips(tabs, new[] { (false, L.T("مدال‌ها و مأموریت‌ها", "Medals & quests")), (true, L.T("فروشگاه", "Shop")) }, false, ShowTab);
+        Chips(tabs, new[] { (0, L.T("مدال‌ها و مأموریت‌ها", "Medals & quests")), (1, L.T("فروشگاه", "Shop")), (2, L.T("بوفی من", "My Boofi")) }, 0, ShowTab);
 
         // test aid (screenshots of the medal grid on a short window): SHABPA_RW_ONLY=medals hides the two cards above it
         if (Environment.GetEnvironmentVariable("SHABPA_RW_ONLY") == "medals") { heroCard.Visibility = Visibility.Collapsed; qCard.Visibility = Visibility.Collapsed; }
 
-        Hub.Rewards.Changed += () => Dispatcher.BeginInvoke(() => { if (IsVisible) Refresh(); });
+        Hub.Rewards.Changed += () => Dispatcher.BeginInvoke(() => { if (IsVisible) { Refresh(); if (_storeView?.IsVisible == true) _storeView.Refresh(); if (_wardView?.IsVisible == true) _wardView.Refresh(); } });
     }
 
     // ---- drawing -----------------------------------------------------------------------------------------------

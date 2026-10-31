@@ -178,8 +178,8 @@ public class RewardsTests
     [Fact]
     public void The_quest_tables_match_the_economy_plan()
     {
-        Assert.Equal(22, RewardsCatalog.Once.Count);
-        Assert.Equal(207, RewardsCatalog.Once.Sum(q => q.Reward));
+        Assert.Equal(24, RewardsCatalog.Once.Count);
+        Assert.Equal(227, RewardsCatalog.Once.Sum(q => q.Reward));
         Assert.Equal(4, RewardsCatalog.DailyBonus);
         Assert.Equal(15, RewardsCatalog.WeeklyBonus);
         Assert.All(RewardsCatalog.Once, q => Assert.Equal(q.Id, RewardsCatalog.ClaimKey(q, DateTime.Now))); // one-time quests are paid once, ever

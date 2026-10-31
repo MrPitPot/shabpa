@@ -49,6 +49,12 @@ public static class RewardsMerge
         m.Pages = [.. a.Pages.Union(b.Pages)];
         m.Games = [.. a.Games.Union(b.Games).Take(60)];
         m.Claimed = [.. a.Claimed.Union(b.Claimed)];   // never forget a payment
+        // the wardrobe: parts bought on either copy are kept; the other copy's purchases are paid from the base copy's feathers
+        m.Owned = [.. a.Owned.Union(b.Owned)];
+        m.Worn = new(a.Worn);
+        foreach (var (slot, id) in b.Worn) m.Worn.TryAdd(slot, id);
+        var extra = b.Owned.Except(a.Owned).Sum(id => BoofiCatalog.Find(id)?.Price ?? 0);
+        m.Feathers = Math.Max(0, m.Feathers - extra);
         m.DoneTasks = [.. a.DoneTasks.Union(b.DoneTasks).TakeLast(400)];
         m.Active = Max(a.Active, b.Active);
         m.Counters = Max(a.Counters, b.Counters);
@@ -73,7 +79,7 @@ public static class RewardsMerge
         && a.NightOwl == b.NightOwl && a.LongestGameMinutes == b.LongestGameMinutes && a.LastLevel == b.LastLevel && a.BestStreak == b.BestStreak
         && a.DayKey == b.DayKey && a.WeekKey == b.WeekKey
         && SameMap(a.Medals, b.Medals) && SameMap(a.Active, b.Active) && SameMap(a.Counters, b.Counters) && SameMap(a.DayCounters, b.DayCounters) && SameMap(a.WeekCounters, b.WeekCounters)
-        && SameSet(a.Days, b.Days) && SameSet(a.Pages, b.Pages) && SameSet(a.Games, b.Games) && SameSet(a.Claimed, b.Claimed) && SameSet(a.DoneTasks, b.DoneTasks) && SameSet(a.DayPages, b.DayPages);
+        && SameSet(a.Owned, b.Owned) && SameMap(a.Worn, b.Worn) && SameSet(a.Days, b.Days) && SameSet(a.Pages, b.Pages) && SameSet(a.Games, b.Games) && SameSet(a.Claimed, b.Claimed) && SameSet(a.DoneTasks, b.DoneTasks) && SameSet(a.DayPages, b.DayPages);
 
     private static bool SameSet(List<string> x, List<string> y) => x.Count == y.Count && !x.Except(y).Any();
     private static bool SameMap<T>(Dictionary<string, T> x, Dictionary<string, T> y) where T : IEquatable<T> =>
