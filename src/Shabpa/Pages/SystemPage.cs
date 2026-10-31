@@ -6,7 +6,7 @@ namespace Shabpa.Pages;
 /// strip is the design's segmented control with one sliding thumb and the header shows the open tab's subtitle and accessory.</summary>
 public sealed class SystemPage : TabsPage
 {
-    public static readonly string[] TabKeys = ["power", "rules", "energy", "history", "wake", "memory", "tune", "remote"];
+    public static readonly string[] TabKeys = ["power", "rules", "energy", "history", "wake", "memory", "tune", "remote", "outage"];
 
     public override string PageTitle => L.T("کنترل سیستم", "System control");
 
@@ -20,5 +20,6 @@ public sealed class SystemPage : TabsPage
         Add("memory", L.T("حافظه", "Memory"), new MemoryPage());
         Add("tune", L.T("بهینه‌سازی بازی", "Game tuning"), new GameTunePage());
         Add("remote", L.T("تلگرام", "Telegram"), new RemotePage());
+        Add("outage", L.T("قطعی برق", "Power cut"), new OutagePage());
     }
 }

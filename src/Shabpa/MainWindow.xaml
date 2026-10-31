@@ -134,6 +134,7 @@
                             <TextBlock Text="{s:Tr 'برنامه', 'App'}" Style="{StaticResource NavGroup}"/>
                             <RadioButton Style="{StaticResource Nav}" Tag="life" Content="{s:Tr 'پشتیبانی', 'Support'}" x:Name="NavSupport" Checked="OnNav"/>
                             <RadioButton Style="{StaticResource Nav}" Tag="refresh" Content="{s:Tr 'به‌روزرسانی', 'Updates'}" x:Name="NavUpdate" Checked="OnNav"/>
+                            <RadioButton Style="{StaticResource Nav}" Tag="game" Content="{s:Tr 'مأموریت‌ها و پَر', 'Quests &amp; feathers'}" x:Name="NavQuests" Checked="OnNav"/>
                             <RadioButton Style="{StaticResource Nav}" Tag="set" Content="{s:Tr 'تنظیمات', 'Settings'}" x:Name="NavSettings" Checked="OnNav"/>
                             <RadioButton Style="{StaticResource Nav}" Tag="brush" Content="Design kit" x:Name="NavKit" Checked="OnNav" Visibility="Collapsed"/>
                         </StackPanel>

@@ -166,6 +166,14 @@ public sealed class Settings
     public bool ShowAssistantDock { get; set; } = true;
     /// <summary>Bidar lives on his own: breathes, blinks, looks about, dozes, reacts to the app and sometimes flies to another free corner.</summary>
     public bool BidarIdleLife { get; set; } = true;
+    /// <summary>The power-cut guard: the schedule of expected cuts, typed in by hand, and what to do before one.</summary>
+    public OutageSettings Outage { get; set; } = new();
+    /// <summary>The hours of the night internet window (usage is split by them) and the morning report.</summary>
+    public NightSettings OffPeak { get; set; } = new();
+    /// <summary>The person says they support Shabpa (honour system, nothing is checked): the golden cap for Bidar. Looks only.</summary>
+    public bool Supporter { get; set; }
+    /// <summary>Feathers, daily quests and levels are off: nothing is counted and the page is hidden.</summary>
+    public bool QuestsOff { get; set; }
 }
 
 public sealed class AppState

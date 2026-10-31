@@ -470,6 +470,7 @@ public sealed class DnsPage : PageBase
             NetFx.Spin(_test, false);
             DrawRows(_sortByPing);
             var ok = _ping.Values.Count(v => v is not null);
+            if (!Hub.Demo && ok >= 3 && !_intercepted) Hub.Earn(QuestEvent.DnsTested); // a test behind a VPN that answers everything proves nothing
             StatusText = L.T($"{Fa.Digits(ok.ToString())} دی‌ان‌اس پاسخ داد.", $"{ok} servers answered.")
                 + (_intercepted ? L.T(" ⚠ فیلترشکن، پروکسی یا مودم تو همه‌ی درخواست‌های DNS رو خودش جواب می‌ده (حتی به آدرسی که اصلاً وجود نداره)، برای همین این عددها پینگ واقعی هر سرور نیستن و فقط تا همون واسطه رو نشون می‌دن. برای مقایسه‌ی درست، فیلترشکن یا حالت TUN رو موقتاً خاموش کن و دوباره تست کن.", " ⚠ A VPN, proxy or router answers every DNS question itself (even one sent to an address that does not exist), so these numbers are not the real ping of each server; they only show the time to that middle-man. For a fair comparison, switch the VPN / TUN mode off for a moment and test again.") : "");
         }

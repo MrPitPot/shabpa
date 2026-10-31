@@ -24,8 +24,19 @@ public sealed class DownloadsPage : PageBase
     private readonly TextBlock _teachNote = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
     private readonly GlassCard _planCard = new() { Margin = new Thickness(8) };
     private Border _form = null!;
+    // night internet card: one weekly plan for the hours of cheap night traffic
+    private Border _night = null!;
+    private readonly WrapPanel _nightPick = new() { Margin = new Thickness(0, 4, 0, 0) };
+    private readonly WrapPanel _nightThen = new() { Margin = new Thickness(0, 4, 0, 0) };
+    private readonly TextBox _nsh = new() { Style = St("NumberInput"), Text = "00" }, _nsm = new() { Style = St("NumberInput"), Text = "00" };
+    private readonly TextBox _neh = new() { Style = St("NumberInput"), Text = "06" }, _nem = new() { Style = St("NumberInput"), Text = "00" };
+    private readonly TextBlock _nightState = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
+    private readonly StackPanel _nightButtons = new() { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 14, 0, 0) };
+    private string? _nightLauncher;
+    private PowerAction _nightAction = PowerAction.Sleep;
+    private bool _nightSeeded;
     private Border _scanCard = null!, _teachCard = null!;
-    private readonly Grid _root = ListUi.PageGrid(4);
+    private readonly Grid _root = ListUi.PageGrid(5);
     private bool? _wide;
     private readonly Mo.Memo _launchMemo, _teachMemo, _planMemo;
     private string? _launcher;
@@ -66,6 +77,26 @@ public sealed class DownloadsPage : PageBase
         teach.Children.Add(_teach);
         teach.Children.Add(_teachNote);
         _teachCard = teachCard;
+
+        // ---- night internet ------------------------------------------------------------------------
+        var (nightCard, night) = Ui2.Card(L.T("اینترنت شبانه", "Night internet"),
+            L.T("اگه بسته‌ی اینترنتت ساعت‌های ارزون شبانه داره، همین‌جا بنویس. هر شب شب‌پا سیستم رو بیدار می‌کنه، لانچر رو باز می‌کنه و صبح بعد از پایان بازه یا تموم شدن دانلود می‌خوابونتش. ساعت بسته‌ها فرق دارن و شب‌پا اون‌ها رو نمی‌دونه؛ خودت بنویس.",
+                "If your internet package has cheap night hours, set them here. Each night Shabpa wakes the PC, opens the launcher, and puts the PC away when the window ends or the download is done. Packages differ and Shabpa does not know yours; type the hours."));
+        _night = nightCard;
+        TimeBoxes.Wire(_nsh, _nsm);
+        TimeBoxes.Wire(_neh, _nem);
+        night.Children.Add(Ui2.Label(L.T("لانچر", "Launcher")));
+        night.Children.Add(_nightPick);
+        night.Children.Add(Ui2.Label(L.T("از ساعت (شروع بازه‌ی ارزون)", "From (the cheap window starts)")));
+        night.Children.Add(Clock(_nsh, _nsm));
+        night.Children.Add(Ui2.Label(L.T("تا ساعت (پایان بازه)", "Until (the window ends)")));
+        night.Children.Add(Clock(_neh, _nem));
+        night.Children.Add(Ui2.Label(L.T("بعد از تموم شدن دانلود یا پایان بازه", "When the download is done or the window ends")));
+        night.Children.Add(_nightThen);
+        night.Children.Add(_nightState);
+        night.Children.Add(_nightButtons);
+        Chips(_nightThen, new[] { (PowerAction.Sleep, L.T("خواب", "Sleep")), (PowerAction.Hibernate, L.T("هایبرنیت", "Hibernate")), (PowerAction.Shutdown, L.T("خاموش کردن", "Shut down")) },
+            PowerAction.Sleep, v => _nightAction = v);
 
         // ---- new plan ------------------------------------------------------------------------------
         var (formCard, form) = Ui2.Card(L.T("زمان‌بندی جدید", "New plan"),
@@ -146,11 +177,12 @@ public sealed class DownloadsPage : PageBase
         _planMemo = new Mo.Memo(_plans);
         _planCard.Child = _plans;
 
+        _root.Children.Add(_night);
         _root.Children.Add(_scanCard);
         _root.Children.Add(_teachCard);
         _root.Children.Add(_form);
         _root.Children.Add(_planCard);
-        foreach (var card in new Border[] { _scanCard, _teachCard, _form }) card.Margin = new Thickness(8);
+        foreach (var card in new Border[] { _night, _scanCard, _teachCard, _form }) card.Margin = new Thickness(8);
         Content = _root;
         SizeChanged += (_, e) => ApplyLayout(e.NewSize.Width > 900);
         ApplyLayout(true);
@@ -170,23 +202,97 @@ public sealed class DownloadsPage : PageBase
         ShowWhen();
     }
 
+    private static StackPanel Clock(TextBox hour, TextBox minute) => new()
+    {
+        Orientation = Orientation.Horizontal, FlowDirection = FlowDirection.LeftToRight, HorizontalAlignment = HorizontalAlignment.Left,
+        Children =
+        {
+            hour,
+            new TextBlock { Text = ":", FontSize = 22, FontWeight = FontWeights.Bold, Foreground = Res("Muted"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) },
+            minute,
+        },
+    };
+
+    private void RefreshNight()
+    {
+        var n = Hub.Settings.OffPeak;
+        if (n.Enabled && Hub.NightPlan is null) { n.Enabled = false; Hub.Store.Save(); } // the plan was deleted from the list below
+        if (!_nightSeeded)
+        {
+            _nightSeeded = true;
+            _nsh.Text = (n.StartMinute / 60).ToString("00"); _nsm.Text = (n.StartMinute % 60).ToString("00");
+            _neh.Text = (n.EndMinute / 60).ToString("00"); _nem.Text = (n.EndMinute % 60).ToString("00");
+            if (Hub.NightPlan is { } existing) { _nightLauncher = existing.LauncherKey; _nightAction = existing.Action; }
+            Chips(_nightThen, new[] { (PowerAction.Sleep, L.T("خواب", "Sleep")), (PowerAction.Hibernate, L.T("هایبرنیت", "Hibernate")), (PowerAction.Shutdown, L.T("خاموش کردن", "Shut down")) },
+                _nightAction, v => _nightAction = v);
+        }
+        if (_nightLauncher is null || Known.All(l => l.Key != _nightLauncher)) _nightLauncher = Known.FirstOrDefault()?.Key;
+        Chips(_nightPick, Known.Select(l => (l.Key, l.Name)), _nightLauncher ?? "", v => _nightLauncher = v);
+
+        _nightButtons.Children.Clear();
+        if (Known.Count == 0)
+        {
+            _nightState.Text = L.T("اول از کارت «لانچرهای نصب‌شده» پایین‌تر لانچرها رو پیدا کن.", "First find your launchers with the “Installed launchers” card below.");
+            return;
+        }
+        var plan = Hub.NightPlan;
+        _nightState.Text = plan is null
+            ? L.T("هر شب (همه‌ی روزهای هفته) اجرا می‌شه. تایمر بیداری ویندوز باید روشن باشه تا سیستم از خواب بیدار بشه؛ صفحه‌ی «کنترل سیستم ← بیدارباش» وضعیتش رو نشون می‌ده.",
+                "Runs every night. Windows wake timers must be on for the PC to wake from sleep; “System control → Wake-up” shows their state.")
+            : L.T($"فعاله: «{plan.LauncherName}» هر شب {Fa.Clock(plan.StartAt)} باز می‌شه و تا {Fa.Clock(plan.EndMinute!.Value / 60, plan.EndMinute.Value % 60)} می‌مونه. بعدش «{Fa.ActionName(plan.Action)}». نوبت بعدی: {When(plan.StartAt)}.",
+                $"On: “{plan.LauncherName}” opens every night at {Fa.Clock(plan.StartAt)} and stays until {Fa.Clock(plan.EndMinute!.Value / 60, plan.EndMinute.Value % 60)}; then {Fa.ActionName(plan.Action)}. Next: {When(plan.StartAt)}.");
+        var on = ListUi.Btn("plus", plan is null ? L.T("فعال کن", "Turn on") : L.T("به‌روز کن", "Update"), "BtnPrimary", EnableNight);
+        _nightButtons.Children.Add(on);
+        if (plan is not null)
+        {
+            var off = ListUi.Btn("trash", L.T("خاموشش کن", "Turn off"), "Btn", () => { Hub.DisableNightInternet(); Refresh(); });
+            off.Margin = new Thickness(10, 0, 0, 0);
+            _nightButtons.Children.Add(off);
+        }
+    }
+
+    private void EnableNight()
+    {
+        if (!TimeBoxes.TryRead(_nsh, _nsm, out var sh, out var sm) || !TimeBoxes.TryRead(_neh, _nem, out var eh, out var em) || Known.FirstOrDefault(l => l.Key == _nightLauncher) is not { } launcher)
+        {
+            _nightState.Text = L.T("ساعت‌ها رو کامل بنویس و یه لانچر انتخاب کن.", "Fill in both times and pick a launcher.");
+            return;
+        }
+        var start = sh * 60 + sm;
+        var end = eh * 60 + em;
+        if (start == end)
+        {
+            _nightState.Text = L.T("شروع و پایان نباید یکی باشن.", "The start and the end cannot be the same.");
+            return;
+        }
+        if (!Ask(L.T("اینترنت شبانه فعال بشه؟", "Turn night internet on?"),
+                L.T($"هر شب «{launcher.Name}» باز می‌شه؛ بعد از دانلود یا پایان بازه «{Fa.ActionName(_nightAction)}». هر شب قبلش یه شمارش معکوس قابل لغو می‌بینی.",
+                    $"Every night “{launcher.Name}” is opened; when the download is done or the window ends, {Fa.ActionName(_nightAction)}. A cancellable countdown shows first."),
+                L.T("فعال کن", "Turn on"), detail: L.T($"{Fa.Clock(sh, sm)} تا {Fa.Clock(eh, em)}", $"{Fa.Clock(sh, sm)} to {Fa.Clock(eh, em)}")))
+            return;
+        Hub.EnableNightInternet(launcher, start, end, _nightAction);
+        Refresh();
+    }
+
     private void ApplyLayout(bool wide)
     {
         if (_wide == wide) return;
         _wide = wide;
         if (wide)
         {
-            ListUi.Place(_scanCard, 0, 0, 6);
-            ListUi.Place(_teachCard, 0, 6, 6);
-            ListUi.Place(_form, 1, 0, 12);
-            ListUi.Place(_planCard, 2, 0, 12);
+            ListUi.Place(_night, 0, 0, 12);
+            ListUi.Place(_scanCard, 1, 0, 6);
+            ListUi.Place(_teachCard, 1, 6, 6);
+            ListUi.Place(_form, 2, 0, 12);
+            ListUi.Place(_planCard, 3, 0, 12);
         }
         else
         {
-            ListUi.Place(_scanCard, 0, 0, 12);
-            ListUi.Place(_teachCard, 1, 0, 12);
-            ListUi.Place(_form, 2, 0, 12);
-            ListUi.Place(_planCard, 3, 0, 12);
+            ListUi.Place(_night, 0, 0, 12);
+            ListUi.Place(_scanCard, 1, 0, 12);
+            ListUi.Place(_teachCard, 2, 0, 12);
+            ListUi.Place(_form, 3, 0, 12);
+            ListUi.Place(_planCard, 4, 0, 12);
         }
     }
 
@@ -353,6 +459,7 @@ public sealed class DownloadsPage : PageBase
         ShowTeach();
         if (_launcher is null || Known.All(l => l.Key != _launcher)) _launcher = Known.FirstOrDefault()?.Key;
         Chips(_pick, Known.Select(l => (l.Key, l.Name)), _launcher ?? "", v => _launcher = v);
+        RefreshNight();
         var formWas = _form.Visibility;
         _form.Visibility = Known.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         if (formWas != Visibility.Visible && _form.Visibility == Visibility.Visible && IsLoaded) Mo.Appear(_form, 0, 20, 0.7);

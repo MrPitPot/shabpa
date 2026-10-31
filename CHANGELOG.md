@@ -4,6 +4,13 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [Unreleased]
+
+### Added
+- **Quests and feathers (experimental)**: a new «مأموریت‌ها و پَر» page with three daily quests, a weekly one, one-time "learn a feature" quests, badges, Bidar levels and a day streak. Everything is counted on this PC from things Shabpa already notices (games, focus rounds, verified backups, power actions, DNS test, fixed health warnings, bot link); nothing is sent anywhere, feathers never lock a feature, and a switch turns counting off.
+- **Power-cut guard** (System control, «قطعی برق» tab): type the times the power usually goes; Shabpa warns first, then hibernates through the usual cancellable countdown (skipped while a game runs) and tells you when you are back.
+- **Night internet card** on the Downloads page: pick a launcher and the night hours; it makes a weekly plan that wakes the PC, opens the launcher, and ends with sleep/shutdown. A morning notification says how much came in during the night.
+
 ## [3.12.1] - 2026-10-31
 
 ### Added
