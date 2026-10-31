@@ -4,6 +4,11 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [Unreleased]
+
+### Changed
+- The owl is now called **Boofi** («بوفی», from «بوف», the Persian word for owl) instead of Bidar, everywhere in the app: the assistant, medals, levels, the settings switch, the tour and the medal story pictures. Typing «بوفی» to it is understood as a friendly hello. Saved progress is not affected.
+
 ## [3.13.0] - 2026-10-31
 
 ### Added

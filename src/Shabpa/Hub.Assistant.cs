@@ -273,7 +273,7 @@ public sealed partial class Hub
             case "goodnight": return L.T("شب بخیر! 🌙 اگه خواستی، بگو سیستم رو بعد از چند دقیقه خاموش کنم.", "Good night! 🌙 If you like, tell me to shut the PC down in a few minutes.");
             case "thanks": return L.T("قابل نداشت! 🦉", "You are welcome! 🦉");
             case "howareyou": return L.T("من بیدارم و سرحالم 🦉 تو چطوری؟", "Wide awake and happy 🦉 and you?");
-            case "who": return L.T("من بیدارم، جغد شب‌پا 🦉 کارم اینه که سیستمت رو سر وقت خاموش کنم و هر کاری از شب‌پا رو برات انجام بدم. «چه کارایی بلدی» رو بنویس.", "I am Bidar, Shabpa's owl 🦉 I switch your PC off on time and do anything Shabpa can do for you. Type “what can you do”.");
+            case "who": return L.T("من بوفی‌ام، جغد شب‌پا 🦉 کارم اینه که سیستمت رو سر وقت خاموش کنم و هر کاری از شب‌پا رو برات انجام بدم. «چه کارایی بلدی» رو بنویس.", "I am Boofi, Shabpa's owl 🦉 I switch your PC off on time and do anything Shabpa can do for you. Type “what can you do”.");
             case "joke": return BidarJokes.Joke(L.En);
             case "fact": return BidarJokes.Fact(L.En);
             case "tip": return BidarJokes.Tip(L.En);

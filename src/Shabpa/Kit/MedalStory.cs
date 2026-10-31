@@ -29,14 +29,14 @@ public static class MedalStory
     [
         new("spotlight", "نورافکن", "Spotlight", "نور از بالا روی مدالت", "A beam of light on your medal"),
         new("card", "کارت کلکسیونی", "Collector card", "کارت شماره‌دار با درخشش رنگین‌کمانی", "A numbered card with a holographic shine"),
-        new("bidar", "تبریک بیدار", "Bidar's cheer", "بیدار برات دست می‌زنه", "Bidar cheers for you"),
+        new("bidar", "تبریک بوفی", "Boofi's cheer", "بوفی برات دست می‌زنه", "Boofi cheers for you"),
         new("poster", "پوستر مینیمال", "Minimal poster", "تایپوگرافی درشت، ساده و شیک", "Big type, simple and sharp"),
         new("stars", "صورت فلکی", "Constellation", "هر مدال یه ستاره تو آسمونته", "Every medal is a star in your sky"),
         new("month", "خلاصه‌ی ماه", "Month in review", "آمار واقعی این ماهت", "Your real numbers this month"),
         new("tile", "کاشی ایرانی", "Persian tile", "محراب و کاشی‌کاری هشت‌پر", "An arch and eight-point tiles"),
         new("arcade", "آرکید گیمی", "Arcade", "مثل دستاوردهای بازی", "Like a game achievement"),
         new("screen", "عکس از صفحه", "Screen photo", "همون نوتیف روی مانیتور", "The notice, right on a monitor"),
-        new("certificate", "گواهی افتخار", "Certificate", "گواهی امضاشده‌ی بیدار", "A certificate signed by Bidar"),
+        new("certificate", "گواهی افتخار", "Certificate", "گواهی امضاشده‌ی بوفی", "A certificate signed by Boofi"),
     ];
 
     public static StoryData DataFor(MedalDef medal, DateTime when)
@@ -941,7 +941,7 @@ public static class MedalStory
         var owl = new BidarOwl { Width = 74, Height = 74 };
         At(owl, L.En ? 293 : 73, 560);
         paper.Children.Add(owl);
-        var sign = T(L.T("امضای بیدار", "signed by Bidar"), 11, Br("#6B4E1C"), false, 120);
+        var sign = T(L.T("امضای بوفی", "signed by Boofi"), 11, Br("#6B4E1C"), false, 120);
         At(sign, L.En ? 270 : 50, 648);
         paper.Children.Add(sign);
         var serial = T($"No. SP-{d.When:yyyyMMdd}-{d.Rank:00}", 10, Br("#8A6A2E"), false, 380);

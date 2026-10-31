@@ -152,7 +152,7 @@ public sealed class SettingsPage : PageBase
         behaviourBody.Children.Add(SwitchRow(MinimizedCheck, L.T("همیشه بی‌صدا کنار ساعت باز بشه", "Always start quietly in the tray"), null));
         behaviourBody.Children.Add(K.SettingRow(L.T("کلید فرمان متنی", "Command box shortcut"), AssistantKeyBox,
             hint: L.T("از هر جا پنجره‌ی فرمان رو باز می‌کنه («ساعت ۲ شب خاموش کن»). از منوی کنار ساعت هم باز می‌شه.", "Opens the command box from anywhere (“shut down at 2am”). The tray menu opens it too.")));
-        behaviourBody.Children.Add(SwitchRow(AssistantDockCheck, L.T("جغد بیدار گوشه‌ی پنجره", "Bidar the owl in the window corner"),
+        behaviourBody.Children.Add(SwitchRow(AssistantDockCheck, L.T("بوفی، جغد گوشه‌ی پنجره", "Boofi the owl in the window corner"),
             L.T("یه جغد کوچولو تو گوشه‌ی همه‌ی صفحه‌هاست؛ کلیکش می‌کنی، فرمان متنی باز می‌شه. خاموشش کنی، کلید میانبر و منوی کنار ساعت هنوز کار می‌کنن.",
                 "A small owl sits in the corner of every page; click it to type a command. Turn it off and the shortcut and the tray menu still work.")));
         AssistantDockCheck.Click += (_, _) => Hub.SetAssistantDock(AssistantDockCheck.IsChecked == true);

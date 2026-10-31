@@ -69,8 +69,8 @@ public sealed class RewardsPage : PageBase
         shop.Children.Add(new TextBlock { Text = L.T("به‌زودی...", "Coming soon..."), Style = St("H2"), FontSize = 18, Foreground = Res("Gold"), HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 8, 0, 0) });
         shop.Children.Add(new TextBlock
         {
-            Text = L.T("پَرهایی که جمع می‌کنی اینجا خرج می‌شن: کلاه و لباس برای بیدار، تم‌ها و طرح‌های تازه‌ی اورلی. فعلاً فقط جمعشون کن.",
-                "The feathers you collect will be spent here: hats and outfits for Bidar, new themes and overlay looks. For now, just keep collecting."),
+            Text = L.T("پَرهایی که جمع می‌کنی اینجا خرج می‌شن: کلاه و لباس برای بوفی، تم‌ها و طرح‌های تازه‌ی اورلی. فعلاً فقط جمعشون کن.",
+                "The feathers you collect will be spent here: hats and outfits for Boofi, new themes and overlay looks. For now, just keep collecting."),
             Style = St("Body"), TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, MaxWidth = 440, Margin = new Thickness(0, 12, 0, 0),
         });
         shop.Children.Add(new TextBlock
@@ -137,7 +137,7 @@ public sealed class RewardsPage : PageBase
 
         var text = new StackPanel { Margin = new Thickness(22, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(text, 1);
-        text.Children.Add(new TextBlock { Text = L.T($"بیدار «{level.Name}»", $"Bidar the “{level.Name}”"), Style = St("H1"), FontSize = 22 });
+        text.Children.Add(new TextBlock { Text = L.T($"بوفی «{level.Name}»", $"Boofi the “{level.Name}”"), Style = St("H1"), FontSize = 22 });
         text.Children.Add(new TextBlock
         {
             Text = next is null

@@ -54,8 +54,8 @@ public static class TourSteps
 
         new("home", TourTargets.PagePrefix + "0", "home",
             "خانه، یک نگاه به همه‌چیز", "Home, everything at a glance",
-            "کارت اصلی خونه: کار زمان‌بندی‌شده‌ی بعدی و شمارش معکوسش. پایین‌تر مصرف زنده‌ی سخت‌افزار و اقدام‌های سریع رو می‌بینی. جغد «بیدار» هم گوشه‌ی پنجره‌ست: بهش بنویس «برو تنظیمات»، «تم هالووین»، «اورلی فقط موقع بازی»، «چه کارایی بلدی؟» و کلی چیز دیگه.",
-            "The main card of Home: the next scheduled task and its countdown. Below it: live hardware load and quick actions. Bidar the owl sits in the corner: type “open settings”, “theme halloween”, “overlay only in game”, “what can you do?” and much more."),
+            "کارت اصلی خونه: کار زمان‌بندی‌شده‌ی بعدی و شمارش معکوسش. پایین‌تر مصرف زنده‌ی سخت‌افزار و اقدام‌های سریع رو می‌بینی. جغد شب‌پا، «بوفی»، هم گوشه‌ی پنجره‌ست: بهش بنویس «برو تنظیمات»، «تم هالووین»، «اورلی فقط موقع بازی»، «چه کارایی بلدی؟» و کلی چیز دیگه.",
+            "The main card of Home: the next scheduled task and its countdown. Below it: live hardware load and quick actions. Boofi the owl sits in the corner: type “open settings”, “theme halloween”, “overlay only in game”, “what can you do?” and much more."),
 
         new("system", TourTargets.NavPrefix + "system", "home",
             "کنترل سیستم، خاموشی زمان‌بندی‌شده", "System control, scheduled shutdown",

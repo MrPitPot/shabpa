@@ -82,7 +82,7 @@ public static class RewardsCatalog
 
     public static readonly IReadOnlyList<MedalDef> Medals =
     [
-        new("hello", "heart", MedalTier.Bronze, false, "سلام بیدار!", "Hello, Bidar!", "شبپا رو برای اولین بار باز کردی.", "You opened Shabpa for the first time.", _ => Flag(true)),
+        new("hello", "heart", MedalTier.Bronze, false, "سلام بوفی!", "Hello, Boofi!", "شبپا رو برای اولین بار باز کردی.", "You opened Shabpa for the first time.", _ => Flag(true)),
         new("tour", "star", MedalTier.Bronze, false, "راه‌بلد", "Pathfinder", "تور آشنایی رو تا آخر رفتی.", "You finished the intro tour.", c => Flag(c.R.TourDone)),
         new("curious", "globe", MedalTier.Bronze, false, "کنجکاو", "Curious", "۵ بخش مختلف برنامه رو باز کردی.", "You opened 5 different parts of the app.", c => Cnt(c.R.Pages.Count, 5)),
         new("explorer", "globe", MedalTier.Silver, false, "جهانگرد", "Globetrotter", "همه‌ی بخش‌های برنامه رو دیدی.", "You saw every part of the app.", c => Cnt(c.R.Pages.Count, c.AllPages)),
@@ -107,7 +107,7 @@ public static class RewardsCatalog
         new("teacher", "edit", MedalTier.Silver, false, "شاگرد زرنگ", "Quick student", "به شبپا یاد دادی یه لانچر رو باز کنه.", "You taught Shabpa to open a launcher.", c => Cnt(c.S.Macros.Count, 1)),
         new("careful", "folder", MedalTier.Bronze, false, "محتاط", "Careful", "اولین پشتیبان‌گیری رو تنظیم کردی.", "You set up your first backup.", c => Cnt(c.S.Backups.Count, 1)),
         new("overlay", "mon", MedalTier.Bronze, false, "چشم همیشه باز", "Always watching", "سری به اورلی بازی زدی.", "You visited the game overlay.", c => Flag(c.R.Pages.Contains("gaming"))),
-        new("friend", "bell", MedalTier.Bronze, false, "رفیق بیدار", "Bidar's friend", "با بیدار حرف زدی.", "You talked to Bidar.", c => Cnt(c.Counter("bidar"), 1)),
+        new("friend", "bell", MedalTier.Bronze, false, "رفیق بوفی", "Boofi's friend", "با بوفی حرف زدی.", "You talked to Boofi.", c => Cnt(c.Counter("bidar"), 1)),
         new("sevennights", "moon", MedalTier.Silver, false, "هفت شب", "Seven nights", "۷ روز مختلف با شبپا بودی.", "You were with Shabpa on 7 different days.", c => Cnt(c.R.Days.Count, 7)),
 
         new("companion", "moon", MedalTier.Gold, false, "یار همیشگی", "Always there", "۳۰ روز مختلف با شبپا بودی.", "You were with Shabpa on 30 different days.", c => Cnt(c.R.Days.Count, 30)),
@@ -138,7 +138,7 @@ public static class RewardsCatalog
         new("lvl25", "feather", MedalTier.Gold, false, "سطح بیست‌وپنج", "Level twenty-five", "به سطح ۲۵ رسیدی.", "You reached level 25.", c => Cnt(RewardsCatalog.LevelFor(c.R.TotalFeathers).Level, 25)),
         new("lvl50", "feather", MedalTier.Platinum, false, "نیمه‌ی راه", "Halfway", "به سطح ۵۰ رسیدی.", "You reached level 50.", c => Cnt(RewardsCatalog.LevelFor(c.R.TotalFeathers).Level, 50)),
         new("lvl75", "feather", MedalTier.Diamond, false, "اوج‌گیر", "High flyer", "به سطح ۷۵ رسیدی.", "You reached level 75.", c => Cnt(RewardsCatalog.LevelFor(c.R.TotalFeathers).Level, 75)),
-        new("lvl100", "feather", MedalTier.Legendary, false, "بیدار بزرگ", "The great Bidar", "به سطح ۱۰۰ رسیدی.", "You reached level 100.", c => Cnt(RewardsCatalog.LevelFor(c.R.TotalFeathers).Level, 100)),
+        new("lvl100", "feather", MedalTier.Legendary, false, "بوفی بزرگ", "The great Boofi", "به سطح ۱۰۰ رسیدی.", "You reached level 100.", c => Cnt(RewardsCatalog.LevelFor(c.R.TotalFeathers).Level, 100)),
 
         new("quests10", "chk", MedalTier.Bronze, false, "کاربلد", "Quest rookie", "۱۰ مأموریت انجام دادی.", "You finished 10 quests.", c => Cnt(c.Counter("questsDone"), 10)),
         new("quests50", "chk", MedalTier.Silver, false, "مأموریت‌باز", "Quest hunter", "۵۰ مأموریت انجام دادی.", "You finished 50 quests.", c => Cnt(c.Counter("questsDone"), 50)),
@@ -148,9 +148,9 @@ public static class RewardsCatalog
         new("sessions10", "alarm", MedalTier.Silver, false, "ده نوبت", "Ten rounds", "۱۰ نوبت تمرکز رو کامل کردی.", "You completed 10 focus sessions.", c => Cnt(c.S.FocusLog.Count(f => f.Completed), 10)),
         new("sessions100", "alarm", MedalTier.Gold, false, "صد نوبت", "A hundred rounds", "۱۰۰ نوبت تمرکز رو کامل کردی.", "You completed 100 focus sessions.", c => Cnt(c.S.FocusLog.Count(f => f.Completed), 100)),
 
-        new("chat25", "bell", MedalTier.Silver, false, "گپ‌دوست", "Chat buddy", "با بیدار ۲۵ بار حرف زدی.", "You talked to Bidar 25 times.", c => Cnt(c.Counter("bidar"), 25)),
-        new("chat200", "bell", MedalTier.Gold, false, "همدم شب", "Night companion", "با بیدار ۲۰۰ بار حرف زدی.", "You talked to Bidar 200 times.", c => Cnt(c.Counter("bidar"), 200)),
-        new("chat1000", "bell", MedalTier.Platinum, false, "من و بیدار", "Bidar and me", "با بیدار ۱٬۰۰۰ بار حرف زدی.", "You talked to Bidar 1,000 times.", c => Cnt(c.Counter("bidar"), 1000)),
+        new("chat25", "bell", MedalTier.Silver, false, "گپ‌دوست", "Chat buddy", "با بوفی ۲۵ بار حرف زدی.", "You talked to Boofi 25 times.", c => Cnt(c.Counter("bidar"), 25)),
+        new("chat200", "bell", MedalTier.Gold, false, "همدم شب", "Night companion", "با بوفی ۲۰۰ بار حرف زدی.", "You talked to Boofi 200 times.", c => Cnt(c.Counter("bidar"), 200)),
+        new("chat1000", "bell", MedalTier.Platinum, false, "من و بوفی", "Boofi and me", "با بوفی ۱٬۰۰۰ بار حرف زدی.", "You talked to Boofi 1,000 times.", c => Cnt(c.Counter("bidar"), 1000)),
 
         new("marathon6", "clk", MedalTier.Platinum, false, "ماراتن بزرگ", "Grand marathon", "یه نوبت بازی بیشتر از ۶ ساعت.", "One game session longer than 6 hours.", c => Cnt(c.R.LongestGameMinutes, 360)),
         new("games15", "mon", MedalTier.Gold, false, "گنجینه‌ی بازی", "Game treasury", "۱۵ بازی مختلف بازی کردی.", "You played 15 different games.", c => Cnt(c.R.Games.Count, 15)),
@@ -203,7 +203,7 @@ public static class RewardsCatalog
     [
         (1, "جوجه‌جغد", "Owlet"), (3, "شب‌نشین", "Night sitter"), (6, "پاسبان", "Sentry"), (10, "نگهبان شب", "Night watch"),
         (15, "ستاره‌شمر", "Stargazer"), (25, "جغد دانا", "Wise owl"), (40, "ماه‌نشین", "Moon-perched"), (60, "فرمانروای شب", "Night ruler"),
-        (80, "اسطوره‌ی شب", "Night legend"), (100, "بیدار بزرگ", "The great Bidar"),
+        (80, "اسطوره‌ی شب", "Night legend"), (100, "بوفی بزرگ", "The great Boofi"),
     ];
 
     public static LevelDef LevelAt(int level)
@@ -500,7 +500,7 @@ public sealed class RewardsEngine
         if (level > State.LastLevel)
         {
             State.LastLevel = level;
-            _hub.Notify(L.T("سطح تازه!", "New level!"), L.T($"بیدار شد «{Level.Name}».", $"Bidar is now “{Level.Name}”."));
+            _hub.Notify(L.T("سطح تازه!", "New level!"), L.T($"بوفی شد «{Level.Name}».", $"Boofi is now “{Level.Name}”."));
             changed = true;
         }
         else if (level < State.LastLevel) State.LastLevel = level;
