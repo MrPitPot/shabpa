@@ -449,6 +449,8 @@ public sealed partial class BidarOwl : Decorator
         _wingL.Angle = WingL;
         _wingR.Angle = -WingR;
         _head.Angle = Tilt;
+        _watchFollow.Angle = WingL - 14;
+        _lanFollow.Angle = -(WingR - 14);
         _squash.ScaleX = 1 + (1 - Squash) * 0.5;
         _squash.ScaleY = Squash;
         _lift.Y = Lift;

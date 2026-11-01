@@ -35,6 +35,9 @@ internal static class BoofiArt
         catch { return null; } // no application resources (tests, design time): the picture is simply left out
     }
 
+    /// <summary>The decode width (the files are 768 wide) that is at least as sharp as the picture needs.</summary>
+    internal static int Bucket(double pixels) => pixels <= 128 ? 128 : pixels <= 224 ? 224 : pixels <= 336 ? 336 : pixels <= 448 ? 448 : pixels <= 640 ? 640 : 768;
+
     private static double _dpi = 1;
 
     private static double Dpi()
@@ -70,7 +73,7 @@ internal static class BoofiArt
             var side = 240 * s;
             var dpi = Dpi();
             var want = side * dpi;
-            var decode = want <= 128 ? 128 : want <= 224 ? 224 : want <= 336 ? 336 : 448;
+            var decode = Bucket(want);
             var visual = new DrawingVisual();
             var drawn = 0;
             using (var dc = visual.RenderOpen())

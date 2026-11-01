@@ -25,8 +25,7 @@ public sealed partial class BidarOwl
         _gWatch = new() { IsHitTestVisible = false }, _gLantern = new() { IsHitTestVisible = false },
         _gGlasses = new() { Width = 100, Height = 120, IsHitTestVisible = false }, _gHat = new() { Width = 100, Height = 120, IsHitTestVisible = false };
     private readonly RotateTransform _lanSwing = new(0, 86, 90);
-    private readonly ScaleTransform _watchPulse = new(1, 1, 2, 11);
-    private readonly Canvas _wHost = new() { IsHitTestVisible = false };
+    private readonly RotateTransform _watchFollow = new(0, 20, 58), _lanFollow = new(0, 80, 58);
     private readonly TranslateTransform _glassNudge = new();
     private readonly DispatcherTimer _idleTimer = new();
     private bool _useOutfit, _hasHat, _hasLantern, _hasWatch, _hasGlasses;
@@ -51,10 +50,8 @@ public sealed partial class BidarOwl
     {
         root.Children.Insert(0, _gBack);
         // the left wing's group follows the wing's own turn (pivot = shoulder), so a watch rides on the wrist
-        _gWatch.RenderTransform = new TransformGroup { Children = { _wingL, new TranslateTransform(20, 58) } };
-        _wHost.RenderTransform = _watchPulse;
-        _gWatch.Children.Add(_wHost);
-        _gLantern.RenderTransform = _lanSwing;
+        _gWatch.RenderTransform = _watchFollow;        // the watch turns with the left wing (shoulder at 20,58)
+        _gLantern.RenderTransform = new TransformGroup { Children = { _lanSwing, _lanFollow } }; // and the lantern with the right one (80,58)
         var firstWing = root.Children.OfType<Path>().First(p => p.RenderTransform == _wingL);
         root.Children.Insert(root.Children.IndexOf(firstWing), _gNeck);
         root.Children.Insert(root.Children.IndexOf(_glow), _gWatch);
@@ -107,7 +104,7 @@ public sealed partial class BidarOwl
 
     private Image? Pic(string file)
     {
-        if (BoofiArt.Load(file, 224) is not { } picture) return null;
+        if (BoofiArt.Load(file, BoofiArt.Bucket(Side / 100 * (double.IsNaN(Width) ? 60 : Width) * Math.Clamp(VisualTreeHelper.GetDpi(this).DpiScaleX, 1, 2))) is not { } picture) return null;
         var image = new Image { Source = picture, Width = Side, Height = Side, Stretch = Stretch.Fill, IsHitTestVisible = false };
         RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
         Canvas.SetLeft(image, Left);
@@ -117,7 +114,7 @@ public sealed partial class BidarOwl
 
     private void Dress(IReadOnlyDictionary<string, string> worn)
     {
-        foreach (var g in new[] { _gBack, _gNeck, _wHost, _gLantern, _gGlasses, _gHat }) g.Children.Clear();
+        foreach (var g in new[] { _gBack, _gNeck, _gWatch, _gLantern, _gGlasses, _gHat }) g.Children.Clear();
         BoofiPart? Get(string slot) => worn.TryGetValue(slot, out var id) ? BoofiCatalog.Find(id) : null;
         _hasHat = Get("hat") is not null; _hasLantern = Get("lantern") is not null; _hasWatch = Get("watch") is not null; _hasGlasses = Get("glasses") is not null;
 
@@ -143,9 +140,7 @@ public sealed partial class BidarOwl
                 case "glasses": _gGlasses.Children.Add(front); break;
                 case "hat": _gHat.Children.Add(front); break;
                 case "watch":
-                    // the group sits on the shoulder (20,58), so the picture is shifted back by that
-                    Canvas.SetLeft(front, Left - 20); Canvas.SetTop(front, Top - 58);
-                    _wHost.Children.Add(front);
+                    _gWatch.Children.Add(front);
                     break;
                 default:
                     _gLantern.Children.Add(front);
@@ -171,7 +166,29 @@ public sealed partial class BidarOwl
         _idleTimer.Start();
     }
 
-    private static DoubleAnimationUsingKeyFrames K(double ms, params (double At, double V)[] frames) => Keys(ms, frames);
+    // ---- motion: curves sampled at 30 fps so every move eases in and out, overshoots and settles like something alive ----------------
+
+    private static double Sm(double x) { x = Math.Clamp(x, 0, 1); return x * x * (3 - 2 * x); }
+    /// <summary>0 → 1 from a to b, held until c, back to 0 at d (smooth).</summary>
+    private static double Win(double t, double a, double b, double c, double d) => Sm((t - a) / (b - a)) - Sm((t - c) / (d - c));
+    /// <summary>Rises with a little overshoot (a spring), so a wing lifts, passes the mark and settles.</summary>
+    private static double Spr(double x) { x = Math.Clamp(x, 0, 1); var k = x - 1; return 1 + 2.4 * k * k * k + 1.4 * k * k; }
+    private static double SWin(double t, double a, double b, double c, double d) => Spr((t - a) / (b - a)) - Sm((t - c) / (d - c));
+    private static double Decay(double t, double hz, double damp) => Math.Sin(2 * Math.PI * hz * t) * Math.Exp(-damp * t);
+
+    private static DoubleAnimationUsingKeyFrames Curve(double seconds, Func<double, double> f)
+    {
+        var a = new DoubleAnimationUsingKeyFrames { Duration = TimeSpan.FromSeconds(seconds), FillBehavior = FillBehavior.Stop };
+        var n = (int)Math.Ceiling(seconds * 30);
+        for (var i = 0; i <= n; i++)
+        {
+            var t = Math.Min(seconds, i / 30.0);
+            a.KeyFrames.Add(new LinearDoubleKeyFrame(f(t), KeyTime.FromTimeSpan(TimeSpan.FromSeconds(t))));
+        }
+        return a;
+    }
+
+    private void Go(DependencyProperty dp, double seconds, Func<double, double> f) => BeginAnimation(dp, Curve(seconds, f));
 
     /// <summary>One of ten small acts (never the same twice in a row; skipped while flying, asleep or in the middle of a reaction).</summary>
     public void IdleAct(int? which = null)
@@ -180,66 +197,81 @@ public sealed partial class BidarOwl
         int n;
         do { n = which ?? ActRng.Next(10); } while (which is null && n == _lastAct);
         _lastAct = n;
+        double wl = WingL, wr = WingR, tl = Tilt, sq = Squash;
         switch (n)
         {
-            case 0: // look around, head turning each way
-                BeginAnimation(LookXProperty, K(2800, (.2, -3.2), (.45, -3.2), (.7, 3.2), (.9, 3.2), (1, 0)));
-                BeginAnimation(TiltProperty, K(2800, (.2, -9), (.45, -9), (.7, 9), (.9, 9), (1, 0)));
+            case 0: // look left, then right, eyes leading the head
+                Go(TiltProperty, 3.0, t => tl - 9 * Win(t, .25, .75, 1.15, 1.6) + 9 * Win(t, 1.6, 2.05, 2.35, 2.9));
+                Go(LookXProperty, 3.0, t => -3.2 * Win(t, .05, .4, 1.15, 1.5) + 3.2 * Win(t, 1.45, 1.8, 2.35, 2.8));
                 break;
-            case 1: // two hops with a flap
-                BeginAnimation(LiftProperty, K(1200, (.18, -10), (.36, 0), (.54, -10), (.72, 0), (1, 0)));
-                BeginAnimation(SquashProperty, K(1200, (.08, .9), (.18, 1.06), (.36, .9), (.46, 1.06), (.7, 1), (1, 1)));
-                BeginAnimation(WingLProperty, K(1200, (.18, 60), (.36, 14), (.54, 60), (.72, 14), (1, 14)));
-                BeginAnimation(WingRProperty, K(1200, (.18, 60), (.36, 14), (.54, 60), (.72, 14), (1, 14)));
+            case 1: // two hops: crouch, spring, wings up, land, settle
+                Go(LiftProperty, 1.7, t => -11 * Hop(t, .25, .5) - 8 * Hop(t, .85, .45));
+                Go(SquashProperty, 1.7, t => sq - .09 * Win(t, .0, .22, .22, .26) + .06 * Win(t, .22, .3, .45, .6) - .08 * Win(t, .72, .82, .85, .95) + .05 * Win(t, .85, .95, 1.1, 1.3) - .05 * Win(t, 1.3, 1.4, 1.4, 1.6));
+                Go(WingLProperty, 1.7, t => wl + 46 * SWin(t, .22, .5, .6, .9) + 46 * SWin(t, .85, 1.1, 1.2, 1.5));
+                Go(WingRProperty, 1.7, t => wr + 46 * SWin(t, .24, .52, .62, .92) + 46 * SWin(t, .87, 1.12, 1.22, 1.52));
                 break;
-            case 2: // ruffle the feathers
-                BeginAnimation(TiltProperty, K(800, (.15, 7), (.3, -7), (.45, 6), (.6, -6), (.8, 3), (1, 0)));
-                BeginAnimation(WingLProperty, K(800, (.15, 40), (.3, 14), (.45, 40), (.6, 14), (1, 14)));
-                BeginAnimation(WingRProperty, K(800, (.15, 40), (.3, 14), (.45, 40), (.6, 14), (1, 14)));
+            case 2: // shake the feathers out
+                Go(TiltProperty, 1.2, t => tl + 9 * Decay(t, 5, 3.2) * Sm(t / .08));
+                Go(WingLProperty, 1.2, t => wl + 22 * Math.Max(0, Decay(t, 7, 2.5)) * Sm(t / .08));
+                Go(WingRProperty, 1.2, t => wr + 22 * Math.Max(0, Decay(t, 7, 2.5)) * Sm(t / .08));
+                Go(SquashProperty, 1.2, t => sq + .035 * Decay(t, 10, 3.5));
                 break;
-            case 3: // stretch both wings up
-                BeginAnimation(WingLProperty, K(2200, (.3, 120), (.7, 120), (1, 14)));
-                BeginAnimation(WingRProperty, K(2200, (.3, 120), (.7, 120), (1, 14)));
-                BeginAnimation(SquashProperty, K(2200, (.3, 1.07), (.7, 1.07), (1, 1)));
-                BeginAnimation(BeakProperty, K(2200, (.3, 0), (.45, .7), (.7, .7), (.85, 0), (1, 0)));
+            case 3: // big stretch with a yawn
+                Go(WingLProperty, 2.8, t => wl + 108 * SWin(t, .15, .9, 1.7, 2.4));
+                Go(WingRProperty, 2.8, t => wr + 108 * SWin(t, .2, .95, 1.7, 2.4));
+                Go(SquashProperty, 2.8, t => sq + .07 * Win(t, .2, .9, 1.6, 2.4) - .02 * Win(t, 2.2, 2.4, 2.4, 2.7));
+                Go(BeakProperty, 2.8, t => Win(t, .7, 1.0, 1.5, 1.8));
+                Go(LidsProperty, 2.8, t => .55 * Win(t, .7, 1.0, 1.5, 1.9));
                 break;
             case 4: // tip the hat
-                BeginAnimation(WingLProperty, K(1700, (.25, 150), (.7, 150), (1, 14)));
-                BeginAnimation(HatLiftProperty, K(1700, (.3, -8), (.7, -8), (1, 0)));
-                BeginAnimation(HatTiltProperty, K(1700, (.3, -16), (.7, -16), (1, 0)));
-                BeginAnimation(TiltProperty, K(1700, (.3, 6), (.7, 6), (1, 0)));
+                Go(WingLProperty, 2.2, t => wl + 130 * SWin(t, .1, .6, 1.5, 2.0));
+                Go(HatTiltProperty, 2.2, t => -10 * Win(t, .45, .8, 1.3, 1.7));
+                Go(HatLiftProperty, 2.2, t => -2.5 * Win(t, .45, .8, 1.3, 1.7));
+                Go(TiltProperty, 2.2, t => tl + 6 * Win(t, .2, .7, 1.4, 2.0));
+                Go(BlushProperty, 2.2, t => .45 + .45 * Win(t, .6, 1.0, 1.4, 2.0));
                 break;
-            case 5: // swing the lantern
-                _lanSwing.BeginAnimation(RotateTransform.AngleProperty, K(2800, (.12, 16), (.3, -14), (.5, 10), (.7, -6), (.85, 3), (1, 0)));
-                BeginAnimation(WingRProperty, K(2800, (.12, 30), (.3, 8), (.5, 24), (.7, 12), (1, 14)));
-                BeginAnimation(GlowProperty, K(2800, (.3, 1), (.6, .5), (1, .8)));
+            case 5: // nudge the lantern and let it swing
+                Go(WingRProperty, 3.2, t => wr + 26 * Win(t, .0, .25, .3, .7) - 6 * Win(t, .7, .9, .9, 1.2));
+                _lanSwing.BeginAnimation(RotateTransform.AngleProperty, Curve(3.2, t => 15 * Decay(t, 1.15, .75) * Sm(t / .25)));
+                Go(GlowProperty, 3.2, t => .8 + .2 * Win(t, .2, .5, .8, 2.2));
+                Go(LookXProperty, 3.2, t => 2.4 * Win(t, .2, .5, 1.6, 2.2));
                 break;
             case 6: // look at the wrist
-                BeginAnimation(WingLProperty, K(2300, (.25, 85), (.8, 85), (1, 14)));
-                BeginAnimation(TiltProperty, K(2300, (.25, -8), (.8, -8), (1, 0)));
-                BeginAnimation(LookXProperty, K(2300, (.25, -3), (.8, -3), (1, 0)));
-                BeginAnimation(LookYProperty, K(2300, (.25, 2.5), (.8, 2.5), (1, 0)));
-                _watchPulse.BeginAnimation(ScaleTransform.ScaleXProperty, K(2300, (.35, 1.25), (.7, 1.25), (1, 1)));
-                _watchPulse.BeginAnimation(ScaleTransform.ScaleYProperty, K(2300, (.35, 1.25), (.7, 1.25), (1, 1)));
+                Go(WingLProperty, 3.0, t => wl + 66 * SWin(t, .1, .65, 2.1, 2.7));
+                Go(TiltProperty, 3.0, t => tl - 8 * Win(t, .2, .7, 2.0, 2.6));
+                Go(LookXProperty, 3.0, t => -3 * Win(t, .2, .55, 2.0, 2.4));
+                Go(LookYProperty, 3.0, t => 2.6 * Win(t, .2, .55, 2.0, 2.4));
+                Dispatcher.BeginInvoke(DoBlink, DispatcherPriority.Background);
                 break;
             case 7: // push the glasses up with a wing
-                BeginAnimation(WingRProperty, K(1500, (.25, 95), (.6, 95), (1, 14)));
-                _glassNudge.BeginAnimation(TranslateTransform.YProperty, K(1500, (.35, -2.5), (.5, 0), (.65, -2), (1, 0)));
-                BeginAnimation(TiltProperty, K(1500, (.3, 5), (.7, 5), (1, 0)));
+                Go(WingRProperty, 2.2, t => wr + 86 * SWin(t, .1, .55, 1.5, 2.0));
+                _glassNudge.BeginAnimation(TranslateTransform.YProperty, Curve(2.2, t => -1.6 * Win(t, .55, .7, .7, .85) - 1.2 * Win(t, 1.0, 1.1, 1.1, 1.25)));
+                Go(TiltProperty, 2.2, t => tl + 5 * Win(t, .3, .7, 1.5, 2.0));
                 break;
             case 8: // a little dance
-                BeginAnimation(TiltProperty, K(2400, (.125, 10), (.25, -10), (.375, 10), (.5, -10), (.625, 10), (.75, -10), (1, 0)));
-                BeginAnimation(SquashProperty, K(2400, (.125, .93), (.25, 1.05), (.375, .93), (.5, 1.05), (.625, .93), (.75, 1.05), (1, 1)));
-                BeginAnimation(WingLProperty, K(2400, (.125, 70), (.25, 14), (.375, 70), (.5, 14), (.625, 70), (.75, 14), (1, 14)));
-                BeginAnimation(WingRProperty, K(2400, (.125, 14), (.25, 70), (.375, 14), (.5, 70), (.625, 14), (.75, 70), (1, 14)));
-                BeginAnimation(BlushProperty, K(2400, (.2, .9), (.8, .9), (1, .45)));
+                Go(TiltProperty, 3.0, t => tl + 10 * Math.Sin(2 * Math.PI * 1.7 * t) * Env(t, 3.0));
+                Go(LiftProperty, 3.0, t => -3.5 * Math.Abs(Math.Sin(2 * Math.PI * 1.7 * t)) * Env(t, 3.0));
+                Go(SquashProperty, 3.0, t => sq + .045 * Math.Cos(2 * Math.PI * 3.4 * t) * Env(t, 3.0));
+                Go(WingLProperty, 3.0, t => wl + 52 * Math.Max(0, Math.Sin(2 * Math.PI * 1.7 * t)) * Env(t, 3.0));
+                Go(WingRProperty, 3.0, t => wr + 52 * Math.Max(0, -Math.Sin(2 * Math.PI * 1.7 * t)) * Env(t, 3.0));
+                Go(BlushProperty, 3.0, t => .45 + .45 * Env(t, 3.0));
                 break;
-            default: // sleepy droop with a yawn
-                BeginAnimation(SquashProperty, K(3200, (.3, .93), (.75, .93), (1, 1)));
-                BeginAnimation(TiltProperty, K(3200, (.3, 10), (.75, 10), (1, 0)));
-                BeginAnimation(LidsProperty, K(3200, (.3, .85), (.75, .85), (1, 0)));
-                BeginAnimation(BeakProperty, K(3200, (.2, 0), (.4, 1), (.6, 1), (.75, 0), (1, 0)));
+            default: // drowsy, a yawn, then a quick shake awake
+                Go(SquashProperty, 4.0, t => sq - .06 * Win(t, .2, 1.0, 2.6, 3.2));
+                Go(TiltProperty, 4.0, t => tl + 11 * Win(t, .2, 1.1, 2.4, 3.0) + 7 * Decay(Math.Max(0, t - 3.0), 5, 4) * Sm((t - 3.0) / .05));
+                Go(LidsProperty, 4.0, t => .85 * Win(t, .3, 1.0, 2.6, 3.2));
+                Go(BeakProperty, 4.0, t => Win(t, 1.3, 1.6, 2.1, 2.4));
                 break;
         }
     }
+
+    /// <summary>One hop: a parabola starting at <paramref name="start"/> seconds and lasting <paramref name="length"/>.</summary>
+    private static double Hop(double t, double start, double length)
+    {
+        var u = (t - start) / length;
+        return u is < 0 or > 1 ? 0 : 4 * u * (1 - u);
+    }
+
+    /// <summary>Fades a repeating motion in and out over the act's length.</summary>
+    private static double Env(double t, double total) => Sm(t / .35) * Sm((total - t) / .5);
 }
