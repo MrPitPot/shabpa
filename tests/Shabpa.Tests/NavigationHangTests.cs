@@ -21,7 +21,15 @@ public class NavigationBreadcrumbTests
         return d;
     }
 
-    private static RunMarker.Mark Read(string d) => JsonSerializer.Deserialize<RunMarker.Mark>(File.ReadAllText(Path.Combine(d, RunMarker.FileName)))!;
+    private static RunMarker.Mark Read(string d)
+    {
+        // the writer may be replacing the file at this very moment, so a busy file is retried briefly
+        for (var i = 0; ; i++)
+        {
+            try { return JsonSerializer.Deserialize<RunMarker.Mark>(File.ReadAllText(Path.Combine(d, RunMarker.FileName)))!; }
+            catch (IOException) when (i < 20) { Thread.Sleep(15); }
+        }
+    }
 
     [Fact]
     public void The_last_step_and_the_tree_size_reach_the_flag()
