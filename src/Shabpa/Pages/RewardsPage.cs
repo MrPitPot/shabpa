@@ -100,7 +100,9 @@ public sealed class RewardsPage : PageBase
             if (tab == 1) { _storeView?.Refresh(); Motion.Pop(shopCard); }
             if (tab == 2) { _wardView?.Refresh(); Motion.Pop(wardCard); }
         }
-        Chips(tabs, new[] { (0, L.T("مدال‌ها و مأموریت‌ها", "Medals & quests")), (1, L.T("فروشگاه", "Shop")), (2, L.T("بوفی من", "My Boofi")) }, 0, ShowTab);
+        var tabList = new[] { (0, L.T("مدال‌ها و مأموریت‌ها", "Medals & quests")), (1, L.T("فروشگاه", "Shop")), (2, L.T("بوفی من", "My Boofi")) };
+        Chips(tabs, tabList, 0, ShowTab);
+        _storeView.PreviewRequested += part => { _wardView?.Preview(part); Chips(tabs, tabList, 2, ShowTab); ShowTab(2); };
 
         // test aid (screenshots of the medal grid on a short window): SHABPA_RW_ONLY=medals hides the two cards above it
         if (Environment.GetEnvironmentVariable("SHABPA_RW_ONLY") == "medals") { heroCard.Visibility = Visibility.Collapsed; qCard.Visibility = Visibility.Collapsed; }

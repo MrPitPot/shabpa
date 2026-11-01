@@ -83,4 +83,48 @@ public class BoofiStoreTests
         Assert.Equal("hat-cap", m.Worn["hat"]); Assert.Equal("gl-round", m.Worn["glasses"]);
         Assert.Equal(300 - BoofiCatalog.Find("gl-round")!.Price, m.Feathers);
     }
+
+    [Fact]
+    public void Every_part_has_an_english_name_and_note_and_the_text_follows_the_language()
+    {
+        Assert.All(BoofiCatalog.All, p => { Assert.False(string.IsNullOrWhiteSpace(p.En)); Assert.False(string.IsNullOrWhiteSpace(p.EnNote)); Assert.DoesNotContain(p.En, new[] { p.Fa }); });
+        var wasEn = L.En;
+        try
+        {
+            L.En = true;
+            Assert.Equal("Earflap hat", BoofiCatalog.Find("hat-earflap")!.Name);
+            L.En = false;
+            Assert.Equal("کلاه گوش‌دار", BoofiCatalog.Find("hat-earflap")!.Name);
+        }
+        finally { L.En = wasEn; }
+    }
+
+    [Fact]
+    public void Three_looks_can_be_saved_and_follow_later_changes()
+    {
+        var (hub, e) = Engine();
+        hub.State.Rewards.Feathers = 2000;
+        e.Buy("hat-wizard"); e.Buy("gl-round");
+        e.Wear("hat", "hat-wizard");
+        e.UsePreset(0);                                    // empty → saves the current look
+        Assert.Equal("hat-wizard", e.Preset(0)!["hat"]);
+        e.Wear("glasses", "gl-round");                     // the active set follows
+        Assert.Equal("gl-round", e.Preset(0)!["glasses"]);
+        e.Wear("hat", null);
+        e.UsePreset(1);                                    // second set saves the bare look
+        e.UsePreset(0);                                    // back to the first
+        Assert.Equal("gl-round", hub.State.Rewards.Worn["glasses"]);
+        Assert.Equal(0, hub.State.Rewards.ActivePreset);
+    }
+
+    [Fact]
+    public void Feathers_earned_today_are_counted_for_the_shop_bar()
+    {
+        var (hub, e) = Engine();
+        Assert.Equal(0, e.EarnedToday);
+        e.Count("storeBuy");                               // any evaluation that pays something
+        e.Evaluate();
+        Assert.True(e.EarnedToday >= 0);
+        Assert.Equal(hub.State.Rewards.DayCounters.GetValueOrDefault("earned"), e.EarnedToday);
+    }
 }

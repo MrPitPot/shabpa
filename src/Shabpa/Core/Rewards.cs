@@ -45,6 +45,9 @@ public sealed class RewardsState
     /// <summary>Boofi's wardrobe: the parts bought with feathers (the free fur is always owned) and what is worn now (slot → part id).</summary>
     public List<string> Owned { get; set; } = [];
     public Dictionary<string, string> Worn { get; set; } = [];
+    /// <summary>Up to three saved looks (slot → part id) and the one that follows the changes made in the wardrobe (-1 = none).</summary>
+    public List<Dictionary<string, string>> Presets { get; set; } = [];
+    public int ActivePreset { get; set; } = -1;
 }
 
 public sealed record RewardsContext(RewardsState R, AppState S, DateTime Now, int AllPages)
@@ -398,9 +401,32 @@ public sealed class RewardsEngine
         if (id is null || (slot == "fur" && id == BoofiCatalog.DefaultFur)) { if (!State.Worn.Remove(slot)) return true; }
         else if (State.Worn.GetValueOrDefault(slot) == id) return true;
         else State.Worn[slot] = id;
+        if (State.ActivePreset is >= 0 and < 3 && State.ActivePreset < State.Presets.Count) State.Presets[State.ActivePreset] = new(State.Worn);
         Count("wardrobe");
         return true;
     }
+
+    /// <summary>The look saved in a preset (0..2), or null when it is empty.</summary>
+    public Dictionary<string, string>? Preset(int i) => i is >= 0 and < 3 && i < State.Presets.Count && State.Presets[i].Count > 0 ? State.Presets[i] : null;
+
+    /// <summary>Saves the current look into an empty preset, or puts a saved one on (only parts that are still owned). From then on changes update that preset.</summary>
+    public void UsePreset(int i)
+    {
+        if (i is < 0 or > 2) return;
+        while (State.Presets.Count < 3) State.Presets.Add([]);
+        if (State.Presets[i].Count == 0) State.Presets[i] = new(State.Worn);
+        else
+        {
+            State.Worn = State.Presets[i].Where(kv => Owns(kv.Value) && BoofiCatalog.Find(kv.Value)?.Slot == kv.Key).ToDictionary(kv => kv.Key, kv => kv.Value);
+            Count("wardrobe");
+        }
+        State.ActivePreset = i;
+        _dirty = true;
+        Changed?.Invoke();
+    }
+
+    /// <summary>Feathers earned today (shown in the shop's top bar).</summary>
+    public int EarnedToday { get { RollDay(); return State.DayCounters.GetValueOrDefault("earned"); } }
 
     /// <summary>Takes in progress merged from the cloud copy (see <see cref="RewardsMerge"/>).</summary>
     public void Adopt(RewardsState merged)
@@ -665,6 +691,7 @@ public sealed class RewardsEngine
     {
         State.Feathers += feathers;
         State.TotalFeathers += feathers;
+        if (feathers > 0) AddDay("earned", feathers);
     }
 
     /// <summary>Medal notices wait while a game is running in quiet mode and show afterwards.</summary>

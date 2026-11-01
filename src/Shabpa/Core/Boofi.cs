@@ -4,9 +4,10 @@ namespace Shabpa.Core;
 // The art is a stack of transparent pictures in one frame (see Assets/boofi and brand/boofi-parts/source/export-app.js).
 
 /// <param name="FurIndex">For fur parts: the number in the owl pictures (o_N_*, k_N); -1 for the others.</param>
-public sealed record BoofiPart(string Id, string Slot, string Rarity, string Fa, string Note, int Price, bool HasFront, bool HasBehind, int FurIndex, bool IsLantern)
+public sealed record BoofiPart(string Id, string Slot, string Rarity, string Fa, string Note, string En, string EnNote, int Price, bool HasFront, bool HasBehind, int FurIndex, bool IsLantern)
 {
-    public string Name => Fa;
+    public string Name => L.T(Fa, En);
+    public string Description => L.T(Note, EnNote);
     public bool Free => Price == 0;
 }
 
