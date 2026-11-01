@@ -157,7 +157,7 @@ public sealed partial class BidarOwl : Decorator
         Canvas.SetTop(_shadow, 108);
         _art.Children.Add(_shadow);
 
-        var root = new Canvas { Width = 100, Height = 120, RenderTransform = new TransformGroup { Children = { _squash, _lift, _spin } } };
+        var root = new Canvas { Width = 100, Height = 120, RenderTransform = new TransformGroup { Children = { _breath, _squash, _lift, _spin } } };
 
         // feet
         foreach (var x in new[] { 33.0, 55.0 })
@@ -255,9 +255,10 @@ public sealed partial class BidarOwl : Decorator
         UseLayoutRounding = false;
 
         _blinkTimer.Tick += (_, _) => { _blinkTimer.Stop(); DoBlink(); ArmBlink(); };
+        InitMoves();
         _idleTimer.Tick += (_, _) => { _idleTimer.Stop(); IdleAct(); ArmIdle(); };
         _napTimer.Tick += (_, _) => { _napTimer.Stop(); if (IdleLife && IsVisible) SetMood(BidarMood.Sleepy); };
-        IsVisibleChanged += (_, e) => { if ((bool)e.NewValue) { Wake(false); StartOutfitLife(); } else StopTimers(); };
+        IsVisibleChanged += (_, e) => { if ((bool)e.NewValue) { Wake(false); StartOutfitLife(); } else { StopTimers(); SleepPhysics(); StopBreathing(); } };
         Unloaded += (_, _) => StopTimers();
         MouseLeftButtonDown += (_, e) => { e.Handled = true; React(); };
         Apply();
@@ -446,11 +447,8 @@ public sealed partial class BidarOwl : Decorator
     private void Apply()
     {
         if (_wingL is null || _eyeR is null) return; // a property default is being set while the parts are still being built
-        _wingL.Angle = WingL;
-        _wingR.Angle = -WingR;
-        _head.Angle = Tilt;
-        _watchFollow.Angle = WingL - 14;
-        _lanFollow.Angle = -(WingR - 14);
+        ApplyRig();
+        WakePhysics();
         _squash.ScaleX = 1 + (1 - Squash) * 0.5;
         _squash.ScaleY = Squash;
         _lift.Y = Lift;
