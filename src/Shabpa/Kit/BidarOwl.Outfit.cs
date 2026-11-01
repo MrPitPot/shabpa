@@ -154,7 +154,6 @@ public sealed partial class BidarOwl
         if (_bellyEl is not null) _bellyEl.Fill = skinBelly ?? _cBelly;
         if (_wlPath is not null) _wlPath.Fill = skinWing ?? _cWing;
         if (_wrPath is not null) _wrPath.Fill = skinWing ?? _cWing;
-        if (fur is { FurIndex: >= 0 } && BoofiCatalog.FurWithBehind.Contains(fur.FurIndex) && Pic($"k_{fur.FurIndex}.png") is { } glow) _gBack.Children.Add(glow);
 
         // the drawn cap and candle give way to a worn hat or lantern
         if (_vHat is not null) _vHat.Visibility = _hasHat ? Visibility.Collapsed : Visibility.Visible;
