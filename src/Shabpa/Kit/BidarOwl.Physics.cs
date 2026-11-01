@@ -25,7 +25,7 @@ public sealed partial class BidarOwl
     }
 
     // where the right hand hangs when the wing rests (14 degrees out): the lantern's hanging point
-    private const double RestHandX = 80 + 38 * 0.2419, RestHandY = 58 + 38 * 0.9703, ArmLength = 38;
+    private const double ArmLength = 34, RestHandX = 80 + ArmLength * 0.2419, RestHandY = 58 + ArmLength * 0.9703;
 
     private readonly ScaleTransform _breath = new(1, 1, 50, 112);
     private readonly RotateTransform _watchFollow = new(0, 20, 58), _watchDangle = new(0, 16, 78);

@@ -177,12 +177,12 @@ public sealed partial class BidarOwl
                     _gHat.Children.Add(front);
                     break;
                 case "watch":
-                    // smaller and centred on the wing, so the strap wraps the wing instead of sticking out of its edge
-                    Canvas.SetLeft(front, Left + 5); Canvas.SetTop(front, Top + 7);
-                    front.RenderTransform = new ScaleTransform(0.8, 0.8, 34.9, 91.9);
+                    // the rig's wing is the model-sheet wing at 0.63, hung 1.5 px right and 7.9 px lower than in the store frame, so the watch moves by the same
+                    Canvas.SetLeft(front, Left + 1.5); Canvas.SetTop(front, Top + 7.9);
                     _gWatch.Children.Add(front);
                     break;
                 default:
+                    Canvas.SetLeft(front, Left - 1.5); Canvas.SetTop(front, Top + 7.9); // same shift for the right wing (mirrored)
                     _gLantern.Children.Add(front);
                     break;
             }

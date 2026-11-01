@@ -182,7 +182,8 @@ public sealed partial class BidarOwl : Decorator
             root.Children.Add(new Path { Data = G($"M43,{82 + dy} L50,{88 + dy} L57,{82 + dy}"), Stroke = _cEdge, StrokeThickness = 1.6, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round, Opacity = dy == 0 ? 0.9 : 0.6 });
 
         // wings hang from the shoulders; the angle turns them outward (guide: -45 on the chest ... 160 above the head)
-        var wingShape = G("M0,0 C-9,8 -11,26 -3,38 C5,30 10,12 6,0 Z");
+        // the wing of the model sheet (feathered tip), scaled to the rig: this is the shape the store's watches and lanterns were drawn on
+        var wingShape = G("M0,0 C-10.71,5.04 -11.97,23.94 -4.41,35.28 C-1.89,32.13 0,31.5 1.26,28.35 C2.52,31.5 5.04,31.5 6.3,28.35 C8.82,17.64 7.56,4.41 0,0 Z");
         var wl = new Path { Data = wingShape, Fill = _cWing, Stroke = _cEdge, StrokeThickness = 1.2, StrokeLineJoin = PenLineJoin.Round, RenderTransform = _wingL };
         Canvas.SetLeft(wl, 20);
         Canvas.SetTop(wl, 58);
