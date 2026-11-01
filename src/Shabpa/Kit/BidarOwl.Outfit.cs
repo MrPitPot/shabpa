@@ -149,7 +149,9 @@ public sealed partial class BidarOwl
         // the fur's own gradient and pattern (the same art as the store tile) is painted into the body and the wings
         var skinBody = fur is null ? null : SkinBrush($"fb_{fur.Id}.png", 384, null);
         var skinWing = fur is null ? null : SkinBrush($"fw_{fur.Id}.png", 224, new Rect(0.184, 0.048, 0.663, 0.903));
+        var skinBelly = fur is null ? null : SkinBrush($"fv_{fur.Id}.png", 288, null);
         if (_bodyEl is not null) _bodyEl.Fill = skinBody ?? _cBody;
+        if (_bellyEl is not null) _bellyEl.Fill = skinBelly ?? _cBelly;
         if (_wlPath is not null) _wlPath.Fill = skinWing ?? _cWing;
         if (_wrPath is not null) _wrPath.Fill = skinWing ?? _cWing;
         if (fur is { FurIndex: >= 0 } && BoofiCatalog.FurWithBehind.Contains(fur.FurIndex) && Pic($"k_{fur.FurIndex}.png") is { } glow) _gBack.Children.Add(glow);

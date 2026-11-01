@@ -137,6 +137,7 @@ public class BoofiStoreTests
         {
             Assert.True(File.Exists(Path.Combine(dir, $"fb_{p.Id}.png")), p.Id);
             Assert.True(File.Exists(Path.Combine(dir, $"fw_{p.Id}.png")), p.Id);
+            Assert.True(File.Exists(Path.Combine(dir, $"fv_{p.Id}.png")), p.Id);
         }
     }
 }
