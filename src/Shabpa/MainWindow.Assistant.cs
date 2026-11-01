@@ -23,7 +23,7 @@ public partial class MainWindow
 
     private void InitAssistantDock()
     {
-        _dock = new BidarOwl { Width = 50, Height = 60, ToolTip = L.T("فرمان متنی (بوفی)", "Type a command (Boofi)"), Focusable = true, FocusVisualStyle = null };
+        _dock = new BidarOwl { Width = 50, Height = 60, UseOutfit = true, ToolTip = L.T("فرمان متنی (بوفی)", "Type a command (Boofi)"), Focusable = true, FocusVisualStyle = null };
         AutomationProperties.SetName(_dock, L.T("باز کردن فرمان متنی", "Open the command box"));
         _dock.Clicked += () => Dispatcher.BeginInvoke(OpenAssistant);
         _dock.KeyDown += (_, e) =>
@@ -72,7 +72,7 @@ public partial class MainWindow
 
     private void BuildPopup()
     {
-        _big = new BidarOwl { Width = 92, Height = 110, IdleLife = true, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, -2, 24, 0) };
+        _big = new BidarOwl { Width = 92, Height = 110, IdleLife = true, UseOutfit = true, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, -2, 24, 0) };
         _assistant = new AssistantPanel();
         _assistant.Mood += m => _big.SetMood(m);
         _assistant.Spoke += () => _big.Talk();

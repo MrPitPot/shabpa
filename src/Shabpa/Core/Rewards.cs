@@ -402,6 +402,7 @@ public sealed class RewardsEngine
         else if (State.Worn.GetValueOrDefault(slot) == id) return true;
         else State.Worn[slot] = id;
         if (State.ActivePreset is >= 0 and < 3 && State.ActivePreset < State.Presets.Count) State.Presets[State.ActivePreset] = new(State.Worn);
+        BoofiOutfit.Set(State.Worn);
         Count("wardrobe");
         return true;
     }
@@ -421,6 +422,7 @@ public sealed class RewardsEngine
             Count("wardrobe");
         }
         State.ActivePreset = i;
+        BoofiOutfit.Set(State.Worn);
         _dirty = true;
         Changed?.Invoke();
     }
@@ -432,6 +434,7 @@ public sealed class RewardsEngine
     public void Adopt(RewardsState merged)
     {
         _hub.State.Rewards = merged;
+        BoofiOutfit.Set(merged.Worn);
         _dirty = true;
         Evaluate();
     }
@@ -447,6 +450,7 @@ public sealed class RewardsEngine
 
     public void Start()
     {
+        BoofiOutfit.Set(State.Worn);
         _hub.Second += OnSecond;
         _hub.MemoryCleaned += (_, _) => Count("ramFreed", day: "ram");
         _hub.Tasks.Changed += OnTasksChanged;

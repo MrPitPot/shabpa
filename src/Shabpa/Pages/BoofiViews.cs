@@ -18,7 +18,7 @@ internal static class BoofiArt
     private static readonly ConcurrentDictionary<(string, int), BitmapImage> Layer = new();
     private static readonly ConcurrentDictionary<string, ImageSource> Flat = new();
 
-    private static BitmapImage? Load(string file, int width)
+    internal static BitmapImage? Load(string file, int width)
     {
         if (Layer.TryGetValue((file, width), out var hit)) return hit;
         try

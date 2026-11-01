@@ -64,6 +64,7 @@ public sealed partial class BidarOwl : Decorator
     public double Spin { get => (double)GetValue(SpinProperty); set => SetValue(SpinProperty, value); }
 
     // ---- parts ------------------------------------------------------------------------------------------------------------------
+    private Canvas? _vector;
     private readonly Canvas _art = new() { Width = 100, Height = 120, Background = Brushes.Transparent };
     private readonly ScaleTransform _squash = new(1, 1, 50, 112);
     private readonly TranslateTransform _lift = new();
@@ -229,7 +230,9 @@ public sealed partial class BidarOwl : Decorator
         head.Children.Add(new Path { Data = G("M46,61.5 L54,61.5 L50,67 Z"), Fill = Orange, StrokeLineJoin = PenLineJoin.Round });
         head.Children.Add(new Path { Data = G("M47.5,67 L52.5,67 L50,70.4 Z"), Fill = Orange, RenderTransform = _lowerBeak });
         root.Children.Add(head);
+        _vector = root;
         _art.Children.Add(root);
+        _art.Children.Add(_sprite);
 
         // one floating mark at a time (a heart, stars, "z", "?", "!")
         _fxHeart = new Path { Data = G("M0,4 C-8,-2 -6,-9 -2.6,-9 C-1,-9 0,-8 0,-6.5 C0,-8 1,-9 2.6,-9 C6,-9 8,-2 0,4 Z"), Fill = B("#ff5d86"), Visibility = Visibility.Collapsed };
@@ -250,8 +253,9 @@ public sealed partial class BidarOwl : Decorator
         UseLayoutRounding = false;
 
         _blinkTimer.Tick += (_, _) => { _blinkTimer.Stop(); DoBlink(); ArmBlink(); };
+        _idleTimer.Tick += (_, _) => { _idleTimer.Stop(); IdleAct(); ArmIdle(); };
         _napTimer.Tick += (_, _) => { _napTimer.Stop(); if (IdleLife && IsVisible) SetMood(BidarMood.Sleepy); };
-        IsVisibleChanged += (_, e) => { if ((bool)e.NewValue) Wake(false); else StopTimers(); };
+        IsVisibleChanged += (_, e) => { if ((bool)e.NewValue) { Wake(false); StartOutfitLife(); } else StopTimers(); };
         Unloaded += (_, _) => StopTimers();
         MouseLeftButtonDown += (_, e) => { e.Handled = true; React(); };
         Apply();
@@ -322,6 +326,7 @@ public sealed partial class BidarOwl : Decorator
     {
         _blinkTimer.Stop();
         _napTimer.Stop();
+        StopOutfitLife();
     }
 
     /// <summary>One blink (a short close and open); a no-op with motion off or while the eyes are closed anyway.</summary>
@@ -442,6 +447,7 @@ public sealed partial class BidarOwl : Decorator
         _wingL.Angle = WingL;
         _wingR.Angle = -WingR;
         _head.Angle = Tilt;
+        _bodyTilt.Angle = Tilt * 0.6;
         _squash.ScaleX = 1 + (1 - Squash) * 0.5;
         _squash.ScaleY = Squash;
         _lift.Y = Lift;

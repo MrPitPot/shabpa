@@ -13,7 +13,7 @@ public sealed class AssistantWindow : Window
 {
     private static AssistantWindow? _open;
 
-    private readonly BidarOwl _owl = new() { Width = 76, Height = 91, IdleLife = true, Margin = new Thickness(0, 0, 14, 0) };
+    private readonly BidarOwl _owl = new() { Width = 76, Height = 91, IdleLife = true, UseOutfit = true, Margin = new Thickness(0, 0, 14, 0) };
     private readonly AssistantPanel _panel = new();
 
     /// <summary>Opens the box, or brings the open one to the front.</summary>

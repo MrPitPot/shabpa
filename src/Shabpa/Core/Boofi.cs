@@ -62,3 +62,18 @@ public static partial class BoofiCatalog
 
     public static readonly (double X, double Y, double W) Whole = (100, 108, 236);
 }
+
+/// <summary>What Boofi wears right now, for every little Boofi in the app (the dock, the assistant): the rewards engine sets it.</summary>
+public static class BoofiOutfit
+{
+    private static Dictionary<string, string> _current = [];
+    public static IReadOnlyDictionary<string, string> Current => _current;
+    public static event Action? Changed;
+
+    public static void Set(IReadOnlyDictionary<string, string> worn)
+    {
+        if (worn.Count == _current.Count && worn.All(kv => _current.TryGetValue(kv.Key, out var v) && v == kv.Value)) return;
+        _current = new(worn);
+        Changed?.Invoke();
+    }
+}
