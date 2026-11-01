@@ -553,6 +553,9 @@ internal sealed class BoofiWardrobeView : Grid
     private readonly WrapPanel _slots = new() { Margin = new Thickness(-4, 0, -4, 8) };
     private readonly WrapPanel _grid = new() { Margin = new Thickness(-4, 0, -4, 0) };
     private string _sig = "";
+    private readonly Kit.BidarOwl _stageOwl = new() { Width = 275, Height = 330, Standalone = true, IdleLife = true, HorizontalAlignment = HorizontalAlignment.Center };
+    private Dictionary<string, string> _shown = [];
+    private bool _firstDraw = true;
 
     public BoofiWardrobeView(Hub hub)
     {
@@ -605,9 +608,14 @@ internal sealed class BoofiWardrobeView : Grid
         hint.TextWrapping = TextWrapping.Wrap;
         hint.Margin = new Thickness(0, 2, 0, 4);
         stack.Children.Add(hint);
-        var art = BoofiArt.Make(look, BoofiCatalog.Whole, 330, 330);
-        art.HorizontalAlignment = HorizontalAlignment.Center;
-        stack.Children.Add(art);
+        // the big Boofi is the live one: it breathes, reacts to a click, and shows off whatever was just put on
+        if (_stageOwl.Parent is Panel old) old.Children.Remove(_stageOwl);
+        _stageOwl.ShowLook(look);
+        stack.Children.Add(_stageOwl);
+        var changed = look.Where(kv => !_shown.TryGetValue(kv.Key, out var v) || v != kv.Value).Select(kv => kv.Key).FirstOrDefault();
+        _shown = new Dictionary<string, string>(look);
+        if (changed is not null && _firstDraw is false) _stageOwl.Dispatcher.BeginInvoke(() => _stageOwl.Showcase(changed), System.Windows.Threading.DispatcherPriority.Background);
+        _firstDraw = false;
 
         if (_try is { } t)
         {

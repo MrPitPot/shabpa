@@ -169,23 +169,23 @@ public sealed partial class BidarOwl : Decorator
         }
 
         // body and belly with the little chevrons
-        var body = new Ellipse { Width = 70, Height = 72, Fill = Body };
+        var body = new Ellipse { Width = 70, Height = 72, Fill = _cBody };
         Canvas.SetLeft(body, 15);
         Canvas.SetTop(body, 38);
-        var belly = new Ellipse { Width = 44, Height = 44, Fill = Belly };
+        var belly = new Ellipse { Width = 44, Height = 44, Fill = _cBelly };
         Canvas.SetLeft(belly, 28);
         Canvas.SetTop(belly, 62);
         root.Children.Add(body);
         root.Children.Add(belly);
         foreach (var dy in new[] { 0.0, 6 })
-            root.Children.Add(new Path { Data = G($"M43,{82 + dy} L50,{88 + dy} L57,{82 + dy}"), Stroke = WingLine, StrokeThickness = 1.6, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round, Opacity = dy == 0 ? 0.9 : 0.6 });
+            root.Children.Add(new Path { Data = G($"M43,{82 + dy} L50,{88 + dy} L57,{82 + dy}"), Stroke = _cEdge, StrokeThickness = 1.6, StrokeStartLineCap = PenLineCap.Round, StrokeEndLineCap = PenLineCap.Round, StrokeLineJoin = PenLineJoin.Round, Opacity = dy == 0 ? 0.9 : 0.6 });
 
         // wings hang from the shoulders; the angle turns them outward (guide: -45 on the chest ... 160 above the head)
         var wingShape = G("M0,0 C-9,8 -11,26 -3,38 C5,30 10,12 6,0 Z");
-        var wl = new Path { Data = wingShape, Fill = Dark, Stroke = WingLine, StrokeThickness = 1.2, StrokeLineJoin = PenLineJoin.Round, RenderTransform = _wingL };
+        var wl = new Path { Data = wingShape, Fill = _cWing, Stroke = _cEdge, StrokeThickness = 1.2, StrokeLineJoin = PenLineJoin.Round, RenderTransform = _wingL };
         Canvas.SetLeft(wl, 20);
         Canvas.SetTop(wl, 58);
-        var wr = new Path { Data = wingShape, Fill = Dark, Stroke = WingLine, StrokeThickness = 1.2, StrokeLineJoin = PenLineJoin.Round, RenderTransform = new TransformGroup { Children = { new ScaleTransform(-1, 1), _wingR } } };
+        var wr = new Path { Data = wingShape, Fill = _cWing, Stroke = _cEdge, StrokeThickness = 1.2, StrokeLineJoin = PenLineJoin.Round, RenderTransform = new TransformGroup { Children = { new ScaleTransform(-1, 1), _wingR } } };
         Canvas.SetLeft(wr, 80);
         Canvas.SetTop(wr, 58);
         root.Children.Add(wl);
@@ -199,7 +199,7 @@ public sealed partial class BidarOwl : Decorator
         };
         Canvas.SetLeft(_glow, 69);
         Canvas.SetTop(_glow, 78);
-        _lantern = new Path { Data = G("M86,90 L86,93 M82,93 L90,93 L90,96 L82,96 Z M82.6,96 L89.4,96 L89.4,104 L82.6,104 Z M82,104 L90,104 L90,106 L82,106 Z"), Fill = Gold, Stroke = Orange, StrokeThickness = 0.9, StrokeLineJoin = PenLineJoin.Round };
+        _lantern = new Path { RenderTransform = _lanSwing, Data = G("M86,90 L86,93 M82,93 L90,93 L90,96 L82,96 Z M82.6,96 L89.4,96 L89.4,104 L82.6,104 Z M82,104 L90,104 L90,106 L82,106 Z"), Fill = Gold, Stroke = Orange, StrokeThickness = 0.9, StrokeLineJoin = PenLineJoin.Round };
         root.Children.Add(_glow);
         root.Children.Add(_lantern);
 
@@ -207,11 +207,13 @@ public sealed partial class BidarOwl : Decorator
         var head = new Canvas { Width = 100, Height = 120, RenderTransform = _head };
         // the hat is its own group so it can lift and tilt (hat-tip, fidget)
         var hat = new Canvas { Width = 100, Height = 120, RenderTransform = new TransformGroup { Children = { _hatTilt, _hatMove } } };
-        hat.Children.Add(new Path { Data = G("M22,42 C20,10 80,10 78,42 Z"), Fill = Dark });
+        _vHat = new Canvas { Width = 100, Height = 120 };
+        hat.Children.Add(_vHat);
+        _vHat.Children.Add(new Path { Data = G("M22,42 C20,10 80,10 78,42 Z"), Fill = Dark });
         var moon = new Path { Data = new CombinedGeometry(GeometryCombineMode.Exclude, new EllipseGeometry(new Point(44, 28), 6.2, 6.2), new EllipseGeometry(new Point(47.2, 26), 5.6, 5.6)), Fill = Gold };
         moon.Data.Freeze();
-        hat.Children.Add(moon);
-        hat.Children.Add(new Border { Width = 66, Height = 7, CornerRadius = new CornerRadius(3.5), Background = Brim, Margin = new Thickness(17, 38, 0, 0) });
+        _vHat.Children.Add(moon);
+        _vHat.Children.Add(new Border { Width = 66, Height = 7, CornerRadius = new CornerRadius(3.5), Background = Brim, Margin = new Thickness(17, 38, 0, 0) });
         head.Children.Add(hat);
         _cheekL = new Ellipse { Width = 9, Height = 6, Fill = Cheek };
         _cheekR = new Ellipse { Width = 9, Height = 6, Fill = Cheek };
@@ -229,10 +231,10 @@ public sealed partial class BidarOwl : Decorator
         head.Children.Add(_mouth);
         head.Children.Add(new Path { Data = G("M46,61.5 L54,61.5 L50,67 Z"), Fill = Orange, StrokeLineJoin = PenLineJoin.Round });
         head.Children.Add(new Path { Data = G("M47.5,67 L52.5,67 L50,70.4 Z"), Fill = Orange, RenderTransform = _lowerBeak });
+        AttachOutfit(root, head, hat);
         root.Children.Add(head);
         _vector = root;
         _art.Children.Add(root);
-        _art.Children.Add(_sprite);
 
         // one floating mark at a time (a heart, stars, "z", "?", "!")
         _fxHeart = new Path { Data = G("M0,4 C-8,-2 -6,-9 -2.6,-9 C-1,-9 0,-8 0,-6.5 C0,-8 1,-9 2.6,-9 C6,-9 8,-2 0,4 Z"), Fill = B("#ff5d86"), Visibility = Visibility.Collapsed };
@@ -447,7 +449,6 @@ public sealed partial class BidarOwl : Decorator
         _wingL.Angle = WingL;
         _wingR.Angle = -WingR;
         _head.Angle = Tilt;
-        _bodyTilt.Angle = Tilt * 0.6;
         _squash.ScaleX = 1 + (1 - Squash) * 0.5;
         _squash.ScaleY = Squash;
         _lift.Y = Lift;
