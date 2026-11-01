@@ -42,6 +42,12 @@ public sealed partial class BidarOwl
         ["fu-nowruz"] = ("#7de8b0", "#fff8ea", "#3fc08a", "#ffb3c7"), ["fu-party"] = ("#8a4fe0", "#ffd0f0", "#5a2fb0", "#ffd27a"),
     };
 
+    /// <summary>How far (rig pixels) a hat is moved down so it sits on the drawn head (found by laying every hat over the rig).</summary>
+    private static double HatDrop(string id) => id switch
+    {
+        "hat-headset" => 2.5, "hat-aviator" => 5, "hat-astronaut" => 4, "hat-halo" => 4, "hat-earflap" => 6.5, _ => 7.5,
+    };
+
     private static Color Hx(string hex) => (Color)ColorConverter.ConvertFromString(hex);
 
     /// <summary>Called while the rig is built: lays the (empty) part layers into it at the right depth.</summary>
@@ -138,15 +144,24 @@ public sealed partial class BidarOwl
         foreach (var slot in new[] { "neck", "glasses", "hat", "watch", "lantern" })
         {
             if (Get(slot) is not { } part) continue;
-            if (part.HasBehind && Pic($"{part.Id}_b.png") is { } back) _gBack.Children.Add(back);
+            if (part.HasBehind && Pic($"{part.Id}_b.png") is { } back)
+            {
+                if (slot == "hat") Canvas.SetTop(back, Top + HatDrop(part.Id));
+                _gBack.Children.Add(back);
+            }
             if (!part.HasFront || Pic($"{part.Id}.png") is not { } front) continue;
             switch (slot)
             {
                 case "neck": _gNeck.Children.Add(front); break;
                 case "glasses": _gGlasses.Children.Add(front); break;
-                case "hat": _gHat.Children.Add(front); break;
+                case "hat":
+                    Canvas.SetTop(front, Top + HatDrop(part.Id)); // the drawn head is lower than the store's, so hats move down onto it
+                    _gHat.Children.Add(front);
+                    break;
                 case "watch":
-                    Canvas.SetLeft(front, Left + 6.5); Canvas.SetTop(front, Top + 5); // centred on the wing, not on its edge
+                    // smaller and centred on the wing, so the strap wraps the wing instead of sticking out of its edge
+                    Canvas.SetLeft(front, Left + 5); Canvas.SetTop(front, Top + 7);
+                    front.RenderTransform = new ScaleTransform(0.8, 0.8, 34.9, 91.9);
                     _gWatch.Children.Add(front);
                     break;
                 default:
