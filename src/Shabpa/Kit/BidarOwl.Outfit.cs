@@ -21,6 +21,8 @@ public sealed partial class BidarOwl
     private SolidColorBrush _cBody = new(Color.FromRgb(0x3d, 0x3b, 0x94)), _cBelly = new(Color.FromRgb(0x56, 0x52, 0xb8)),
         _cWing = new(Color.FromRgb(0x2a, 0x27, 0x66)), _cEdge = new(Color.FromRgb(0x7d, 0x7a, 0xe0));
     private Canvas? _vHat;
+    private Ellipse? _bodyEl, _bellyEl;
+    private Path? _wlPath, _wrPath;
     private readonly Canvas _gBack = new() { Width = 100, Height = 120, IsHitTestVisible = false }, _gNeck = new() { IsHitTestVisible = false },
         _gWatch = new() { IsHitTestVisible = false }, _gLantern = new() { IsHitTestVisible = false },
         _gGlasses = new() { Width = 100, Height = 120, IsHitTestVisible = false }, _gHat = new() { Width = 100, Height = 120, IsHitTestVisible = false };
@@ -112,6 +114,16 @@ public sealed partial class BidarOwl
         Dress(BoofiOutfit.Current);
     }
 
+    private static Brush? SkinBrush(string file, int width, Rect? crop)
+    {
+        if (BoofiArt.Load(file, width) is not { } picture) return null;
+        var brush = new ImageBrush(picture) { Stretch = Stretch.Fill };
+        if (crop is { } c) brush.Viewbox = c;
+        RenderOptions.SetBitmapScalingMode(brush, BitmapScalingMode.HighQuality);
+        brush.Freeze();
+        return brush;
+    }
+
     private Image? Pic(string file)
     {
         if (BoofiArt.Load(file, BoofiArt.Bucket(Side / 100 * (double.IsNaN(Width) ? 60 : Width) * Math.Clamp(VisualTreeHelper.GetDpi(this).DpiScaleX, 1, 2))) is not { } picture) return null;
@@ -134,6 +146,12 @@ public sealed partial class BidarOwl
         var fur = Get("fur");
         var c = fur is not null && Fur.TryGetValue(fur.Id, out var col) ? col : ("#3d3b94", "#5652b8", "#2a2766", "#7d7ae0");
         _cBody.Color = Hx(c.Item1); _cBelly.Color = Hx(c.Item2); _cWing.Color = Hx(c.Item3); _cEdge.Color = Hx(c.Item4);
+        // the fur's own gradient and pattern (the same art as the store tile) is painted into the body and the wings
+        var skinBody = fur is null ? null : SkinBrush($"fb_{fur.Id}.png", 384, null);
+        var skinWing = fur is null ? null : SkinBrush($"fw_{fur.Id}.png", 224, new Rect(0.184, 0.048, 0.663, 0.903));
+        if (_bodyEl is not null) _bodyEl.Fill = skinBody ?? _cBody;
+        if (_wlPath is not null) _wlPath.Fill = skinWing ?? _cWing;
+        if (_wrPath is not null) _wrPath.Fill = skinWing ?? _cWing;
         if (fur is { FurIndex: >= 0 } && BoofiCatalog.FurWithBehind.Contains(fur.FurIndex) && Pic($"k_{fur.FurIndex}.png") is { } glow) _gBack.Children.Add(glow);
 
         // the drawn cap and candle give way to a worn hat or lantern

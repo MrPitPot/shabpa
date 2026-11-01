@@ -127,4 +127,16 @@ public class BoofiStoreTests
         Assert.True(e.EarnedToday >= 0);
         Assert.Equal(hub.State.Rewards.DayCounters.GetValueOrDefault("earned"), e.EarnedToday);
     }
+
+    [Fact]
+    public void Every_fur_except_the_free_one_has_body_and_wing_skins_for_the_little_Boofi()
+    {
+        var dir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "Shabpa", "Assets", "boofi"));
+        if (!Directory.Exists(dir)) return;
+        foreach (var p in BoofiCatalog.All.Where(p => p.Slot == "fur" && p.Id != BoofiCatalog.DefaultFur))
+        {
+            Assert.True(File.Exists(Path.Combine(dir, $"fb_{p.Id}.png")), p.Id);
+            Assert.True(File.Exists(Path.Combine(dir, $"fw_{p.Id}.png")), p.Id);
+        }
+    }
 }

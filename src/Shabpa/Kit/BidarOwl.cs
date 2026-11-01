@@ -175,6 +175,7 @@ public sealed partial class BidarOwl : Decorator
         var belly = new Ellipse { Width = 44, Height = 44, Fill = _cBelly };
         Canvas.SetLeft(belly, 28);
         Canvas.SetTop(belly, 62);
+        _bodyEl = body; _bellyEl = belly;
         root.Children.Add(body);
         root.Children.Add(belly);
         foreach (var dy in new[] { 0.0, 6 })
@@ -188,6 +189,7 @@ public sealed partial class BidarOwl : Decorator
         var wr = new Path { Data = wingShape, Fill = _cWing, Stroke = _cEdge, StrokeThickness = 1.2, StrokeLineJoin = PenLineJoin.Round, RenderTransform = new TransformGroup { Children = { new ScaleTransform(-1, 1), _wingR } } };
         Canvas.SetLeft(wr, 80);
         Canvas.SetTop(wr, 58);
+        _wlPath = wl; _wrPath = wr;
         root.Children.Add(wl);
         root.Children.Add(wr);
 
