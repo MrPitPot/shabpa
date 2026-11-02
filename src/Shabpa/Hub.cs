@@ -104,7 +104,7 @@ public sealed partial class Hub
         Traffic = new TrafficMeter(_resolver.Resolve);
         Ping = new PingMeter(() => Settings.PingHost);
         Telemetry = new Telemetry(() => Sensors.Latest, () => Ping.Samples);
-        Rgb = new RgbService(() => Settings, () => Telemetry.Latest.CpuTempC, () => Snapshot.CpuLoad);
+        Rgb = new RgbService(() => Settings, () => Telemetry.Latest.CpuTempC, () => Snapshot.CpuLoad, () => Snapshot.GameRunning);
         Telemetry.UseBoardSensors = Settings.Overlay.BoardSensors && !demo;
         if (!demo) GpuProbe.PrefetchCard();
         Telemetry.LogWhileGameAlive = Settings.GameLog && !demo;
@@ -377,6 +377,7 @@ public sealed partial class Hub
 
         CheckBirthday(Core.Birthday.Now());
         CheckForUpdates(now);
+        RunForcedUpdate();
         CheckBudget(now);
         RunDownloadPlans(now);
         RunComfort(now);
@@ -699,14 +700,26 @@ public sealed partial class Hub
     private void CheckForUpdates(DateTime now)
     {
         if (Demo || !Settings.AutoUpdateCheck || Updater.Feed.Length == 0) return;
-        if (now - _started < TimeSpan.FromSeconds(30) || now - _lastUpdateCheck < TimeSpan.FromHours(6)) return;
+        if (now - _started < TimeSpan.FromSeconds(12) || now - _lastUpdateCheck < TimeSpan.FromHours(6)) return;
         _lastUpdateCheck = now;
         _ = AnnounceUpdate();
+    }
+
+    /// <summary>A newer signed version is waiting and the update is not optional: the window that installs it should open (raised once, when no game is running).</summary>
+    public event Action<UpdateInfo>? UpdateRequired;
+    private UpdateInfo? _forced;
+
+    private void RunForcedUpdate()
+    {
+        if (_forced is not { } info || GameModeActive || Snapshot.GameRunning || UpdateRequired is null) return;
+        _forced = null;
+        UpdateRequired.Invoke(info);
     }
 
     private async Task AnnounceUpdate()
     {
         if (await Updater.CheckAsync() is not { } info) return;
+        if (Settings.ForceUpdates && info.Manifest is not null) _forced = info;        // only a version from a signed manifest can force anything
         var version = info.Version.ToString(3);
         if (Settings.AnnouncedVersion == version) return;
         Settings.AnnouncedVersion = version;

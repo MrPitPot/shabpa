@@ -167,7 +167,7 @@ public class OpenRgbClientTests
 {
     private static byte[] Str(string s) { var b = Encoding.UTF8.GetBytes(s + "\0"); return [.. BitConverter.GetBytes((ushort)b.Length), .. b]; }
 
-    private static byte[] Controller(int type, string name, int leds, bool withModesAndZones = true)
+    private static byte[] Controller(int type, string name, int leds, bool withModesAndZones = true, int? max = null)
     {
         var body = new List<byte>();
         body.AddRange(BitConverter.GetBytes(type));
@@ -192,7 +192,7 @@ public class OpenRgbClientTests
         if (withModesAndZones)
         {
             body.AddRange(Str("Zone 1"));
-            body.AddRange(BitConverter.GetBytes(1)); body.AddRange(BitConverter.GetBytes(0)); body.AddRange(BitConverter.GetBytes(leds)); body.AddRange(BitConverter.GetBytes(leds));
+            body.AddRange(BitConverter.GetBytes(1)); body.AddRange(BitConverter.GetBytes(0)); body.AddRange(BitConverter.GetBytes(max ?? leds)); body.AddRange(BitConverter.GetBytes(leds));
             body.AddRange(BitConverter.GetBytes((ushort)0));
         }
         body.AddRange(BitConverter.GetBytes((ushort)leds));
@@ -242,8 +242,10 @@ public class OpenRgbClientTests
         public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
         public readonly List<(uint device, uint id, byte[] payload)> Seen = [];
         private readonly Task _loop;
-        public FakeServer((int type, string name, int leds)[] devices)
+        private readonly Dictionary<uint, int> _current = [];
+        public FakeServer((int type, string name, int leds)[] devices, int[]? startCounts = null)
         {
+            for (var i = 0; i < devices.Length; i++) _current[(uint)i] = startCounts?[i] ?? devices[i].leds;
             _listener.Start();
             _loop = Task.Run(() =>
             {
@@ -261,7 +263,8 @@ public class OpenRgbClientTests
                         void Reply(uint rid, byte[] data) { var p = new List<byte>("ORGB"u8.ToArray()); p.AddRange(BitConverter.GetBytes(device)); p.AddRange(BitConverter.GetBytes(rid)); p.AddRange(BitConverter.GetBytes((uint)data.Length)); p.AddRange(data); stream.Write([.. p]); }
                         if (id == 40) Reply(40, BitConverter.GetBytes(3u));
                         else if (id == 0) Reply(0, BitConverter.GetBytes((uint)devices.Length));
-                        else if (id == 1) Reply(1, Controller(devices[device].type, devices[device].name, devices[device].leds));
+                        else if (id == 1000) _current[device] = BitConverter.ToInt32(payload, 4);
+                        else if (id == 1) Reply(1, Controller(devices[device].type, devices[device].name, _current[device], true, devices[device].leds));
                     }
                 }
                 catch (Exception ex) when (ex is IOException or SocketException or ObjectDisposedException or InvalidOperationException) { }
@@ -401,5 +404,86 @@ public class OpenRgbClientTests
         Assert.True(RgbService.IsStill(rgb));                                            // a look that is not in use does not count
         rgb.DeviceSetting("5|Keyboard").Own = true;
         Assert.False(RgbService.IsStill(rgb));
+    }
+
+    [Fact]
+    public void Headers_whose_size_can_be_set_are_raised_to_the_maximum_unless_the_person_chose_a_size()
+    {
+        using var server = new FakeServer([(3, "ARGB hub", 24), (3, "Other hub", 40)], [4, 8]);
+        using var client = new OpenRgbClient();
+        Assert.True(client.Connect("127.0.0.1", server.Port), client.LastError);
+        Assert.Equal([4, 8], client.Devices.Select(d => d.Leds));
+        Assert.All(client.Devices, d => Assert.True(d.Zones[0].Resizable));
+        var typed = new Dictionary<string, int> { ["3|Other hub|Zone 1"] = 16 };              // the person typed 16 for the second one
+        var changed = client.ApplySizes((d, z) => typed.TryGetValue(RgbService.SizeKey(d, z), out var n) ? n : z.Max);
+        Assert.Equal(2, changed);
+        Assert.Equal([24, 16], client.Devices.Select(d => d.Leds));
+        Assert.Equal(0, client.ApplySizes((d, z) => typed.TryGetValue(RgbService.SizeKey(d, z), out var n) ? n : z.Max));   // nothing left to do
+        Thread.Sleep(100);
+        lock (server.Seen) Assert.Equal(2, server.Seen.Count(x => x.id == 1000));
+    }
+
+    [Fact]
+    public void A_header_size_outside_what_the_device_allows_is_not_sent()
+    {
+        using var server = new FakeServer([(3, "ARGB hub", 24)], [4]);
+        using var client = new OpenRgbClient();
+        Assert.True(client.Connect("127.0.0.1", server.Port), client.LastError);
+        Assert.Equal(0, client.ApplySizes((_, _) => 99));
+        lock (server.Seen) Assert.DoesNotContain(server.Seen, x => x.id == 1000);
+    }
+
+    [Theory]
+    [InlineData("blaze")]
+    [InlineData("sunrise")]
+    [InlineData("center")]
+    [InlineData("darkwave")]
+    [InlineData("soft")]
+    public void Every_fade_goes_from_dark_to_the_frame_and_never_gets_dimmer_as_it_goes(string style)
+    {
+        var frame = Enumerable.Repeat(new Rgb(200, 120, 40), 24).ToArray();
+        long Total(Rgb[] f) => f.Sum(c => (long)c.R + c.G + c.B);
+        Assert.Equal(0, Total(RgbTransitions.Apply(frame, style, 0)));
+        Assert.Equal(frame, RgbTransitions.Apply(frame, style, 1));
+        long last = -1;
+        for (var p = 0.0; p <= 1.0001; p += 0.05)
+        {
+            var now = Total(RgbTransitions.Apply(frame, style, p));
+            Assert.True(now >= last - 40, $"{style} at {p:0.00}: {now} < {last}");          // blaze's orange front may wobble a little, nothing else
+            last = now;
+        }
+    }
+
+    [Fact]
+    public void No_effect_means_the_frame_comes_through_at_once_and_every_style_has_a_name()
+    {
+        var frame = new[] { new Rgb(1, 2, 3) };
+        Assert.Equal(frame, RgbTransitions.Apply(frame, "none", 0));
+        Assert.All(RgbTransitions.Styles, st => Assert.True(RgbTransitions.Name(st.Key).Length > 0));
+        Assert.Equal("blaze", new RgbSettings().Transition);
+        var d = new RgbSettings();
+        Assert.True(d.OffOnSleep && d.StartupEffect && d.Smooth);
+        Assert.False(d.PauseInGame || d.KeepRivalsClosed);
+    }
+
+    [Fact]
+    public void Synchronised_lights_take_their_colours_from_one_flow_laid_along_all_of_them()
+    {
+        var look = new RgbLook(RgbEffects.Find("rainbow"), new Rgb(255, 0, 0), 1, 1);
+        var global = RgbEngine.Frame(look, 100, 2.0);
+        var first = RgbEngine.Slice(global, 0, 0.5, 50);
+        var second = RgbEngine.Slice(global, 0.5, 1, 50);
+        Assert.Equal(global[0], first[0]);
+        Assert.Equal(global[99], second[49]);
+        Assert.NotEqual(first[49], second[0] == default ? first[0] : Rgb.Black);
+        // the end of the first stretch and the start of the second are neighbours on the flow: nearly the same colour
+        Assert.True(Math.Abs(first[49].R - second[0].R) + Math.Abs(first[49].G - second[0].G) + Math.Abs(first[49].B - second[0].B) < 60);
+        Assert.Equal(7, RgbEngine.Slice(global, 0.2, 0.3, 7).Length);
+    }
+
+    [Fact]
+    public void Updates_are_forced_by_default_and_the_flag_is_in_the_settings()
+    {
+        Assert.True(new Settings().ForceUpdates);
     }
 }

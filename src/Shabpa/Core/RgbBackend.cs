@@ -108,7 +108,10 @@ public sealed class OpenRgbClient : IDisposable
     }
 
     /// <summary>Devices that talk over a slow bus (memory and many motherboards, over SMBus) get fewer frames; everything else gets up to 40 a second.</summary>
-    private static int MinIntervalMs(RgbDevice device) => device.Type is 0 or 1 ? 100 : 25;
+    private static int MinIntervalMs(RgbDevice device, bool smooth) => device.Type is 0 or 1 ? (smooth ? 100 : 130) : (smooth ? 20 : 40);
+
+    /// <summary>More frames a second for devices that can take them (the page's «smoother» switch).</summary>
+    public bool Smooth { get; set; } = true;
 
     /// <summary>Sets every LED of the devices. <paramref name="frameFor"/> gives a device's frame (or null to leave it alone); it is stretched to the device's LED count.
     /// A device only gets a frame when its colours changed (or every two seconds, so none falls back to its own program), and a slow one only every 100 ms.</summary>
@@ -128,7 +131,7 @@ public sealed class OpenRgbClient : IDisposable
                 if (_last.TryGetValue(device.Index, out var before))
                 {
                     var age = now - before.At;
-                    if (age < MinIntervalMs(device)) continue;
+                    if (age < MinIntervalMs(device, Smooth)) continue;
                     if (age < 2000 && before.Colours.AsSpan().SequenceEqual(colours)) continue;
                 }
                 _last[device.Index] = (colours, now);
@@ -151,6 +154,20 @@ public sealed class OpenRgbClient : IDisposable
             Close();
             return false;
         }
+    }
+
+    /// <summary>Sets every header whose size can be set to the size <paramref name="target"/> gives for it (null leaves it). Returns how many were changed.</summary>
+    public int ApplySizes(Func<RgbDevice, RgbZoneInfo, int?> target)
+    {
+        var changed = 0;
+        for (var guard = 0; guard < 64; guard++)
+        {
+            var next = Devices.SelectMany(d => d.Zones.Where(z => z.Resizable).Select(z => (d, z, want: target(d, z)))).FirstOrDefault(x => x.want is { } w && w != x.z.Count && w >= x.z.Min && w <= x.z.Max);
+            if (next.d is null || next.want is not { } size) break;
+            if (!ResizeZone(next.d.Index, next.z.Index, size)) break;
+            changed++;
+        }
+        return changed;
     }
 
     /// <summary>Gives a header zone a size (OpenRGB "resize zone") and reads the device again. False when the device refuses or the link is down.</summary>

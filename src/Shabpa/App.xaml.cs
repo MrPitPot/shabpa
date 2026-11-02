@@ -557,13 +557,14 @@ public partial class App : Application
         }
 
         _tray = new Tray(ShowWindow, Quit);
+        hub.UpdateRequired += info => Dispatcher.BeginInvoke(() => ForcedUpdateWindow.Show(info));
         hub.Notified += (title, text) => { if (_window?.ShowToast(title, text) != true) _tray?.Balloon(title, text); };
         hub.Changed += () => _tray.Refresh();
         _tray.Refresh();
 
         // Just updated: always come to the front and say so, even if the app normally starts hidden in the tray.
         var updated = args.Contains("--updated");
-        if (!updated && !args.Contains("--restart") && (args.Contains("--minimized") || hub.Settings.StartMinimized)) return;
+        if (!updated && !args.Contains("--restart") && args.Contains("--minimized")) return;      // only the start at Windows login stays in the tray; opening Shabpa (or installing it) always shows the window
         ShowWindow();
         if (updated)
         {

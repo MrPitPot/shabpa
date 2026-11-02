@@ -152,6 +152,8 @@ public sealed class Settings
     /// <summary>Trim working sets automatically when RAM use passes this percentage; 0 = off.</summary>
     public int AutoTrimPercent { get; set; }
     public bool AutoUpdateCheck { get; set; } = true;
+    /// <summary>A newer signed version is installed by Shabpa itself (a short countdown, then the same checked download as the Updates page). Never while a game runs.</summary>
+    public bool ForceUpdates { get; set; } = true;
     /// <summary>The newest version the user was already told about, so each release is announced once.</summary>
     public string AnnouncedVersion { get; set; } = "";
     /// <summary>Night internet window and power-cut standby (phase 1 of the growth plan).</summary>
@@ -267,6 +269,20 @@ public sealed class RgbSettings
     public List<RgbCustomEffect> Custom { get; set; } = [];
     /// <summary>What the person decided for each found device (only devices they changed are here).</summary>
     public List<RgbDeviceSetting> Devices { get; set; } = [];
+    /// <summary>Header sizes the person typed ("device key|output name" to LEDs). Every other resizable header is set to its maximum, so the whole strip or fan chain lights.</summary>
+    public Dictionary<string, int> ZoneSizes { get; set; } = [];
+    /// <summary>The effects stand still while a game runs.</summary>
+    public bool PauseInGame { get; set; }
+    /// <summary>The lights go out when Windows goes to sleep and come back when it wakes.</summary>
+    public bool OffOnSleep { get; set; } = true;
+    /// <summary>A short effect when Shabpa starts its lights and when Windows shuts down.</summary>
+    public bool StartupEffect { get; set; } = true;
+    /// <summary>Another lighting program that starts is closed again, so it cannot fight Shabpa.</summary>
+    public bool KeepRivalsClosed { get; set; }
+    /// <summary>More frames a second, for smoother movement (and a little more work for the PC).</summary>
+    public bool Smooth { get; set; } = true;
+    /// <summary>How the lights fade in and out ("blaze", "sunrise", "center", "darkwave", "soft", "none").</summary>
+    public string Transition { get; set; } = "blaze";
 
     public const int MaxCustom = 12;
 

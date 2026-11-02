@@ -33,12 +33,73 @@ public sealed class RgbService : IDisposable
     private RgbLink _link = RgbLink.Off;
     private string _lastError = "";
 
-    public RgbService(Func<Settings> settings, Func<double?> cpuTemp, Func<double> cpuLoad)
+    private readonly Func<bool>? _gameRunning;
+    private volatile bool _suspended;
+    private long _transStart;
+    private bool _wasEnabled, _startupPlayed;
+    private long _nextRivalCheck;
+    private Dictionary<int, Rgb[]>? _slices;
+
+    public RgbService(Func<Settings> settings, Func<double?> cpuTemp, Func<double> cpuLoad, Func<bool>? gameRunning = null)
     {
         _settings = settings;
         _cpuTemp = cpuTemp;
         _cpuLoad = cpuLoad;
+        _gameRunning = gameRunning;
+        try
+        {
+            Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerMode;
+            Microsoft.Win32.SystemEvents.SessionEnding += OnSessionEnding;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { /* no Windows events here (tests) */ }
     }
+
+    private void OnPowerMode(object? sender, Microsoft.Win32.PowerModeChangedEventArgs e)
+    {
+        if (!_settings().Rgb.OffOnSleep) return;
+        if (e.Mode == Microsoft.Win32.PowerModes.Suspend)
+        {
+            _suspended = true;
+            using var done = new ManualResetEventSlim();
+            _jobs.Enqueue(c => { c.Update(_ => [Rgb.Black]); done.Set(); });
+            done.Wait(600);                                     // the lights go out before the PC does
+        }
+        else if (e.Mode == Microsoft.Win32.PowerModes.Resume)
+        {
+            _jobs.Enqueue(c => c.Close());                      // the devices may have reset: connect again and send everything anew
+            _nextConnect = 0;
+            _suspended = false;
+        }
+    }
+
+    private void OnSessionEnding(object? sender, Microsoft.Win32.SessionEndingEventArgs e)
+    {
+        var rgb = _settings().Rgb;
+        if (!rgb.Enabled || !rgb.StartupEffect || !_driving || rgb.Transition == "none") return;
+        PlayTransition(false);                                  // the shutdown effect: about a second, then dark
+        Thread.Sleep(RgbTransitions.DurationMs + 150);
+        _jobs.Enqueue(c => c.Update(_ => [Rgb.Black]));
+        Thread.Sleep(150);
+    }
+
+    private void PlayTransition(bool on)
+    {
+        _transOn = on;
+        _transStart = Environment.TickCount64;
+    }
+
+    private bool _transOn;
+
+    /// <summary>0 to 1: how much of the lights shows while a fade in or out is running; 1 when none is.</summary>
+    private double TransitionVisible()
+    {
+        if (_transStart == 0) return 1;
+        var p = (Environment.TickCount64 - _transStart) / (double)RgbTransitions.DurationMs;
+        if (p >= 1) { if (_transOn) _transStart = 0; return _transOn ? 1 : 0; }
+        return _transOn ? p : 1 - p;
+    }
+
+    private bool TransitionRunning => _transStart != 0 && Environment.TickCount64 - _transStart < RgbTransitions.DurationMs;
 
     /// <summary>Raised on a worker thread after each frame (the page copies what it needs and marshals itself).</summary>
     public event Action? FrameReady;
@@ -134,15 +195,72 @@ public sealed class RgbService : IDisposable
         if (_identify.ContainsKey(device.Index)) return IdentifyOnly(device);
         var setting = rgb.FindDevice(device.Key);
         if (setting is { Enabled: false }) return null;
+        Rgb[]? frame;
         if (setting is { Own: true })
         {
             var look = LookOf(rgb, setting.Look);
             var pattern = look.CustomPattern ?? look.Effect.Pattern;
-            return RgbEngine.Frame(look, Math.Max(1, device.Leds), t, pattern == RgbPattern.Music ? music : temp);
+            frame = RgbEngine.Frame(look, Math.Max(1, device.Leds), t, pattern == RgbPattern.Music ? music : temp);
         }
-        var zone = setting is { Zone.Length: > 0 } ? setting.Zone : device.Zone;
-        return frames.TryGetValue(zone, out var f) ? f : null;
+        else if (_slices is not null && _slices.TryGetValue(device.Index, out var slice)) frame = slice;
+        else
+        {
+            var zone = setting is { Zone.Length: > 0 } ? setting.Zone : device.Zone;
+            frame = frames.TryGetValue(zone, out var f) ? f : null;
+        }
+        return frame is null || _transStart == 0 ? frame : RgbTransitions.Apply(RgbEngine.Resample(frame, Math.Max(1, device.Leds)), rgb.Transition, TransitionVisible());
     }
+
+    /// <summary>Synchronised lights: ONE flowing effect laid along all the lights of the PC in a fixed order (fans, memory, cooler, strips, board, graphics card, keyboard, mouse), so a
+    /// rainbow runs through the whole case instead of every device showing its own copy. Each device takes the stretch that belongs to it. The preview frames of the zones are
+    /// filled the same way, so the picture matches the hardware.</summary>
+    private Dictionary<int, Rgb[]> SyncFrames(RgbSettings rgb, double t, double music, double temp, Dictionary<string, Rgb[]> zoneFrames)
+    {
+        var look = LookOf(rgb, rgb.All);
+        var pattern = look.CustomPattern ?? look.Effect.Pattern;
+        var level = pattern == RgbPattern.Music ? music : temp;
+        var devices = _client.Devices
+            .Where(d => rgb.FindDevice(d.Key) is not { Enabled: false } and not { Own: true })
+            .OrderBy(d => RgbZones.All.ToList().FindIndex(z => z.Key == (rgb.FindDevice(d.Key) is { Zone.Length: > 0 } o ? o.Zone : d.Zone))).ThenBy(d => d.Index).ToList();
+        var nominal = RgbZones.All.Sum(z => z.Leds);
+        var deviceTotal = devices.Sum(d => Math.Max(1, d.Leds));
+        var length = Math.Clamp(Math.Max(deviceTotal, nominal), 8, 1024);
+        var global = RgbEngine.Frame(look, length, t, level);
+
+        double at = 0;
+        foreach (var zone in RgbZones.All)
+        {
+            zoneFrames[zone.Key] = RgbEngine.Slice(global, at / nominal, (at + zone.Leds) / nominal, zone.Leds);
+            at += zone.Leds;
+        }
+        var slices = new Dictionary<int, Rgb[]>();
+        double pos = 0;
+        foreach (var d in devices)
+        {
+            var n = Math.Max(1, d.Leds);
+            slices[d.Index] = RgbEngine.Slice(global, pos / deviceTotal, (pos + n) / deviceTotal, n);
+            pos += n;
+        }
+        return slices;
+    }
+
+    private void CloseRivals()
+    {
+        try
+        {
+            foreach (var (rival, processes, services) in RgbRivals.Scan()) RgbRivals.Close(rival, processes, services);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or System.IO.IOException) { Log.Write($"rgb rivals: {ex.GetType().Name}"); }
+    }
+
+    /// <summary>After connecting: every header whose size can be set is set to the size the person typed, or to its maximum, so the whole fan chain or strip lights.</summary>
+    private void QueueHeaderSizes(RgbSettings rgb)
+    {
+        _jobs.Enqueue(client => client.ApplySizes((device, zone) => rgb.ZoneSizes.TryGetValue(SizeKey(device, zone), out var typed) ? typed : zone.Max));
+    }
+
+    /// <summary>The key a header size is remembered under.</summary>
+    public static string SizeKey(RgbDevice device, RgbZoneInfo zone) => device.Key + "|" + zone.Name;
 
     /// <summary>Starts the hidden lighting server when it has been fetched, then connects. <paramref name="silent"/> leaves the link state alone (the lights are off in Shabpa).</summary>
     private void Connect(RgbSettings rgb, bool silent)
@@ -154,6 +272,7 @@ public sealed class RgbService : IDisposable
         if (local && OpenRgbHost.Installed && OpenRgbHost.Start(port)) { _nextConnect = Environment.TickCount64 + 6000; return; }
         var ok = _client.Connect(rgb.Host.Length > 0 ? rgb.Host : "127.0.0.1", port);
         _nextConnect = Environment.TickCount64 + (ok ? 0 : 4000);
+        if (ok) QueueHeaderSizes(rgb);
         if (silent) return;
         if (!ok) SetLink(RgbLink.NoServer, _client.LastError);
         else SetLink(_client.Devices.Count == 0 ? RgbLink.NoDevices : RgbLink.Sending);
@@ -205,7 +324,8 @@ public sealed class RgbService : IDisposable
                     temp = _cpuTemp() is { } c ? Math.Clamp((c - 35) / 55.0, 0, 1) : Math.Clamp(_cpuLoad() / 100.0, 0, 1);
 
                 // a page of lights that only show one fixed colour changes nothing between frames: look four times a second instead of thirty
-                timer.Period = IsStill(rgb) && _identify.IsEmpty ? TimeSpan.FromMilliseconds(250) : TimeSpan.FromMilliseconds(33);
+                _client.Smooth = rgb.Smooth;
+                timer.Period = IsStill(rgb) && _identify.IsEmpty && !TransitionRunning ? TimeSpan.FromMilliseconds(250) : TimeSpan.FromMilliseconds(rgb.Smooth ? 20 : 40);
                 var frames = new Dictionary<string, Rgb[]>();
                 foreach (var zone in RgbZones.All)
                 {
@@ -215,12 +335,24 @@ public sealed class RgbService : IDisposable
                     // lights switched off in Shabpa: the preview keeps showing the effect, the hardware gets nothing new
                     frames[zone.Key] = RgbEngine.Frame(look, zone.Leds, t, level);
                 }
+                _slices = rgb.Sync ? SyncFrames(rgb, t, music, temp, frames) : null;
                 lock (_gate)
                 {
                     _frames.Clear();
                     foreach (var (k, v) in frames) _frames[k] = v;
                 }
                 FrameReady?.Invoke();
+
+                if (rgb.Enabled != _wasEnabled)
+                {
+                    if (rgb.Transition != "none" && (rgb.Enabled ? _client.Connected : _driving)) PlayTransition(rgb.Enabled);
+                    _wasEnabled = rgb.Enabled;
+                }
+                if (rgb.Enabled && rgb.KeepRivalsClosed && Environment.TickCount64 >= _nextRivalCheck)
+                {
+                    _nextRivalCheck = Environment.TickCount64 + 30000;
+                    _ = Task.Run(CloseRivals);
+                }
 
                 // things the pages asked for (resize a header, ...) run here, on the one thread that talks to the server
                 for (var j = 0; j < 4 && _jobs.TryDequeue(out var job); j++)
@@ -229,7 +361,8 @@ public sealed class RgbService : IDisposable
                 if (!rgb.Enabled)
                 {
                     SetLink(RgbLink.Off);
-                    if (_client.Connected && _driving && !blackSent) { blackSent = true; _driving = false; _client.Update(_ => [Rgb.Black]); }
+                    if (_client.Connected && _driving && TransitionRunning) _client.Update(device => FrameFor(device, rgb, frames, t, music, temp));     // fading out
+                    else if (_client.Connected && _driving && !blackSent) { blackSent = true; _driving = false; _transStart = 0; _client.Update(_ => [Rgb.Black]); }
                     if (_previewUsers > 0)
                     {
                         // the page is open with the lights off: still look at what is there (the devices window needs it) and let «test» blink a device
@@ -245,6 +378,13 @@ public sealed class RgbService : IDisposable
                     continue;
                 }
                 if (_client.Devices.Count == 0) { SetLink(RgbLink.NoDevices); continue; }
+                if (_suspended) continue;                                                       // Windows is going to sleep (or just woke): nothing is sent
+                if (rgb.PauseInGame && _gameRunning?.Invoke() == true) { SetLink(RgbLink.Sending); continue; }   // a game is running: the lights keep what they show
+                if (!_startupPlayed)
+                {
+                    _startupPlayed = true;
+                    if (rgb.StartupEffect && rgb.Transition != "none") PlayTransition(true);   // the lights come on with the chosen effect
+                }
                 _driving = true;
                 if (!_client.Update(device => FrameFor(device, rgb, frames, t, music, temp)))
                 {
@@ -278,6 +418,12 @@ public sealed class RgbService : IDisposable
 
     public void Dispose()
     {
+        try
+        {
+            Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPowerMode;
+            Microsoft.Win32.SystemEvents.SessionEnding -= OnSessionEnding;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { }
         lock (_gate) { _cts?.Cancel(); }
         _client.Dispose();
         OpenRgbHost.Stop();

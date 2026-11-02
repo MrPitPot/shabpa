@@ -105,7 +105,7 @@ public partial class MainWindow : Window
         hub.OpenPage += Navigate;
         hub.Changed += OnHubChanged;
         hub.Tick += s => { if (!Shown || _inTick) return; _inTick = true; var t0 = System.Diagnostics.Stopwatch.GetTimestamp(); try { StackGauge.Sample("hub.tick"); PageBase.SafeTick(_current, s); UpdateSide(); } finally { _inTick = false; PageTiming.Record("hub.tick (page + side)", System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds); } };
-        hub.Second += () => { if (Shown) { PageBase.SafeSecond(_current); UpdateSide(); } };
+        hub.Second += () => { if (Shown) { PageBase.SafeSecond(_current); UpdateSide(); if (++_trimTick % 30 == 0) TrimPages(); } };
         hub.BirthdayChanged += OnBirthdayChanged;
         hub.BirthdayGreet += () => ShowBirthdayGreeting();
         hub.HalloweenGreet += () => Dispatcher.BeginInvoke(() => ShowHalloween());
@@ -338,7 +338,32 @@ public partial class MainWindow : Window
 
     private static readonly HashSet<string> KeepBuilt = ["mic", "gaming", "settings", "weather", "ping", "dns", "download"];
 
-    private int _releases;
+    private int _releases, _trimTick;
+    private readonly Dictionary<string, DateTime> _leftAt = [];
+    private DateTime _lastRelease = DateTime.UtcNow;
+
+    /// <summary>Every half minute while the window is open: a page that was left more than 90 seconds ago is let go (it is rebuilt in a moment when its tab is clicked), except the two
+    /// most recently left, which stay in memory so going back is instant. Pages that run something of their own (KeepBuilt) stay. Every two minutes the memory is handed back to
+    /// Windows. This is why the open window costs less than before.</summary>
+    private void TrimPages()
+    {
+        var now = DateTime.UtcNow;
+        var recent = _leftAt.OrderByDescending(x => x.Value).Take(2).Select(x => x.Key).ToHashSet();
+        var dropped = 0;
+        foreach (var (key, page) in _built.ToList())
+        {
+            if (ReferenceEquals(page, _current) || KeepBuilt.Contains(key) || recent.Contains(key)) continue;
+            if (_leftAt.TryGetValue(key, out var at) && now - at < TimeSpan.FromSeconds(90)) continue;
+            _built.Remove(key);
+            _leftAt.Remove(key);
+            dropped++;
+        }
+        if (dropped > 0 || now - _lastRelease > TimeSpan.FromMinutes(2))
+        {
+            _lastRelease = now;
+            _ = Task.Run(MemoryCleaner.ReleaseOwn);          // off the window's thread: nothing stutters
+        }
+    }
 
     private PageBase Page(string key)
     {
@@ -382,6 +407,8 @@ public partial class MainWindow : Window
     {
         var previous = _current;
         _current = page;
+        if (previous is not null && !ReferenceEquals(previous, page) && _built.FirstOrDefault(kv => ReferenceEquals(kv.Value, previous)).Key is { } leftKey) _leftAt[leftKey] = DateTime.UtcNow;
+        _leftAt.Remove(key);
         Hub.I.Rewards.Visit(key);
         RunMarker.Note($"page {key}");
         _tour?.PageOpened(key);

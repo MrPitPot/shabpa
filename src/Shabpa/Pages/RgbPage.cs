@@ -18,6 +18,8 @@ public sealed class RgbPage : PageBase
     private readonly RgbPreview _preview = new() { Height = 340, MinWidth = 320 };
     private readonly WrapPanel _partChips = new() { Margin = new Thickness(0, 0, 0, 10) };
     private readonly Button _devicesButton = new();
+    private readonly Button _gearButton = new();
+    private readonly System.Windows.Controls.Primitives.Popup _gearPopup = new() { StaysOpen = false, AllowsTransparency = true, Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom, PopupAnimation = System.Windows.Controls.Primitives.PopupAnimation.Fade };
     private readonly Border _deviceBanner = new() { Visibility = Visibility.Collapsed, CornerRadius = new CornerRadius(12), Padding = new Thickness(14, 10, 14, 10), Margin = new Thickness(0, 0, 0, 10) };
     private readonly TextBlock _deviceBannerText = new() { TextWrapping = TextWrapping.Wrap, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
     private readonly WrapPanel _direction = new(), _style = new();
@@ -77,7 +79,14 @@ public sealed class RgbPage : PageBase
         _devicesButton.Content = L.T("دستگاه‌ها", "Devices");
         _devicesButton.ToolTip = L.T("ببین چه دستگاه‌هایی پیدا شد، تستشون کن و جدا تنظیمشون کن.", "See which devices were found, test them and set them one by one.");
         _devicesButton.Click += (_, _) => RgbDevicesWindow.Open(ControlDevice);
+        _gearButton.Style = St("Btn");
+        _gearButton.Padding = new Thickness(10, 7, 10, 7);
+        _gearButton.Margin = new Thickness(8, 0, 0, 0);
+        _gearButton.Content = new Icon("set", 17);
+        _gearButton.ToolTip = L.T("تنظیمات نورپردازی: خواب، بازی، افکت روشن و خاموش شدن…", "Lighting options: sleep, games, the on/off effect…");
+        _gearButton.Click += (_, _) => OpenGear();
         right.Children.Add(_devicesButton);
+        right.Children.Add(_gearButton);
         Grid.SetColumn(right, 1);
         head.Children.Add(right);
         body.Children.Add(head);
@@ -256,6 +265,55 @@ public sealed class RgbPage : PageBase
         _loading = false;
         MarkSelected();
         MarkColour();
+    }
+
+    private void OpenGear()
+    {
+        var panel = new StackPanel { Width = 330 };
+        Border Row(string label, FrameworkElement control, bool last = false)
+        {
+            var row = new DockPanel { Margin = new Thickness(14, 10, 14, 10) };
+            DockPanel.SetDock(control, Dock.Left);
+            row.Children.Add(control);
+            row.Children.Add(new TextBlock { Text = label, TextWrapping = TextWrapping.Wrap, FontSize = 13, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Left });
+            return new Border { Child = row, BorderThickness = new Thickness(0, 0, 0, last ? 0 : 1), BorderBrush = Res("Line") };
+        }
+        Switch Sw(bool on, Action<bool> set)
+        {
+            var sw = new Switch { IsChecked = on, VerticalAlignment = VerticalAlignment.Center };
+            sw.Click += (_, _) => { set(sw.IsChecked == true); Hub.Store.Save(); Hub.Rgb.Refresh(); };
+            return sw;
+        }
+        panel.Children.Add(Row(L.T("موقع بازی افکت‌ها متوقف بشن", "Pause the effects while a game runs"), Sw(Cfg.PauseInGame, v => Cfg.PauseInGame = v)));
+        panel.Children.Add(Row(L.T("موقع خواب سیستم خاموش بشن", "Lights off when the PC sleeps"), Sw(Cfg.OffOnSleep, v => Cfg.OffOnSleep = v)));
+        panel.Children.Add(Row(L.T("افکت هنگام شروع شب‌پا و خاموش شدن ویندوز", "An effect when Shabpa starts and Windows shuts down"), Sw(Cfg.StartupEffect, v => Cfg.StartupEffect = v)));
+        panel.Children.Add(Row(L.T("برنامه‌های نورپردازی دیگه همیشه بسته بمونن", "Keep other lighting programs closed"), Sw(Cfg.KeepRivalsClosed, v => Cfg.KeepRivalsClosed = v)));
+        panel.Children.Add(Row(L.T("افکت‌ها نرم‌تر حرکت کنن", "Smoother movement"), Sw(Cfg.Smooth, v => Cfg.Smooth = v)));
+
+        // the on/off effect: a row that opens a list of its own
+        var list = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(10, 0, 10, 8) };
+        var current = new TextBlock { Text = RgbTransitions.Name(Cfg.Transition) + "  ▾", FontWeight = FontWeights.SemiBold, FontSize = 13 };
+        var picker = new Border { Child = current, CornerRadius = new CornerRadius(10), Padding = new Thickness(12, 6, 12, 6), BorderThickness = new Thickness(1), BorderBrush = Res("Line"), Background = Res("Panel2"), Cursor = System.Windows.Input.Cursors.Hand, MinWidth = 120, VerticalAlignment = VerticalAlignment.Center };
+        picker.MouseLeftButtonUp += (_, _) => list.Visibility = list.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+        panel.Children.Add(Row(L.T("افکت خاموش و روشن شدن", "Fade in / fade out effect"), picker, last: true));
+        foreach (var (key, fa, en) in RgbTransitions.Styles)
+        {
+            var k = key;
+            var item = new Border { Child = new TextBlock { Text = L.T(fa, en), FontSize = 13, FontWeight = Cfg.Transition == key ? FontWeights.Bold : FontWeights.Normal }, Padding = new Thickness(12, 7, 12, 7), CornerRadius = new CornerRadius(8), Cursor = System.Windows.Input.Cursors.Hand, Background = Cfg.Transition == key ? Res("AccentSoft") : Brushes.Transparent };
+            item.MouseLeftButtonUp += (_, _) =>
+            {
+                Cfg.Transition = k;
+                Hub.Store.Save();
+                current.Text = RgbTransitions.Name(k) + "  ▾";
+                list.Visibility = Visibility.Collapsed;
+                foreach (var b in list.Children.OfType<Border>()) { var on = ReferenceEquals(b, item); b.Background = on ? Res("AccentSoft") : Brushes.Transparent; ((TextBlock)b.Child).FontWeight = on ? FontWeights.Bold : FontWeights.Normal; }
+            };
+            list.Children.Add(item);
+        }
+        panel.Children.Add(list);
+        _gearPopup.PlacementTarget = _gearButton;
+        _gearPopup.Child = new Border { Child = panel, CornerRadius = new CornerRadius(14), Background = Res("Panel"), BorderBrush = Res("Line"), BorderThickness = new Thickness(1), Margin = new Thickness(0, 8, 0, 0), FlowDirection = Ui.Flow, Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 18, Opacity = 0.4, ShadowDepth = 4 } };
+        _gearPopup.IsOpen = true;
     }
 
     private void FillOptions()

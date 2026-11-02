@@ -22,7 +22,7 @@ public sealed class RgbDevicesWindow : Window
     {
         if (_open is { IsLoaded: true }) { _open.Activate(); return; }
         _open = new RgbDevicesWindow(control);
-        if (Application.Current?.MainWindow is { IsVisible: true } main) _open.Owner = main;
+        if (MainOrNull() is { } main) _open.Owner = main;
         _open.Show();
     }
 
@@ -33,6 +33,13 @@ public sealed class RgbDevicesWindow : Window
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(1500) };
     private string _signature = "";
     private int _dragging;                                   // a header size is being typed: do not redraw under the person's hands
+
+    /// <summary>The main window when it is shown and belongs to this thread (anything else: no owner, the dialog simply centres on the screen).</summary>
+    private static Window? MainOrNull()
+    {
+        try { return Application.Current?.MainWindow is { IsVisible: true } m ? m : null; }
+        catch (InvalidOperationException) { return null; }
+    }
 
     private static Hub Hub => Hub.I;
 
@@ -46,7 +53,7 @@ public sealed class RgbDevicesWindow : Window
         MinWidth = 520;
         MinHeight = 420;
         ShowInTaskbar = false;
-        WindowStartupLocation = Application.Current?.MainWindow is { IsVisible: true } ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen;
+        WindowStartupLocation = MainOrNull() is not null ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen;
         Background = (Brush)Application.Current.Resources["Bg"];
         FontFamily = (FontFamily)Application.Current.Resources["Ui"];
         UseLayoutRounding = true;
@@ -190,10 +197,11 @@ public sealed class RgbDevicesWindow : Window
         var row = new DockPanel { Margin = new Thickness(0, 10, 0, 0) };
         var label = new TextBlock
         {
-            Text = L.T($"خروجی «{zone.Name}»: اندازه‌ی هدر ({Fa.Digits(zone.Min.ToString())} تا {Fa.Digits(zone.Max.ToString())} ال‌ای‌دی)", $"Output “{zone.Name}”: header size ({zone.Min} to {zone.Max} LEDs)"),
+            Text = L.T($"خروجی «{zone.Name}»: اندازه‌ی هدر ({Fa.Digits(zone.Min.ToString())} تا {Fa.Digits(zone.Max.ToString())} ال‌ای‌دی). خودکار روی حداکثر ({Fa.Digits(zone.Max.ToString())}) می‌مونه، مگه خودت عددی بزنی.",
+                $"Output “{zone.Name}”: header size ({zone.Min} to {zone.Max} LEDs). It stays at the maximum ({zone.Max}) by itself unless you type a number."),
             Style = (Style)Application.Current.Resources["Label"], VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Left,
         };
-        var box = new TextBox { Style = (Style)Application.Current.Resources["Input"], Text = zone.Count.ToString(), Width = 70, Margin = new Thickness(8, 0, 8, 0), FlowDirection = FlowDirection.LeftToRight, VerticalAlignment = VerticalAlignment.Center };
+        var box = new TextBox { Style = (Style)Application.Current.Resources["Input"], Text = zone.Count.ToString(), Width = 96, Margin = new Thickness(8, 0, 8, 0), FlowDirection = FlowDirection.LeftToRight, VerticalAlignment = VerticalAlignment.Center };
         box.GotKeyboardFocus += (_, _) => _dragging++;
         box.LostKeyboardFocus += (_, _) => _dragging = Math.Max(0, _dragging - 1);
         var apply = new Button { Style = (Style)Application.Current.Resources["Btn"], Content = L.T("اعمال", "Apply"), Padding = new Thickness(12, 5, 12, 5), VerticalAlignment = VerticalAlignment.Center };
@@ -202,6 +210,8 @@ public sealed class RgbDevicesWindow : Window
             if (!int.TryParse(box.Text.Trim(), out var n)) return;
             n = Math.Clamp(n, zone.Min, zone.Max);
             box.Text = n.ToString();
+            Hub.Settings.Rgb.ZoneSizes[RgbService.SizeKey(device, zone)] = n;       // remembered: the automatic maximum does not undo it
+            Hub.Store.Save();
             Hub.Rgb.ResizeZone(device.Index, zone.Index, n, ok => Dispatcher.BeginInvoke(() =>
             {
                 _status.Text = ok ? L.T("اندازه‌ی هدر عوض شد.", "The header size was changed.") : L.T("دستگاه اندازه رو قبول نکرد.", "The device did not accept the size.");

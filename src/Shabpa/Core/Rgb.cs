@@ -190,6 +190,48 @@ public static class RgbZones
     public static RgbZone Find(string key) => All.FirstOrDefault(z => z.Key == key) ?? All[0];
 }
 
+/// <summary>How the lights come on and go out: a mask that lets a frame through from nothing (or to nothing) over about a second, in one of a few ways.</summary>
+public static class RgbTransitions
+{
+    public const int DurationMs = 1200;
+    public static readonly IReadOnlyList<(string Key, string Fa, string En)> Styles =
+    [
+        ("blaze", "شعله‌ور", "Blaze"), ("sunrise", "طلوع", "Sunrise"), ("center", "از مرکز", "From the centre"),
+        ("darkwave", "موج تاریکی", "Dark wave"), ("soft", "نرم", "Soft"), ("none", "بدون افکت", "No effect"),
+    ];
+
+    public static string Name(string key) => Styles.FirstOrDefault(s => s.Key == key) is { Key: not null } s ? L.T(s.Fa, s.En) : Name("blaze");
+
+    private static double Smooth(double v) { v = Math.Clamp(v, 0, 1); return v * v * (3 - 2 * v); }
+
+    /// <summary>The frame as it looks when <paramref name="visible"/> (0 to 1) of the transition has happened. 1 is the frame itself, 0 is dark.</summary>
+    public static Rgb[] Apply(Rgb[] frame, string style, double visible)
+    {
+        visible = Math.Clamp(visible, 0, 1);
+        if (style == "none" || visible >= 1) return frame;
+        var n = frame.Length;
+        var result = new Rgb[n];
+        for (var i = 0; i < n; i++)
+        {
+            var x = n == 1 ? 0 : i / (double)(n - 1);
+            double k;
+            var tint = 0.0;
+            switch (style)
+            {
+                case "sunrise": k = Smooth((visible * 1.4 - x) / 0.4); break;
+                case "center": k = Smooth((visible * 1.3 - Math.Abs(x - 0.5) * 2) / 0.35); break;
+                case "darkwave": k = Smooth((visible * 1.4 - (1 - x)) / 0.35); break;       // a dark wave runs from the far end
+                case "soft": k = visible; break;
+                default: k = Smooth((visible * 1.5 - x) / 0.35); tint = (1 - k) * 0.9 * (k > 0 ? 1 : 0); break;   // blaze: a front of fire runs along the lights
+            }
+            var c = frame[i].Scale(k);
+            if (tint > 0) c = Rgb.Max(c, new Rgb(255, 110, 20).Scale(Math.Min(1, tint) * Math.Min(1, k * 2.2) * 0.8));
+            result[i] = c;
+        }
+        return result;
+    }
+}
+
 /// <summary>The inputs that change from moment to moment, and the look chosen on the page.</summary>
 public sealed record RgbLook(RgbEffect Effect, Rgb Color, double Brightness, double Speed, Rgb[]? CustomPalette = null, RgbPattern? CustomPattern = null, bool Reverse = false, bool Starry = false);
 
@@ -410,6 +452,16 @@ public static class RgbEngine
         var lo = Math.Min(stops.Length - 2, (int)Math.Floor(at));
         return Rgb.Lerp(stops[lo], stops[lo + 1], at - lo).Scale(0.25 + 0.75 * Math.Clamp(heat, 0, 1));
     }
+    /// <summary>The part of a long frame between <paramref name="from"/> and <paramref name="to"/> (0 to 1 of its length), stretched to <paramref name="count"/> LEDs:
+    /// how every light of the PC takes its colour from one single flowing effect when the lights are synchronised.</summary>
+    public static Rgb[] Slice(IReadOnlyList<Rgb> frame, double from, double to, int count)
+    {
+        if (frame.Count == 0) return new Rgb[Math.Max(1, count)];
+        var a = Math.Clamp((int)Math.Floor(from * frame.Count), 0, frame.Count - 1);
+        var b = Math.Clamp((int)Math.Ceiling(to * frame.Count), a + 1, frame.Count);
+        return Resample([.. frame.Skip(a).Take(b - a)], count);
+    }
+
     /// <summary>The frame stretched or squeezed to <paramref name="count"/> LEDs, so one zone's frame can drive a device with any LED count.</summary>
     public static Rgb[] Resample(IReadOnlyList<Rgb> frame, int count)
     {
