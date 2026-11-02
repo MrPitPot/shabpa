@@ -394,6 +394,20 @@ public sealed class RewardsEngine
         return BuyResult.Ok;
     }
 
+    public bool OwnsTheme(string key) => PremiumTheme.Find(key) is { } t && State.Owned.Contains(t.OwnedId);
+
+    /// <summary>Spends feathers on a premium theme (cosmetic only; the level does not go down).</summary>
+    public BuyResult BuyTheme(string key)
+    {
+        if (PremiumTheme.Find(key) is not { } t) return BuyResult.Unknown;
+        if (OwnsTheme(key)) return BuyResult.AlreadyOwned;
+        if (State.Feathers < t.Price) return BuyResult.NotEnough;
+        State.Feathers -= t.Price;
+        State.Owned.Add(t.OwnedId);
+        Count("storeBuy");
+        return BuyResult.Ok;
+    }
+
     /// <summary>Wears an owned part, or takes the slot's part off (id = null; the fur goes back to the free one).</summary>
     public bool Wear(string slot, string? id)
     {

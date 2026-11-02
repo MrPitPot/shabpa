@@ -360,7 +360,7 @@ public sealed class SettingsPage : PageBase
     /// <summary>One selectable swatch per theme, drawn in that theme's own colours.</summary>
     private void BuildThemes()
     {
-        foreach (var palette in Palette.All)
+        foreach (var palette in Palette.All.Concat(PremiumTheme.All.Where(t => Hub.Rewards.OwnsTheme(t.Key)).Select(t => t.Palette)))
         {
             static Brush Paint(Palette p, string key)
             {

@@ -55,7 +55,7 @@ public static class RewardsMerge
         foreach (var (slot, id) in b.Worn) m.Worn.TryAdd(slot, id);
         m.Presets = a.Presets.Any(x => x.Count > 0) ? [.. a.Presets] : [.. b.Presets];
         m.ActivePreset = a.Presets.Any(x => x.Count > 0) ? a.ActivePreset : b.ActivePreset;
-        var extra = b.Owned.Except(a.Owned).Sum(id => BoofiCatalog.Find(id)?.Price ?? 0);
+        var extra = b.Owned.Except(a.Owned).Sum(id => BoofiCatalog.Find(id)?.Price ?? (id.StartsWith(PremiumTheme.Prefix) ? PremiumTheme.Find(id[PremiumTheme.Prefix.Length..])?.Price ?? 0 : 0));
         m.Feathers = Math.Max(0, m.Feathers - extra);
         m.DoneTasks = [.. a.DoneTasks.Union(b.DoneTasks).TakeLast(400)];
         m.Active = Max(a.Active, b.Active);

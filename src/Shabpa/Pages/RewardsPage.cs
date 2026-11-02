@@ -23,6 +23,7 @@ public sealed class RewardsPage : PageBase
     private FrameworkElement _cloudCard = new();
     private BoofiStoreView? _storeView;
     private BoofiWardrobeView? _wardView;
+    private ThemeStoreView? _themeView;
     private CancellationTokenSource? _loginCts;
     private readonly WrapPanel _medals = new() { Margin = new Thickness(-6, 8, -6, 0) };
     private readonly StackPanel _filterHost = new();
@@ -80,6 +81,14 @@ public sealed class RewardsPage : PageBase
         wardCard.Visibility = Visibility.Collapsed;
         _root.Children.Add(wardCard);
 
+        var (themeCard, themeBody) = K.Card(L.T("تم‌های ویژه", "Special themes"),
+            L.T("تم‌هایی با پس‌زمینه‌ی متحرک و رنگ‌بندی مخصوص خودشون. فقط ظاهرن و با پَر خریده می‌شن.",
+                "Themes with their own moving backdrop and colours. Purely cosmetic, bought with feathers."));
+        _themeView = new ThemeStoreView(Hub);
+        themeBody.Children.Add(_themeView);
+        themeCard.Visibility = Visibility.Collapsed;
+        _root.Children.Add(themeCard);
+
         // the optional cloud account; hidden until the server address is set
         var (cloudCard, cloudBody) = K.Card(L.T("ذخیره‌ی ابری (اختیاری)", "Cloud save (optional)"),
             L.T("اگه می‌خوای با نصب دوباره‌ی ویندوز پیشرفتت نپره، با تلگرام وارد شو. بدون اون هم همه‌چیز کامل کار می‌کنه.",
@@ -98,16 +107,18 @@ public sealed class RewardsPage : PageBase
             shopCard.Visibility = tab == 1 ? Visibility.Visible : Visibility.Collapsed;
             wardCard.Visibility = tab == 2 ? Visibility.Visible : Visibility.Collapsed;
             if (tab == 1) { _storeView?.Refresh(); Motion.Pop(shopCard); }
+            themeCard.Visibility = tab == 3 ? Visibility.Visible : Visibility.Collapsed;
             if (tab == 2) { _wardView?.Refresh(); Motion.Pop(wardCard); }
+            if (tab == 3) { _themeView?.Refresh(); Motion.Pop(themeCard); }
         }
-        var tabList = new[] { (0, L.T("مدال‌ها و مأموریت‌ها", "Medals & quests")), (1, L.T("فروشگاه", "Shop")), (2, L.T("بوفی من", "My Boofi")) };
+        var tabList = new[] { (0, L.T("مدال و مأموریت", "Medals & quests")), (1, L.T("فروشگاه", "Shop")), (2, L.T("بوفی من", "My Boofi")), (3, L.T("تم‌ها", "Themes")) };
         Chips(tabs, tabList, 0, ShowTab);
         _storeView.PreviewRequested += part => { _wardView?.Preview(part); Chips(tabs, tabList, 2, ShowTab); ShowTab(2); };
 
         // test aid (screenshots of the medal grid on a short window): SHABPA_RW_ONLY=medals hides the two cards above it
         if (Environment.GetEnvironmentVariable("SHABPA_RW_ONLY") == "medals") { heroCard.Visibility = Visibility.Collapsed; qCard.Visibility = Visibility.Collapsed; }
 
-        Hub.Rewards.Changed += () => Dispatcher.BeginInvoke(() => { if (IsVisible) { Refresh(); if (_storeView?.IsVisible == true) _storeView.Refresh(); if (_wardView?.IsVisible == true) _wardView.Refresh(); } });
+        Hub.Rewards.Changed += () => Dispatcher.BeginInvoke(() => { if (IsVisible) { Refresh(); if (_storeView?.IsVisible == true) _storeView.Refresh(); if (_wardView?.IsVisible == true) _wardView.Refresh(); if (_themeView?.IsVisible == true) _themeView.Refresh(); } });
     }
 
     // ---- drawing -----------------------------------------------------------------------------------------------
