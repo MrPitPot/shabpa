@@ -200,13 +200,21 @@ public sealed class RgbService : IDisposable
         {
             var look = LookOf(rgb, setting.Look);
             var pattern = look.CustomPattern ?? look.Effect.Pattern;
-            frame = RgbEngine.Frame(look, Math.Max(1, device.Leds), t + setting.ShiftMs / 1000.0, pattern == RgbPattern.Music ? music : temp);
+            frame = RgbEngine.Frame(look, Math.Max(1, device.Leds), t + Ahead(device), pattern == RgbPattern.Music ? music : temp);
         }
         else if (_slices is not null && _slices.TryGetValue(device.Index, out var slice)) frame = slice;
         else
         {
             var zone = setting is { Zone.Length: > 0 } ? setting.Zone : device.Zone;
             frame = frames.TryGetValue(zone, out var f) ? f : null;
+            var ahead = Ahead(device);
+            if (frame is not null && ahead >= 0.012)
+            {
+                // a device that takes time to show a frame gets the effect as it will be when the frame arrives
+                var look = LookOf(rgb, zone);
+                var pattern = look.CustomPattern ?? look.Effect.Pattern;
+                frame = RgbEngine.Frame(look, RgbZones.Find(zone).Leds, t + ahead, pattern == RgbPattern.Music ? music : temp);
+            }
         }
         return frame is null || _transStart == 0 ? frame : RgbTransitions.Apply(RgbEngine.Resample(frame, Math.Max(1, device.Leds)), rgb.Transition, TransitionVisible());
     }
@@ -247,7 +255,7 @@ public sealed class RgbService : IDisposable
             var n = Math.Max(1, d.Leds);
             var w = Weight(d.Leds);
             var setting = rgb.FindDevice(d.Key);
-            var shift = Math.Clamp(setting?.ShiftMs ?? 0, -1000, 1000);
+            var shift = (int)Math.Round(Ahead(d) * 1000 / 20.0) * 20;      // in steps of 20 ms, so devices that run alike share one frame
             if (!shifted.TryGetValue(shift, out var flow)) shifted[shift] = flow = RgbEngine.Frame(look, length, t + shift / 1000.0, level);
             var slice = RgbEngine.Slice(flow, pos / weightTotal, (pos + w) / weightTotal, n);
             if (setting is { OneColour: true }) slice = [.. Enumerable.Repeat(slice[slice.Length / 2], n)];
@@ -256,6 +264,9 @@ public sealed class RgbService : IDisposable
         }
         return slices;
     }
+
+    /// <summary>Seconds this device runs behind (the measured time to put a frame on it, at most 0.8): the effect is shown that far ahead, so every light changes at the same moment.</summary>
+    private double Ahead(RgbDevice device) => Math.Clamp(_client.CostMs(device.Index), 0, 800) / 1000.0;
 
     private void CloseRivals()
     {

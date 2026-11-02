@@ -243,6 +243,7 @@ public class OpenRgbClientTests
         public readonly List<(uint device, uint id, byte[] payload)> Seen = [];
         private readonly Task _loop;
         private readonly Dictionary<uint, int> _current = [];
+        public int UpdateDelayMs;
         public FakeServer((int type, string name, int leds)[] devices, int[]? startCounts = null)
         {
             for (var i = 0; i < devices.Length; i++) _current[(uint)i] = startCounts?[i] ?? devices[i].leds;
@@ -263,6 +264,7 @@ public class OpenRgbClientTests
                         void Reply(uint rid, byte[] data) { var p = new List<byte>("ORGB"u8.ToArray()); p.AddRange(BitConverter.GetBytes(device)); p.AddRange(BitConverter.GetBytes(rid)); p.AddRange(BitConverter.GetBytes((uint)data.Length)); p.AddRange(data); stream.Write([.. p]); }
                         if (id == 40) Reply(40, BitConverter.GetBytes(3u));
                         else if (id == 0) Reply(0, BitConverter.GetBytes((uint)devices.Length));
+                        else if (id == 1050 && UpdateDelayMs > 0) Thread.Sleep(UpdateDelayMs);
                         else if (id == 1000) _current[device] = BitConverter.ToInt32(payload, 4);
                         else if (id == 1) Reply(1, Controller(devices[device].type, devices[device].name, _current[device], true, devices[device].leds));
                     }
@@ -488,14 +490,14 @@ public class OpenRgbClientTests
     }
 
     [Fact]
-    public void A_devices_time_shift_and_one_colour_switch_survive_saving()
+    public void A_devices_one_colour_switch_survives_saving()
     {
         var rgb = new RgbSettings();
         var d = rgb.DeviceSetting("3|Pump");
-        d.ShiftMs = -120; d.OneColour = true;
+        d.OneColour = true;
         var back = System.Text.Json.JsonSerializer.Deserialize<RgbSettings>(System.Text.Json.JsonSerializer.Serialize(rgb))!;
-        Assert.Equal((-120, true), (back.FindDevice("3|Pump")!.ShiftMs, back.FindDevice("3|Pump")!.OneColour));
-        Assert.Equal((0, false), (new RgbDeviceSetting().ShiftMs, new RgbDeviceSetting().OneColour));
+        Assert.True(back.FindDevice("3|Pump")!.OneColour);
+        Assert.False(new RgbDeviceSetting().OneColour);
     }
 
     [Fact]
@@ -511,5 +513,39 @@ public class OpenRgbClientTests
         var later = RgbEngine.Slice(RgbEngine.Frame(spread, 160, 3.0), 0, 0.125, 20);
         Assert.NotEqual(eighthSpread[0], later[0]);                                           // and it keeps turning
         Assert.NotEqual(eighthSpread[0], eighthSpread[^1]);                                   // while two ends of one device differ at any moment
+    }
+
+    [Fact]
+    public void Frames_never_pile_up_behind_a_slow_device_and_its_delay_is_measured()
+    {
+        using var server = new FakeServer([(3, "Slow hub", 4), (3, "Quick fan", 4)]) { UpdateDelayMs = 0 };
+        using var client = new OpenRgbClient();
+        Assert.True(client.Connect("127.0.0.1", server.Port), client.LastError);
+        server.UpdateDelayMs = 80;                                                            // every frame now takes 80 ms to put on a device
+        var sent = 0;
+        for (var i = 0; i < 6; i++)
+        {
+            var colour = new Rgb((byte)(10 + i * 30), 0, 0);
+            var before = Environment.TickCount64;
+            Assert.True(client.Update(_ => [colour]));
+            if (Environment.TickCount64 - before >= 60) sent++;                               // this call really waited for a frame to be put on a device
+        }
+        Assert.InRange(client.CostMs(0), 50, 400);                                            // the measured delay of a device
+        Assert.True(sent >= 4);                                                               // every call waited for the slow device: nothing was queued up behind it
+        lock (server.Seen) Assert.True(server.Seen.Count(x => x.id == 1050) <= 12);
+    }
+
+    [Fact]
+    public void A_quick_device_costs_next_to_nothing_and_is_not_held_back()
+    {
+        using var server = new FakeServer([(3, "Quick fan", 4)]);
+        using var client = new OpenRgbClient();
+        Assert.True(client.Connect("127.0.0.1", server.Port), client.LastError);
+        client.Update(_ => [new Rgb(1, 1, 1)]);
+        Assert.InRange(client.CostMs(0), 0, 30);
+        Thread.Sleep(60);
+        client.Update(_ => [new Rgb(2, 2, 2)]);
+        Thread.Sleep(80);
+        lock (server.Seen) Assert.Equal(2, server.Seen.Count(x => x.id == 1050));
     }
 }

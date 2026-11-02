@@ -71,6 +71,7 @@ public sealed class OpenRgbClient : IDisposable
             }
             Devices = WithKeys(list);
             _last.Clear();
+            _costMs.Clear();
             _controlled = false;
             LastError = "";
             return true;
@@ -97,6 +98,11 @@ public sealed class OpenRgbClient : IDisposable
     }
 
     private readonly Dictionary<int, (byte[] Colours, long At)> _last = [];
+    private readonly Dictionary<int, double> _costMs = [];
+
+    /// <summary>How long (ms) the server takes to put one frame on this device, measured on every frame sent. A big motherboard header or memory over a slow bus takes tens of
+    /// milliseconds; it is also how far this device runs behind, which the caller makes up for by showing it the effect that far ahead.</summary>
+    public double CostMs(int deviceIndex) => _costMs.GetValueOrDefault(deviceIndex);
     private bool _controlled;
 
     /// <summary>Puts every device into the mode where it takes its colours from us. Done once, when the first frame is about to be sent.</summary>
@@ -122,7 +128,7 @@ public sealed class OpenRgbClient : IDisposable
         {
             TakeControl();
             var now = Environment.TickCount64;
-            foreach (var device in Devices)
+            foreach (var device in Devices.OrderBy(d => _costMs.GetValueOrDefault(d.Index)))    // quick devices first, the slow ones after them
             {
                 if (frameFor(device) is not { Length: > 0 } frame) continue;
                 var leds = RgbEngine.Resample(frame, device.Leds);
@@ -131,7 +137,7 @@ public sealed class OpenRgbClient : IDisposable
                 if (_last.TryGetValue(device.Index, out var before))
                 {
                     var age = now - before.At;
-                    if (age < MinIntervalMs(device, Smooth)) continue;
+                    if (age < Math.Max(MinIntervalMs(device, Smooth), Math.Min(400, _costMs.GetValueOrDefault(device.Index) * 1.2))) continue;     // never faster than the device can take them
                     if (age < 2000 && before.Colours.AsSpan().SequenceEqual(colours)) continue;
                 }
                 _last[device.Index] = (colours, now);
@@ -144,7 +150,14 @@ public sealed class OpenRgbClient : IDisposable
                     payload[7 + i * 4] = leds[i].G;
                     payload[8 + i * 4] = leds[i].B;
                 }
+                // A frame is sent, then a question the server only answers once it has finished with that frame (it handles our requests in order). Waiting for the answer means frames
+                // can never pile up behind a slow device, which is what made some lights run a second behind the others; and the time it takes is how slow the device is.
+                var timer = Stopwatch.StartNew();
                 Send((uint)device.Index, UpdateLeds, payload);
+                Send(0, MagicRequestControllerCount, []);
+                Receive(MagicRequestControllerCount);
+                var took = timer.Elapsed.TotalMilliseconds;
+                _costMs[device.Index] = _costMs.TryGetValue(device.Index, out var old) ? old * 0.7 + took * 0.3 : took;
             }
             return true;
         }
