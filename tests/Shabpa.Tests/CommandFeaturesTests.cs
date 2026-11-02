@@ -222,15 +222,12 @@ public class CommandFeaturesTests
     public void More_ways_to_say_the_old_commands_are_understood(string text, CommandIntent intent) => Assert.Equal(intent, Read(text).Intent);
 
     [Fact]
-    public void The_lighting_words_do_nothing_while_the_page_is_not_in_the_app()
+    public void The_lighting_words_work_now_that_the_page_is_in_the_app()
     {
-        Assert.False(CommandFeatures.Lights);
-        foreach (var text in new[] { "rgb red", "نورپردازی رو خاموش کن", "open lighting" })
-        {
-            var r = CommandParser.Parse(text, Now);
-            Assert.DoesNotContain(r.Command?.Intent, new CommandIntent?[] { CommandIntent.Rgb, CommandIntent.OpenPage });
-        }
-        Assert.DoesNotContain("rgb", CommandFeatures.PageKeys.Where(_ => CommandFeatures.Lights));
+        Assert.True(CommandFeatures.Lights);
+        Assert.Contains("rgb", CommandFeatures.PageKeys);
+        Assert.Equal(CommandIntent.Rgb, CommandParser.Parse("rgb red", Now).Command?.Intent);
+        Assert.Equal(CommandIntent.OpenPage, CommandParser.Parse("open lighting", Now).Command?.Intent);
     }
 
     [Fact]
@@ -247,7 +244,7 @@ public class CommandFeaturesTests
     public void Every_page_the_reader_can_open_is_a_real_page_of_the_window()
     {
         var keys = CommandFeatures.PageKeys.Select(k => k.Split(':')[0]).Distinct().ToList();
-        var known = new[] { "home", "system", "comfort", "profiles", "gaming", "playtime", "ping", "dns", "download", "files", "health", "tasks", "mic", "weather", "support", "update", "settings" };
+        var known = new[] { "home", "system", "comfort", "profiles", "gaming", "playtime", "ping", "dns", "download", "rgb", "files", "health", "tasks", "mic", "weather", "support", "update", "settings" };
         Assert.All(keys, k => Assert.Contains(k, known));
     }
 }

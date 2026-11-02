@@ -164,7 +164,11 @@ public sealed class RgbService : IDisposable
                     if (Environment.TickCount64 >= _nextConnect)
                     {
                         SetLink(RgbLink.Connecting);
-                        var ok = _client.Connect(rgb.Host.Length > 0 ? rgb.Host : "127.0.0.1", Math.Clamp(rgb.Port, 1, 65535));
+                        // the lighting server is Shabpa's own hidden copy of OpenRGB (when it was fetched): start it, it needs a few seconds to find the hardware
+                        var local = rgb.Host.Length == 0 || rgb.Host is "127.0.0.1" or "localhost";
+                        var port = Math.Clamp(rgb.Port, 1, 65535);
+                        if (local && OpenRgbHost.Installed && OpenRgbHost.Start(port)) { _nextConnect = Environment.TickCount64 + 6000; continue; }
+                        var ok = _client.Connect(rgb.Host.Length > 0 ? rgb.Host : "127.0.0.1", port);
                         _nextConnect = Environment.TickCount64 + (ok ? 0 : 4000);
                         if (!ok) SetLink(RgbLink.NoServer, _client.LastError);
                         else SetLink(_client.Devices.Count == 0 ? RgbLink.NoDevices : RgbLink.Sending);
@@ -192,7 +196,7 @@ public sealed class RgbService : IDisposable
                 _cts?.Dispose();
                 _cts = null;
             }
-            if (!_settings().Rgb.Enabled) SetLink(RgbLink.Off);
+            if (!_settings().Rgb.Enabled) { SetLink(RgbLink.Off); if (_previewUsers <= 0) OpenRgbHost.Stop(); }   // lights off: the hidden server stops too and costs nothing
         }
     }
 
@@ -206,5 +210,6 @@ public sealed class RgbService : IDisposable
     {
         lock (_gate) { _cts?.Cancel(); }
         _client.Dispose();
+        OpenRgbHost.Stop();
     }
 }

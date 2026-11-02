@@ -211,8 +211,8 @@ public sealed class RgbPage : PageBase
 
         // ---- how it works ---------------------------------------------------------------------------------
         var (help, helpBody) = Ui2.Card(L.T("چطور کار می‌کنه؟", "How does it work?"),
-            L.T("شب‌پا خودش به قطعه‌ها وصل نمی‌شه؛ افکت‌ها رو حساب می‌کنه و به برنامه‌ی OpenRGB می‌ده (باید روی همین کامپیوتر باز باشه و «SDK Server»ش روشن)، اون با سخت‌افزارهای بیشتر از ۱۰۰۰ مدل حرف می‌زنه. چیزی از اینترنت دانلود یا به جایی فرستاده نمی‌شه. اگه برنامه‌ی دیگه‌ای (مثل MSI Center یا iCUE) هم نور رو کنترل کنه، با هم کشمکش می‌کنن؛ بالای صفحه بهت می‌گم و می‌تونی همون‌جا ببندیش.",
-                "Shabpa does not talk to the parts itself: it works the effects out and hands them to OpenRGB (it must be running on this PC with its “SDK Server” on), which speaks to over a thousand kinds of hardware. Nothing is downloaded or sent anywhere. If another program (such as MSI Center or iCUE) also drives the lights, the two fight; the top of this page says so and lets you close it right there."));
+            L.T("شب‌پا افکت‌ها رو حساب می‌کنه و به یه سرور نور محلی می‌ده که با سخت‌افزارهای بیشتر از ۱۰۰۰ مدل حرف می‌زنه. اون سرور برنامه‌ی رایگان و متن‌باز OpenRGBه که دکمه‌ی «فعال‌سازی» یک بار از سایت رسمی‌ش دانلودش می‌کنه (فقط همون یک فایل، با اثر انگشت ثابت چک می‌شه) و بی‌صدا و فقط روی همین کامپیوتر اجراش می‌کنه؛ هر وقت نورها رو خاموش کنی اونم بسته می‌شه. لازم نیست خودت چیزی نصب یا باز کنی. چیزی به جایی فرستاده نمی‌شه. اگه برنامه‌ی دیگه‌ای (مثل MSI Center یا iCUE) هم نور رو کنترل کنه، با هم کشمکش می‌کنن؛ بالای صفحه بهت می‌گم و می‌تونی همون‌جا ببندیش.",
+                "Shabpa works the effects out and hands them to a local lighting server that speaks to over a thousand kinds of hardware. That server is the free, open-source OpenRGB: the “Enable” button fetches it once from its official site (just that one file, checked against a fixed fingerprint) and runs it silently, on this PC only; when you turn the lights off it stops too. You never install or open anything yourself. Nothing is sent anywhere. If another program (such as MSI Center or iCUE) also drives the lights, the two fight; the top of this page says so and lets you close it right there."));
         helpBody.Children.Add(Ui2.Label("", 0, 0));
         root.Children.Add(help);
         Content = root;
@@ -527,6 +527,11 @@ public sealed class RgbPage : PageBase
                     "Two programs giving orders to the same lights make them flicker or make Shabpa's effects not show at all. To let Shabpa drive them, close that program (it comes back after a restart unless you remove it from Windows startup)."),
                 (L.T("بستن این برنامه", "Close this program"), () => CloseRival(captured.rival, captured.processes, captured.services))));
         }
+        if (!Cfg.Enabled && !OpenRgbHost.Installed && !_installing)
+            _alerts.Children.Add(Alert("Accent", L.T("اول نورپردازی رو فعال کن", "Enable lighting first"),
+                L.T("برای کنترل نور قطعه‌ها یک بار روی دکمه‌ی زیر بزن؛ شب‌پا خودش همه‌چیز رو آماده می‌کنه و لازم نیست برنامه‌ی دیگه‌ای نصب یا باز کنی.",
+                    "To control the lights of your parts press the button below once; Shabpa prepares everything and you do not need to install or open any other program."),
+                (L.T("فعال‌سازی نورپردازی (دانلود ۲۲ مگابایت)", "Enable lighting (22 MB download)"), EnableLighting)));
         if (!Cfg.Enabled) return;
         switch (Hub.Rgb.Link)
         {
@@ -534,15 +539,16 @@ public sealed class RgbPage : PageBase
             {
                 var path = OpenRgbPath();
                 var actions = new List<(string, Action)>();
-                if (path is not null) actions.Add((L.T("اجرای OpenRGB با سرور", "Start OpenRGB with its server"), () => StartOpenRgb(path)));
-                actions.Add((L.T("باز کردن سایت OpenRGB", "Open the OpenRGB site"), () => Process.Start(new ProcessStartInfo("https://openrgb.org") { UseShellExecute = true })));
+                if (!OpenRgbHost.Installed) actions.Add((L.T("فعال‌سازی نورپردازی (دانلود ۲۲ مگابایت)", "Enable lighting (22 MB download)"), EnableLighting));
+                else actions.Add((L.T("دوباره راه‌انداز", "Start it again"), () => { OpenRgbHost.Start(Cfg.Port); Mo.Say(_customNote, L.T("در حال راه‌اندازی؛ چند ثانیه صبر کن.", "Starting; give it a few seconds.")); }));
+                if (path is not null && !OpenRgbHost.Installed) actions.Add((L.T("استفاده از OpenRGB خودم", "Use my own OpenRGB"), () => StartOpenRgb(path)));
                 _alerts.Children.Add(Alert("Red",
                     L.T("نور به قطعه‌ها نمی‌رسه", "The effects are not reaching the lights"),
-                    path is not null
-                        ? L.T("OpenRGB روی این کامپیوتر پیدا شد ولی سرورش روشن نیست. دکمه‌ی زیر اون رو با سرور اجرا می‌کنه (اگه اولین باره، یک بار باید ادمین اجازه بده).",
-                            "OpenRGB was found on this PC but its server is not running. The button below starts it with the server (the first time Windows may ask for administrator permission).")
-                        : L.T("شب‌پا برای حرف زدن با قطعه‌ها به برنامه‌ی رایگان و متن‌باز OpenRGB نیاز داره. نصبش کن، بازش کن و توی تب «SDK Server» دکمه‌ی Start Server رو بزن؛ بعد خودش وصل می‌شه. (چیزی خودکار دانلود نمی‌شه.)",
-                            "To talk to the parts Shabpa needs the free, open-source OpenRGB. Install it, open it and press Start Server on its “SDK Server” tab; Shabpa then connects by itself. (Nothing is downloaded automatically.)"),
+                    OpenRgbHost.Installed
+                        ? L.T("سرور نور شب‌پا بالا نیومده یا هنوز داره قطعه‌ها رو پیدا می‌کنه. روی بعضی کامپیوترها تا یک دقیقه طول می‌کشه؛ اگه نشد، دکمه‌ی زیر دوباره راهش می‌اندازه.",
+                            "Shabpa's lighting server is not up yet or is still finding the parts. On some PCs it takes up to a minute; if it does not come, the button below starts it again.")
+                        : L.T("برای حرف زدن با قطعه‌ها شب‌پا یه سرور نور کوچیک لازم داره. با یک کلیک خودش می‌گیره‌ش و بی‌صدا اجراش می‌کنه؛ لازم نیست چیزی نصب کنی.",
+                            "To talk to the parts Shabpa needs a small lighting server. One click and it fetches and runs it silently; you install nothing."),
                     [.. actions]));
                 break;
             }
@@ -555,6 +561,37 @@ public sealed class RgbPage : PageBase
                 _alerts.Children.Add(Alert("Accent", L.T("در حال وصل شدن به OpenRGB…", "Connecting to OpenRGB…"), ""));
                 break;
         }
+    }
+
+    private bool _installing;
+
+    private async void EnableLighting()
+    {
+        if (_installing) return;
+        if (!Ask(L.T("نورپردازی فعال بشه؟", "Enable lighting?"),
+                L.T("شب‌پا یک بار برنامه‌ی رایگان و متن‌باز OpenRGB (نسخه‌ی ۱٫۱، حدود ۲۲ مگابایت) رو از سایت رسمی‌ش دانلود می‌کنه، با اثر انگشت ثابتِ توی برنامه چک می‌کنه و توی پوشه‌ی خودش بی‌صدا، فقط روی همین کامپیوتر اجرا می‌کنه. هیچ چیز دیگه‌ای نصب یا فرستاده نمی‌شه. بعضی قطعه‌ها (مثل رم و مادربرد) علاوه بر این به درایور جداگانه‌ای به اسم PawnIO نیاز دارن؛ کیبورد، ماوس، فن‌ها و خیلی از قطعه‌های USB بدون اون کار می‌کنن.",
+                    "Shabpa will fetch the free, open-source OpenRGB (version 1.1, about 22 MB) once from its official site, check it against the fixed fingerprint inside the program and run it silently in its own folder, on this PC only. Nothing else is installed or sent. Some parts (such as memory and the motherboard) additionally need a separate driver called PawnIO; keyboards, mice, fans and many USB parts work without it."),
+                L.T("دانلود و فعال کن", "Download and enable"))) return;
+        _installing = true;
+        var progress = new Progress<int>(p => Mo.Say(_customNote, L.T($"در حال دانلود… {Fa.Digits(p.ToString())}٪", $"Downloading… {p}%")));
+        var result = await OpenRgbHost.InstallAsync(progress);
+        _installing = false;
+        if (result.Ok)
+        {
+            Cfg.Enabled = true;
+            Hub.Store.Save();
+            Hub.Rgb.Refresh();
+            _master.IsChecked = true;
+            Mo.Say(_customNote, L.T("آماده شد؛ سرور نور داره بالا میاد (تا یک دقیقه) و بعد قطعه‌ها وصل می‌شن.", "Done; the lighting server is starting (up to a minute) and then the parts connect."));
+        }
+        else
+            Mo.Say(_customNote, result.Error switch
+            {
+                "hash" => L.T("فایل دانلودشده اون فایل رسمیِ مورد انتظار نبود و رد شد؛ چیزی نصب نشد.", "The downloaded file was not the expected official one and was refused; nothing was installed."),
+                "download" => L.T("دانلود نشد؛ اینترنت یا دسترسی به سایت OpenRGB رو چک کن و دوباره امتحان کن.", "The download failed; check your internet or access to the OpenRGB site and try again."),
+                _ => L.T("باز کردن فایل دانلودشده انجام نشد؛ دوباره امتحان کن.", "The downloaded file could not be unpacked; try again."),
+            });
+        DrawAlerts();
     }
 
     private void StartOpenRgb(string path)

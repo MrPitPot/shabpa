@@ -8,8 +8,8 @@ namespace Shabpa.Core;
 /// keep reading exactly as before. Pure logic.</summary>
 public static class CommandFeatures
 {
-    /// <summary>The lighting (RGB) page is not in this version of the app; its commands wait for the update that brings it back.</summary>
-    public static readonly bool Lights = false;
+    /// <summary>The lighting (RGB) page is in the app again, with its one-click lighting server; its commands are on.</summary>
+    public static readonly bool Lights = true;
 
     // ---- vocabulary ---------------------------------------------------------------------------------------------------
 

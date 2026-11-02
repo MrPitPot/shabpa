@@ -39,7 +39,7 @@ public partial class MainWindow : Window
 
     /// <summary>Every screen worth a screenshot, including the tabs inside «کنترل سیستم».</summary>
     public IEnumerable<string> CaptureKeys =>
-        ["home", .. SystemPage.TabKeys.Select(t => $"system:{t}"), .. NetworkPage.TabKeys.Select(t => $"ping:{t}"), "gaming", "playtime", "playtime:eldenring", "weather", "dns", "download", "comfort", "rewards", "tasks", .. TasksPage.TabKeys.Select(t => $"tasks:{t}"), "files", .. FilesPage.TabKeys.Select(t => $"files:{t}"), "health", .. HealthPage.TabKeys.Select(t => $"health:{t}"), "profiles", .. ProfilesPage.TabKeys.Select(t => $"profiles:{t}"), "mic", "support", "update", "settings", "kit"];
+        ["home", .. SystemPage.TabKeys.Select(t => $"system:{t}"), .. NetworkPage.TabKeys.Select(t => $"ping:{t}"), "gaming", "playtime", "playtime:eldenring", "weather", "dns", "download", "rgb", "comfort", "rewards", "tasks", .. TasksPage.TabKeys.Select(t => $"tasks:{t}"), "files", .. FilesPage.TabKeys.Select(t => $"files:{t}"), "health", .. HealthPage.TabKeys.Select(t => $"health:{t}"), "profiles", .. ProfilesPage.TabKeys.Select(t => $"profiles:{t}"), "mic", "support", "update", "settings", "kit"];
 
     public FrameworkElement CaptureRoot => Root;
 
@@ -85,6 +85,7 @@ public partial class MainWindow : Window
             ["ping"] = (NavPing, () => new NetworkPage()),
             ["dns"] = (NavDns, () => new DnsPage()),
             ["download"] = (NavDownload, () => new DownloadsPage()),
+            ["rgb"] = (NavRgb, () => new RgbPage()),
             ["files"] = (NavFiles, () => new FilesPage()),
             ["health"] = (NavHealth, () => new HealthPage()),
             ["tasks"] = (NavTasks, () => new TasksPage()),
