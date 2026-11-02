@@ -31,6 +31,7 @@ public sealed partial class BidarOwl
     private static DoubleAnimationUsingKeyFrames Curve(double seconds, Func<double, double> f)
     {
         var a = new DoubleAnimationUsingKeyFrames { Duration = TimeSpan.FromSeconds(seconds), FillBehavior = FillBehavior.Stop };
+        Timeline.SetDesiredFrameRate(a, ActFps);
         var n = (int)Math.Ceiling(seconds * 30);
         for (var i = 0; i <= n; i++)
         {

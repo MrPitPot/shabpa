@@ -105,7 +105,7 @@ public partial class SetupWindow : Window
         _language.Select(_en ? 1 : 0, raise: false);
         LangHost.Visibility = _stage == Stage.Ready ? Visibility.Visible : Visibility.Hidden;
         TitleText.Text = _uninstall ? T("حذف شب‌پا", "Uninstall Shabpa") : T($"شب‌پا {Digits(Short(_version))}", $"Shabpa {Short(_version)}");
-        SubtitleText.Text = T("نگهبان شبانه‌ی سیستم · ساخته‌ی Mr.PitPot", "Your PC night watch · by Mr.PitPot");
+        SubtitleText.Text = T("نگهبان شبانه‌ی سیستم · ساخته‌ی PitPot Studio", "Your PC night watch · by PitPot Studio");
         PathLabel.Text = T("محل نصب", "Install location");
         PathText.Text = _target.Dir;
 

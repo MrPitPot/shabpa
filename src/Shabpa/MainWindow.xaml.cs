@@ -130,7 +130,7 @@ public partial class MainWindow : Window
 
         var version = Updater.Current;
         var shown = version.Build == 0 ? $"{version.Major}.{version.Minor}" : version.ToString(3);
-        VersionText.Text = L.T($"ساخته‌ی Mr.PitPot · نسخه‌ی {Fa.Digits(shown).Replace('.', '٫')}", $"Made by Mr.PitPot · v{shown}");
+        VersionText.Text = L.T($"ساخته‌ی PitPot Studio · نسخه‌ی {Fa.Digits(shown).Replace('.', '٫')}", $"Made by PitPot Studio · v{shown}");
 
         RestorePlacement();
         PreviewKeyDown += OnShortcut;

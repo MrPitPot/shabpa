@@ -194,7 +194,7 @@ public sealed partial class BidarOwl
 
     private void StartOutfitLife()
     {
-        if (!(_useOutfit || Standalone) || !IsVisible || !Motion.Enabled) return;
+        if (!(_useOutfit || Standalone) || !IsVisible || !Motion.Enabled || !HostActive) return;
         StartBreathing();
         StartGlances();
         ArmIdle();
@@ -204,8 +204,8 @@ public sealed partial class BidarOwl
 
     private void ArmIdle()
     {
-        if (!(_useOutfit || Standalone) || !IsVisible || !Motion.Enabled) return;
-        _idleTimer.Interval = TimeSpan.FromSeconds(2.5 + ActRng.NextDouble() * 3.5);
+        if (!(_useOutfit || Standalone) || !IsVisible || !Motion.Enabled || !HostActive) return;
+        _idleTimer.Interval = TimeSpan.FromSeconds(5 + ActRng.NextDouble() * 6);   // an act every 5-11 s: lively, but he is not in motion all the time
         _idleTimer.Start();
     }
 

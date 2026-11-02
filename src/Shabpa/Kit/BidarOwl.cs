@@ -158,6 +158,7 @@ public sealed partial class BidarOwl : Decorator
         _art.Children.Add(_shadow);
 
         var root = new Canvas { Width = 100, Height = 120, RenderTransform = new TransformGroup { Children = { _breath, _squash, _lift, _spin } } };
+        _rig = root;
 
         // feet
         foreach (var x in new[] { 33.0, 55.0 })
@@ -261,7 +262,7 @@ public sealed partial class BidarOwl : Decorator
         InitMoves();
         _idleTimer.Tick += (_, _) => { _idleTimer.Stop(); IdleAct(); ArmIdle(); };
         _napTimer.Tick += (_, _) => { _napTimer.Stop(); if (IdleLife && IsVisible) SetMood(BidarMood.Sleepy); };
-        IsVisibleChanged += (_, e) => { if ((bool)e.NewValue) { Wake(false); StartOutfitLife(); } else { StopTimers(); SleepPhysics(); StopBreathing(); } };
+        IsVisibleChanged += (_, e) => { if ((bool)e.NewValue) { HookHost(); Wake(false); StartOutfitLife(); } else { StopTimers(); SleepPhysics(); StopBreathing(); } };
         Unloaded += (_, _) => StopTimers();
         MouseLeftButtonDown += (_, e) => { e.Handled = true; React(); };
         Apply();

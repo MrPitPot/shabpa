@@ -51,9 +51,13 @@ public sealed partial class BidarOwl
         Add("confetti", "M-8,-4 L-5,-6 L-3,-3 Z M4,-8 L7,-7 L6,-4 Z M8,0 L10,2 L7,3 Z M-6,3 L-3,2 L-4,6 Z M0,-1 L2,0 L1,2 Z", Hex("#ffd27a"), Hex("#ff8fa3"), 0.6);
     }
 
+    /// <summary>The acts of a 76 px owl look the same at 30 frames a second as at 60, and cost half (a screen that runs 144 Hz would run them at 144).</summary>
+    private const int ActFps = 30;
+
     private static DoubleAnimationUsingKeyFrames Keys(double ms, params (double At, double Value)[] frames)
     {
         var a = new DoubleAnimationUsingKeyFrames { Duration = TimeSpan.FromMilliseconds(ms), FillBehavior = FillBehavior.Stop };
+        Timeline.SetDesiredFrameRate(a, ActFps);
         foreach (var (at, value) in frames) a.KeyFrames.Add(new EasingDoubleKeyFrame(value, KeyTime.FromPercent(at), new SineEase { EasingMode = EasingMode.EaseInOut }));
         return a;
     }
