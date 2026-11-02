@@ -260,7 +260,21 @@ public sealed partial class BidarOwl : Decorator
 
         _blinkTimer.Tick += (_, _) => { _blinkTimer.Stop(); DoBlink(); ArmBlink(); };
         InitMoves();
-        _idleTimer.Tick += (_, _) => { _idleTimer.Stop(); IdleAct(); ArmIdle(); };
+        _idleTimer.Tick += (_, _) =>
+        {
+            _idleTimer.Stop();
+            if (UserIdle.Since() > TimeSpan.FromSeconds(90))
+            {
+                // nobody has touched the PC for a minute and a half: he rests (no breathing, no acts) and looks again in a few seconds
+                StopBreathing();
+                _idleTimer.Interval = TimeSpan.FromSeconds(6);
+                _idleTimer.Start();
+                return;
+            }
+            StartBreathing();
+            IdleAct();
+            ArmIdle();
+        };
         _napTimer.Tick += (_, _) => { _napTimer.Stop(); if (IdleLife && IsVisible) SetMood(BidarMood.Sleepy); };
         IsVisibleChanged += (_, e) => { if ((bool)e.NewValue) { HookHost(); Wake(false); StartOutfitLife(); } else { StopTimers(); SleepPhysics(); StopBreathing(); } };
         Unloaded += (_, _) => StopTimers();

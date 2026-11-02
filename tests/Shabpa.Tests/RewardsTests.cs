@@ -220,7 +220,8 @@ public class RewardsTests
         Assert.Equal(start + 3, e.State.Feathers);
         for (var m = 61; m <= 20 * 60; m++) e.ActiveMinute(new DateTime(2026, 11, 2, 9, 0, 0).AddMinutes(m));
         Assert.Equal(start + 3 * 8, e.State.Feathers);                        // the day's cap is 8 hours
-        e.ActiveMinute(new DateTime(2026, 11, 3, 9, 1, 0));                   // a new day starts the count again
+        set(new DateTime(2026, 11, 3, 9, 1, 0));                              // the clock reaches the next day
+        e.ActiveMinute(new DateTime(2026, 11, 3, 9, 1, 0));                   // and the count starts again
         Assert.Equal(1, e.State.DayCounters["present"]);
     }
 

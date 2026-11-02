@@ -15,6 +15,21 @@ public sealed partial class ThemeScene : Canvas
 {
     private readonly Scene _scene;
     private readonly DispatcherTimer _rebuild = new() { Interval = TimeSpan.FromMilliseconds(260) };
+    private readonly DispatcherTimer _idleWatch = new() { Interval = TimeSpan.FromSeconds(5) };
+    private bool _still;
+
+    /// <summary>After a minute without a key or a mouse move anywhere the backdrop stops moving (it is drawn once, as its still picture) and starts again at the next touch.
+    /// A backdrop nobody is touching is the most wasteful thing a weak graphics card can be asked to draw.</summary>
+    private static readonly TimeSpan IdleAfter = TimeSpan.FromSeconds(60);
+
+    private void CheckIdle()
+    {
+        if (!HostActive || !IsVisible) return;
+        var idle = UserIdle.Since() > IdleAfter;
+        if (idle == _still) return;
+        _still = idle;
+        Build();
+    }
     private Random _rng = new(7);
 
     public Scene Kind => _scene;
@@ -33,8 +48,9 @@ public sealed partial class ThemeScene : Canvas
         SnapsToDevicePixels = false;
         _rebuild.Tick += (_, _) => { _rebuild.Stop(); Build(); };
         SizeChanged += (_, _) => { _rebuild.Stop(); _rebuild.Start(); };
-        IsVisibleChanged += (_, e) => { if ((bool)e.NewValue) Build(); else Clear(); };
-        Loaded += (_, _) => { HookHost(); Build(); };
+        _idleWatch.Tick += (_, _) => CheckIdle();
+        IsVisibleChanged += (_, e) => { if ((bool)e.NewValue) { Build(); _idleWatch.Start(); } else { Clear(); _idleWatch.Stop(); } };
+        Loaded += (_, _) => { HookHost(); Build(); _idleWatch.Start(); };
     }
 
     private void Clear()
@@ -63,7 +79,7 @@ public sealed partial class ThemeScene : Canvas
     private static int SceneFps = 10;
 
     /// <summary>Fast things (rain, meteors, sparks) need a few more frames than slow ones (lanterns, snow, mist, ink) to look smooth.</summary>
-    private static int FpsFor(Scene scene) => scene switch { Scene.Rain => 18, Scene.Embers => 15, _ => 10 };
+    internal static int FpsFor(Scene scene) => scene switch { Scene.Rain or Scene.Storm => 15, Scene.Matrix or Scene.Embers or Scene.Pixels or Scene.Invaders or Scene.Shards or Scene.Synth or Scene.Tactical => 12, _ => 10 };
 
     /// <summary>A meteor crosses the sky in a fraction of a second, so it gets its own, higher rate; the stars between meteors stay slow.</summary>
     private const int StreakFps = 24;
@@ -81,7 +97,7 @@ public sealed partial class ThemeScene : Canvas
         window.Deactivated += (_, _) => Clear();
     }
 
-    private bool Animated => Motion.Enabled && IsVisible;
+    private bool Animated => Motion.Enabled && IsVisible && !_still;
 
     private void Build()
     {
@@ -142,21 +158,28 @@ public sealed partial class ThemeScene : Canvas
     private static Duration D(double seconds) => new(TimeSpan.FromSeconds(seconds));
 
     /// <summary>From → to again and again, starting part-way through so the shapes never move in step.</summary>
-    private static void Loop(IAnimatable target, DependencyProperty dp, double from, double to, double seconds, double phase, bool reverse = false, bool smooth = false)
+    private static void Loop(IAnimatable target, DependencyProperty dp, double from, double to, double seconds, double phase, bool reverse = false, bool smooth = false, int? fps = null)
     {
         var a = new DoubleAnimation(from, to, D(seconds))
         {
             RepeatBehavior = RepeatBehavior.Forever, AutoReverse = reverse, BeginTime = TimeSpan.FromSeconds(-phase * seconds * (reverse ? 2 : 1)),
             EasingFunction = smooth ? new SineEase { EasingMode = EasingMode.EaseInOut } : null,
         };
-        Timeline.SetDesiredFrameRate(a, SceneFps);
+        Timeline.SetDesiredFrameRate(a, fps ?? SceneFps);
         target.BeginAnimation(dp, a);
     }
+
+    /// <summary>A shape that moves or fades is drawn once into a small texture and then only moved, instead of being tessellated and filled again every frame
+    /// (this is what made the busy backdrops cost 6-15 % of the graphics card).</summary>
+    private static readonly BitmapCache Cached = MakeCache();
+
+    private static BitmapCache MakeCache() { var c = new BitmapCache(1.0); c.Freeze(); return c; }
 
     private void Add(UIElement e, double x, double y)
     {
         SetLeft(e, x);
         SetTop(e, y);
+        if (Animated && !(e is FrameworkElement { Width: > 480 } or FrameworkElement { Height: > 480 })) e.CacheMode = Cached;   // the big static washes are left alone
         Children.Add(e);
     }
 
@@ -373,7 +396,7 @@ public sealed partial class ThemeScene : Canvas
             rosette.Children.Add(new Path { Data = Star8(Math.Min(w, h) * .21), Stroke = teal, StrokeThickness = 1.2, RenderTransform = new RotateTransform(22.5) });
             rosette.Children.Add(new Ellipse { Width = Math.Min(w, h) * .5, Height = Math.Min(w, h) * .5, Stroke = gold, StrokeThickness = .8, RenderTransform = new TranslateTransform(-Math.Min(w, h) * .25, -Math.Min(w, h) * .25), Opacity = .6 });
             Add(rosette, 0, 0);
-            if (Animated) Loop(rot, RotateTransform.AngleProperty, 0, 360 * dir, 140, 0);
+            if (Animated) Loop(rot, RotateTransform.AngleProperty, 0, 360 * dir, 140, 0, fps: 5);   // 2.6 degrees a second: five steps a second look smooth
         }
     }
 

@@ -42,7 +42,7 @@ public sealed partial class ThemeScene
 
     private static DoubleAnimationUsingKeyFrames Keys(double seconds, double phase, params (double at, double value)[] frames)
     {
-        var a = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever, Duration = D(seconds), BeginTime = TimeSpan.FromSeconds(-phase * seconds) };
+        var a = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever, Duration = D(seconds), BeginTime = TimeSpan.FromSeconds(-phase * seconds) }; Timeline.SetDesiredFrameRate(a, SceneFps);
         foreach (var (at, value) in frames) a.KeyFrames.Add(new LinearDoubleKeyFrame(value, KeyTime.FromPercent(at)));
         return a;
     }
@@ -349,7 +349,7 @@ public sealed partial class ThemeScene
             {
                 var seconds = R(12, 24);
                 var steps = 22;
-                var a = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever, Duration = D(seconds), BeginTime = TimeSpan.FromSeconds(-R(0, 1) * seconds) };
+                var a = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever, Duration = D(seconds), BeginTime = TimeSpan.FromSeconds(-R(0, 1) * seconds) }; Timeline.SetDesiredFrameRate(a, SceneFps);
                 for (var s = 0; s <= steps; s++) a.KeyFrames.Add(new DiscreteDoubleKeyFrame((h + size * 2) * s / steps, KeyTime.FromPercent((double)s / steps)));
                 t.BeginAnimation(TranslateTransform.YProperty, a);
             }
@@ -397,10 +397,10 @@ public sealed partial class ThemeScene
             var span = Math.Max(60, w - cols8 * 68 - 60) / 2;
             var seconds = 16.0;
             var steps = 14;
-            var a = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever, Duration = D(seconds), AutoReverse = true };
+            var a = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever, Duration = D(seconds), AutoReverse = true }; Timeline.SetDesiredFrameRate(a, SceneFps);
             for (var s = 0; s <= steps; s++) a.KeyFrames.Add(new DiscreteDoubleKeyFrame(-span + 2 * span * s / steps, KeyTime.FromPercent((double)s / steps)));
             move.BeginAnimation(TranslateTransform.XProperty, a);
-            var b = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever, Duration = D(seconds * 2) };
+            var b = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever, Duration = D(seconds * 2) }; Timeline.SetDesiredFrameRate(b, SceneFps);
             for (var s = 0; s <= 8; s++) b.KeyFrames.Add(new DiscreteDoubleKeyFrame(s * 6, KeyTime.FromPercent(s / 8.0 * .5)));
             for (var s = 1; s <= 8; s++) b.KeyFrames.Add(new DiscreteDoubleKeyFrame(48 - s * 6, KeyTime.FromPercent(.5 + s / 8.0 * .5)));
             move.BeginAnimation(TranslateTransform.YProperty, b);
@@ -448,7 +448,7 @@ public sealed partial class ThemeScene
             if (!Animated) { SetTop(bar, horizon + Math.Pow(i / 9.0, 2) * (h - horizon)); bar.Opacity = .7; continue; }
             var seconds = 4.5;
             var ph = i / 9.0;
-            var a = new DoubleAnimation(0, h - horizon, D(seconds)) { RepeatBehavior = RepeatBehavior.Forever, BeginTime = TimeSpan.FromSeconds(-ph * seconds), EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } };
+            var a = new DoubleAnimation(0, h - horizon, D(seconds)) { RepeatBehavior = RepeatBehavior.Forever, BeginTime = TimeSpan.FromSeconds(-ph * seconds), EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn } }; Timeline.SetDesiredFrameRate(a, SceneFps);
             t.BeginAnimation(TranslateTransform.YProperty, a);
             bar.BeginAnimation(OpacityProperty, Keys(seconds, ph, (0, 0), (.2, .5), (1, .9)));
         }

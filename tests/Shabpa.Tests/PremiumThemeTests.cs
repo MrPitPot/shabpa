@@ -56,4 +56,15 @@ public class PremiumThemeTests
         Assert.Equal(RewardsEngine.BuyResult.Unknown, e.BuyTheme("nope"));
         Assert.Equal(cheap.Price, e.State.TotalFeathers - e.State.Feathers);
     }
+
+    [Fact]
+    public void Every_backdrop_runs_at_a_low_frame_rate_so_a_weak_graphics_card_is_not_taxed()
+    {
+        foreach (var scene in Enum.GetValues<Scene>().Where(s => s != Scene.None))
+        {
+            var fps = Shabpa.Kit.ThemeScene.FpsFor(scene);
+            Assert.InRange(fps, 8, 18);                    // a 60 Hz (or 144 Hz) redraw of the whole window for a slow drift was the cause of 8-14 % GPU
+        }
+        Assert.Equal(30, PremiumTheme.All.Count);
+    }
 }

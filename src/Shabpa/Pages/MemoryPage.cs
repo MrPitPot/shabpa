@@ -209,8 +209,8 @@ public sealed class MemoryPage : PageBase
         foreach (var r in rows)
         {
             var title = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 7, 12, 7) };
-            title.Children.Add(new TextBlock { Text = r.Name + (r.Count > 1 ? $"  ×{Fa.Digits(r.Count.ToString())}" : ""), FontWeight = FontWeights.SemiBold, FontSize = 14, TextTrimming = TextTrimming.CharacterEllipsis });
-            if (r.Title.Length > 0) title.Children.Add(new TextBlock { Text = r.Title, Style = St("Label"), TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 380 });
+            title.Children.Add(new TextBlock { Text = r.Name + (r.Count > 1 ? $"  ×{Fa.Digits(r.Count.ToString())}" : ""), FontWeight = FontWeights.SemiBold, FontSize = 14, TextTrimming = TextTrimming.CharacterEllipsis, HorizontalAlignment = HorizontalAlignment.Left });   // Left is the start edge in both directions
+            if (r.Title.Length > 0) title.Children.Add(new TextBlock { Text = r.Title, Style = St("Label"), TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 380, HorizontalAlignment = HorizontalAlignment.Left, FlowDirection = FlowDirection.LeftToRight });
 
             var size = new TextBlock { Text = ListUi.Ltr(Fa.Bytes(r.Bytes)), FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 14, 0), Foreground = Res("Muted") };
             var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
