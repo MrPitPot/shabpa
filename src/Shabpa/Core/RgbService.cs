@@ -200,7 +200,7 @@ public sealed class RgbService : IDisposable
         {
             var look = LookOf(rgb, setting.Look);
             var pattern = look.CustomPattern ?? look.Effect.Pattern;
-            frame = RgbEngine.Frame(look, Math.Max(1, device.Leds), t, pattern == RgbPattern.Music ? music : temp);
+            frame = RgbEngine.Frame(look, Math.Max(1, device.Leds), t + setting.ShiftMs / 1000.0, pattern == RgbPattern.Music ? music : temp);
         }
         else if (_slices is not null && _slices.TryGetValue(device.Index, out var slice)) frame = slice;
         else
@@ -222,9 +222,15 @@ public sealed class RgbService : IDisposable
         var devices = _client.Devices
             .Where(d => rgb.FindDevice(d.Key) is not { Enabled: false } and not { Own: true })
             .OrderBy(d => RgbZones.All.ToList().FindIndex(z => z.Key == (rgb.FindDevice(d.Key) is { Zone.Length: > 0 } o ? o.Zone : d.Zone))).ThenBy(d => d.Index).ToList();
+        // every device takes a stretch of the flow that is about as long as a fan or a strip (a board with 400 LEDs must not swallow the rainbow), and that stretch is a part of the
+        // colour circle, so each device shows two or three neighbouring colours that run and turn, not one colour that cycles
+        double Weight(int leds) => Math.Clamp(leds, 8, 40);
+        var count = devices.Count > 0 ? devices.Count : RgbZones.All.Count;
+        var spread = Math.Max(1.0, count * 0.4);
         var nominal = RgbZones.All.Sum(z => z.Leds);
-        var deviceTotal = devices.Sum(d => Math.Max(1, d.Leds));
-        var length = Math.Clamp(Math.Max(deviceTotal, nominal), 8, 1024);
+        var weightTotal = Math.Max(1.0, devices.Sum(d => Weight(d.Leds)));
+        var length = Math.Clamp((int)Math.Round(Math.Max(devices.Count > 0 ? weightTotal : nominal, 8) * 4), 32, 1024);
+        look = look with { Spread = spread };
         var global = RgbEngine.Frame(look, length, t, level);
 
         double at = 0;
@@ -234,12 +240,19 @@ public sealed class RgbService : IDisposable
             at += zone.Leds;
         }
         var slices = new Dictionary<int, Rgb[]>();
+        var shifted = new Dictionary<int, Rgb[]> { [0] = global };       // the flow at other moments, for devices shown ahead of or behind the rest
         double pos = 0;
         foreach (var d in devices)
         {
             var n = Math.Max(1, d.Leds);
-            slices[d.Index] = RgbEngine.Slice(global, pos / deviceTotal, (pos + n) / deviceTotal, n);
-            pos += n;
+            var w = Weight(d.Leds);
+            var setting = rgb.FindDevice(d.Key);
+            var shift = Math.Clamp(setting?.ShiftMs ?? 0, -1000, 1000);
+            if (!shifted.TryGetValue(shift, out var flow)) shifted[shift] = flow = RgbEngine.Frame(look, length, t + shift / 1000.0, level);
+            var slice = RgbEngine.Slice(flow, pos / weightTotal, (pos + w) / weightTotal, n);
+            if (setting is { OneColour: true }) slice = [.. Enumerable.Repeat(slice[slice.Length / 2], n)];
+            slices[d.Index] = slice;
+            pos += w;
         }
         return slices;
     }

@@ -174,6 +174,21 @@ public sealed class RgbDevicesWindow : Window
         // outputs whose size can be set
         foreach (var zone in device.Zones.Where(z => z.Resizable)) stack.Children.Add(SizeRow(device, zone));
 
+        // keeping a lagging device in step with the rest (a slow USB cooler often runs a little behind)
+        var sync = new DockPanel { Margin = new Thickness(0, 10, 0, 0) };
+        var one = new Switch { IsChecked = setting is { OneColour: true }, VerticalAlignment = VerticalAlignment.Center, ToolTip = L.T("همه‌ی ال‌ای‌دی‌های این دستگاه یک رنگ باشن؛ برای قطعه‌هایی مثل کولر که چند ال‌ای‌دی کم دارن و توی گرادیان از بقیه جدا به نظر میان.", "All the LEDs of this device show one colour; for parts such as a cooler with few LEDs that look out of step as a gradient.") };
+        one.Click += (_, _) => { rgb.DeviceSetting(device.Key).OneColour = one.IsChecked == true; Hub.Store.Save(); };
+        DockPanel.SetDock(one, Dock.Left);
+        var shift = new TextBox { Style = (Style)Application.Current.Resources["Input"], Text = (setting?.ShiftMs ?? 0).ToString(), Width = 84, Margin = new Thickness(0, 0, 8, 0), FlowDirection = FlowDirection.LeftToRight, VerticalAlignment = VerticalAlignment.Center };
+        shift.GotKeyboardFocus += (_, _) => _dragging++;
+        shift.LostKeyboardFocus += (_, _) => _dragging = Math.Max(0, _dragging - 1);
+        shift.LostFocus += (_, _) => { if (int.TryParse(shift.Text.Trim(), out var ms)) { ms = Math.Clamp(ms, -1000, 1000); shift.Text = ms.ToString(); rgb.DeviceSetting(device.Key).ShiftMs = ms; Hub.Store.Save(); } };
+        DockPanel.SetDock(shift, Dock.Left);
+        sync.Children.Add(one);
+        sync.Children.Add(shift);
+        sync.Children.Add(new TextBlock { Text = L.T("همگام‌سازی: جلو/عقب بردن این دستگاه (میلی‌ثانیه، −۱۰۰۰ تا ۱۰۰۰) و تک‌رنگ‌کردنش", "Sync: show this device ahead / behind (milliseconds, −1000 to 1000) and the one-colour switch"), Style = (Style)Application.Current.Resources["Label"], TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Left });
+        stack.Children.Add(sync);
+
         // actions
         var actions = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
         var test = new Button { Style = (Style)Application.Current.Resources["Btn"], Content = L.T("تست (چشمک سفید)", "Test (white blink)"), Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(0, 0, 8, 0) };

@@ -245,6 +245,10 @@ public sealed class RgbDeviceSetting
     /// <summary>True: this device uses <see cref="Look"/> instead of its zone's look.</summary>
     public bool Own { get; set; }
     public RgbZoneSetting Look { get; set; } = new();
+    /// <summary>Milliseconds this device is shown ahead of the rest (negative: behind). For a device that lags (a slow USB cooler) so it falls back in step with the others.</summary>
+    public int ShiftMs { get; set; }
+    /// <summary>All the LEDs of this device show one colour (the colour of the flow at its place), for parts such as a pump head whose few LEDs look out of step as a gradient.</summary>
+    public bool OneColour { get; set; }
 }
 
 /// <summary>An effect the person made: two to five colours moved in one of a few ways.</summary>

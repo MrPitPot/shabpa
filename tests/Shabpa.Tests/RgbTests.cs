@@ -486,4 +486,30 @@ public class OpenRgbClientTests
     {
         Assert.True(new Settings().ForceUpdates);
     }
+
+    [Fact]
+    public void A_devices_time_shift_and_one_colour_switch_survive_saving()
+    {
+        var rgb = new RgbSettings();
+        var d = rgb.DeviceSetting("3|Pump");
+        d.ShiftMs = -120; d.OneColour = true;
+        var back = System.Text.Json.JsonSerializer.Deserialize<RgbSettings>(System.Text.Json.JsonSerializer.Serialize(rgb))!;
+        Assert.Equal((-120, true), (back.FindDevice("3|Pump")!.ShiftMs, back.FindDevice("3|Pump")!.OneColour));
+        Assert.Equal((0, false), (new RgbDeviceSetting().ShiftMs, new RgbDeviceSetting().OneColour));
+    }
+
+    [Fact]
+    public void A_rainbow_stretch_laid_on_one_device_shows_several_colours_and_turns_with_time()
+    {
+        double HueSpan(Rgb[] f) { var d = Math.Abs(f[^1].Hue - f[0].Hue); return Math.Min(d, 1 - d); }
+        var plain = new RgbLook(RgbEffects.Find("rainbow"), new Rgb(255, 0, 0), 1, 1);
+        var spread = plain with { Spread = 3.2 };
+        var eighthPlain = RgbEngine.Slice(RgbEngine.Frame(plain, 160, 1.0), 0, 0.125, 20);
+        var eighthSpread = RgbEngine.Slice(RgbEngine.Frame(spread, 160, 1.0), 0, 0.125, 20);
+        Assert.True(HueSpan(eighthSpread) > 0.3, $"{HueSpan(eighthSpread):0.00}");           // a device shows a good part of the colour circle, not one colour
+        Assert.True(HueSpan(eighthSpread) > HueSpan(eighthPlain) * 2);
+        var later = RgbEngine.Slice(RgbEngine.Frame(spread, 160, 3.0), 0, 0.125, 20);
+        Assert.NotEqual(eighthSpread[0], later[0]);                                           // and it keeps turning
+        Assert.NotEqual(eighthSpread[0], eighthSpread[^1]);                                   // while two ends of one device differ at any moment
+    }
 }

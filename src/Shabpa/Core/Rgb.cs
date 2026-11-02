@@ -233,7 +233,7 @@ public static class RgbTransitions
 }
 
 /// <summary>The inputs that change from moment to moment, and the look chosen on the page.</summary>
-public sealed record RgbLook(RgbEffect Effect, Rgb Color, double Brightness, double Speed, Rgb[]? CustomPalette = null, RgbPattern? CustomPattern = null, bool Reverse = false, bool Starry = false);
+public sealed record RgbLook(RgbEffect Effect, Rgb Color, double Brightness, double Speed, Rgb[]? CustomPalette = null, RgbPattern? CustomPattern = null, bool Reverse = false, bool Starry = false, double Spread = 1);
 
 /// <summary>Turns an effect, the time and a few live numbers into the colour of every LED. Pure maths, no clock and no device: the same inputs always give the
 /// same frame, so every effect can be tested, drawn in the preview and sent to hardware by the same code.</summary>
@@ -252,7 +252,7 @@ public static class RgbEngine
         for (var i = 0; i < leds; i++)
         {
             var x = leds == 1 ? 0 : i / (double)(leds - 1);
-            frame[i] = Pixel(pattern, palette, i, leds, x, t, speed, level, look.Color);
+            frame[i] = Pixel(pattern, palette, i, leds, x, t, speed, level, look.Color, Math.Max(0.25, look.Spread));
         }
         if (look.Starry && pattern is not (RgbPattern.Solid or RgbPattern.Flash or RgbPattern.DoubleFlash or RgbPattern.Temperature or RgbPattern.Music or RgbPattern.Sparkle))
         {
@@ -314,7 +314,7 @@ public static class RgbEngine
 
     private static double Frac(double v) => v - Math.Floor(v);
 
-    private static Rgb Pixel(RgbPattern pattern, Rgb[] p, int i, int n, double x, double t, double speed, double level, Rgb user)
+    private static Rgb Pixel(RgbPattern pattern, Rgb[] p, int i, int n, double x, double t, double speed, double level, Rgb user, double spread = 1)
     {
         switch (pattern)
         {
@@ -338,11 +338,11 @@ public static class RgbEngine
                 return Rgb.FromHsv(Hash(i + 1, slot), 0.9, 1);
             }
             case RgbPattern.Rainbow:
-                return Rgb.FromHsv(x - t * 0.12 * speed, 1, 1);
+                return Rgb.FromHsv(x * spread - t * 0.12 * speed, 1, 1);
             case RgbPattern.Cycle:
                 return Rgb.FromHsv(t * 0.08 * speed, 1, 1);
             case RgbPattern.Wave:
-                return Gradient(p, x - t * 0.18 * speed);
+                return Gradient(p, x * spread - t * 0.18 * speed);
             case RgbPattern.Chase:
             {
                 var head = Frac(t * 0.45 * speed) * n;
