@@ -63,7 +63,8 @@ public class HealthChecksTests
     [Fact]
     public void Monitor_refresh_rate_and_dwm_rate_are_readable()
     {
-        Assert.True(DisplayRate.MonitorHz(IntPtr.Zero) is >= 24 and <= 600);
+        // 0 means "unknown" (no display answers: a locked or remote session, a screen that is off); anything else must be a believable refresh rate
+        Assert.True(DisplayRate.MonitorHz(IntPtr.Zero) is 0 or (>= 24 and <= 600));
         var rate = new DisplayRate();
         rate.ComposeFps();
         Thread.Sleep(300);

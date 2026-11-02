@@ -68,8 +68,14 @@ public sealed class DisplayRate
             var info = new MonitorInfoEx { cbSize = Marshal.SizeOf<MonitorInfoEx>(), device = "" };
             string? device = null;
             if (monitor != IntPtr.Zero && GetMonitorInfo(monitor, ref info)) device = info.device;
-            var mode = new DevMode { dmSize = 220 };
-            return EnumDisplaySettings(device, -1 /* ENUM_CURRENT_SETTINGS */, ref mode) && mode.dmDisplayFrequency > 1 ? (int)mode.dmDisplayFrequency : 0;
+            // the named monitor first; when Windows will not answer for it (the screen is off, the session is locked or remote) the current display of the session
+            foreach (var name in new[] { device, null })
+            {
+                var mode = new DevMode { dmSize = 220 };
+                if (EnumDisplaySettings(name, -1 /* ENUM_CURRENT_SETTINGS */, ref mode) && mode.dmDisplayFrequency > 1) return (int)mode.dmDisplayFrequency;
+                if (name is null) break;
+            }
+            return 0;
         }
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or MarshalDirectiveException)
         {
