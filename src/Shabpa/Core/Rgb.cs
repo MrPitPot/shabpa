@@ -129,6 +129,26 @@ public static class RgbEffects
         S("saffron", "زعفران", "Saffron", GroupPersian, RgbPattern.Breathe, 0.6, "FF9A00", "FFC93C"),
         S("halloween", "هالووین", "Halloween", GroupSeason, RgbPattern.Fire, 1, "FF6A00", "8A2BE2", "1A0033"),
         S("candy", "آب‌نبات", "Candy shop", GroupSeason, RgbPattern.Wave, 0.9, "FF3D81", "FFFFFF", "3DCBFF", "FF3D81"),
+        // smooth, flowing looks
+        S("mint", "نسیم نعنا", "Mint breeze", GroupCalm, RgbPattern.Wave, 0.5, "7CFFCB", "B8F7E0", "3DDCC2", "7CFFCB"),
+        S("arctic", "درخشش قطبی", "Arctic glow", GroupCalm, RgbPattern.Wave, 0.45, "9BE7FF", "E8FBFF", "5AB8FF", "9BE7FF"),
+        S("rosegold", "رزگلد", "Rose gold", GroupCalm, RgbPattern.Breathe, 0.5, "FFB5A7", "F7CAD0", "E8A0A0"),
+        S("ocean", "امواج اقیانوس", "Ocean waves", GroupNature, RgbPattern.Wave, 0.8, "003B73", "0074D9", "39CCCC", "7FDBFF"),
+        S("emerald", "جنگل زمرد", "Emerald forest", GroupNature, RgbPattern.Wave, 0.55, "004D2C", "00C46A", "9DFFC9", "00A35A"),
+        S("fireflies", "کرم شب‌تاب", "Fireflies", GroupNature, RgbPattern.Sparkle, 0.9, "D8FF3D", "FFF59D", "7CFC00"),
+        S("autumn", "برگ پاییزی", "Autumn leaves", GroupNature, RgbPattern.Fire, 0.7, "B7410E", "E67E22", "F1C40F", "4A1C07"),
+        S("supernova", "ابرنواختر", "Supernova", GroupSpace, RgbPattern.Ripple, 0.7, "FFFFFF", "FFB347", "7B2FFF"),
+        S("saturn", "حلقه‌های زحل", "Saturn rings", GroupSpace, RgbPattern.Wave, 0.5, "D9A441", "F3E2B3", "7B5E2E", "D9A441"),
+        S("starfield", "میدان ستاره", "Starfield", GroupSpace, RgbPattern.Sparkle, 0.8, "FFFFFF", "9BB8FF", "FFE9A6"),
+        S("vaporwave", "ویپروِیو", "Vaporwave", GroupEnergy, RgbPattern.Wave, 0.8, "FF71CE", "B967FF", "01CDFE", "05FFA1"),
+        S("synthwave", "سینث‌ویو", "Synthwave", GroupEnergy, RgbPattern.Wave, 1.0, "FF2E97", "7B2FFF", "00E5FF", "FF2E97"),
+        S("firefrost", "آتش و یخ", "Fire and ice", GroupEnergy, RgbPattern.Wave, 0.9, "FF4500", "FFFFFF", "00BFFF", "FF4500"),
+        S("volt", "ولت", "Volt", GroupEnergy, RgbPattern.Lightning, 1.4, "FFE600", "FFFFFF", "00E5FF"),
+        S("razor", "تیغ", "Razor", GroupEnergy, RgbPattern.Scan, 1.3, "FF1744"),
+        S("kashan", "کاشی کاشان", "Kashan tile", GroupPersian, RgbPattern.Wave, 0.45, "0B3D91", "1FA8C9", "F2E8CF", "0B3D91"),
+        S("pomegranate", "انار", "Pomegranate", GroupPersian, RgbPattern.Wave, 0.5, "7A0019", "C1121F", "3A7D44", "7A0019"),
+        S("christmas", "کریسمس", "Christmas", GroupSeason, RgbPattern.Sparkle, 0.9, "E63946", "2A9D8F", "FFFFFF"),
+        S("valentine", "ولنتاین", "Valentine", GroupSeason, RgbPattern.Heartbeat, 0.9, "FF4D8D"),
     ];
 
     public static IReadOnlyList<RgbEffect> All => [.. Basic, .. Special];
@@ -163,14 +183,15 @@ public static class RgbZones
         new("strip", "نوار و هدرها", "Strips & headers", 24),
         new("board", "مادربورد", "Motherboard", 8),
         new("gpu", "کارت گرافیک", "Graphics card", 10),
-        new("keys", "کیبورد و موس", "Keyboard & mouse", 12),
+        new("keyboard", "کیبورد", "Keyboard", 22),
+        new("mouse", "موس و لوازم", "Mouse & accessories", 6),
     ];
 
     public static RgbZone Find(string key) => All.FirstOrDefault(z => z.Key == key) ?? All[0];
 }
 
 /// <summary>The inputs that change from moment to moment, and the look chosen on the page.</summary>
-public sealed record RgbLook(RgbEffect Effect, Rgb Color, double Brightness, double Speed, Rgb[]? CustomPalette = null, RgbPattern? CustomPattern = null);
+public sealed record RgbLook(RgbEffect Effect, Rgb Color, double Brightness, double Speed, Rgb[]? CustomPalette = null, RgbPattern? CustomPattern = null, bool Reverse = false, bool Starry = false);
 
 /// <summary>Turns an effect, the time and a few live numbers into the colour of every LED. Pure maths, no clock and no device: the same inputs always give the
 /// same frame, so every effect can be tested, drawn in the preview and sent to hardware by the same code.</summary>
@@ -191,6 +212,18 @@ public static class RgbEngine
             var x = leds == 1 ? 0 : i / (double)(leds - 1);
             frame[i] = Pixel(pattern, palette, i, leds, x, t, speed, level, look.Color);
         }
+        if (look.Starry && pattern is not (RgbPattern.Solid or RgbPattern.Flash or RgbPattern.DoubleFlash or RgbPattern.Temperature or RgbPattern.Music or RgbPattern.Sparkle))
+        {
+            // «starry»: the flow stays as a dim base and a few of its own colours twinkle bright on top of it
+            var slot = (int)Math.Floor(t * 2.2 * speed);
+            var age = Frac(t * 2.2 * speed);
+            for (var i = 0; i < leds; i++)
+            {
+                var star = Hash(i + 11, slot) < 0.2 ? Math.Pow(1 - age, 1.4) : 0;
+                frame[i] = Rgb.Max(frame[i].Scale(0.28), frame[i].Scale(star));
+            }
+        }
+        if (look.Reverse) Array.Reverse(frame);
         var b = Math.Clamp(look.Brightness, 0, 1);
         if (b < 0.9999)
             for (var i = 0; i < leds; i++) frame[i] = frame[i].Scale(b);

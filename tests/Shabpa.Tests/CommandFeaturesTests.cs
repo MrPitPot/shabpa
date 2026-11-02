@@ -247,4 +247,46 @@ public class CommandFeaturesTests
         var known = new[] { "home", "system", "comfort", "profiles", "gaming", "playtime", "ping", "dns", "download", "rgb", "files", "health", "tasks", "mic", "weather", "support", "update", "settings" };
         Assert.All(keys, k => Assert.Contains(k, known));
     }
+
+    private static Shabpa.Core.AssistantCommand? Lights(string text) => Shabpa.Core.CommandParser.Parse(text, Now).Command is { Intent: Shabpa.Core.CommandIntent.Rgb } c ? c : null;
+
+    [Theory]
+    [InlineData("keyboard red", "keyboard", "FF2D2D")]
+    [InlineData("mouse rainbow", "mouse", "")]
+    [InlineData("کیبورد رو آبی کن", "keyboard", "2D7DFF")]
+    [InlineData("نور فن ها سبز", "fans", "22E06B")]
+    [InlineData("ram purple", "ram", "A855F7")]
+    [InlineData("cooler yellow", "cooler", "FFD60A")]
+    [InlineData("graphics card lights blue", "gpu", "2D7DFF")]
+    public void A_light_command_can_be_about_one_part(string text, string zone, string colour)
+    {
+        var c = Lights(text);
+        Assert.NotNull(c);
+        Assert.Equal(zone, c!.Zone);
+        Assert.Equal(colour, c.Color);
+    }
+
+    [Theory]
+    [InlineData("mouse")]
+    [InlineData("ram usage")]
+    [InlineData("رم رو خالی کن")]
+    [InlineData("gpu temperature")]
+    [InlineData("دمای کارت گرافیک چنده")]
+    [InlineData("fan")]
+    public void Words_for_a_part_without_anything_about_light_stay_what_they_were(string text) => Assert.Null(Lights(text));
+
+    [Fact]
+    public void Turning_one_part_off_keeps_the_others_as_they_were()
+    {
+        var c = Lights("نور کیبورد خاموش");
+        Assert.NotNull(c);
+        Assert.Equal(("keyboard", 0), (c!.Zone, c.Level));
+        var hub = new Shabpa.Hub(new Shabpa.Core.Store(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "shabpa-zc-" + Guid.NewGuid().ToString("N"))) { ReadOnly = true }, dryRun: true, demo: true);
+        hub.Settings.Rgb.All.Effect = "aurora";
+        hub.RunAssistant(c, "box");
+        Assert.Equal(0, hub.Settings.Rgb.ZoneSetting("keyboard").Brightness);
+        Assert.Equal("aurora", hub.Settings.Rgb.ZoneSetting("fans").Effect);          // the fans still show the look they had
+        Assert.NotEqual(0, hub.Settings.Rgb.ZoneSetting("fans").Brightness);
+        Assert.False(hub.Settings.Rgb.Sync);
+    }
 }

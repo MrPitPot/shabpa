@@ -93,10 +93,78 @@ public sealed class RgbService : IDisposable
         LinkChanged?.Invoke();
     }
 
-    /// <summary>How the page's settings become the look of one zone.</summary>
-    public static RgbLook LookOf(RgbSettings rgb, string zone)
+    /// <summary>True when nothing on any light moves (every zone and every device with its own look shows a fixed colour).</summary>
+    internal static bool IsStill(RgbSettings rgb)
     {
-        var s = rgb.For(zone);
+        bool Fixed(RgbZoneSetting s) { var look = LookOf(rgb, s); return (look.CustomPattern ?? look.Effect.Pattern) == RgbPattern.Solid || look.Brightness <= 0; }
+        var zones = rgb.Sync ? [rgb.All] : RgbZones.All.Select(z => rgb.ZoneSetting(z.Key)).ToList();
+        return zones.All(Fixed) && rgb.Devices.Where(d => d.Own && d.Enabled).All(d => Fixed(d.Look));
+    }
+
+    private readonly System.Collections.Concurrent.ConcurrentQueue<Action<OpenRgbClient>> _jobs = new();
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<int, long> _identify = new();
+    private bool _driving;
+
+    /// <summary>Blinks one device white for two seconds so the person can see which one it is (works with the lights off in Shabpa too).</summary>
+    public void Identify(int deviceIndex)
+    {
+        _identify[deviceIndex] = Environment.TickCount64 + 2000;
+        EnsureRunning();
+    }
+
+    /// <summary>Gives a header zone of a device a size (how many LEDs are plugged in) and re-reads the device. <paramref name="done"/> gets the result on the loop's thread.</summary>
+    public void ResizeZone(int deviceIndex, int zoneIndex, int count, Action<bool>? done = null)
+    {
+        _jobs.Enqueue(client => done?.Invoke(client.ResizeZone(deviceIndex, zoneIndex, count)));
+        EnsureRunning();
+    }
+
+    private Rgb[]? IdentifyOnly(RgbDevice device)
+    {
+        if (!_identify.TryGetValue(device.Index, out var until)) return null;
+        if (Environment.TickCount64 >= until) { _identify.TryRemove(device.Index, out _); return [Rgb.Black]; }
+        return Blink(device);
+    }
+
+    private static Rgb[] Blink(RgbDevice device) => [.. Enumerable.Repeat(Environment.TickCount64 / 250 % 2 == 0 ? new Rgb(255, 255, 255) : Rgb.Black, Math.Max(1, device.Leds))];
+
+    /// <summary>What one device shows now: a white blink while being identified, nothing when the person left it out, its own look when it has one, otherwise its zone's frame.</summary>
+    private Rgb[]? FrameFor(RgbDevice device, RgbSettings rgb, Dictionary<string, Rgb[]> frames, double t, double music, double temp)
+    {
+        if (_identify.ContainsKey(device.Index)) return IdentifyOnly(device);
+        var setting = rgb.FindDevice(device.Key);
+        if (setting is { Enabled: false }) return null;
+        if (setting is { Own: true })
+        {
+            var look = LookOf(rgb, setting.Look);
+            var pattern = look.CustomPattern ?? look.Effect.Pattern;
+            return RgbEngine.Frame(look, Math.Max(1, device.Leds), t, pattern == RgbPattern.Music ? music : temp);
+        }
+        var zone = setting is { Zone.Length: > 0 } ? setting.Zone : device.Zone;
+        return frames.TryGetValue(zone, out var f) ? f : null;
+    }
+
+    /// <summary>Starts the hidden lighting server when it has been fetched, then connects. <paramref name="silent"/> leaves the link state alone (the lights are off in Shabpa).</summary>
+    private void Connect(RgbSettings rgb, bool silent)
+    {
+        if (Environment.TickCount64 < _nextConnect) return;
+        if (!silent) SetLink(RgbLink.Connecting);
+        var local = rgb.Host.Length == 0 || rgb.Host is "127.0.0.1" or "localhost";
+        var port = Math.Clamp(rgb.Port, 1, 65535);
+        if (local && OpenRgbHost.Installed && OpenRgbHost.Start(port)) { _nextConnect = Environment.TickCount64 + 6000; return; }
+        var ok = _client.Connect(rgb.Host.Length > 0 ? rgb.Host : "127.0.0.1", port);
+        _nextConnect = Environment.TickCount64 + (ok ? 0 : 4000);
+        if (silent) return;
+        if (!ok) SetLink(RgbLink.NoServer, _client.LastError);
+        else SetLink(_client.Devices.Count == 0 ? RgbLink.NoDevices : RgbLink.Sending);
+    }
+
+    /// <summary>How the page's settings become the look of one zone.</summary>
+    public static RgbLook LookOf(RgbSettings rgb, string zone) => LookOf(rgb, rgb.For(zone));
+
+    /// <summary>How one setting (a zone's, or a device's own) becomes a look.</summary>
+    public static RgbLook LookOf(RgbSettings rgb, RgbZoneSetting s)
+    {
         var speed = Math.Pow(2, (Math.Clamp(s.Speed, 1, 10) - 5) / 2.5);
         var colour = Rgb.Parse(s.Color, new Rgb(255, 45, 85));
         var brightness = Math.Clamp(s.Brightness, 0, 100) / 100.0;
@@ -104,9 +172,9 @@ public sealed class RgbService : IDisposable
         {
             var palette = custom.Colors.Select(h => Rgb.Parse(h, colour)).ToArray();
             var pattern = Enum.TryParse<RgbPattern>(custom.Pattern, out var p) ? p : RgbPattern.Wave;
-            return new RgbLook(RgbEffects.Basic[0], colour, brightness, speed, palette.Length > 0 ? palette : [colour], pattern);
+            return new RgbLook(RgbEffects.Basic[0], colour, brightness, speed, palette.Length > 0 ? palette : [colour], pattern, s.Reverse, s.Starry);
         }
-        return new RgbLook(RgbEffects.Find(s.Effect), colour, brightness, speed);
+        return new RgbLook(RgbEffects.Find(s.Effect), colour, brightness, speed, null, null, s.Reverse, s.Starry);
     }
 
     private static bool Needs(RgbSettings rgb, RgbPattern pattern) =>
@@ -136,6 +204,8 @@ public sealed class RgbService : IDisposable
                 if (Needs(rgb, RgbPattern.Temperature))
                     temp = _cpuTemp() is { } c ? Math.Clamp((c - 35) / 55.0, 0, 1) : Math.Clamp(_cpuLoad() / 100.0, 0, 1);
 
+                // a page of lights that only show one fixed colour changes nothing between frames: look four times a second instead of thirty
+                timer.Period = IsStill(rgb) && _identify.IsEmpty ? TimeSpan.FromMilliseconds(250) : TimeSpan.FromMilliseconds(33);
                 var frames = new Dictionary<string, Rgb[]>();
                 foreach (var zone in RgbZones.All)
                 {
@@ -152,31 +222,31 @@ public sealed class RgbService : IDisposable
                 }
                 FrameReady?.Invoke();
 
+                // things the pages asked for (resize a header, ...) run here, on the one thread that talks to the server
+                for (var j = 0; j < 4 && _jobs.TryDequeue(out var job); j++)
+                    if (_client.Connected) { try { job(_client); } catch (Exception ex) when (ex is System.IO.IOException or InvalidOperationException) { Log.Write($"rgb job: {ex.GetType().Name}"); } }
+
                 if (!rgb.Enabled)
                 {
                     SetLink(RgbLink.Off);
-                    if (_client.Connected && !blackSent) { blackSent = true; _client.Update(_ => [Rgb.Black]); }
+                    if (_client.Connected && _driving && !blackSent) { blackSent = true; _driving = false; _client.Update(_ => [Rgb.Black]); }
+                    if (_previewUsers > 0)
+                    {
+                        // the page is open with the lights off: still look at what is there (the devices window needs it) and let «test» blink a device
+                        if (!_client.Connected) Connect(rgb, silent: true);
+                        else if (!_identify.IsEmpty) _client.Update(IdentifyOnly);
+                    }
                     continue;
                 }
                 blackSent = false;
                 if (!_client.Connected)
                 {
-                    if (Environment.TickCount64 >= _nextConnect)
-                    {
-                        SetLink(RgbLink.Connecting);
-                        // the lighting server is Shabpa's own hidden copy of OpenRGB (when it was fetched): start it, it needs a few seconds to find the hardware
-                        var local = rgb.Host.Length == 0 || rgb.Host is "127.0.0.1" or "localhost";
-                        var port = Math.Clamp(rgb.Port, 1, 65535);
-                        if (local && OpenRgbHost.Installed && OpenRgbHost.Start(port)) { _nextConnect = Environment.TickCount64 + 6000; continue; }
-                        var ok = _client.Connect(rgb.Host.Length > 0 ? rgb.Host : "127.0.0.1", port);
-                        _nextConnect = Environment.TickCount64 + (ok ? 0 : 4000);
-                        if (!ok) SetLink(RgbLink.NoServer, _client.LastError);
-                        else SetLink(_client.Devices.Count == 0 ? RgbLink.NoDevices : RgbLink.Sending);
-                    }
+                    if (Environment.TickCount64 >= _nextConnect) Connect(rgb, silent: false);
                     continue;
                 }
                 if (_client.Devices.Count == 0) { SetLink(RgbLink.NoDevices); continue; }
-                if (!_client.Update(zone => frames.TryGetValue(zone, out var f) ? f : null))
+                _driving = true;
+                if (!_client.Update(device => FrameFor(device, rgb, frames, t, music, temp)))
                 {
                     SetLink(RgbLink.NoServer, _client.LastError);
                     _nextConnect = Environment.TickCount64 + 2000;

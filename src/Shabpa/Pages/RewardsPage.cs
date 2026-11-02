@@ -38,6 +38,7 @@ public sealed class RewardsPage : PageBase
 
     public RewardsPage()
     {
+        Unloaded += (_, _) => BoofiArt.Trim();
         Content = _root;
         // two tabs: the cabinet (level, quests, medals) and the shop, which is not open yet
         var tabs = new StackPanel { Margin = new Thickness(0, 0, 0, 14) };

@@ -104,9 +104,15 @@ public static class CommandFeatures
         var padded = Pad(tokens);
         var flat = padded.Trim();
 
-        // the lights
+        // the lights (all of them, or one part: «کیبورد قرمز», «mouse rainbow», «fans off»)
+        var zone = Lights ? ZoneOf(padded) : null;
+        if (Lights && zone is not null && !Any(padded, "خالی", "پاکسازی", "free", "clean", "clear", "تم", "theme", "صفحه", "page"))
+        {
+            var one = Rgb(padded, flat, zone);
+            if (one is not null) return one;
+        }
         if (Lights && Any(padded, "rgb", "ار جی بی", "آر جی بی", "نورپردازی", "نور پردازی", "ال ای دی", "led*", "lighting", "چراغ کیس", "نور کیس", "نور فن", "نور رم", "رنگ کیس", "نور قطعه*", "افکت نوری", "pc lights", "case lights", "rgb lights"))
-            return Rgb(padded, flat);
+            return Rgb(padded, flat, null);
 
         // the overlay
         if (Any(padded, "اورلی", "overlay", "هاد", "hud", "fps counter", "شمارنده فریم", "نمایشگر فریم", "نمایشگر fps"))
@@ -144,7 +150,21 @@ public static class CommandFeatures
 
     // ---- lights ---------------------------------------------------------------------------------------------------------
 
-    private static CommandResult Rgb(string padded, string flat)
+    private static readonly (string key, string[] words)[] ZoneWords =
+    [
+        ("keyboard", ["کیبورد", "صفحه کلید", "keyboard", "keys"]),
+        ("mouse", ["موس", "ماوس", "پد موس", "mouse", "mousepad", "mouse pad"]),
+        ("fans", ["فن", "فن ها", "فنها", "فن های", "fan", "fans"]),
+        ("ram", ["رم", "رمها", "رم ها", "ram", "memory sticks"]),
+        ("cooler", ["کولر", "خنک کننده", "واتر کولر", "پمپ", "cooler", "aio", "pump", "cpu cooler"]),
+        ("gpu", ["کارت گرافیک", "گرافیک", "gpu", "graphics card", "video card"]),
+        ("board", ["مادربرد", "مادر برد", "motherboard", "mainboard", "board"]),
+        ("strip", ["نوار", "نوار ال ای دی", "هدر", "strip", "led strip", "headers"]),
+    ];
+
+    private static string? ZoneOf(string padded) => ZoneWords.Where(z => Any(padded, z.words)).Select(z => z.key).FirstOrDefault();
+
+    private static CommandResult? Rgb(string padded, string flat, string? zone)
     {
         var off = Any(padded, OffWords) && !Any(padded, "جز", "except");
         var on = Any(padded, OnWords);
@@ -164,6 +184,16 @@ public static class CommandFeatures
             : Any(padded, "ثابت", "static", "solid") ? RgbEffects.Find("static") : null;
         var colour = Colours.Where(c => Any(padded, c.words)).Select(c => c.hex).FirstOrDefault();
         var level = Number(flat);
+        if (zone is not null)
+        {
+            // one part only: it needs a colour, an effect, a level or off/on, and a word about light or a colour/effect, so «mouse» alone or «fan speed» stays what it was
+            var lightWord = Any(padded, "نور", "رنگ", "light*", "glow", "rgb", "led*", "افکت", "effect");
+            if (effect?.Key is "temp" or "music" && !lightWord) effect = null;     // «gpu temperature» is a question, not an effect
+            if (effect is null && colour is null && level is null && !((off || on) && lightWord)) return null;
+            if (effect is null && colour is null && level is null)
+                return Ready(new AssistantCommand { Intent = CommandIntent.Rgb, On = !off, Zone = zone, Value = "", Level = off ? 0 : 85 });
+            return Ready(new AssistantCommand { Intent = CommandIntent.Rgb, On = true, Zone = zone, Value = effect?.Key ?? "", Color = colour ?? "", Level = level is { } lz ? Math.Clamp(lz, 0, 100) : off ? 0 : -1 });
+        }
         if (open && effect is null && colour is null && level is null) return Ready(new AssistantCommand { Intent = CommandIntent.OpenPage, Page = "rgb" });
         if (off && effect is null && colour is null)
             return Ready(new AssistantCommand { Intent = CommandIntent.Rgb, On = false, Value = "off" });

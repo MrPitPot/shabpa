@@ -18,6 +18,13 @@ internal static class BoofiArt
     private static readonly ConcurrentDictionary<(string, int), BitmapImage> Layer = new();
     private static readonly ConcurrentDictionary<string, ImageSource> Flat = new();
 
+    /// <summary>Lets go of the decoded pictures of the shop and the wardrobe (tens of megabytes) when the person leaves those pages; whatever is still on screen keeps its own copy.</summary>
+    internal static void Trim()
+    {
+        Layer.Clear();
+        Flat.Clear();
+    }
+
     internal static BitmapImage? Load(string file, int width)
     {
         if (Layer.TryGetValue((file, width), out var hit)) return hit;

@@ -211,6 +211,20 @@ public sealed partial class Hub
             Rgb.BlackOut();
             return Reply(true, L.T("نورپردازی خاموش شد.", "The lights are off."));
         }
+        if (command.Zone.Length > 0)
+        {
+            // one part: it gets a look of its own (the others keep theirs), the lights are switched on
+            rgb.Enabled = true;
+            rgb.Sync = false;
+            foreach (var z in RgbZones.All) rgb.ZoneSetting(z.Key);                // every part keeps what it shows now
+            var s = rgb.ZoneSetting(command.Zone);
+            if (command.Value.Length > 0) s.Effect = command.Value;
+            if (command.Color.Length > 0) { s.Color = command.Color; if (command.Value.Length == 0 && !RgbEffects.Find(s.Effect).UsesColor) s.Effect = "static"; }
+            if (command.Level >= 0) s.Brightness = command.Level;
+            Store.Save();
+            Rgb.Refresh();
+            return Reply(true, L.T($"نور «{RgbZones.Find(command.Zone).Name}» تنظیم شد.", $"The light of “{RgbZones.Find(command.Zone).Name}” is set."));
+        }
         if (command.Value == "on") rgb.Enabled = true;
         else
         {

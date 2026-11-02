@@ -7,14 +7,30 @@ using System.Text;
 namespace Shabpa.Core;
 
 /// <summary>One thing with lights that a lighting server knows about, and the Shabpa zone its lights are driven as.</summary>
-public sealed record RgbDevice(int Index, string Name, string Vendor, int Type, int Leds, string Zone);
+public sealed record RgbDevice(int Index, string Name, string Vendor, int Type, int Leds, string Zone)
+{
+    /// <summary>What the maker says it is (often the model), where it is plugged in, and its serial: shown in the devices window.</summary>
+    public string Description { get; init; } = "";
+    public string Location { get; init; } = "";
+    public string Serial { get; init; } = "";
+    /// <summary>The groups of LEDs inside the device (an addressable header, a fan ring, the memory strip...).</summary>
+    public IReadOnlyList<RgbZoneInfo> Zones { get; init; } = [];
+    /// <summary>A name that stays the same between runs (type, name and, for identical devices such as two memory sticks, their order), used to remember the person's settings for it.</summary>
+    public string Key { get; init; } = "";
+}
+
+/// <summary>One group of LEDs of a device. A header whose <see cref="Min"/> is below its <see cref="Max"/> can be given a size (how many LEDs are really plugged in).</summary>
+public sealed record RgbZoneInfo(int Index, string Name, int Type, int Min, int Max, int Count)
+{
+    public bool Resizable => Max > Min;
+}
 
 /// <summary>Talks to a running OpenRGB program (its "SDK Server", TCP port 6742 on this PC) so Shabpa can light the fans, memory, strips,
 /// motherboard and graphics card that program supports. Shabpa itself ships no vendor code and no driver: if OpenRGB is not running, nothing
 /// is sent and the page says so. Only localhost is ever used unless the person typed another address.</summary>
 public sealed class OpenRgbClient : IDisposable
 {
-    private const uint MagicRequestControllerCount = 0, RequestControllerData = 1, RequestProtocolVersion = 40, SetClientName = 50, UpdateLeds = 1050, SetCustomMode = 1100;
+    private const uint MagicRequestControllerCount = 0, RequestControllerData = 1, RequestProtocolVersion = 40, SetClientName = 50, ResizeZoneId = 1000, UpdateLeds = 1050, SetCustomMode = 1100;
     private const uint ClientProtocol = 3;
 
     private TcpClient? _tcp;
@@ -51,13 +67,11 @@ public sealed class OpenRgbClient : IDisposable
             for (var i = 0; i < Math.Min(count, 64u); i++)
             {
                 Send((uint)i, RequestControllerData, _protocol >= 1 ? BitConverter.GetBytes(_protocol) : []);
-                if (ParseController(i, Receive(RequestControllerData), _protocol) is { } device)
-                {
-                    list.Add(device);
-                    Send((uint)i, SetCustomMode, []);              // the device now takes colours straight from us
-                }
+                if (ParseController(i, Receive(RequestControllerData), _protocol) is { } device) list.Add(device);   // only looked at: nothing is changed on it yet
             }
-            Devices = list;
+            Devices = WithKeys(list);
+            _last.Clear();
+            _controlled = false;
             LastError = "";
             return true;
         }
@@ -69,16 +83,55 @@ public sealed class OpenRgbClient : IDisposable
         }
     }
 
-    /// <summary>Sets every LED of the devices of a zone. <paramref name="frameFor"/> gives the zone's frame; it is stretched to each device's LED count.</summary>
-    public bool Update(Func<string, Rgb[]?> frameFor)
+    private static List<RgbDevice> WithKeys(List<RgbDevice> list)
+    {
+        var seen = new Dictionary<string, int>();
+        for (var i = 0; i < list.Count; i++)
+        {
+            var baseKey = $"{list[i].Type}|{list[i].Name}";
+            var n = seen.GetValueOrDefault(baseKey);
+            seen[baseKey] = n + 1;
+            list[i] = list[i] with { Key = n == 0 ? baseKey : $"{baseKey}#{n}" };
+        }
+        return list;
+    }
+
+    private readonly Dictionary<int, (byte[] Colours, long At)> _last = [];
+    private bool _controlled;
+
+    /// <summary>Puts every device into the mode where it takes its colours from us. Done once, when the first frame is about to be sent.</summary>
+    private void TakeControl()
+    {
+        if (_controlled) return;
+        foreach (var device in Devices) Send((uint)device.Index, SetCustomMode, []);
+        _controlled = true;
+    }
+
+    /// <summary>Devices that talk over a slow bus (memory and many motherboards, over SMBus) get fewer frames; everything else gets up to 40 a second.</summary>
+    private static int MinIntervalMs(RgbDevice device) => device.Type is 0 or 1 ? 100 : 25;
+
+    /// <summary>Sets every LED of the devices. <paramref name="frameFor"/> gives a device's frame (or null to leave it alone); it is stretched to the device's LED count.
+    /// A device only gets a frame when its colours changed (or every two seconds, so none falls back to its own program), and a slow one only every 100 ms.</summary>
+    public bool Update(Func<RgbDevice, Rgb[]?> frameFor)
     {
         if (!Connected) return false;
         try
         {
+            TakeControl();
+            var now = Environment.TickCount64;
             foreach (var device in Devices)
             {
-                if (frameFor(device.Zone) is not { Length: > 0 } frame) continue;
+                if (frameFor(device) is not { Length: > 0 } frame) continue;
                 var leds = RgbEngine.Resample(frame, device.Leds);
+                var colours = new byte[leds.Length * 3];
+                for (var i = 0; i < leds.Length; i++) { colours[i * 3] = leds[i].R; colours[i * 3 + 1] = leds[i].G; colours[i * 3 + 2] = leds[i].B; }
+                if (_last.TryGetValue(device.Index, out var before))
+                {
+                    var age = now - before.At;
+                    if (age < MinIntervalMs(device)) continue;
+                    if (age < 2000 && before.Colours.AsSpan().SequenceEqual(colours)) continue;
+                }
+                _last[device.Index] = (colours, now);
                 var payload = new byte[4 + 2 + leds.Length * 4];
                 BitConverter.GetBytes(payload.Length).CopyTo(payload, 0);
                 BitConverter.GetBytes((ushort)leds.Length).CopyTo(payload, 4);
@@ -93,6 +146,35 @@ public sealed class OpenRgbClient : IDisposable
             return true;
         }
         catch (Exception ex) when (ex is SocketException or IOException or ObjectDisposedException or InvalidOperationException)
+        {
+            LastError = ex.Message;
+            Close();
+            return false;
+        }
+    }
+
+    /// <summary>Gives a header zone a size (OpenRGB "resize zone") and reads the device again. False when the device refuses or the link is down.</summary>
+    public bool ResizeZone(int deviceIndex, int zoneIndex, int count)
+    {
+        if (!Connected) return false;
+        try
+        {
+            var payload = new byte[8];
+            BitConverter.GetBytes(zoneIndex).CopyTo(payload, 0);
+            BitConverter.GetBytes(count).CopyTo(payload, 4);
+            Send((uint)deviceIndex, ResizeZoneId, payload);
+            Send((uint)deviceIndex, RequestControllerData, BitConverter.GetBytes(_protocol));
+            if (ParseController(deviceIndex, Receive(RequestControllerData), _protocol) is not { } fresh) return false;
+            var list = Devices.ToList();
+            var at = list.FindIndex(d => d.Index == deviceIndex);
+            if (at < 0) return false;
+            list[at] = fresh;
+            Devices = WithKeys(list);
+            _last.Remove(deviceIndex);
+            if (_controlled) Send((uint)deviceIndex, SetCustomMode, []);
+            return true;
+        }
+        catch (Exception ex) when (ex is SocketException or IOException or ObjectDisposedException or InvalidOperationException or InvalidDataException)
         {
             LastError = ex.Message;
             Close();
@@ -170,9 +252,13 @@ public sealed class OpenRgbClient : IDisposable
             var name = r.Str();
             var vendor = protocol >= 1 ? r.Str() : "";
             var afterIdentity = r.Pos;
-            var leds = WalkLeds(data, afterIdentity, protocol) ?? TailLeds(data);
+            var walk = Walk(data, afterIdentity, protocol);
+            var leds = walk?.Leds ?? TailLeds(data);
             if (leds <= 0) return null;
-            return new RgbDevice(index, name, vendor, type, leds, ZoneFor(type, name));
+            return new RgbDevice(index, name, vendor, type, leds, ZoneFor(type, name))
+            {
+                Description = walk?.Description ?? "", Serial = walk?.Serial ?? "", Location = walk?.Location ?? "", Zones = walk?.Zones ?? [],
+            };
         }
         catch (Exception ex) when (ex is ArgumentException or IndexOutOfRangeException or OverflowException)
         {
@@ -180,12 +266,14 @@ public sealed class OpenRgbClient : IDisposable
         }
     }
 
-    private static int? WalkLeds(byte[] data, int start, uint protocol)
+    private sealed record Walked(int Leds, string Description, string Serial, string Location, List<RgbZoneInfo> Zones);
+
+    private static Walked? Walk(byte[] data, int start, uint protocol)
     {
         try
         {
             var r = new Reader(data) { Pos = start };
-            r.Str(); r.Str(); r.Str(); r.Str();                   // description, version, serial, location
+            var description = r.Str(); r.Str(); var serial = r.Str(); var location = r.Str();   // description, version, serial, location
             var modes = r.U16();
             r.U32();                                              // the active mode
             for (var m = 0; m < modes; m++)
@@ -200,10 +288,15 @@ public sealed class OpenRgbClient : IDisposable
                 r.Skip(colours * 4);
             }
             var zones = r.U16();
+            var zoneList = new List<RgbZoneInfo>();
             for (var z = 0; z < zones; z++)
             {
-                r.Str();
-                r.Skip(4 + 4 + 4 + 4);                            // type, leds min, max, count
+                var zoneName = r.Str();
+                var zoneType = (int)r.U32();
+                var min = (int)r.U32();
+                var max = (int)r.U32();
+                var count = (int)r.U32();
+                zoneList.Add(new RgbZoneInfo(z, zoneName, zoneType, min, max, count));
                 var matrix = r.U16();
                 r.Skip(matrix);
             }
@@ -211,7 +304,7 @@ public sealed class OpenRgbClient : IDisposable
             for (var l = 0; l < leds; l++) { r.Str(); r.Skip(4); }
             var colourCount = r.U16();
             r.Skip(colourCount * 4);
-            return r.AtEnd && colourCount == leds ? leds : null;
+            return r.AtEnd && colourCount == leds ? new Walked(leds, description, serial, location, zoneList) : null;
         }
         catch (Exception ex) when (ex is ArgumentException or IndexOutOfRangeException or OverflowException)
         {
@@ -242,7 +335,8 @@ public sealed class OpenRgbClient : IDisposable
             2 => "gpu",
             3 => n.Contains("pump") || n.Contains("aio") || n.Contains("kraken") || n.Contains("liquid") || n.Contains("cpu") ? "cooler" : "fans",
             4 or 11 => "strip",
-            5 or 6 or 7 or 8 or 9 or 10 or 12 or 16 or 17 or 18 or 19 => "keys",
+            5 or 18 or 19 => "keyboard",
+            6 or 7 or 8 or 9 or 10 or 12 or 16 or 17 => "mouse",
             14 => "board",
             15 => "fans",
             _ => "strip",
@@ -255,6 +349,7 @@ public sealed class OpenRgbClient : IDisposable
         try { _tcp?.Dispose(); } catch (SocketException) { }
         _stream = null;
         _tcp = null;
+        _controlled = false;
     }
 
     public void Dispose() => Close();

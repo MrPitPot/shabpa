@@ -49,6 +49,8 @@ public sealed record AssistantCommand
     public string Value { get; init; } = "";
     /// <summary>Lights: the colour asked for, «RRGGBB», or empty.</summary>
     public string Color { get; init; } = "";
+    /// <summary>Lights: the one part the command is about («keyboard», «mouse», «fans», «ram», «cooler», «gpu», «board», «strip»), or empty for all of them.</summary>
+    public string Zone { get; init; } = "";
 
     /// <summary>Answers at once, without a confirmation card: it only shows or tells, or changes something the person can see and undo on the spot.</summary>
     public bool Immediate => Intent is CommandIntent.ListSchedules or CommandIntent.OpenPage or CommandIntent.Info or CommandIntent.Overlay or CommandIntent.Theme or CommandIntent.Rgb or CommandIntent.MemoryClean or CommandIntent.GameMode;

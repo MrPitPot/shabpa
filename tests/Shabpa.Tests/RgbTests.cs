@@ -213,7 +213,8 @@ public class OpenRgbClientTests
         Assert.Equal("cooler", pump.Zone);
         Assert.Equal("board", OpenRgbClient.ParseController(4, Controller(0, "MSI MPG Z790", 6), 3)!.Zone);
         Assert.Equal("gpu", OpenRgbClient.ParseController(5, Controller(2, "ASUS ROG GPU", 4), 3)!.Zone);
-        Assert.Equal("keys", OpenRgbClient.ParseController(6, Controller(5, "Keyboard", 104), 3)!.Zone);
+        Assert.Equal("keyboard", OpenRgbClient.ParseController(6, Controller(5, "Keyboard", 104), 3)!.Zone);
+        Assert.Equal("mouse", OpenRgbClient.ParseController(8, Controller(6, "Mouse", 3), 3)!.Zone);
         Assert.Equal("strip", OpenRgbClient.ParseController(7, Controller(4, "LED strip", 60), 3)!.Zone);
     }
 
@@ -279,7 +280,7 @@ public class OpenRgbClientTests
         Assert.Equal(2, client.Devices.Count);
         Assert.Equal(["ram", "fans"], client.Devices.Select(d => d.Zone));
 
-        var ok = client.Update(zone => zone == "ram" ? [new Rgb(255, 0, 0), new Rgb(0, 0, 255)] : zone == "fans" ? [new Rgb(1, 2, 3)] : null);
+        var ok = client.Update(d => d.Zone == "ram" ? [new Rgb(255, 0, 0), new Rgb(0, 0, 255)] : d.Zone == "fans" ? [new Rgb(1, 2, 3)] : null);
         Assert.True(ok);
         Thread.Sleep(150);
         List<(uint device, uint id, byte[] payload)> updates;
@@ -307,5 +308,98 @@ public class OpenRgbClientTests
         Assert.False(client.Connect("127.0.0.1", free, 400));
         Assert.False(client.Connected);
         Assert.False(client.Update(_ => [Rgb.Black]));
+    }
+
+    [Fact]
+    public void Identical_devices_get_different_keys_that_stay_the_same_between_runs()
+    {
+        using var server = new FakeServer([(1, "RAM stick", 5), (1, "RAM stick", 5), (3, "Case fan", 12)]);
+        using var client = new OpenRgbClient();
+        Assert.True(client.Connect("127.0.0.1", server.Port), client.LastError);
+        Assert.Equal(["1|RAM stick", "1|RAM stick#1", "3|Case fan"], client.Devices.Select(d => d.Key));
+    }
+
+    [Fact]
+    public void A_connection_only_looks_at_the_devices_and_takes_control_when_the_first_frame_is_sent()
+    {
+        using var server = new FakeServer([(1, "RAM stick", 5)]);
+        using var client = new OpenRgbClient();
+        Assert.True(client.Connect("127.0.0.1", server.Port), client.LastError);
+        Thread.Sleep(100);
+        lock (server.Seen) Assert.DoesNotContain(server.Seen, s => s.id == 1100);          // listing changes nothing on the device
+        Assert.True(client.Update(_ => [new Rgb(9, 9, 9)]));
+        Thread.Sleep(150);
+        lock (server.Seen) Assert.Single(server.Seen, s => s.id == 1100);
+    }
+
+    [Fact]
+    public void A_frame_that_did_not_change_is_not_sent_again_and_a_changed_one_is()
+    {
+        using var server = new FakeServer([(3, "Case fan", 4)]);
+        using var client = new OpenRgbClient();
+        Assert.True(client.Connect("127.0.0.1", server.Port), client.LastError);
+        Rgb[] red = [new Rgb(255, 0, 0)], blue = [new Rgb(0, 0, 255)];
+        client.Update(_ => red);
+        Thread.Sleep(60);
+        client.Update(_ => red);                                                              // same colours: nothing to send
+        Thread.Sleep(60);
+        client.Update(_ => blue);
+        Thread.Sleep(200);
+        lock (server.Seen) Assert.Equal(2, server.Seen.Count(s => s.id == 1050));
+    }
+
+    [Fact]
+    public void A_look_can_run_the_other_way_and_show_as_stars()
+    {
+        var look = new RgbLook(RgbEffects.Find("rainbow"), new Rgb(255, 0, 0), 1, 1);
+        var forward = RgbEngine.Frame(look, 10, 3);
+        var backward = RgbEngine.Frame(look with { Reverse = true }, 10, 3);
+        Assert.Equal(forward.Reverse(), backward);
+        var plain = RgbEngine.Frame(look, 30, 1.0);
+        var starry = RgbEngine.Frame(look with { Starry = true }, 30, 1.0);
+        Assert.Equal(30, starry.Length);
+        Assert.True(starry.Sum(c => c.R + c.G + c.B) < plain.Sum(c => c.R + c.G + c.B));      // a dim base with a few bright stars is darker than the full flow
+        Assert.Contains(starry.Select((c, i) => c.R + c.G + c.B > (plain[i].R + plain[i].G + plain[i].B) * 0.3), b => b);
+    }
+
+    [Fact]
+    public void A_device_setting_is_made_once_and_remembers_its_own_look()
+    {
+        var rgb = new RgbSettings();
+        rgb.All.Effect = "aurora"; rgb.All.Brightness = 70;
+        var d = rgb.DeviceSetting("5|Keyboard");
+        Assert.Same(d, rgb.DeviceSetting("5|Keyboard"));
+        Assert.True(d.Enabled);
+        Assert.False(d.Own);
+        Assert.Equal(("aurora", 70), (d.Look.Effect, d.Look.Brightness));
+        Assert.Null(rgb.FindDevice("1|Other"));
+        d.Look.Effect = "lava"; d.Look.Reverse = true; d.Own = true;
+        var look = RgbService.LookOf(rgb, d.Look);
+        Assert.Equal(("lava", true), (look.Effect.Key, look.Reverse));
+    }
+
+    [Fact]
+    public void The_zones_include_the_keyboard_and_the_mouse_apart()
+    {
+        var keys = RgbZones.All.Select(z => z.Key).ToList();
+        Assert.Contains("keyboard", keys);
+        Assert.Contains("mouse", keys);
+        Assert.DoesNotContain("keys", keys);
+    }
+
+    [Fact]
+    public void A_page_of_fixed_colours_is_still_and_any_moving_effect_is_not()
+    {
+        var rgb = new RgbSettings();
+        Assert.True(RgbService.IsStill(rgb));                                            // the default look is a static colour
+        rgb.All.Effect = "rainbow";
+        Assert.False(RgbService.IsStill(rgb));
+        rgb.All.Brightness = 0;
+        Assert.True(RgbService.IsStill(rgb));                                            // dark is still too
+        rgb.All.Brightness = 80; rgb.All.Effect = "static";
+        rgb.DeviceSetting("5|Keyboard").Look.Effect = "aurora";
+        Assert.True(RgbService.IsStill(rgb));                                            // a look that is not in use does not count
+        rgb.DeviceSetting("5|Keyboard").Own = true;
+        Assert.False(RgbService.IsStill(rgb));
     }
 }

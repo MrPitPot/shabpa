@@ -10,101 +10,20 @@ using Switch = Shabpa.Kit.Switch;
 
 namespace Shabpa.Pages;
 
-/// <summary>The picture of the PC's lights: fans, memory, cooler, strips, motherboard, graphics card and peripherals, each drawn as the dots of its LEDs
-/// in the colours the effect gives them right now.</summary>
-internal sealed class RgbPreview : FrameworkElement
-{
-    private readonly Dictionary<string, Rgb[]> _frames = [];
-    private static readonly Dictionary<uint, SolidColorBrush> Brushes = [];
-
-    public RgbPreview() { SnapsToDevicePixels = false; }
-
-    public void Show(Func<string, Rgb[]> frameOf)
-    {
-        foreach (var z in RgbZones.All) _frames[z.Key] = frameOf(z.Key);
-        InvalidateVisual();
-    }
-
-    private static SolidColorBrush Brush(Rgb c, double alpha = 1)
-    {
-        var key = ((uint)(alpha * 255) << 24) | ((uint)c.R << 16) | ((uint)c.G << 8) | c.B;
-        if (Brushes.TryGetValue(key, out var cached)) return cached;
-        if (Brushes.Count > 3000) Brushes.Clear();
-        var brush = new SolidColorBrush(Color.FromArgb((byte)(alpha * 255), c.R, c.G, c.B));
-        brush.Freeze();
-        return Brushes[key] = brush;
-    }
-
-    private Rgb[] Frame(string zone) => _frames.TryGetValue(zone, out var f) && f.Length > 0 ? f : new Rgb[RgbZones.Find(zone).Leds];
-
-    private void Dot(DrawingContext dc, Rgb c, double x, double y, double r)
-    {
-        if (c.R + c.G + c.B < 12) { dc.DrawEllipse(Brush(new Rgb(60, 60, 70), 0.35), null, new Point(x, y), r * 0.55, r * 0.55); return; }
-        dc.DrawEllipse(Brush(c, 0.18), null, new Point(x, y), r * 2.3, r * 2.3);
-        dc.DrawEllipse(Brush(c, 0.38), null, new Point(x, y), r * 1.5, r * 1.5);
-        dc.DrawEllipse(Brush(c), null, new Point(x, y), r, r);
-    }
-
-    private void Ring(DrawingContext dc, Rgb[] leds, int from, int count, double cx, double cy, double radius, double dot)
-    {
-        for (var i = 0; i < count && from + i < leds.Length; i++)
-        {
-            var a = i / (double)count * Math.PI * 2 - Math.PI / 2;
-            Dot(dc, leds[from + i], cx + Math.Cos(a) * radius, cy + Math.Sin(a) * radius, dot);
-        }
-    }
-
-    protected override void OnRender(DrawingContext dc)
-    {
-        double w = ActualWidth, h = ActualHeight;
-        if (w < 40 || h < 40) return;
-        var body = new Rect(4, 4, w - 8, h - 8);
-        dc.DrawRoundedRectangle(Brush(new Rgb(14, 14, 20)), new Pen(Brush(new Rgb(52, 52, 64)), 2), body, 22, 22);
-        var s = Math.Min(w / 520, h / 600);
-        double X(double v) => v * s + (w - 520 * s) / 2;
-        double Y(double v) => v * s + (h - 600 * s) / 2;
-
-        // memory: two modules
-        var ram = Frame("ram");
-        for (var m = 0; m < 2; m++)
-        for (var i = 0; i < 8 && m * 8 + i < ram.Length; i++)
-            Dot(dc, ram[m * 8 + i], X(230 + m * 40), Y(110 + i * 22), 5.5 * s);
-        // cooler on the left
-        Ring(dc, Frame("cooler"), 0, 12, X(110), Y(150), 46 * s, 5 * s);
-        dc.DrawEllipse(Brush(new Rgb(30, 30, 40)), null, new Point(X(110), Y(150)), 26 * s, 26 * s);
-        // fans on the right: three rings of twelve
-        var fans = Frame("fans");
-        for (var f = 0; f < 3; f++)
-        {
-            var cy = Y(95 + f * 150);
-            dc.DrawEllipse(Brush(new Rgb(24, 24, 32)), null, new Point(X(420), cy), 58 * s, 58 * s);
-            Ring(dc, fans, f * 12, 12, X(420), cy, 48 * s, 5.5 * s);
-            dc.DrawEllipse(Brush(new Rgb(34, 34, 46)), null, new Point(X(420), cy), 14 * s, 14 * s);
-        }
-        // motherboard accents along the top left
-        var board = Frame("board");
-        for (var i = 0; i < board.Length; i++) Dot(dc, board[i], X(60 + i * 18), Y(40), 4.5 * s);
-        // graphics card
-        var gpu = Frame("gpu");
-        for (var i = 0; i < gpu.Length; i++) Dot(dc, gpu[i], X(80 + i * 26), Y(330), 6 * s);
-        // peripherals
-        var keys = Frame("keys");
-        for (var i = 0; i < keys.Length; i++) Dot(dc, keys[i], X(80 + i * 30), Y(430), 5 * s);
-        // strip along the bottom
-        var strip = Frame("strip");
-        for (var i = 0; i < strip.Length; i++) Dot(dc, strip[i], X(50 + i * (420.0 / Math.Max(1, strip.Length - 1))), Y(540), 4.5 * s);
-    }
-}
-
 /// <summary>«نورپردازی»: choose how the lights of the PC look (fans, memory, cooler, strips, motherboard, graphics card, keyboard and mouse), all together or
 /// each on its own. Effects are worked out here and sent to a running OpenRGB, which talks to the hardware; the page says plainly when the lights cannot be
 /// reached and when another program (MSI Center, iCUE, Armoury Crate...) also drives them, and can close that program.</summary>
 public sealed class RgbPage : PageBase
 {
-    private readonly RgbPreview _preview = new() { Height = 360, MinWidth = 280 };
+    private readonly RgbPreview _preview = new() { Height = 340, MinWidth = 320 };
+    private readonly WrapPanel _partChips = new() { Margin = new Thickness(0, 0, 0, 10) };
+    private readonly Button _devicesButton = new();
+    private readonly Border _deviceBanner = new() { Visibility = Visibility.Collapsed, CornerRadius = new CornerRadius(12), Padding = new Thickness(14, 10, 14, 10), Margin = new Thickness(0, 0, 0, 10) };
+    private readonly TextBlock _deviceBannerText = new() { TextWrapping = TextWrapping.Wrap, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+    private readonly WrapPanel _direction = new(), _style = new();
+    private long _lastDraw;
     private readonly StackPanel _alerts = new();
     private readonly Switch _master = new(), _sync = new();
-    private readonly TextBlock _deviceChip = new() { Style = St("Label"), VerticalAlignment = VerticalAlignment.Center };
     private readonly WrapPanel _tabs = new();
     private readonly WrapPanel _basic = new(), _special = new(), _custom = new(), _groupChips = new();
     private readonly WrapPanel _swatches = new();
@@ -124,7 +43,8 @@ public sealed class RgbPage : PageBase
     public override string PageSubtitle => L.T("نور فن‌ها، رم، کولر، نوارها و بقیه‌ی قطعه‌ها رو یک‌جا یا جدا از هم تنظیم کن.", "Set the light of the fans, memory, cooler, strips and the rest, all together or one by one.");
 
     private RgbSettings Cfg => Hub.Settings.Rgb;
-    private RgbZoneSetting Cur => _tab == "all" || Cfg.Sync ? Cfg.All : Cfg.ZoneSetting(_tab);
+    private bool OnDevice => _tab.StartsWith("dev:", StringComparison.Ordinal);
+    private RgbZoneSetting Cur => OnDevice ? Cfg.DeviceSetting(_tab[4..]).Look : _tab == "all" || Cfg.Sync ? Cfg.All : Cfg.ZoneSetting(_tab);
 
     public RgbPage()
     {
@@ -152,16 +72,21 @@ public sealed class RgbPage : PageBase
         titleRow.Children.Add(_master);
         head.Children.Add(titleRow);
         var right = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-        right.Children.Add(_deviceChip);
+        _devicesButton.Style = St("Btn");
+        _devicesButton.Padding = new Thickness(14, 7, 14, 7);
+        _devicesButton.Content = L.T("دستگاه‌ها", "Devices");
+        _devicesButton.ToolTip = L.T("ببین چه دستگاه‌هایی پیدا شد، تستشون کن و جدا تنظیمشون کن.", "See which devices were found, test them and set them one by one.");
+        _devicesButton.Click += (_, _) => RgbDevicesWindow.Open(ControlDevice);
+        right.Children.Add(_devicesButton);
         Grid.SetColumn(right, 1);
         head.Children.Add(right);
         body.Children.Add(head);
 
-        var split = new Grid();
-        split.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        split.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1.4, GridUnitType.Star) });
+        var split = new StackPanel();
 
-        var left = new StackPanel { Margin = new Thickness(0, 0, 18, 0) };
+        var left = new StackPanel { Margin = new Thickness(0, 0, 0, 14) };
+        left.Children.Add(Ui2.Label(L.T("قطعه‌های وصل‌شده", "Connected parts"), 0, 6));
+        left.Children.Add(_partChips);
         left.Children.Add(new Border { Child = _preview, CornerRadius = new CornerRadius(16), ClipToBounds = true, Background = Res("Panel2"), FlowDirection = FlowDirection.LeftToRight });
         _sync.Content = new TextBlock { Text = L.T("همه‌ی نورها یکی باشن (همگام)", "Same look for every light (sync)"), FontWeight = FontWeights.Medium, TextWrapping = TextWrapping.Wrap };
         _sync.Margin = new Thickness(0, 14, 0, 0);
@@ -175,7 +100,15 @@ public sealed class RgbPage : PageBase
         split.Children.Add(left);
 
         var controls = new StackPanel();
-        Grid.SetColumn(controls, 1);
+        _deviceBanner.Background = Res("AccentSoft");
+        var bannerRow = new DockPanel();
+        var bannerBack = new Button { Style = St("Btn"), Content = L.T("برگرد به همه", "Back to all"), Padding = new Thickness(12, 5, 12, 5), VerticalAlignment = VerticalAlignment.Center };
+        bannerBack.Click += (_, _) => { _tab = "all"; Rebuild(); };
+        DockPanel.SetDock(bannerBack, Dock.Left);
+        bannerRow.Children.Add(bannerBack);
+        bannerRow.Children.Add(_deviceBannerText);
+        _deviceBanner.Child = bannerRow;
+        controls.Children.Add(_deviceBanner);
         controls.Children.Add(_tabs);
         controls.Children.Add(Ui2.Label(L.T("افکت", "Effect"), 6, 6));
         controls.Children.Add(_basic);
@@ -203,6 +136,10 @@ public sealed class RgbPage : PageBase
         (_brightness, _speed) = (bright.slider, speed.slider);
         controls.Children.Add(bright.row);
         controls.Children.Add(speed.row);
+        controls.Children.Add(Ui2.Label(L.T("جهت", "Direction"), 12, 4));
+        controls.Children.Add(_direction);
+        controls.Children.Add(Ui2.Label(L.T("حالت", "Style"), 8, 4));
+        controls.Children.Add(_style);
         _brightness.ValueChanged += (_, _) => { if (!_loading) { Cur.Brightness = (int)Math.Round(_brightness.Value); Changed(); } };
         _speed.ValueChanged += (_, _) => { if (!_loading) { Cur.Speed = (int)Math.Round(_speed.Value); Changed(); } };
         split.Children.Add(controls);
@@ -218,6 +155,7 @@ public sealed class RgbPage : PageBase
         Content = root;
 
         _preview.Show(zone => Hub.Rgb.FrameOf(zone));
+        _preview.ZonePicked += PickZone;
         Loaded += (_, _) => { if (_previewing) return; _previewing = true; Hub.Rgb.PreviewStart(); Hub.Rgb.FrameReady += OnFrame; Hub.Rgb.LinkChanged += OnLinkChanged; };
         Unloaded += (_, _) => { if (!_previewing) return; _previewing = false; Hub.Rgb.FrameReady -= OnFrame; Hub.Rgb.LinkChanged -= OnLinkChanged; Hub.Rgb.PreviewStop(); };
     }
@@ -229,7 +167,10 @@ public sealed class RgbPage : PageBase
         Dispatcher.BeginInvoke(() =>
         {
             _frameQueued = false;
-            if (_previewing && IsVisible) _preview.Show(zone => Hub.Rgb.FrameOf(zone));
+            if (!_previewing || !IsVisible || Window.GetWindow(this) is { IsActive: false }) return;     // nobody looks at it: no drawing
+            if (Environment.TickCount64 - _lastDraw < 50) return;                                       // 20 pictures a second are plenty
+            _lastDraw = Environment.TickCount64;
+            _preview.Show(zone => Hub.Rgb.FrameOf(zone));
         }, DispatcherPriority.Background);
     }
 
@@ -255,17 +196,54 @@ public sealed class RgbPage : PageBase
         UpdateChip();
     }
 
+    private string _chipSignature = "";
+
     private void UpdateChip()
     {
-        var n = Hub.Rgb.Devices.Count;
-        _deviceChip.Text = Hub.Rgb.Link == RgbLink.Sending ? L.T($"{Fa.Digits(n.ToString())} دستگاه", $"{n} device(s)") : "";
+        var devices = Hub.Rgb.Devices;
+        var n = devices.Count;
+        _devicesButton.Content = n > 0 ? L.T($"دستگاه‌ها ({Fa.Digits(n.ToString())})", $"Devices ({n})") : L.T("دستگاه‌ها", "Devices");
+        var sig = Hub.Rgb.Link + "|" + string.Join(";", devices.Select(d => d.Key + d.Zone)) + "|" + _tab + "|" + Cfg.Sync;
+        if (sig == _chipSignature) return;
+        _chipSignature = sig;
+        _partChips.Children.Clear();
+        var zones = devices.GroupBy(d => Cfg.FindDevice(d.Key) is { Zone.Length: > 0 } z ? z.Zone : d.Zone).ToDictionary(g => g.Key, g => g.Count());
+        if (zones.Count == 0)
+        {
+            _partChips.Children.Add(new TextBlock { Text = L.T("هنوز قطعه‌ای پیدا نشده؛ «دستگاه‌ها» رو بزن.", "No part found yet; press «Devices»."), Style = St("Label"), VerticalAlignment = VerticalAlignment.Center });
+            return;
+        }
+        foreach (var zone in RgbZones.All.Where(z => zones.ContainsKey(z.Key)))
+        {
+            var key = zone.Key;
+            var colour = Hub.Rgb.FrameOf(key) is { Length: > 0 } f ? f[f.Length / 2] : new Rgb(120, 120, 140);
+            var dot = new System.Windows.Shapes.Ellipse { Width = 10, Height = 10, Fill = new SolidColorBrush(Color.FromRgb(colour.R, colour.G, colour.B)), Margin = new Thickness(0, 0, 7, 0), VerticalAlignment = VerticalAlignment.Center };
+            var row = new StackPanel { Orientation = Orientation.Horizontal };
+            row.Children.Add(dot);
+            row.Children.Add(new TextBlock { Text = zone.Name + (zones[key] > 1 ? $" ×{Fa.Digits(zones[key].ToString())}" : ""), FontSize = 12.5, FontWeight = FontWeights.SemiBold });
+            var chip = new Border
+            {
+                Child = row, CornerRadius = new CornerRadius(14), Padding = new Thickness(12, 6, 14, 6), Margin = new Thickness(0, 0, 8, 6), Cursor = System.Windows.Input.Cursors.Hand,
+                BorderThickness = new Thickness(1.3), BorderBrush = _tab == key ? Res("Accent") : Res("Line"), Background = _tab == key ? Res("AccentSoft") : Res("Panel2"),
+            };
+            chip.MouseLeftButtonUp += (_, _) => PickZone(key);
+            _partChips.Children.Add(chip);
+        }
     }
 
     private void Rebuild()
     {
         _loading = true;
-        Chips(_tabs, Cfg.Sync ? [] : new[] { ("all", L.T("همه", "All")) }.Concat(RgbZones.All.Select(z => (z.Key, z.Name))), _tab, key => { _tab = key; Rebuild(); });
-        _tabs.Visibility = Cfg.Sync ? Visibility.Collapsed : Visibility.Visible;
+        Chips(_tabs, Cfg.Sync || OnDevice ? [] : new[] { ("all", L.T("همه", "All")) }.Concat(RgbZones.All.Select(z => (z.Key, z.Name))), _tab, key => { _tab = key; Rebuild(); });
+        _tabs.Visibility = Cfg.Sync || OnDevice ? Visibility.Collapsed : Visibility.Visible;
+        _deviceBanner.Visibility = OnDevice ? Visibility.Visible : Visibility.Collapsed;
+        if (OnDevice)
+        {
+            var name = Hub.Rgb.Devices.FirstOrDefault(d => d.Key == _tab[4..])?.Name ?? _tab[4..].Split('|').LastOrDefault() ?? "";
+            _deviceBannerText.Text = L.T($"داری فقط «{name}» رو تنظیم می‌کنی؛ بقیه همون‌طور که بودن می‌مونن.", $"You are setting only “{name}”; the others stay as they were.");
+        }
+        _preview.Select(OnDevice ? "" : _tab == "all" || Cfg.Sync ? "" : _tab);
+        FillOptions();
         _tiles.Clear();
         _basic.Children.Clear();
         foreach (var e in RgbEffects.Basic) _basic.Children.Add(Tile(e.Key, e.Name, e));
@@ -278,6 +256,30 @@ public sealed class RgbPage : PageBase
         _loading = false;
         MarkSelected();
         MarkColour();
+    }
+
+    private void FillOptions()
+    {
+        Chips(_direction, [("fwd", L.T("→ عادی", "→ Forward")), ("rev", L.T("← برعکس", "← Reverse"))], Cur.Reverse ? "rev" : "fwd", k => { Cur.Reverse = k == "rev"; if (!Cfg.Sync && _tab == "all") CopyToZones(Cur); Changed(); });
+        Chips(_style, [("flow", L.T("گرادیان (روان)", "Gradient (smooth)")), ("star", L.T("ستاره‌ای", "Starry"))], Cur.Starry ? "star" : "flow", k => { Cur.Starry = k == "star"; if (!Cfg.Sync && _tab == "all") CopyToZones(Cur); Changed(); });
+    }
+
+    /// <summary>A part was clicked in the picture (or its chip): from now on it has a look of its own, and its settings are shown.</summary>
+    private void PickZone(string zone)
+    {
+        if (Cfg.Sync) { Cfg.Sync = false; _loading = true; _sync.IsChecked = false; _loading = false; }
+        _tab = zone;
+        Changed();
+        Rebuild();
+    }
+
+    /// <summary>The devices window asked for one device to be controlled on its own.</summary>
+    private void ControlDevice(string key)
+    {
+        Cfg.DeviceSetting(key).Own = true;
+        _tab = "dev:" + key;
+        Changed();
+        Rebuild();
     }
 
     private void FillSpecial()
@@ -378,13 +380,14 @@ public sealed class RgbPage : PageBase
         foreach (var z in RgbZones.All)
         {
             var s = Cfg.ZoneSetting(z.Key);
-            (s.Effect, s.Color, s.Brightness, s.Speed) = (from.Effect, from.Color, from.Brightness, from.Speed);
+            (s.Effect, s.Color, s.Brightness, s.Speed, s.Reverse, s.Starry) = (from.Effect, from.Color, from.Brightness, from.Speed, from.Reverse, from.Starry);
         }
     }
 
     private void Changed(bool blackOutIfOff = false)
     {
         if (_loading) return;
+        if (OnDevice) Cfg.DeviceSetting(_tab[4..]).Own = true;
         _save.Stop();
         _save.Start();
         Hub.Rgb.Refresh();

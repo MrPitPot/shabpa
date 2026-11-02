@@ -225,6 +225,24 @@ public sealed class RgbZoneSetting
     public int Brightness { get; set; } = 85;
     /// <summary>1 (slow) to 10 (fast), 5 is the effect's own pace.</summary>
     public int Speed { get; set; } = 5;
+    /// <summary>The effect runs the other way along the lights.</summary>
+    public bool Reverse { get; set; }
+    /// <summary>The effect is shown as a few bright stars on a dimmed base instead of the smooth flow.</summary>
+    public bool Starry { get; set; }
+}
+
+/// <summary>What the person decided for one found device: leave it alone, drive it as another zone, or give it a look of its own.</summary>
+public sealed class RgbDeviceSetting
+{
+    /// <summary>The device's stable key (see <see cref="RgbDevice.Key"/>).</summary>
+    public string Key { get; set; } = "";
+    /// <summary>False: Shabpa never sends this device anything.</summary>
+    public bool Enabled { get; set; } = true;
+    /// <summary>Empty: the zone Shabpa worked out from the device type. Otherwise the zone it is driven as.</summary>
+    public string Zone { get; set; } = "";
+    /// <summary>True: this device uses <see cref="Look"/> instead of its zone's look.</summary>
+    public bool Own { get; set; }
+    public RgbZoneSetting Look { get; set; } = new();
 }
 
 /// <summary>An effect the person made: two to five colours moved in one of a few ways.</summary>
@@ -247,8 +265,22 @@ public sealed class RgbSettings
     public RgbZoneSetting All { get; set; } = new() { Key = "all" };
     public List<RgbZoneSetting> Zones { get; set; } = [];
     public List<RgbCustomEffect> Custom { get; set; } = [];
+    /// <summary>What the person decided for each found device (only devices they changed are here).</summary>
+    public List<RgbDeviceSetting> Devices { get; set; } = [];
 
     public const int MaxCustom = 12;
+
+    public RgbDeviceSetting? FindDevice(string key) => Devices.FirstOrDefault(d => d.Key == key);
+
+    /// <summary>The setting of a device, made on first use (enabled, no look of its own).</summary>
+    public RgbDeviceSetting DeviceSetting(string key)
+    {
+        var d = FindDevice(key);
+        if (d is not null) return d;
+        d = new RgbDeviceSetting { Key = key, Look = new RgbZoneSetting { Key = key, Effect = All.Effect, Color = All.Color, Brightness = All.Brightness, Speed = All.Speed } };
+        Devices.Add(d);
+        return d;
+    }
 
     /// <summary>The setting of one zone, made on first use as a copy of the "all" look.</summary>
     public RgbZoneSetting ZoneSetting(string key)
