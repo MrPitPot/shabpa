@@ -28,7 +28,7 @@ public sealed class ThemeScene : Canvas
         _rebuild.Tick += (_, _) => { _rebuild.Stop(); Build(); };
         SizeChanged += (_, _) => { _rebuild.Stop(); _rebuild.Start(); };
         IsVisibleChanged += (_, e) => { if ((bool)e.NewValue) Build(); else Clear(); };
-        Loaded += (_, _) => Build();
+        Loaded += (_, _) => { HookHost(); Build(); };
     }
 
     private void Clear()
@@ -53,14 +53,38 @@ public sealed class ThemeScene : Canvas
         }
     }
 
+    /// <summary>A slow drifting backdrop needs only 10 to 18 frames a second (a 144 Hz screen would otherwise redraw it 144 times, and every frame also redraws what is on top of it).</summary>
+    private static int SceneFps = 10;
+
+    /// <summary>Fast things (rain, meteors, sparks) need a few more frames than slow ones (lanterns, snow, mist, ink) to look smooth.</summary>
+    private static int FpsFor(Scene scene) => scene switch { Scene.Rain => 18, Scene.Embers => 15, _ => 10 };
+
+    /// <summary>A meteor crosses the sky in a fraction of a second, so it gets its own, higher rate; the stars between meteors stay slow.</summary>
+    private const int StreakFps = 24;
+
+    private Window? _host;
+
+    /// <summary>The backdrop only moves while its window is the one in front: behind a game or another program it is not drawn at all.</summary>
+    private bool HostActive => _host is null || _host.IsActive;
+
+    private void HookHost()
+    {
+        if (_host is not null || Window.GetWindow(this) is not { } window) return;
+        _host = window;
+        window.Activated += (_, _) => { if (IsVisible) Build(); };
+        window.Deactivated += (_, _) => Clear();
+    }
+
     private bool Animated => Motion.Enabled && IsVisible;
 
     private void Build()
     {
         Clear();
+        if (!HostActive) return;
         double w = ActualWidth, h = ActualHeight;
         if (w < 80 || h < 80 || !IsVisible) return;
         _rng = new Random(7);
+        SceneFps = FpsFor(_scene);
         switch (_scene)
         {
             case Scene.Lanterns: Lanterns(w, h); break;
@@ -118,6 +142,7 @@ public sealed class ThemeScene : Canvas
             RepeatBehavior = RepeatBehavior.Forever, AutoReverse = reverse, BeginTime = TimeSpan.FromSeconds(-phase * seconds * (reverse ? 2 : 1)),
             EasingFunction = smooth ? new SineEase { EasingMode = EasingMode.EaseInOut } : null,
         };
+        Timeline.SetDesiredFrameRate(a, SceneFps);
         target.BeginAnimation(dp, a);
     }
 
@@ -195,7 +220,7 @@ public sealed class ThemeScene : Canvas
             var t = Move(d);
             if (Animated)
             {
-                var a = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever, BeginTime = TimeSpan.FromSeconds(-R(0, 9)) };
+                var a = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever, BeginTime = TimeSpan.FromSeconds(-R(0, 9)) }; Timeline.SetDesiredFrameRate(a, SceneFps);
                 a.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromPercent(0)));
                 a.KeyFrames.Add(new LinearDoubleKeyFrame(R(40, 90), KeyTime.FromPercent(.25)));
                 a.KeyFrames.Add(new LinearDoubleKeyFrame(R(110, 200), KeyTime.FromPercent(.6)));
@@ -277,7 +302,7 @@ public sealed class ThemeScene : Canvas
                 var phase = R(0, 1);
                 Loop(rise, TranslateTransform.YProperty, 0, -(h * R(.55, 1.05)), seconds, phase);
                 Loop(sway, TranslateTransform.XProperty, -R(10, 30), R(10, 30), R(2, 4.5), R(0, 1), reverse: true, smooth: true);
-                var fade = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever, Duration = D(seconds), BeginTime = TimeSpan.FromSeconds(-phase * seconds) };
+                var fade = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever, Duration = D(seconds), BeginTime = TimeSpan.FromSeconds(-phase * seconds) }; Timeline.SetDesiredFrameRate(fade, SceneFps);
                 fade.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromPercent(0)));
                 fade.KeyFrames.Add(new LinearDoubleKeyFrame(.95, KeyTime.FromPercent(.12)));
                 fade.KeyFrames.Add(new LinearDoubleKeyFrame(.5, KeyTime.FromPercent(.6)));
@@ -362,7 +387,7 @@ public sealed class ThemeScene : Canvas
                 var phase = i / (double)n;
                 Loop(scale, ScaleTransform.ScaleXProperty, .25, 1.15, seconds, phase);
                 Loop(scale, ScaleTransform.ScaleYProperty, .25, 1.15, seconds, phase);
-                var fade = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever, Duration = D(seconds), BeginTime = TimeSpan.FromSeconds(-phase * seconds) };
+                var fade = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever, Duration = D(seconds), BeginTime = TimeSpan.FromSeconds(-phase * seconds) }; Timeline.SetDesiredFrameRate(fade, SceneFps);
                 fade.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromPercent(0)));
                 fade.KeyFrames.Add(new LinearDoubleKeyFrame(.55, KeyTime.FromPercent(.3)));
                 fade.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromPercent(1)));
@@ -416,7 +441,7 @@ public sealed class ThemeScene : Canvas
     private void Meteors(double w, double h)
     {
         var star = Freeze(new SolidColorBrush(C("EEF0FF")));
-        for (var i = 0; i < 40; i++)
+        for (var i = 0; i < 24; i++)
             Twinkle(Dot(R(1, 2.6), star, R(0, 1) * w, R(0, 1) * h, R(.2, .8)), .1, .95, R(2, 6), R(0, 1));
         var tail = Grad(new Point(0, .5), new Point(1, .5), (C("FFE08A", 0), 0), (C("FFE08A", 200), .8), (C("FFFFFF", 255), 1));
         const double angle = 32;
@@ -431,12 +456,12 @@ public sealed class ThemeScene : Canvas
             var cycle = R(6, 13);
             var start = TimeSpan.FromSeconds(R(0, cycle));
             var travel = R(380, 620);
-            var dx = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever, Duration = D(cycle), BeginTime = start };
+            var dx = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever, Duration = D(cycle), BeginTime = start }; Timeline.SetDesiredFrameRate(dx, StreakFps);
             dx.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromPercent(0)));
             dx.KeyFrames.Add(new LinearDoubleKeyFrame(travel, KeyTime.FromPercent(.12)));
             dx.KeyFrames.Add(new LinearDoubleKeyFrame(travel, KeyTime.FromPercent(1)));
             move.BeginAnimation(TranslateTransform.XProperty, dx);
-            var fade = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever, Duration = D(cycle), BeginTime = start };
+            var fade = new DoubleAnimationUsingKeyFrames { RepeatBehavior = RepeatBehavior.Forever, Duration = D(cycle), BeginTime = start }; Timeline.SetDesiredFrameRate(fade, StreakFps);
             fade.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromPercent(0)));
             fade.KeyFrames.Add(new LinearDoubleKeyFrame(.95, KeyTime.FromPercent(.02)));
             fade.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromPercent(.12)));

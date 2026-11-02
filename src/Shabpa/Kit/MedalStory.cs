@@ -466,8 +466,8 @@ public static class MedalStory
         Glow(c, 270, 520, 190, b, 0.35);
         Rays(c, 270, 520, 16, 420, a, 0.05);
         Confetti(c, 9, 60, new Rect(10, 330, 520, 380), a, b, C("#FFFFFF"), C("#FF8AE0"), C("#7CF0C8"), C("#FFD56E"));
-        var owl = new BidarOwl { Width = 320, Height = 320 };
-        At(owl, 110, 330);
+        var owl = new BidarOwl { Width = 320, Height = 320, UseOutfit = true, Still = true };   // Boofi exactly as the person dressed him
+        At(owl, 110, 352);   // a little lower, so a tall hat does not touch the bubble's tail
         c.Children.Add(owl);
         var glyph = new MedalGlyph(d.Medal, true, 150);
         At(glyph, 28, 400);
@@ -938,7 +938,7 @@ public static class MedalStory
         var line2 = new Rectangle { Width = 120, Height = 1, Fill = ink };
         At(line2, L.En ? 270 : 50, 622);
         paper.Children.Add(line2);
-        var owl = new BidarOwl { Width = 74, Height = 74 };
+        var owl = new BidarOwl { Width = 74, Height = 74, UseOutfit = true, Still = true };
         At(owl, L.En ? 293 : 73, 560);
         paper.Children.Add(owl);
         var sign = T(L.T("امضای بوفی", "signed by Boofi"), 11, Br("#6B4E1C"), false, 120);

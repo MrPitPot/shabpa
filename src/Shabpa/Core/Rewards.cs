@@ -257,6 +257,9 @@ public static class RewardsCatalog
 
     /// <summary>Everything done today pays a little extra.</summary>
     public const int DailyBonus = 4;
+
+    /// <summary>Feathers for every full hour the person really spends with Shabpa open (typing or moving the mouse; an idle PC earns nothing), up to <see cref="HourlyMaxHours"/> hours a day.</summary>
+    public const int HourlyFeathers = 3, HourlyMaxHours = 8;
     /// <summary>All three weekly quests pay a bonus.</summary>
     public const int WeeklyBonus = 15;
 
@@ -291,9 +294,12 @@ public static class RewardsCatalog
 
     private static double Yes(bool b) => b ? 1 : 0;
 
-    // 24 one-time quests that walk a new person through the app (227 feathers), the last two through Boofi's wardrobe.
+    // 25 one-time quests that walk a new person through the app (427 feathers), the last two through Boofi's wardrobe. The first is the welcome gift of an
+    // update: a name and a birthday in Settings pay 200 feathers, enough to dress Boofi in a first few parts.
     private static readonly QuestDef[] OncePool =
     [
+        O("o.profile", "اسم و تاریخ تولدت رو توی تنظیمات بنویس؛ ۲۰۰ پَر هدیه می‌گیری تا بوفی رو شخصی‌سازی کنی", "Enter your name and birthday in Settings and get 200 feathers to dress Boofi", 200, 1,
+            c => Yes(c.S.Settings.Birthday is { HasDate: true } b && b.Name.Trim().Length > 0)),
         O("o.tour", "تور آشنایی رو تا آخر برو", "Finish the intro tour", 5, 1, c => Yes(c.R.TourDone)),
         O("o.birthday", "تاریخ تولدت رو بگذار", "Set your birthday", 10, 1, c => Yes(c.S.Settings.Birthday is { HasDate: true })),
         O("o.theme", "تم برنامه رو عوض کن", "Change the app theme", 8, 1, c => Yes(c.S.Settings.Theme != Palette.Default)),
@@ -558,14 +564,28 @@ public sealed class RewardsEngine
         if (++_tick % 30 != 0) { FlushToasts(); return; }
         var now = _now();
         // active minutes: the person is really there (typed or moved the mouse in the last two minutes)
-        if (_tick % 60 == 0 && UserIdle.Since() < TimeSpan.FromMinutes(2))
-        {
-            var day = Key(now);
-            State.Active[day] = State.Active.GetValueOrDefault(day) + 1;
-            if (now.Hour >= 23 || now.Hour < 4) AddDay("nightMin", 1); // «keep Shabpa open after 11 pm»
-            _dirty = true;
-        }
+        if (_tick % 60 == 0 && UserIdle.Since() < TimeSpan.FromMinutes(2)) ActiveMinute(now);
         Evaluate();
+    }
+
+    /// <summary>One minute with the person at the PC and Shabpa open. Every full hour of them pays <see cref="RewardsCatalog.HourlyFeathers"/> feathers
+    /// (up to <see cref="RewardsCatalog.HourlyMaxHours"/> hours a day), so there is always something to save up for.</summary>
+    internal void ActiveMinute(DateTime now)
+    {
+        RollDay();
+        var day = Key(now);
+        State.Active[day] = State.Active.GetValueOrDefault(day) + 1;
+        if (now.Hour >= 23 || now.Hour < 4) AddDay("nightMin", 1); // «keep Shabpa open after 11 pm»
+        var minutes = State.DayCounters.GetValueOrDefault("present") + 1;
+        State.DayCounters["present"] = minutes;
+        if (minutes % 60 == 0 && minutes <= RewardsCatalog.HourlyMaxHours * 60)
+        {
+            Pay(RewardsCatalog.HourlyFeathers);
+            if (!(_hub.GameModeActive && _hub.Settings.Comfort.GameModeQuiet))
+                _hub.Notify(L.T("یک ساعت با شبپا بودی", "An hour with Shabpa"), $"+{Fa.N(RewardsCatalog.HourlyFeathers)} {L.T("پَر", "feathers")}");
+            Changed?.Invoke();
+        }
+        _dirty = true;
     }
 
     /// <summary>Counts toward today's quests and this week's.</summary>

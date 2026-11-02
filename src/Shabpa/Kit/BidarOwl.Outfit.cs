@@ -96,6 +96,9 @@ public sealed partial class BidarOwl
     /// <summary>A Boofi that is not tied to what the person wears (the wardrobe stage): it is dressed by <see cref="ShowLook"/> and keeps itself alive.</summary>
     public bool Standalone { get; set; }
 
+    /// <summary>A Boofi that only stands there (a story picture, a thumbnail): no breathing, no acts, no timers.</summary>
+    public bool Still { get; set; }
+
     public void ShowLook(IReadOnlyDictionary<string, string> look) => Dress(look);
 
     /// <summary>The act that shows off a slot: tip the hat, push up the glasses, check the watch, swing the lantern, ruffle the scarf, stretch the new fur.</summary>
@@ -194,7 +197,7 @@ public sealed partial class BidarOwl
 
     private void StartOutfitLife()
     {
-        if (!(_useOutfit || Standalone) || !IsVisible || !Motion.Enabled || !HostActive) return;
+        if (Still || !(_useOutfit || Standalone) || !IsVisible || !Motion.Enabled || !HostActive) return;
         StartBreathing();
         StartGlances();
         ArmIdle();

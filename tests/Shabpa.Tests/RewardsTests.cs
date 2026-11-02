@@ -178,11 +178,50 @@ public class RewardsTests
     [Fact]
     public void The_quest_tables_match_the_economy_plan()
     {
-        Assert.Equal(24, RewardsCatalog.Once.Count);
-        Assert.Equal(227, RewardsCatalog.Once.Sum(q => q.Reward));
+        Assert.Equal(25, RewardsCatalog.Once.Count);
+        Assert.Equal(427, RewardsCatalog.Once.Sum(q => q.Reward));
+        Assert.Equal(("o.profile", 200), (RewardsCatalog.Once[0].Id, RewardsCatalog.Once[0].Reward));
         Assert.Equal(4, RewardsCatalog.DailyBonus);
         Assert.Equal(15, RewardsCatalog.WeeklyBonus);
         Assert.All(RewardsCatalog.Once, q => Assert.Equal(q.Id, RewardsCatalog.ClaimKey(q, DateTime.Now))); // one-time quests are paid once, ever
+    }
+
+    [Fact]
+    public void A_name_and_a_birthday_in_settings_pay_the_200_feather_welcome_gift_once()
+    {
+        var (hub, e, _, _) = Engine(new DateTime(2026, 11, 2, 12, 0, 0));
+        e.Evaluate();
+        Assert.DoesNotContain("o.profile", e.State.Claimed);
+        hub.Settings.Birthday.Name = "Sara";                                  // a name alone is not enough
+        e.Evaluate();
+        Assert.DoesNotContain("o.profile", e.State.Claimed);
+        hub.Settings.Birthday.Name = "   ";
+        hub.Settings.Birthday.Month = 5; hub.Settings.Birthday.Day = 17;     // nor is a date alone
+        e.Evaluate();
+        Assert.DoesNotContain("o.profile", e.State.Claimed);
+        var before = e.State.Feathers;
+        hub.Settings.Birthday.Name = "Sara";
+        e.Evaluate();
+        Assert.Contains("o.profile", e.State.Claimed);
+        Assert.True(e.State.Feathers - before >= 200);
+        var after = e.State.Feathers;
+        e.Evaluate(); e.Evaluate();
+        Assert.Equal(after, e.State.Feathers);                                // never paid twice
+    }
+
+    [Fact]
+    public void Every_full_hour_with_shabpa_open_pays_three_feathers_up_to_eight_hours_a_day()
+    {
+        var (_, e, _, set) = Engine(new DateTime(2026, 11, 2, 9, 0, 0));
+        var start = e.State.Feathers;
+        for (var m = 1; m <= 59; m++) e.ActiveMinute(new DateTime(2026, 11, 2, 9, 0, 0).AddMinutes(m));
+        Assert.Equal(start, e.State.Feathers);                                // 59 minutes: nothing yet
+        e.ActiveMinute(new DateTime(2026, 11, 2, 10, 0, 0));
+        Assert.Equal(start + 3, e.State.Feathers);
+        for (var m = 61; m <= 20 * 60; m++) e.ActiveMinute(new DateTime(2026, 11, 2, 9, 0, 0).AddMinutes(m));
+        Assert.Equal(start + 3 * 8, e.State.Feathers);                        // the day's cap is 8 hours
+        e.ActiveMinute(new DateTime(2026, 11, 3, 9, 1, 0));                   // a new day starts the count again
+        Assert.Equal(1, e.State.DayCounters["present"]);
     }
 
     [Fact]
