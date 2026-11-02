@@ -60,7 +60,7 @@ public sealed class StoryPicker : Window
         MinHeight = 520;
         ShowInTaskbar = false;
         WindowStartupLocation = Application.Current?.MainWindow is { IsVisible: true } ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen;
-        Background = (Brush)Application.Current.Resources["Bg"];
+        Background = (Brush)Application.Current!.Resources["Bg"];
         FontFamily = (FontFamily)Application.Current.Resources["Ui"];
         UseLayoutRounding = true;
         TextOptions.SetTextFormattingMode(this, TextFormattingMode.Ideal);

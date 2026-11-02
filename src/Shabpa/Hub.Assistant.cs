@@ -162,7 +162,8 @@ public sealed partial class Hub
                 ComfortChanged();
                 return Reply(true, command.On ? L.T("حالت بازی روشن شد.", "Game mode is on.") : L.T("حالت بازی خاموش شد.", "Game mode is off."));
             case CommandIntent.Info:
-                return Reply(true, InfoText(command.Value, now));            default:
+                return Reply(true, InfoText(command.Value, now, origin));
+            default:
                 return Reply(false, L.T("این دستور رو نمی‌شناسم.", "Unknown command."));
         }
     }
@@ -234,7 +235,7 @@ public sealed partial class Hub
     }
 
     /// <summary>Answers to quick questions and small talk.</summary>
-    internal string InfoText(string kind, DateTime now)
+    internal string InfoText(string kind, DateTime now, string origin = "")
     {
         var s = Snapshot;
         var t = Telemetry.Latest;
@@ -310,6 +311,12 @@ public sealed partial class Hub
             }
             case var calcKind when calcKind.StartsWith("calc:"):
                 return CalcText(calcKind[5..]) is { } answer ? $"{calcKind[5..].Trim()} = {Fa.Digits(answer)}" : L.T("این رو نتونستم حساب کنم.", "I could not work that out.");
+            case var extra when extra.StartsWith("ex:", StringComparison.Ordinal):
+            {
+                var body = extra[3..];
+                var cut = body.IndexOf('|');
+                return BidarExtras.Answer(cut < 0 ? body : body[..cut], cut < 0 ? "" : body[(cut + 1)..], now, remote: origin == "bot");
+            }
             case "version": return L.T($"نسخه‌ی شب‌پا {Updater.Current.ToString(3)} ـه.", $"Shabpa version {Updater.Current.ToString(3)}.");
             default: return L.T("نمی‌دونم چی بگم.", "I do not know what to say.");
         }

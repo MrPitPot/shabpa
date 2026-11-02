@@ -299,6 +299,7 @@ public static class CommandFeatures
             "• PC: “free ram”, “game mode on”, “cpu temp?”, “ram usage?”, “my ping?”, “system status”",
             "• Fun and facts: “tell me a joke”, “tell me a fact”, “give me a tip”, “cheer me up”, “calc 12*3”, “flip a coin”, “roll a dice”",
             "• About you: “my level”, “my tasks”, “how long has my PC been on?”, “disk space”",
+            "• Handy: “make me a strong password”, “convert 5 km to miles”, “100 c to f”, “time in tokyo”, “days until nowruz”, “when should I sleep if I wake up at 7”, “random number between 1 and 50”, “choose between tea or coffee”, “battery level”",
             "• Anything else: “what time is it?”")
         : string.Join("\n", "• برق: «یه ساعت دیگه خاموش کن»، «ساعت ۲:۳۰ بخوابون»، «ده دقیقه دیگه ری‌استارت»، «لغو»",
             "• شرطی: «وقتی دانلود تموم شد خاموش کن»، «وقتی استیم بسته شد»، «اگه ۲۰ دقیقه بیکار بودم»",
@@ -310,5 +311,6 @@ public static class CommandFeatures
             "• سیستم: «رم رو خالی کن»، «حالت بازی روشن»، «دمای پردازنده چنده؟»، «مصرف رم؟»، «پینگم؟»، «وضعیت سیستم»",
             "• سرگرمی و اطلاعات: «یه جوک بگو»، «یه فکت بگو»، «یه نکته بگو»، «روحیه بده»، «۱۲*۳ حساب کن»، «شیر یا خط»، «تاس بنداز»",
             "• خودت: «سطحم چنده؟»، «کارای امروزم»، «سیستم چند وقته روشنه؟»، «فضای دیسک»",
+            "• کارهای دم‌دستی: «یه پسورد قوی بساز»، «۵ کیلومتر چند مایله؟»، «۱۰۰ سانتیگراد به فارنهایت»، «ساعت توکیو چنده؟»، «تا نوروز چند روز مونده؟»، «اگه ۷ بیدار شم کی بخوابم؟»، «عدد تصادفی بین ۱ تا ۵۰»، «بین چای یا قهوه انتخاب کن»، «باتری چنده؟»",
             "• بقیه: «ساعت چنده؟»");
 }

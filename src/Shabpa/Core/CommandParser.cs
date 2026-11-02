@@ -381,6 +381,8 @@ public static class CommandParser
         using var _ = L.Scope(english);
         if (text is not null && Calc.Match(text) is { Success: true } calc && Hub.CalcText(calc.Groups["e"].Value) is not null)
             return new(CommandStatus.Ready, new AssistantCommand { Intent = CommandIntent.Info, Value = "calc:" + calc.Groups["e"].Value.Trim(), ChatEnglish = english }, [], "", 1);
+        if (text is not null && BidarExtras.Match(text, now) is { } extra)
+            return new(CommandStatus.Ready, new AssistantCommand { Intent = CommandIntent.Info, Value = "ex:" + extra.Kind + "|" + extra.Arg, ChatEnglish = english }, [], "", 1);
         var result = ParseCore(text, now);
         if (english is null) return result;
         return result with

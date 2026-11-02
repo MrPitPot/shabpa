@@ -11,7 +11,7 @@ namespace Shabpa.Kit;
 public sealed partial class BidarOwl
 {
     /// <summary>A damped spring that follows a target (semi-implicit Euler, stable for our frame steps).</summary>
-    private sealed class Spring
+    internal sealed class Spring
     {
         public double X, V;
         public void Step(double dt, double target, double omega, double zeta)

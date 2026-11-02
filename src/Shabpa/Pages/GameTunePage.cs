@@ -102,7 +102,7 @@ public sealed class GameTunePage : PageBase
     {
         _rows.Children.Clear();
         var first = true;
-        foreach (var tweak in GameTweaks.All().Where(t => t.Tab == _tab))
+        foreach (var tweak in GameTweaks.All().Where(t => t.Tab == _tab && t.Kind != TuneKind.X3dLock)) // the X3D pinning is not built yet, so its dead switch is not shown
         {
             _rows.Children.Add(Row(tweak, first));
             first = false;

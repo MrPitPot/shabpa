@@ -20,7 +20,11 @@ public sealed class MemoryPage : PageBase
     private readonly TextBlock _resultText = new() { FontSize = 14, FontWeight = FontWeights.Bold, TextWrapping = TextWrapping.Wrap };
     private readonly WrapPanel _auto = new();
     private readonly Grid _root = ListUi.PageGrid(4);
-    private readonly FrameworkElement _usageCard, _autoCard, _trimCard, _cacheCard, _tip;
+    private readonly FrameworkElement _usageCard, _autoCard, _trimCard, _cacheCard, _tip, _progCard;
+    private readonly StackPanel _progRows = new();
+    private readonly TextBlock _progStatus = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
+    private int _progTick = 99;
+    private bool _progBusy;
     private bool? _wide;
     private bool _first = true;
 
@@ -88,7 +92,15 @@ public sealed class MemoryPage : PageBase
                 "Windows manages RAM on its own, and full RAM is not bad in itself. These buttons help when you want room before a game or heavy app, or when the cache did not shrink after heavy work."),
         };
 
-        foreach (var e in new[] { _usageCard, _autoCard, _trimCard, _cacheCard, _result, _tip }) _root.Children.Add(e);
+        var (progCard, prog) = K.Card(L.T("برنامه‌هایی که بیشترین رم رو می‌گیرن", "Programs using the most memory"),
+            L.T("«سبک کن» حافظه‌ی بلااستفاده‌ی همون برنامه رو آزاد می‌کنه و چیزی بسته نمی‌شه. «ببند» مثل زدن ضربدر پنجره‌ست و اگه کار ذخیره‌نشده داشته باشه خودش می‌پرسه. بخش‌های ویندوز و برنامه‌های امنیتی اینجا بسته نمی‌شن.",
+                "“Trim” frees the idle memory of that program and closes nothing. “Close” is like clicking the window's X and the program asks about unsaved work. Parts of Windows and security programs cannot be closed here."));
+        prog.Children.Add(_progRows);
+        prog.Children.Add(_progStatus);
+        progCard.Margin = new Thickness(8);
+        _progCard = progCard;
+
+        foreach (var e in new[] { _usageCard, _autoCard, _trimCard, _cacheCard, _result, _progCard, _tip }) _root.Children.Add(e);
         Content = _root;
         SizeChanged += (_, e) => ApplyLayout(e.NewSize.Width > 900);
         ApplyLayout(true);
@@ -114,7 +126,7 @@ public sealed class MemoryPage : PageBase
     {
         if (_wide == wide) return;
         _wide = wide;
-        while (_root.RowDefinitions.Count < 6) _root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        while (_root.RowDefinitions.Count < 7) _root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         if (wide)
         {
             ListUi.Place(_usageCard, 0, 0, 7);
@@ -122,7 +134,8 @@ public sealed class MemoryPage : PageBase
             ListUi.Place(_trimCard, 1, 0, 6);
             ListUi.Place(_cacheCard, 1, 6, 6);
             ListUi.Place(_result, 2, 0, 12);
-            ListUi.Place(_tip, 3, 0, 12);
+            ListUi.Place(_progCard, 3, 0, 12);
+            ListUi.Place(_tip, 4, 0, 12);
         }
         else
         {
@@ -131,7 +144,8 @@ public sealed class MemoryPage : PageBase
             ListUi.Place(_trimCard, 2, 0, 12);
             ListUi.Place(_cacheCard, 3, 0, 12);
             ListUi.Place(_result, 4, 0, 12);
-            ListUi.Place(_tip, 5, 0, 12);
+            ListUi.Place(_progCard, 5, 0, 12);
+            ListUi.Place(_tip, 6, 0, 12);
         }
     }
 
@@ -142,9 +156,15 @@ public sealed class MemoryPage : PageBase
         _cacheHint.Text = L.T("حافظه‌ای که ویندوز «محض احتیاط» از فایل‌ها و برنامه‌های قبلی نگه داشته رو آزاد می‌کنه.", "Releases the memory Windows keeps “just in case” from earlier files and apps.")
                           + (Hub.CanLimit ? "" : " " + L.T("به دسترسی ادمین نیاز داره (دکمه‌اش توی «پایداری پینگ» هست).", "Needs admin rights (the button is on the “Ping stability” page)."));
         Show();
+        _progTick = 99;
+        LoadPrograms();
     }
 
-    public override void OnTick(SensorSnapshot s) => Show();
+    public override void OnTick(SensorSnapshot s)
+    {
+        Show();
+        if (++_progTick >= 5) LoadPrograms();      // the list is re-read every few seconds, not every tick
+    }
 
     private void Show()
     {
@@ -163,6 +183,119 @@ public sealed class MemoryPage : PageBase
         else _ring.AnimateTo(percent / 100, 700);
         _free.Text = ListUi.Ltr(L.T($"آزاد {Fa.Bytes(memory.Available)}", $"Free {Fa.Bytes(memory.Available)}"));
         _cache.Text = ListUi.Ltr(L.T($"کش {Fa.Bytes(memory.Standby)}", $"Cache {Fa.Bytes(memory.Standby)}"));
+    }
+
+    private void LoadPrograms()
+    {
+        if (_progBusy) return;
+        _progBusy = true;
+        _progTick = 0;
+        _ = Task.Run(() =>
+        {
+            List<ProgramRow> rows;
+            try { rows = ProcessList.Top(8); } catch (Exception ex) { Log.Write($"program list: {ex.GetType().Name}"); rows = []; }
+            Dispatcher.BeginInvoke(() =>
+            {
+                _progBusy = false;
+                DrawPrograms(rows);
+            });
+        });
+    }
+
+    private void DrawPrograms(List<ProgramRow> rows)
+    {
+        _progRows.Children.Clear();
+        var first = true;
+        foreach (var r in rows)
+        {
+            var title = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 7, 12, 7) };
+            title.Children.Add(new TextBlock { Text = r.Name + (r.Count > 1 ? $"  ×{Fa.Digits(r.Count.ToString())}" : ""), FontWeight = FontWeights.SemiBold, FontSize = 14, TextTrimming = TextTrimming.CharacterEllipsis });
+            if (r.Title.Length > 0) title.Children.Add(new TextBlock { Text = r.Title, Style = St("Label"), TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 380 });
+
+            var size = new TextBlock { Text = ListUi.Ltr(Fa.Bytes(r.Bytes)), FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 14, 0), Foreground = Res("Muted") };
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+            if (r.Protected)
+                buttons.Children.Add(new TextBlock { Text = L.T("بخشی از ویندوز یا امنیت", "Windows or security"), Style = St("Label"), VerticalAlignment = VerticalAlignment.Center });
+            else
+            {
+                var row = r;
+                buttons.Children.Add(ListUi.Btn(null, L.T("سبک کن", "Trim"), "Btn", () => TrimProgram(row)));
+                var close = ListUi.Btn(null, L.T("ببند", "Close"), "Btn", () => CloseProgram(row));
+                close.Margin = new Thickness(8, 0, 0, 0);
+                buttons.Children.Add(close);
+            }
+
+            var grid = new Grid { MinHeight = 48 };
+            grid.ColumnDefinitions.Add(new ColumnDefinition());
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.Children.Add(title);
+            Grid.SetColumn(size, 1);
+            grid.Children.Add(size);
+            Grid.SetColumn(buttons, 2);
+            grid.Children.Add(buttons);
+            if (!first) grid.Children.Add(new Border { Height = 1, Background = Res("Line"), VerticalAlignment = VerticalAlignment.Top });
+            first = false;
+            _progRows.Children.Add(grid);
+        }
+    }
+
+    private void TrimProgram(ProgramRow row)
+    {
+        _ = Task.Run(() =>
+        {
+            var before = MemoryCleaner.Read().Available;
+            var count = row.Pids.Sum(pid => MemoryCleaner.TrimEach(pid));
+            var after = MemoryCleaner.Read().Available;
+            Dispatcher.BeginInvoke(() =>
+            {
+                Mo.Say(_progStatus, count > 0
+                    ? L.T($"«{row.Name}» سبک شد؛ حدود {Fa.Bytes(Math.Max(0, after - before))} رم آزاد شد.", $"“{row.Name}” was trimmed; about {Fa.Bytes(Math.Max(0, after - before))} of RAM was freed.")
+                    : L.T($"به «{row.Name}» دسترسی نداشتم؛ چیزی عوض نشد.", $"I could not reach “{row.Name}”; nothing changed."));
+                _progTick = 99;
+            });
+        });
+    }
+
+    private void CloseProgram(ProgramRow row)
+    {
+        if (!Ask(L.T($"«{row.Name}» بسته بشه؟", $"Close “{row.Name}”?"),
+                L.T("مثل زدن ضربدر پنجره‌ش بهش گفته می‌شه ببنده. اگه کار ذخیره‌نشده داشته باشه خودش می‌پرسه.", "It is asked to close like clicking the X of its window. If it has unsaved work it asks you itself."),
+                L.T("ببند", "Close"))) return;
+        _ = Task.Run(() =>
+        {
+            var outcome = ProcessList.Close(row.Name);
+            Dispatcher.BeginInvoke(() =>
+            {
+                switch (outcome)
+                {
+                    case CloseOutcome.Closed:
+                        Mo.Say(_progStatus, L.T($"«{row.Name}» بسته شد.", $"“{row.Name}” was closed."));
+                        break;
+                    case CloseOutcome.StillRunning:
+                        if (Ask(L.T($"«{row.Name}» هنوز بازه. با زور بسته بشه؟", $"“{row.Name}” is still open. End it by force?"),
+                                L.T("بسته‌شدن اجباری یعنی کار ذخیره‌نشده‌ی اون برنامه از بین می‌ره.", "Ending it by force loses any unsaved work in that program."),
+                                L.T("اجباری ببند", "End by force"), danger: true))
+                            _ = Task.Run(() =>
+                            {
+                                var ended = ProcessList.ForceClose(row.Name);
+                                Dispatcher.BeginInvoke(() =>
+                                {
+                                    Mo.Say(_progStatus, ended > 0 ? L.T($"«{row.Name}» بسته شد.", $"“{row.Name}” was ended.") : L.T($"«{row.Name}» بسته نشد (ویندوز اجازه نداد).", $"“{row.Name}” could not be ended (Windows did not allow it)."));
+                                    _progTick = 99;
+                                });
+                            });
+                        break;
+                    case CloseOutcome.Protected:
+                        Mo.Say(_progStatus, L.T("این برنامه از ویندوز یا امنیته و اینجا بسته نمی‌شه.", "That is part of Windows or security and cannot be closed here."));
+                        break;
+                    default:
+                        Mo.Say(_progStatus, L.T("دیگه باز نیست.", "It is not running any more."));
+                        break;
+                }
+                _progTick = 99;
+            });
+        });
     }
 
     private void Result(string text, string tint)

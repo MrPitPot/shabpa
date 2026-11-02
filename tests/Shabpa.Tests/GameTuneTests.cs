@@ -178,6 +178,86 @@ public class GameTuneTests
         Assert.Empty(state.TuneBackup);
         Assert.NotNull(state.EventsHandled);
     }
+    [Fact]
+    public void Every_registry_tweak_turns_on_and_off_and_leaves_the_registry_as_it_was()
+    {
+        foreach (var tweak in GameTweaks.All(16_777_216).Where(t => t.Kind == TuneKind.Registry))
+        {
+            var (tuner, reg, backup, _) = Make();
+            Assert.False(tuner.IsOn(tweak) && tweak.Entries.Any(e => e.Off is null), tweak.Id);
+            Assert.Equal(TuneOutcome.Done, tuner.Apply(tweak));
+            Assert.True(tuner.IsOn(tweak), tweak.Id + " is on after Apply");
+            Assert.Equal(TuneOutcome.Done, tuner.Revert(tweak));
+            Assert.Empty(backup);
+            Assert.False(tweak.Entries.All(e => e.Off == e.On) ? false : tuner.IsOn(tweak), tweak.Id + " is off after Revert");
+        }
+    }
+
+    [Fact]
+    public void The_windowed_boost_keeps_the_persons_other_graphics_preferences()
+    {
+        var (tuner, reg, _, _) = Make();
+        var tweak = GameTweaks.All().First(t => t.Id == "windowed");
+        var e = tweak.Entries[0];
+        var key = $"{e.Hive}|{e.Path}|{e.Name}";
+        reg.Values[key] = "s:VRROptimizeEnable=0;AutoHDREnable=1;";
+        Assert.False(tuner.IsOn(tweak));
+        Assert.Equal(TuneOutcome.Done, tuner.Apply(tweak));
+        Assert.True(tuner.IsOn(tweak));
+        Assert.Contains("VRROptimizeEnable=0;", reg.Values[key]);
+        Assert.Contains("AutoHDREnable=1;", reg.Values[key]);
+        Assert.Contains("SwapEffectUpgradeEnable=1;", reg.Values[key]);
+        reg.Values[key] += "AutoHDRSomething=2;";                              // changed by the person while it was on
+        Assert.Equal(TuneOutcome.Done, tuner.Revert(tweak));
+        Assert.Equal("s:VRROptimizeEnable=0;AutoHDREnable=1;AutoHDRSomething=2;", reg.Values[key]);
+        Assert.False(tuner.IsOn(tweak));
+    }
+
+    [Fact]
+    public void A_windowed_boost_the_person_already_had_is_left_alone_when_switched_off()
+    {
+        var (tuner, reg, _, _) = Make();
+        var tweak = GameTweaks.All().First(t => t.Id == "windowed");
+        var e = tweak.Entries[0];
+        var key = $"{e.Hive}|{e.Path}|{e.Name}";
+        reg.Values[key] = "s:SwapEffectUpgradeEnable=1;";
+        Assert.True(tuner.IsOn(tweak));
+        Assert.Equal(TuneOutcome.Done, tuner.Apply(tweak));
+        Assert.Equal(TuneOutcome.Done, tuner.Revert(tweak));
+        Assert.Equal("s:SwapEffectUpgradeEnable=1;", reg.Values[key]);       // theirs from the start, so it stays
+    }
+
+    [Fact]
+    public void The_windowed_boost_replaces_an_old_value_of_its_own_key_and_removes_the_value_when_nothing_is_left()
+    {
+        var (tuner, reg, _, _) = Make();
+        var tweak = GameTweaks.All().First(t => t.Id == "windowed");
+        var e = tweak.Entries[0];
+        var key = $"{e.Hive}|{e.Path}|{e.Name}";
+        reg.Values[key] = "s:SwapEffectUpgradeEnable=0;";
+        Assert.Equal(TuneOutcome.Done, tuner.Apply(tweak));
+        Assert.Equal("s:SwapEffectUpgradeEnable=1;", reg.Values[key]);
+        Assert.Equal(TuneOutcome.Done, tuner.Revert(tweak));
+        Assert.False(reg.Values.ContainsKey(key));
+    }
+
+    [Fact]
+    public void The_real_registry_writer_round_trips_every_kind_of_value_on_a_scratch_key()
+    {
+        var path = @"Software\ShabpaTests\Tune-" + Guid.NewGuid().ToString("N");
+        var real = new WindowsTuneRegistry();
+        try
+        {
+            real.Write(TuneHive.CurrentUser, path, "Dword", "d:4294967295");          // the network brake value: a full 32-bit number
+            real.Write(TuneHive.CurrentUser, path, "Text", "s:High");
+            Assert.Equal("d:4294967295", real.Read(TuneHive.CurrentUser, path, "Dword"));
+            Assert.Equal("s:High", real.Read(TuneHive.CurrentUser, path, "Text"));
+            real.Delete(TuneHive.CurrentUser, path, "Dword");
+            Assert.Null(real.Read(TuneHive.CurrentUser, path, "Dword"));
+            Assert.Null(real.Read(TuneHive.CurrentUser, path, "Missing"));
+        }
+        finally { Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(path, false); }
+    }
 }
 
 public class NightLightTests

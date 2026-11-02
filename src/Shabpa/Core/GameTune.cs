@@ -8,7 +8,8 @@ namespace Shabpa.Core;
 public enum TuneHive { CurrentUser, LocalMachine }
 
 /// <summary>One registry value a tweak owns. <see cref="On"/> and <see cref="Off"/> are written as "d:&lt;number&gt;" (DWORD) or
-/// "s:&lt;text&gt;" (string); <see cref="Off"/> is what Windows has by default and is used only when no backup of the person's own
+/// "s:&lt;text&gt;" (string). An <see cref="On"/> of "m:Key=Value;" is a setting inside a shared list of "Key=Value;" pairs (the
+/// way Windows stores the graphics preferences): only that pair is added or removed and the person's other pairs stay. <see cref="Off"/> is what Windows has by default and is used only when no backup of the person's own
 /// value exists. A null <see cref="Off"/> means the value is simply absent by default.</summary>
 public sealed record TuneEntry(TuneHive Hive, string Path, string Name, string On, string? Off);
 
@@ -131,7 +132,7 @@ public sealed class GameTuner(ITuneRegistry registry, IPcieLink pcie, IDictionar
 
     public bool IsOn(Tweak tweak) => tweak.Kind switch
     {
-        TuneKind.Registry => tweak.Entries.All(e => registry.Read(e.Hive, e.Path, e.Name) == e.On),
+        TuneKind.Registry => tweak.Entries.All(e => Matches(e, registry.Read(e.Hive, e.Path, e.Name))),
         TuneKind.PcieLink => pcie.Read() == 0,
         _ => false,
     };
@@ -156,7 +157,7 @@ public sealed class GameTuner(ITuneRegistry registry, IPcieLink pcie, IDictionar
                 var key = KeyOf(e);
                 if (!backup.ContainsKey(key)) backup[key] = registry.Read(e.Hive, e.Path, e.Name) ?? Absent;
                 save();                                     // the original is on disk before the first change
-                registry.Write(e.Hive, e.Path, e.Name, e.On);
+                registry.Write(e.Hive, e.Path, e.Name, e.On.StartsWith("m:", StringComparison.Ordinal) ? "s:" + SetPair(PairsOf(registry.Read(e.Hive, e.Path, e.Name)), e.On[2..]) : e.On);
             }
             return TuneOutcome.Done;
         }
@@ -184,6 +185,16 @@ public sealed class GameTuner(ITuneRegistry registry, IPcieLink pcie, IDictionar
             foreach (var e in tweak.Entries)
             {
                 var key = KeyOf(e);
+                if (e.On.StartsWith("m:", StringComparison.Ordinal))
+                {
+                    // a pair the person already had before Shabpa touched the list stays; otherwise only our pair goes and
+                    // whatever else is in the list stays, even if it changed since
+                    if (backup.TryGetValue(key, out var first) && first != Absent && Matches(e, first)) { backup.Remove(key); continue; }
+                    var rest = DropPair(PairsOf(registry.Read(e.Hive, e.Path, e.Name)), e.On[2..]);
+                    if (rest.Length == 0) registry.Delete(e.Hive, e.Path, e.Name); else registry.Write(e.Hive, e.Path, e.Name, "s:" + rest);
+                    backup.Remove(key);
+                    continue;
+                }
                 var original = backup.TryGetValue(key, out var saved) ? saved : e.Off ?? Absent;
                 if (original == Absent) registry.Delete(e.Hive, e.Path, e.Name);
                 else registry.Write(e.Hive, e.Path, e.Name, original);
@@ -201,6 +212,30 @@ public sealed class GameTuner(ITuneRegistry registry, IPcieLink pcie, IDictionar
     }
 
     private static string KeyOf(TuneEntry e) => $"{e.Hive}|{e.Path}|{e.Name}";
+
+    private static bool Matches(TuneEntry e, string? current)
+    {
+        if (!e.On.StartsWith("m:", StringComparison.Ordinal)) return current == e.On;
+        var want = e.On[2..].TrimEnd(';');
+        return PairsOf(current).Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Contains(want, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static string PairsOf(string? encoded) => encoded is { Length: > 2 } && encoded.StartsWith("s:", StringComparison.Ordinal) ? encoded[2..] : "";
+
+    private static IEnumerable<string> Split(string list) => list.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    /// <summary>The list with this pair set (an old value of the same key is replaced), every pair ending in ";".</summary>
+    internal static string SetPair(string list, string pair)
+    {
+        var key = pair.Split('=')[0].Trim().TrimEnd(';');
+        return string.Concat(Split(list).Where(p => !p.Split('=')[0].Trim().Equals(key, StringComparison.OrdinalIgnoreCase)).Append(pair.TrimEnd(';')).Select(p => p + ";"));
+    }
+
+    internal static string DropPair(string list, string pair)
+    {
+        var key = pair.Split('=')[0].Trim().TrimEnd(';');
+        return string.Concat(Split(list).Where(p => !p.Split('=')[0].Trim().Equals(key, StringComparison.OrdinalIgnoreCase)).Select(p => p + ";"));
+    }
 }
 
 /// <summary>The list of tweaks. Every one is a documented Windows setting that can be put back exactly; none removes or disables a program,
@@ -278,7 +313,7 @@ public static class GameTweaks
         new("windowed", TabGraphics, TuneKind.Registry, "بهینه‌سازی بازی در پنجره و بدون‌حاشیه", "Windowed and borderless game boost",
             "بازی‌هایی که در حالت پنجره یا «بدون‌حاشیه» اجرا می‌شن با روش نمایش جدیدتر ویندوز رسم می‌شن و تأخیرشون کمتر می‌شه. روی بازی‌های تمام‌صفحه‌ی واقعی اثری نداره.",
             "Games running windowed or borderless are drawn with Windows' newer presentation method, which lowers delay. It does nothing for true full-screen games.",
-            false, false, [U(@"Software\Microsoft\DirectX\UserGpuPreferences", "DirectXUserGlobalSettings", "s:SwapEffectUpgradeEnable=1;", null)]),
+            false, false, [U(@"Software\Microsoft\DirectX\UserGpuPreferences", "DirectXUserGlobalSettings", "m:SwapEffectUpgradeEnable=1;", null)]),
     ];
 
     public static Tweak Find(string id) => All().First(t => t.Id == id);

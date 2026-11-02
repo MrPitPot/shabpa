@@ -402,7 +402,7 @@ internal sealed class BoofiStoreView : StackPanel
 
     private WrapPanel TileWrap(List<BoofiPart> parts, RewardsEngine e)
     {
-        var wrap = new WrapPanel { Margin = new Thickness(-5, 0, -5, 0) };
+        var wrap = new WrapPanel { Margin = new Thickness(-5, 0, -5, 0), HorizontalAlignment = HorizontalAlignment.Center }; // the leftover width of the last column is shared by both sides
         foreach (var p in parts) wrap.Children.Add(Tile(p, e));
         return wrap;
     }
@@ -553,7 +553,8 @@ internal sealed class BoofiWardrobeView : Grid
     private string _slot = "hat";
     private BoofiPart? _try;
     private readonly Border _stage = new() { Width = 430, CornerRadius = new CornerRadius(22), Padding = new Thickness(14, 12, 14, 14), VerticalAlignment = VerticalAlignment.Top, BorderThickness = new Thickness(1.2) };
-    private readonly WrapPanel _slots = new() { Margin = new Thickness(-4, 0, -4, 8) };
+    private readonly UniformGrid _slots = new() { Columns = 6, Margin = new Thickness(-3, 0, -3, 8) };   // six tiles that share whatever width there is, so none wraps onto a second row
+    private readonly StackPanel _right = new() { Margin = new Thickness(18, 0, 0, 0) };
     private readonly WrapPanel _grid = new() { Margin = new Thickness(-4, 0, -4, 0) };
     private string _sig = "";
     private readonly Kit.BidarOwl _stageOwl = new() { Width = 275, Height = 330, Standalone = true, IdleLife = true, HorizontalAlignment = HorizontalAlignment.Center };
@@ -567,13 +568,35 @@ internal sealed class BoofiWardrobeView : Grid
         _stage.SetResourceReference(Border.BackgroundProperty, "Panel2");
         ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         ColumnDefinitions.Add(new ColumnDefinition());
-        var right = new StackPanel { Margin = new Thickness(18, 0, 0, 0) };
-        right.Children.Add(_slots);
-        right.Children.Add(_grid);
-        SetColumn(_stage, 0); SetColumn(right, 1);
+        RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        _right.Children.Add(_slots);
+        _right.Children.Add(_grid);
         Children.Add(_stage);
-        Children.Add(right);
+        Children.Add(_right);
+        ApplyLayout(true);
+        SizeChanged += (_, e) => ApplyLayout(e.NewSize.Width >= NarrowBelow);
         Refresh(true);
+    }
+
+    /// <summary>Below this width (a window that is not full screen) Boofi sits above the parts instead of beside them.</summary>
+    private const double NarrowBelow = 780;
+    private bool? _wideLayout;
+
+    private void ApplyLayout(bool wide)
+    {
+        if (_wideLayout == wide) return;
+        _wideLayout = wide;
+        if (wide)
+        {
+            SetRow(_stage, 0); SetColumn(_stage, 0); SetColumnSpan(_stage, 1); _stage.HorizontalAlignment = HorizontalAlignment.Left;
+            SetRow(_right, 0); SetColumn(_right, 1); SetColumnSpan(_right, 1); _right.Margin = new Thickness(18, 0, 0, 0);
+        }
+        else
+        {
+            SetRow(_stage, 0); SetColumn(_stage, 0); SetColumnSpan(_stage, 2); _stage.HorizontalAlignment = HorizontalAlignment.Center;
+            SetRow(_right, 1); SetColumn(_right, 0); SetColumnSpan(_right, 2); _right.Margin = new Thickness(0, 16, 0, 0);
+        }
     }
 
     /// <summary>Tries a part on (from the shop's «preview»).</summary>
@@ -697,16 +720,16 @@ internal sealed class BoofiWardrobeView : Grid
             var id = e.State.Worn.GetValueOrDefault(slot);
             var part = id is null ? null : BoofiCatalog.Find(id);
             var selected = slot == _slot;
-            var col = new StackPanel { Width = 104 };
-            var art = BoofiArt.Make(e.State.Worn, BoofiCatalog.Focus(slot) is var f ? (f.X, f.Y, f.W * 1.1) : BoofiCatalog.Whole, 92, 70);
+            var col = new StackPanel();
+            var art = BoofiArt.Make(e.State.Worn, BoofiCatalog.Focus(slot) is var f ? (f.X, f.Y, f.W * 1.1) : BoofiCatalog.Whole, 66, 50);
             art.HorizontalAlignment = HorizontalAlignment.Center;
             col.Children.Add(art);
-            col.Children.Add(new TextBlock { Text = BoofiCatalog.SlotName(slot), FontSize = 12.5, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 2, 0, 0) }.With(t => t.SetResourceReference(TextBlock.ForegroundProperty, selected ? "Accent" : "Text")));
-            var n = BoofiArt.Text(part?.Name ?? BoofiArt.DefaultLabel(slot), 10.5, "Muted");
+            col.Children.Add(new TextBlock { Text = BoofiCatalog.SlotName(slot), FontSize = 11.5, FontWeight = FontWeights.Bold, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 2, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis }.With(t => t.SetResourceReference(TextBlock.ForegroundProperty, selected ? "Accent" : "Text")));
+            var n = BoofiArt.Text(part?.Name ?? BoofiArt.DefaultLabel(slot), 9.5, "Muted");
             n.HorizontalAlignment = HorizontalAlignment.Center;
             n.TextTrimming = TextTrimming.CharacterEllipsis;
             col.Children.Add(n);
-            var b = new Border { Child = col, Margin = new Thickness(4), Padding = new Thickness(6, 6, 6, 8), CornerRadius = new CornerRadius(14), BorderThickness = new Thickness(selected ? 2 : 1.2), Cursor = Cursors.Hand };
+            var b = new Border { Child = col, Margin = new Thickness(3), Padding = new Thickness(3, 5, 3, 6), CornerRadius = new CornerRadius(12), BorderThickness = new Thickness(selected ? 2 : 1.2), Cursor = Cursors.Hand, ToolTip = BoofiCatalog.SlotName(slot) + (part is null ? "" : " · " + part.Name) };
             b.SetResourceReference(Border.BorderBrushProperty, selected ? "Accent" : "Line");
             b.SetResourceReference(Border.BackgroundProperty, selected ? "Panel3" : "Panel2");
             var s2 = slot;
