@@ -11,7 +11,7 @@ namespace Shabpa.Kit;
 /// <summary>The slow animated backdrop of a premium theme. It lies behind the pages, never takes the mouse, uses only a few dozen
 /// plain shapes moved by transforms and opacity (no effects, no per-frame code) and stands still when animations are off or the
 /// window is hidden. Layout is rebuilt (after a short pause) when the window is resized.</summary>
-public sealed class ThemeScene : Canvas
+public sealed partial class ThemeScene : Canvas
 {
     private readonly Scene _scene;
     private readonly DispatcherTimer _rebuild = new() { Interval = TimeSpan.FromMilliseconds(260) };
@@ -19,9 +19,15 @@ public sealed class ThemeScene : Canvas
 
     public Scene Kind => _scene;
 
-    public ThemeScene(Scene scene)
+    private readonly Palette? _palette;
+
+    /// <summary>The palette the scene takes its few theme-dependent colours from (the running theme unless a preview gives its own).</summary>
+    private Palette Pal => _palette ?? Ui.Theme;
+
+    public ThemeScene(Scene scene, Palette? palette = null)
     {
         _scene = scene;
+        _palette = palette;
         IsHitTestVisible = false;
         ClipToBounds = true;
         SnapsToDevicePixels = false;
@@ -97,6 +103,7 @@ public sealed class ThemeScene : Canvas
             case Scene.Prism: Prism(w, h); break;
             case Scene.Mist: Mist(w, h); break;
             case Scene.Meteors: Meteors(w, h); break;
+            default: More(w, h); break;
         }
         if (Animated) { Opacity = 0; BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(900)) { EasingFunction = new QuadraticEase() }); }
         else Opacity = 1;
@@ -109,7 +116,7 @@ public sealed class ThemeScene : Canvas
     private static Color C(string hex, byte alpha = 255) =>
         Color.FromArgb(alpha, Convert.ToByte(hex[..2], 16), Convert.ToByte(hex[2..4], 16), Convert.ToByte(hex[4..6], 16));
 
-    private static Color Accent(byte alpha) { var (r, g, b) = Ui.Theme.Rgb("Accent"); return Color.FromArgb(alpha, r, g, b); }
+    private Color Accent(byte alpha) { var (r, g, b) = Pal.Rgb("Accent"); return Color.FromArgb(alpha, r, g, b); }
 
     private static Brush Freeze(Brush b) { b.Freeze(); return b; }
 
@@ -348,7 +355,7 @@ public sealed class ThemeScene : Canvas
                 var star = new Path { Data = geo, Stroke = (gx + gy) % 2 == 0 ? gold : teal, StrokeThickness = 1.1, Opacity = .16, IsHitTestVisible = false, RenderTransform = new TranslateTransform(cx, cy) };
                 Add(star, 0, 0);
                 var knot = Dot(5, gold, cx - 2.5, cy - 2.5, .16);
-                if (Animated)
+                if (Animated && (gx + gy) % 3 == 0) // a third of the stars shimmer (a few dozen animations, not hundreds)
                 {
                     var phase = (gx + gy) / (double)(cols + rows); // a slow shimmer sweeping from the top corner
                     Twinkle(star, .06, .5, 5, phase);
