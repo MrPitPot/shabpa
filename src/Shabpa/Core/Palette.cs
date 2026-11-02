@@ -21,6 +21,8 @@ public sealed record Palette(string Key, string Fa, string En, bool Light, IRead
         "Hero", "Hero2", "Thumb", "Glow", "Halo",
     ];
 
+    internal static Palette Build(string key, string fa, string en, bool light, string spec) => Make(key, fa, en, light, spec);
+
     private static Palette Make(string key, string fa, string en, bool light, string spec)
     {
         var colors = spec.Split([' ', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries)
@@ -196,7 +198,7 @@ public sealed record Palette(string Key, string Fa, string En, bool Light, IRead
             """),
     ];
 
-    public static Palette Find(string? key) => All.FirstOrDefault(p => p.Key == key) ?? All[0];
+    public static Palette Find(string? key) => All.FirstOrDefault(p => p.Key == key) ?? PremiumThemes.FindPalette(key) ?? All[0];
 
     public (byte r, byte g, byte b) Rgb(string name)
     {

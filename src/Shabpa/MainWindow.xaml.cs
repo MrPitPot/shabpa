@@ -109,6 +109,7 @@ public partial class MainWindow : Window
         hub.BirthdayGreet += () => ShowBirthdayGreeting();
         hub.HalloweenGreet += () => Dispatcher.BeginInvoke(() => ShowHalloween());
         UpdateBirthdayDecor();
+        UpdateScene();
         InitTour();
         IsVisibleChanged += (_, _) => OnShownChanged();
         StateChanged += (_, _) => OnShownChanged();

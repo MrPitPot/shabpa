@@ -63,6 +63,7 @@ public partial class MainWindow
         }
 
         Ui.SetTheme(next);
+        UpdateScene();
         ThemeButton.Tag = next.Light ? "sun" : "moon";
         foreach (var key2 in _built.Keys.ToList())
             if (!ReferenceEquals(_built[key2], _current) && !KeepBuilt.Contains(key2)) _built.Remove(key2); // rebuilt in the new colours when opened
