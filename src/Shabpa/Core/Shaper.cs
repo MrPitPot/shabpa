@@ -302,15 +302,29 @@ public sealed class Shaper : IDisposable
             return;
         }
 
+        var code = _handle == Invalid ? Marshal.GetLastWin32Error() : 0;
         if (_handle == Invalid)
         {
-            var code = Marshal.GetLastWin32Error();
+            // A driver left loaded by an earlier run (an update replaced its file while it ran, or the app was killed) answers with a
+            // filtering-platform error (0x8032xxxx) and refuses every new handle. Stopping our own stale copy and opening again fixes it.
+            if (IsStaleDriverError(code) && ResetStaleDriver())
+            {
+                try { _handle = WinDivertOpen("(tcp or udp) and !impostor", 0, 0, 0); } catch (Exception) { /* reported below */ }
+                if (_handle == Invalid) code = Marshal.GetLastWin32Error();
+                else Log.Write($"WinDivert reopened after resetting the stale driver (was {code})");
+            }
+        }
+
+        if (_handle == Invalid)
+        {
             Error = code switch
             {
                 2 => "driver-missing",
                 5 => "needs-admin",
                 577 => L.T("ویندوز امضای درایور WinDivert رو قبول نکرد.", "Windows rejected the WinDivert driver signature."),
                 1275 => L.T("ویندوز یا آنتی‌ویروس جلوی درایور WinDivert رو گرفته.", "Windows or the antivirus blocked the WinDivert driver."),
+                _ when IsStaleDriverError(code) => L.T("درایور محدودیت سرعت از اجرای قبلی گیر کرده. یک بار ویندوز رو ری‌استارت کن تا آزاد بشه (یا برنامه‌ی دیگه‌ای که از WinDivert استفاده می‌کنه رو ببند).",
+                    "The speed-limit driver is stuck from an earlier run. Restart Windows once to free it (or close another program that uses WinDivert)."),
                 _ => L.T($"درایور WinDivert باز نشد (کد {code}).", $"Could not open the WinDivert driver (code {code})."),
             };
             Log.Write($"WinDivertOpen failed: {code}");
@@ -326,6 +340,41 @@ public sealed class Shaper : IDisposable
         _receiver.Start();
         _pump.Start();
         Log.Write("shaper started");
+    }
+
+    /// <summary>Windows Filtering Platform errors (0x8032xxxx as a signed number): the driver is loaded but its filter objects are in a state no new handle can use.</summary>
+    internal static bool IsStaleDriverError(int code) => ((uint)code & 0xFFFF0000u) == 0x80320000u;
+
+    /// <summary>Stops the WinDivert service when it was started from our own folder (never another program's copy) so the next open loads it afresh.
+    /// It only works while no handle is open, which is exactly the stale case; if something still holds it, stopping fails and nothing changes.</summary>
+    private static bool ResetStaleDriver()
+    {
+        try
+        {
+            if (Sc("qc WinDivert") is not { } config) return false;
+            var folder = AppContext.BaseDirectory.TrimEnd('\\');
+            if (config.IndexOf(folder, StringComparison.OrdinalIgnoreCase) < 0) return false;
+            Sc("stop WinDivert");
+            for (var i = 0; i < 20; i++)
+            {
+                if (Sc("query WinDivert") is { } state && !state.Contains("RUNNING", StringComparison.Ordinal)) return true;
+                Thread.Sleep(250);
+            }
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"resetting the WinDivert driver failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    private static string? Sc(string arguments)
+    {
+        using var process = Process.Start(new ProcessStartInfo("sc.exe", arguments) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true });
+        if (process is null) return null;
+        var text = process.StandardOutput.ReadToEnd();
+        return process.WaitForExit(5000) ? text : null;
     }
 
     private void Stop()

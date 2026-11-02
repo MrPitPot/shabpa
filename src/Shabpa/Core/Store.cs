@@ -117,9 +117,61 @@ public sealed class Store
 
     private int _retrying;
 
+    private string? _pendingJson;
+    private int _writing;
+
+    /// <summary>Waits for a write that was handed to the background (called when the app exits so the last change is on disk).</summary>
+    public void Flush()
+    {
+        for (var i = 0; i < 100 && Volatile.Read(ref _writing) == 1; i++) Thread.Sleep(50);
+        string? text;
+        lock (_gate) { text = _pendingJson; _pendingJson = null; }
+        if (text is null) return;
+        try { Directory.CreateDirectory(Folder); lock (_gate) File.WriteAllText(_file, text); }
+        catch (Exception ex) { Log.Write($"state save failed: {ex.Message}"); }
+    }
+
     public void Save()
     {
         if (ReadOnly) return;
+        // On the window's own thread the text is made here (a consistent copy of the state, a few milliseconds) but the disk is
+        // touched in the background: a slow disk or a scanning antivirus used to freeze the window for seconds on every click.
+        if (System.Windows.Application.Current?.Dispatcher is { } ui && ui.CheckAccess())
+        {
+            var json = JsonSerializer.Serialize(State, Json);
+            lock (_gate) _pendingJson = json;
+            if (Interlocked.Exchange(ref _writing, 1) == 1) return;      // the running writer picks the newest text up
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    while (true)
+                    {
+                        string? text;
+                        lock (_gate) { text = _pendingJson; _pendingJson = null; }
+                        if (text is null) break;
+                        for (var attempt = 1; attempt <= 7; attempt++)
+                        {
+                            try
+                            {
+                                Directory.CreateDirectory(Folder);
+                                var tmp = _file + ".tmp";
+                                lock (_gate) { File.WriteAllText(tmp, text); File.Move(tmp, _file, true); }
+                                break;
+                            }
+                            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                            {
+                                if (attempt == 7) Log.Write($"state save failed: {ex.Message}");
+                                else Thread.Sleep(150 * attempt);
+                            }
+                            catch (Exception ex) { Log.Write($"state save failed: {ex.Message}"); break; }
+                        }
+                    }
+                }
+                finally { Interlocked.Exchange(ref _writing, 0); }
+            });
+            return;
+        }
         lock (_gate)
         {
             if (TryWrite()) return;

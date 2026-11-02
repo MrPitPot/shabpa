@@ -9,6 +9,16 @@ public class ShaperLockTests
 {
     private static EffectiveLimit Rule(string app) => new(app, 5, 5, false, false);
 
+    [Theory]
+    [InlineData(-2144206838, true)]     // 0x8032000A, what the owner's PC reported
+    [InlineData(-2144206847, true)]     // 0x80320001
+    [InlineData(5, false)]
+    [InlineData(577, false)]
+    [InlineData(1275, false)]
+    [InlineData(0, false)]
+    public void OnlyFilteringPlatformErrorsCountAsAStaleDriver(int code, bool stale) =>
+        Assert.Equal(stale, Shaper.IsStaleDriverError(code));
+
     [Fact]
     public void SlowNamingDoesNotHoldThePacketLock()
     {

@@ -4,6 +4,13 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [3.14.1] - 2026-11-02
+
+### Fixed
+- Speed limits did not apply after an update («WinDivert driver failed to open», code 0x8032000A): a driver left loaded by the earlier run is now stopped and opened again by itself, and if that is not possible the message says to restart Windows once.
+- The window froze for seconds on a slow disk or while an antivirus scanned: settings are now written to disk in the background.
+- After installing, the window could stay behind other windows with only the taskbar button flashing; it now always comes to the front when it opens.
+
 ## [3.14.0] - 2026-11-02
 
 ### Added

@@ -583,6 +583,10 @@ public partial class App : Application
         _window.Show();
         if (_window.WindowState == WindowState.Minimized) _window.WindowState = WindowState.Normal;
         _window.Activate();
+        // Started by the installer or from the tray while another window has focus: Windows may only flash the taskbar button,
+        // so the window is lifted above the others once (not kept there).
+        _window.Topmost = true;
+        _window.Topmost = false;
     }
 
     protected override void OnExit(ExitEventArgs e)

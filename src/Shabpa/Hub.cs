@@ -309,6 +309,7 @@ public sealed partial class Hub
         // Limits only exist inside this process: stopping the shaper restores normal traffic.
         Shaper.Dispose();
         Store.Save();
+        Store.Flush();
         if (!Store.ReadOnly && !Demo) Usage.Save(UsageFile);
     }
 

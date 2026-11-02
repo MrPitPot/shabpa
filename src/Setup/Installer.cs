@@ -115,6 +115,35 @@ public static class Installer
         }
     }
 
+    /// <summary>The speed-limit driver (WinDivert) stays loaded by Windows after the app that used it has gone, and a loaded driver's file cannot be replaced
+    /// ("being used by another process"). When the loaded copy is the one in <paramref name="dir"/> the service is stopped so the file can be overwritten.
+    /// Another program's copy of the driver is never touched.</summary>
+    public static void StopOwnDriver(string dir)
+    {
+        if (TestHooks.Active) return;
+        try
+        {
+            var config = Sc("qc WinDivert");
+            if (config is null || config.IndexOf(dir.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase) < 0) return;
+            SetupLog.Info("stopping the loaded WinDivert driver of the old version");
+            Sc("stop WinDivert");
+            for (var i = 0; i < 25; i++)
+            {
+                if (Sc("query WinDivert") is { } state && !state.Contains("RUNNING")) break;
+                Thread.Sleep(200);
+            }
+        }
+        catch (Exception ex) { SetupLog.Warn("stopping the driver failed (continuing): " + ex.Message); }
+    }
+
+    private static string? Sc(string arguments)
+    {
+        using var process = Process.Start(new ProcessStartInfo("sc.exe", arguments) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true });
+        if (process is null) return null;
+        var text = process.StandardOutput.ReadToEnd();
+        return process.WaitForExit(5000) ? text : null;
+    }
+
     /// <summary>Before a copy that did not quit is killed: its running.flag gets the exit reason "installer", so the next start of Shabpa
     /// logs "ended by the installer" instead of "ended unexpectedly". Only the flag of that very process is touched. The flag is JSON
     /// written by the app; the installer has no JSON library, so the one field is edited as text.</summary>
@@ -153,6 +182,8 @@ public static class Installer
         try
         {
             Directory.CreateDirectory(target.Dir);
+
+            StopOwnDriver(target.Dir);
 
             // Files the previous version had and this one does not are removed.
             var manifest = Path.Combine(target.Dir, Manifest);
