@@ -23,6 +23,19 @@ public class OpenRgbHostTests : IDisposable
         try { Directory.Delete(_root, true); } catch (IOException) { }
     }
 
+    [Fact]
+    public void ServerIsBlockedWhenTheVisualCppRuntimeIsMissingOrWindowsIsTooOld()
+    {
+        var system = Path.Combine(_root, "system32");
+        Directory.CreateDirectory(system);
+        Assert.Equal("runtime", OpenRgbHost.Blocked(system, 19045));            // an empty "Windows" folder: nothing there
+        foreach (var f in OpenRgbHost.RuntimeFiles) File.WriteAllText(Path.Combine(system, f), "x");
+        Assert.Equal("", OpenRgbHost.Blocked(system, 19045));                   // Windows 10 22H2 with the runtime
+        Assert.Equal("windows", OpenRgbHost.Blocked(system, 17134));            // Windows 10 1803: too old for Qt 6
+        File.Delete(Path.Combine(system, "vcruntime140_1.dll"));
+        Assert.Equal("runtime", OpenRgbHost.Blocked(system, 22631));            // the newer runtime file is the one that is often missing
+    }
+
     private sealed class Serve(byte[] bytes, HttpStatusCode status = HttpStatusCode.OK) : HttpMessageHandler
     {
         public int Calls;

@@ -142,6 +142,23 @@ public static class OpenRgbHost
     private static Process? _process;
     private static readonly object Gate = new();
 
+    /// <summary>The runtime files OpenRGB 1.1 (built with Visual C++ and Qt 6) cannot start without, and which a clean Windows 10 often lacks.</summary>
+    internal static readonly string[] RuntimeFiles = ["vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll", "msvcp140_1.dll"];
+
+    /// <summary>Oldest Windows 10 build Qt 6 runs on (1809).</summary>
+    internal const int OldestBuild = 17763;
+
+    /// <summary>Why the server cannot start on this PC before even trying: "windows" (too old a Windows 10), "runtime" (the Microsoft Visual C++ runtime is missing), or "".</summary>
+    public static string Blocked(string? systemDirectory = null, int? build = null)
+    {
+        if ((build ?? Environment.OSVersion.Version.Build) < OldestBuild) return "windows";
+        var dir = systemDirectory ?? Environment.SystemDirectory;
+        return RuntimeFiles.Any(f => !File.Exists(Path.Combine(dir, f)) && !File.Exists(Path.Combine(Folder, f))) ? "runtime" : "";
+    }
+
+    /// <summary>The exit code of the server when it ended by itself (a crash or a missing file), so the page can say so.</summary>
+    public static int? LastExit { get; private set; }
+
     /// <summary>True when something already answers on the lighting port of this PC (ours, or one the person runs themselves).</summary>
     public static bool IsListening(int port, int timeoutMs = 200)
     {
@@ -167,6 +184,15 @@ public static class OpenRgbHost
                     UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden, WorkingDirectory = Folder,
                 };
                 _process = Process.Start(info);
+                if (_process is { } started)
+                {
+                    started.EnableRaisingEvents = true;
+                    started.Exited += (_, _) =>
+                    {
+                        try { LastExit = started.ExitCode; Log.Write($"openrgb server ended by itself, exit code {started.ExitCode}"); }
+                        catch (InvalidOperationException) { /* disposed by Stop */ }
+                    };
+                }
                 Log.Write("openrgb server started (hidden, local only)");
                 return _process is not null;
             }

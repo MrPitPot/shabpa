@@ -13,6 +13,8 @@ public enum RgbLink
     NoServer,
     /// <summary>The server answers but knows no light.</summary>
     NoDevices,
+    /// <summary>The server cannot start on this PC: the Visual C++ runtime is missing or Windows 10 is too old (see <see cref="OpenRgbHost.Blocked"/>).</summary>
+    NeedsRuntime,
 }
 
 /// <summary>Runs the lighting: works out the frame of every zone about 30 times a second from the page's settings and sends it to the lighting server.
@@ -294,6 +296,12 @@ public sealed class RgbService : IDisposable
         if (!silent) SetLink(RgbLink.Connecting);
         var local = rgb.Host.Length == 0 || rgb.Host is "127.0.0.1" or "localhost";
         var port = Math.Clamp(rgb.Port, 1, 65535);
+        if (local && OpenRgbHost.Installed && !OpenRgbHost.IsListening(port) && OpenRgbHost.Blocked() != "")
+        {
+            _nextConnect = Environment.TickCount64 + 15000;      // nothing to try until the person fixes it; looks again every while
+            if (!silent) SetLink(RgbLink.NeedsRuntime);
+            return;
+        }
         if (local && OpenRgbHost.Installed && OpenRgbHost.Start(port)) { _nextConnect = Environment.TickCount64 + 6000; return; }
         var ok = _client.Connect(rgb.Host.Length > 0 ? rgb.Host : "127.0.0.1", port);
         _nextConnect = Environment.TickCount64 + (ok ? 0 : 4000);

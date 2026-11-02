@@ -242,7 +242,7 @@ public sealed partial class Hub
         Store.Save();
         Rgb.Refresh();
         var link = Rgb.Link;
-        var note = link is RgbLink.NoServer or RgbLink.NoDevices
+        var note = link is RgbLink.NoServer or RgbLink.NoDevices or RgbLink.NeedsRuntime
             ? L.T(" (ولی الان به نورها نمی‌رسه؛ صفحه‌ی نورپردازی رو ببین.)", " (but it cannot reach the lights right now; see the Lighting page.)")
             : "";
         return Reply(true, L.T("نورپردازی تنظیم شد.", "The lighting is set.") + note);

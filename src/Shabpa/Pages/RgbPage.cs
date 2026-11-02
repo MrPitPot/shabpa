@@ -608,11 +608,27 @@ public sealed class RgbPage : PageBase
                     OpenRgbHost.Installed
                         ? L.T("سرور نور شب‌پا بالا نیومده یا هنوز داره قطعه‌ها رو پیدا می‌کنه. روی بعضی کامپیوترها تا یک دقیقه طول می‌کشه؛ اگه نشد، دکمه‌ی زیر دوباره راهش می‌اندازه.",
                             "Shabpa's lighting server is not up yet or is still finding the parts. On some PCs it takes up to a minute; if it does not come, the button below starts it again.")
+                          + (OpenRgbHost.LastExit is { } exit && exit != 0 ? L.T($" (سرور خودش بسته شده؛ کد {Fa.Digits(exit.ToString())})", $" (the server closed by itself; code {exit})") : "")
                         : L.T("برای حرف زدن با قطعه‌ها شب‌پا یه سرور نور کوچیک لازم داره. با یک کلیک خودش می‌گیره‌ش و بی‌صدا اجراش می‌کنه؛ لازم نیست چیزی نصب کنی.",
                             "To talk to the parts Shabpa needs a small lighting server. One click and it fetches and runs it silently; you install nothing."),
                     [.. actions]));
                 break;
             }
+            case RgbLink.NeedsRuntime:
+                if (OpenRgbHost.Blocked() == "windows")
+                    _alerts.Children.Add(Alert("Red", L.T("ویندوزت برای نورپردازی خیلی قدیمیه", "Your Windows is too old for lighting"),
+                        L.T("سرور نور به ویندوز ۱۰ نسخه‌ی ۱۸۰۹ (ساخت ۱۷۷۶۳) یا جدیدتر نیاز داره. ویندوز رو آپدیت کن و دوباره امتحان کن.",
+                            "The lighting server needs Windows 10 version 1809 (build 17763) or newer. Update Windows and try again.")));
+                else
+                    _alerts.Children.Add(Alert("Red", L.T("یه فایل ویندوز کمه", "A Windows component is missing"),
+                        L.T("سرور نور به بسته‌ی رایگان «Microsoft Visual C++ Redistributable» نیاز داره که روی این کامپیوتر نصب نیست (روی ویندوز ۱۰ تمیز معمولاً نیست). از سایت خود مایکروسافت دانلودش کن و نصب کن، بعد برگرد؛ شب‌پا خودش دوباره وصل می‌شه.",
+                            "The lighting server needs the free “Microsoft Visual C++ Redistributable”, which is not installed on this PC (a clean Windows 10 often lacks it). Download it from Microsoft's own site and install it, then come back; Shabpa connects again by itself."),
+                        (L.T("دانلود از سایت مایکروسافت", "Download from Microsoft"), () =>
+                        {
+                            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://aka.ms/vs/17/release/vc_redist.x64.exe") { UseShellExecute = true }); }
+                            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { /* no browser */ }
+                        })));
+                break;
             case RgbLink.NoDevices:
                 _alerts.Children.Add(Alert("Gold", L.T("OpenRGB هیچ نوری پیدا نکرده", "OpenRGB found no lights"),
                     L.T("به سرور وصلم ولی دستگاهی نمی‌بینه. توی OpenRGB چک کن قطعه‌ها شناسایی شدن (بعضی مادربوردها اول باید برنامه‌ی سازنده بسته بشه تا نشون داده بشن).",

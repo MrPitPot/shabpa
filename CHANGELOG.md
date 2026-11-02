@@ -4,6 +4,11 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [3.14.2] - 2026-11-02
+
+### Fixed
+- Lighting did nothing on some PCs (mostly a clean Windows 10) and only said "The effects are not reaching the lights": the lighting server needs the Microsoft Visual C++ runtime and Windows 10 1809 or newer. Shabpa now checks for them before starting the server, says which one is missing, offers the official Microsoft download for the runtime, and shows the server's exit code when it closes by itself.
+
 ## [3.14.1] - 2026-11-02
 
 ### Fixed
