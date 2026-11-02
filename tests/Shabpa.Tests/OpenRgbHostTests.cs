@@ -86,6 +86,42 @@ public class OpenRgbHostTests : IDisposable
         Assert.Equal(100, seen.Last());
     }
 
+    private sealed class ByHost(Dictionary<string, byte[]?> answers) : HttpMessageHandler
+    {
+        public readonly List<string> Asked = [];
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var host = request.RequestUri!.Host;
+            Asked.Add(host);
+            if (answers.TryGetValue(host, out var bytes) && bytes is not null) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) });
+            if (answers.ContainsKey(host)) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
+            throw new HttpRequestException("blocked");                                   // the official host cannot be reached
+        }
+    }
+
+    [Fact]
+    public async Task A_blocked_official_host_falls_back_to_a_mirror_with_the_same_file()
+    {
+        var zip = Zip(("OpenRGB.exe", "exe"));
+        var release = For(zip) with { Url = "https://official.invalid/a.zip", Mirrors = ["https://down.invalid/a.zip", "https://mirror.invalid/a.zip"] };
+        var handler = new ByHost(new() { ["down.invalid"] = null, ["mirror.invalid"] = zip });
+        var result = await OpenRgbHost.InstallAsync(handler: handler, release: release);
+        Assert.True(result.Ok, result.Error);
+        Assert.Equal(["official.invalid", "down.invalid", "mirror.invalid"], handler.Asked);
+        Assert.Equal("exe", File.ReadAllText(OpenRgbHost.ExePath));
+    }
+
+    [Fact]
+    public async Task A_mirror_with_a_different_file_is_refused_like_any_other()
+    {
+        var zip = Zip(("OpenRGB.exe", "exe"));
+        var release = For(zip) with { Url = "https://official.invalid/a.zip", Mirrors = ["https://mirror.invalid/a.zip"] };
+        var result = await OpenRgbHost.InstallAsync(handler: new ByHost(new() { ["mirror.invalid"] = Zip(("OpenRGB.exe", "evil")) }), release: release);
+        Assert.False(result.Ok);
+        Assert.Equal("hash", result.Error);
+        Assert.False(OpenRgbHost.Installed);
+    }
+
     [Fact]
     public async Task A_file_with_another_hash_is_refused_and_nothing_is_installed()
     {

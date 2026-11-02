@@ -51,6 +51,7 @@ public sealed class OpenRgbClient : IDisposable
             var connect = tcp.ConnectAsync(host, port);
             if (!connect.Wait(timeoutMs) || !tcp.Connected)
             {
+                OpenRgbHost.Observe(connect);              // disposing a connect that is still going makes it fail later; nobody should be left holding that failure
                 tcp.Dispose();
                 LastError = "no answer";
                 return false;

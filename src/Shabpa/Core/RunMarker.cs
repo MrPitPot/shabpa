@@ -212,6 +212,7 @@ public static class RunMarker
 public static class CrashLog
 {
     private static bool _hooked;
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> UnobservedSeen = new();
 
     public static void Install()
     {
@@ -223,7 +224,12 @@ public static class CrashLog
         };
         TaskScheduler.UnobservedTaskException += (_, e) =>
         {
-            Log.Write($"unobserved task exception: {Describe(e.Exception)}");
+            var text = Describe(e.Exception);
+            var key = text.Length > 160 ? text[..160] : text;
+            // the same failure over and over (a closed socket, say) filled the whole log: the first few are written, the rest only counted
+            var seen = UnobservedSeen.AddOrUpdate(key, 1, (_, n) => n + 1);
+            if (seen <= 3) Log.Write($"unobserved task exception: {text}");
+            else if (seen is 10 or 100 or 1000) Log.Write($"unobserved task exception repeated {seen} times: {key}");
             e.SetObserved();
         };
     }

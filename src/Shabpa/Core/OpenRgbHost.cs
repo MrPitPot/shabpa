@@ -8,7 +8,12 @@ using System.Security.Cryptography;
 namespace Shabpa.Core;
 
 /// <summary>The one release of the free, open-source OpenRGB that Shabpa will fetch: the official file and its SHA-256, both fixed in the program.</summary>
-public sealed record OpenRgbRelease(string Version, string Url, string Sha256);
+public sealed record OpenRgbRelease(string Version, string Url, string Sha256)
+{
+    /// <summary>Other places holding the very same file, tried in turn when the official one cannot be reached (the official host is blocked on some networks).
+    /// Whatever comes from them is still refused unless its SHA-256 is the fixed one, so a mirror can never hand over a different file.</summary>
+    public IReadOnlyList<string> Mirrors { get; init; } = [];
+}
 
 /// <summary>Makes lighting work with one click: Shabpa fetches the official OpenRGB once (22 MB, checked against a fixed SHA-256, nothing else is accepted),
 /// keeps it in its own folder, starts it hidden as a local-only lighting server (127.0.0.1, its own config) when the lights are on and stops it with them.
@@ -18,7 +23,14 @@ public static class OpenRgbHost
     /// <summary>OpenRGB 1.1 for Windows 64-bit, from the project's official release page. The hash was computed from that file; a different file is refused.</summary>
     public static readonly OpenRgbRelease Release = new("1.1",
         "https://codeberg.org/OpenRGB/OpenRGB/releases/download/release_1.1/OpenRGB_1.1_Windows_64_8e16de2.zip",
-        "63291726c6fc84eb479ef2ee752e97e1187f6ce9c49fd27eee40ded588a8172a");
+        "63291726c6fc84eb479ef2ee752e97e1187f6ce9c49fd27eee40ded588a8172a")
+    {
+        Mirrors =
+        [
+            // the project's own GitHub mirror of the same release (codeberg.org is blocked on some networks); the same file, same SHA-256
+            "https://github.com/CalcProgrammer1/OpenRGB/releases/download/release_1.1/OpenRGB_1.1_Windows_64_8e16de2.zip",
+        ],
+    };
 
     /// <summary>Where it lives (a folder of Shabpa's own; tests point it elsewhere).</summary>
     public static string Folder { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Shabpa", "openrgb");
@@ -55,46 +67,50 @@ public static class OpenRgbHost
             if (Directory.Exists(staging)) Directory.Delete(staging, true);
             if (File.Exists(temp)) File.Delete(temp);
 
-            string hash;
-            try
+            // the official address first, then the mirrors; a file only counts when its SHA-256 is the fixed one
+            var hash = "";
+            var wrongHash = false;
+            foreach (var url in new[] { release.Url }.Concat(release.Mirrors))
             {
-                using var http = handler is null ? new HttpClient() : new HttpClient(handler, disposeHandler: false);
-                http.Timeout = TimeSpan.FromMinutes(10);
-                http.DefaultRequestHeaders.UserAgent.ParseAdd("Shabpa");
-                using var response = await http.GetAsync(release.Url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
-                if (!response.IsSuccessStatusCode) return new(false, "download");
-                var total = response.Content.Headers.ContentLength ?? 0;
-                using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-                await using (var input = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false))
-                await using (var output = File.Create(temp))
+                try
                 {
-                    var buffer = new byte[81920];
-                    long done = 0;
-                    int read;
-                    var last = -1;
-                    while ((read = await input.ReadAsync(buffer, ct).ConfigureAwait(false)) > 0)
+                    using var own = handler is null ? new SocketsHttpHandler { ConnectTimeout = TimeSpan.FromSeconds(15) } : null;
+                    using var http = handler is null ? new HttpClient(own!, disposeHandler: false) : new HttpClient(handler, disposeHandler: false);
+                    http.Timeout = TimeSpan.FromMinutes(10);
+                    http.DefaultRequestHeaders.UserAgent.ParseAdd("Shabpa");
+                    using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+                    if (!response.IsSuccessStatusCode) { Log.Write($"openrgb download from {new Uri(url).Host}: HTTP {(int)response.StatusCode}"); continue; }
+                    var total = response.Content.Headers.ContentLength ?? 0;
+                    using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                    await using (var input = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false))
+                    await using (var output = File.Create(temp))
                     {
-                        sha.AppendData(buffer, 0, read);
-                        await output.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
-                        done += read;
-                        var p = total > 0 ? (int)Math.Min(99, done * 100 / total) : 0;
-                        if (p != last) { last = p; percent?.Report(p); }
+                        var buffer = new byte[81920];
+                        long done = 0;
+                        int read;
+                        var last = -1;
+                        while ((read = await input.ReadAsync(buffer, ct).ConfigureAwait(false)) > 0)
+                        {
+                            sha.AppendData(buffer, 0, read);
+                            await output.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
+                            done += read;
+                            var p = total > 0 ? (int)Math.Min(99, done * 100 / total) : 0;
+                            if (p != last) { last = p; percent?.Report(p); }
+                        }
                     }
+                    var got = Convert.ToHexString(sha.GetHashAndReset()).ToLowerInvariant();
+                    if (got.Equals(release.Sha256, StringComparison.OrdinalIgnoreCase)) { hash = got; wrongHash = false; break; }
+                    Log.Write($"openrgb download from {new Uri(url).Host} refused: wrong SHA-256");
+                    wrongHash = true;
                 }
-                hash = Convert.ToHexString(sha.GetHashAndReset()).ToLowerInvariant();
-            }
-            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException)
-            {
-                if (ct.IsCancellationRequested) throw;
-                Log.Write($"openrgb download: {ex.GetType().Name}");
-                return new(false, "download");
+                catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException)
+                {
+                    if (ct.IsCancellationRequested) throw;
+                    Log.Write($"openrgb download from {new Uri(url).Host}: {ex.GetType().Name}: {ex.InnerException?.Message ?? ex.Message}");
+                }
             }
 
-            if (!hash.Equals(release.Sha256, StringComparison.OrdinalIgnoreCase))
-            {
-                Log.Write("openrgb download refused: wrong SHA-256");
-                return new(false, "hash");
-            }
+            if (hash.Length == 0) return new(false, wrongHash ? "hash" : "download");
 
             Unpack(temp, staging);
             if (!File.Exists(Path.Combine(staging, "OpenRGB.exe"))) return new(false, "unpack");
@@ -159,13 +175,20 @@ public static class OpenRgbHost
     /// <summary>The exit code of the server when it ended by itself (a crash or a missing file), so the page can say so.</summary>
     public static int? LastExit { get; private set; }
 
+    /// <summary>Marks a task's failure as seen. A connect that timed out is abandoned and then fails when its socket is closed; left alone, every one of those
+    /// became an "unobserved task exception" (hundreds in a day on a PC whose lighting server was not running).</summary>
+    internal static void Observe(Task task) => task.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+
     /// <summary>True when something already answers on the lighting port of this PC (ours, or one the person runs themselves).</summary>
     public static bool IsListening(int port, int timeoutMs = 200)
     {
         try
         {
             using var tcp = new TcpClient();
-            return tcp.ConnectAsync("127.0.0.1", port).Wait(timeoutMs) && tcp.Connected;
+            var connect = tcp.ConnectAsync("127.0.0.1", port);
+            if (connect.Wait(timeoutMs)) return tcp.Connected;
+            Observe(connect);
+            return false;
         }
         catch (Exception ex) when (ex is SocketException or AggregateException) { return false; }
     }

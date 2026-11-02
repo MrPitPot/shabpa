@@ -4,6 +4,12 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [3.14.3] - 2026-11-03
+
+### Fixed
+- Lighting could not be enabled on networks that block codeberg.org (the download of the lighting server failed every time): when the official address cannot be reached, the same file is fetched from the project's GitHub mirror. It is still accepted only with the fixed SHA-256, and the log now says which address failed and why.
+- A lighting server that was not running caused a failed connection every few seconds, each leaving an "unobserved task exception" (hundreds a day, filling the log): the failed attempt is now cleaned up, and repeats of the same unobserved exception are counted instead of written each time.
+
 ## [3.14.2] - 2026-11-02
 
 ### Fixed
