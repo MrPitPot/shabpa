@@ -236,7 +236,7 @@ public class OpenRgbClientTests
         Assert.Null(OpenRgbClient.ParseController(0, new byte[40], 3));
     }
 
-    private sealed class FakeServer : IDisposable
+    internal sealed class FakeServer : IDisposable
     {
         private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
         public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;

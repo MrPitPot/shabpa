@@ -121,7 +121,7 @@ public sealed class OpenRgbClient : IDisposable
 
     /// <summary>Sets every LED of the devices. <paramref name="frameFor"/> gives a device's frame (or null to leave it alone); it is stretched to the device's LED count.
     /// A device only gets a frame when its colours changed (or every two seconds, so none falls back to its own program), and a slow one only every 100 ms.</summary>
-    public bool Update(Func<RgbDevice, Rgb[]?> frameFor)
+    public bool Update(Func<RgbDevice, Rgb[]?> frameFor, bool force = false)
     {
         if (!Connected) return false;
         try
@@ -134,7 +134,7 @@ public sealed class OpenRgbClient : IDisposable
                 var leds = RgbEngine.Resample(frame, device.Leds);
                 var colours = new byte[leds.Length * 3];
                 for (var i = 0; i < leds.Length; i++) { colours[i * 3] = leds[i].R; colours[i * 3 + 1] = leds[i].G; colours[i * 3 + 2] = leds[i].B; }
-                if (_last.TryGetValue(device.Index, out var before))
+                if (!force && _last.TryGetValue(device.Index, out var before))
                 {
                     var age = now - before.At;
                     if (age < Math.Max(MinIntervalMs(device, Smooth), Math.Min(400, _costMs.GetValueOrDefault(device.Index) * 1.2))) continue;     // never faster than the device can take them

@@ -35,6 +35,7 @@ public sealed class RgbService : IDisposable
 
     private readonly Func<bool>? _gameRunning;
     private volatile bool _suspended;
+    private int _blackLeft;
     private long _transStart;
     private bool _wasEnabled, _startupPlayed;
     private long _nextRivalCheck;
@@ -329,12 +330,11 @@ public sealed class RgbService : IDisposable
         try
         {
             using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(33));
-            var blackSent = false;
             while (await timer.WaitForNextTickAsync(token).ConfigureAwait(false))
             {
                 var settings = _settings();
                 var rgb = settings.Rgb;
-                if (!rgb.Enabled && _previewUsers <= 0) break;
+                if (!rgb.Enabled && _previewUsers <= 0 && !_driving && _blackLeft <= 0 && !TransitionRunning) break;     // not before the lights are really out
                 var t = (Environment.TickCount64 - started) / 1000.0;
 
                 double music = 0, temp = 0;
@@ -385,8 +385,15 @@ public sealed class RgbService : IDisposable
                 if (!rgb.Enabled)
                 {
                     SetLink(RgbLink.Off);
-                    if (_client.Connected && _driving && TransitionRunning) _client.Update(device => FrameFor(device, rgb, frames, t, music, temp));     // fading out
-                    else if (_client.Connected && _driving && !blackSent) { blackSent = true; _driving = false; _transStart = 0; _client.Update(_ => [Rgb.Black]); }
+                    if (_client.Connected && _driving && TransitionRunning) _client.Update(device => FrameFor(device, rgb, frames, t, music, temp), force: true);     // fading out
+                    else if (_client.Connected && _driving) { _driving = false; _transStart = 0; _blackLeft = 3; }
+                    if (_client.Connected && _blackLeft > 0)
+                    {
+                        // «off» is sent three times and never held back by the usual rate limits: a device that had just been given a frame used to skip it and stay lit
+                        _client.Update(_ => [Rgb.Black], force: true);
+                        _blackLeft--;
+                    }
+                    else if (!_client.Connected) { _blackLeft = 0; _driving = false; }
                     if (_previewUsers > 0)
                     {
                         // the page is open with the lights off: still look at what is there (the devices window needs it) and let «test» blink a device
@@ -395,7 +402,6 @@ public sealed class RgbService : IDisposable
                     }
                     continue;
                 }
-                blackSent = false;
                 if (!_client.Connected)
                 {
                     if (Environment.TickCount64 >= _nextConnect) Connect(rgb, silent: false);
@@ -437,7 +443,8 @@ public sealed class RgbService : IDisposable
     /// <summary>Puts every light out (used when the person turns lighting off, and when Shabpa quits with lighting on... it leaves them as they were).</summary>
     public void BlackOut()
     {
-        if (_client.Connected) _client.Update(_ => [Rgb.Black]);
+        _driving = true;                                        // the loop (the only thread that talks to the server) fades out if it is set to, then sends «off» three times
+        EnsureRunning();
     }
 
     public void Dispose()
