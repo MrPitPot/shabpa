@@ -156,8 +156,6 @@ public sealed class Settings
     /// <summary>Trim working sets automatically when RAM use passes this percentage; 0 = off.</summary>
     public int AutoTrimPercent { get; set; }
     public bool AutoUpdateCheck { get; set; } = true;
-    /// <summary>A newer signed version is installed by Shabpa itself (a short countdown, then the same checked download as the Updates page). Never while a game runs.</summary>
-    public bool ForceUpdates { get; set; } = true;
     /// <summary>The newest version the user was already told about, so each release is announced once.</summary>
     public string AnnouncedVersion { get; set; } = "";
     /// <summary>Night internet window and power-cut standby (phase 1 of the growth plan).</summary>

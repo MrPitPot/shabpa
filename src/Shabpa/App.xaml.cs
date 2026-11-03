@@ -557,7 +557,6 @@ public partial class App : Application
         }
 
         _tray = new Tray(ShowWindow, Quit);
-        hub.UpdateRequired += info => Dispatcher.BeginInvoke(() => ForcedUpdateWindow.Show(info));
         hub.Notified += (title, text) =>
         {
             if (_window?.ShowToast(title, text) == true) return;

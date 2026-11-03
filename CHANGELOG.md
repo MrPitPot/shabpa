@@ -4,6 +4,28 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [3.15.0] - 2026-11-03
+
+### Added
+- Reminders are an alarm: when a task reminder is due, a window opens above everything and an alarm sound repeats until it is closed («in ten minutes» snoozes it). It works with the main window closed to the tray. A switch on the Tasks page turns it off; during a game in quiet mode the reminder waits until the game is over.
+- Every optional tab can be switched off in Settings («Parts of the app»): it leaves the list and what it did in the background stops (lighting, overlay, speed limits, night light and breaks, task reminders, microphone, scheduled backups, triggers, download plans). Home, Settings and Updates always stay.
+- «Report for fixing a problem» in Settings: one click saves a zip with Shabpa's log, the lighting server's log and a few lines about Windows on the desktop, with the Windows user name taken out of the paths. Nothing is sent by Shabpa.
+- Every feather payment (quests, medals, bonuses, the hour with Shabpa) is 30 percent more.
+- An owner's key for unlimited feathers, typed to Boofi; only a salted hash of the passphrase is in the program.
+
+### Changed
+- Updates are no longer forced: a newer version is only suggested (a notice), and the person installs it from the Updates page when they want. The forced-update window and its setting are gone.
+
+### Fixed
+- Lighting that was left on did not start after a restart or a boot until it was switched off and on by hand: nothing started the lighting loop when Shabpa started. It starts with Shabpa now.
+- Lighting: after switching the lights off and on while the server was not reachable, every frame stayed black; the sleep and shutdown black-out could leave memory and the board lit; devices the person left out were switched dark; a server that finished finding hardware after Shabpa connected never showed its devices; own-device music and temperature effects did not react; a lighting server that kept ending right away was started again every few seconds (it now pauses for five minutes); the program file of the lighting server is checked before every start; refused connections left sockets behind; Persian digits in the header size box are accepted; the devices window texts are readable.
+- Speed limits: the limiter stopped and started again at every Alt+Tab (the game still running now counts), packets of an app could be lost while its limit was being changed, and a failed apply could freeze all later changes.
+- The window waited for the disk in some saves (the settings saver held a lock the UI needed; the once-a-minute usage save ran on the window's thread). Both are in the background now.
+- The seven-night gift was paid twice, and switching the interface language in the middle of a week paid the weekly quests again.
+- Reminders: the alarm sound was cut by any other sound, a reminder due during a game in quiet mode was lost, two reminders at once opened two windows, and «remind me» with reminders switched off said it was set but never fired.
+- Updates: a mirror that is behind no longer hides a newer version, the unsigned GitHub answer can no longer start a forced update, the installer is downloaded into a fresh random folder, and the installer stops only its own driver (matching the folder exactly) and waits until it has really stopped.
+- Settings export no longer carries the proxy address, the support contact, program paths or the weather city, and an imported file cannot change the support server.
+- The build's folder path is no longer written into the program files.
 ## [3.14.3] - 2026-11-03
 
 ### Fixed

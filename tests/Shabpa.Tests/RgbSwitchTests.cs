@@ -37,6 +37,18 @@ public class RgbSwitchTests : IDisposable
         return condition();
     }
 
+    [Fact]
+    public void Lighting_that_was_left_on_starts_with_the_app_without_a_visit_to_the_lighting_page()
+    {
+        var on = new Settings();
+        on.Rgb.Enabled = true;
+        Assert.True(Hub.WantsRgbAtStart(on, dryRun: false, demo: false, tabOff: false));      // a restart or a boot: the lights come back by themselves
+        Assert.False(Hub.WantsRgbAtStart(new Settings(), false, false, false));                // lighting off: nothing starts, nothing is downloaded or run
+        Assert.False(Hub.WantsRgbAtStart(on, false, false, tabOff: true));                     // the tab is switched off
+        Assert.False(Hub.WantsRgbAtStart(on, dryRun: true, demo: false, tabOff: false));       // test runs and demos never touch hardware
+        Assert.False(Hub.WantsRgbAtStart(on, false, demo: true, false));
+    }
+
     [Theory]
     [InlineData("blaze")]
     [InlineData("sunrise")]

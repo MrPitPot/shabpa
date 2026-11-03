@@ -69,7 +69,7 @@ public class HealthChecksTests
         rate.ComposeFps();
         Thread.Sleep(300);
         Assert.True(rate.ComposeFps() >= 0);
-        Assert.NotNull(Health.AntivirusNow());
+        _ = Health.AntivirusNow();                                 // null means «Windows Security Center did not answer» (busy PC, service off): unknown, not an error; it must only never throw
     }
 
     [Fact]

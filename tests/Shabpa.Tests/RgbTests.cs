@@ -508,12 +508,6 @@ public class OpenRgbClientTests
     }
 
     [Fact]
-    public void Updates_are_forced_by_default_and_the_flag_is_in_the_settings()
-    {
-        Assert.True(new Settings().ForceUpdates);
-    }
-
-    [Fact]
     public void A_devices_one_colour_switch_survives_saving()
     {
         var rgb = new RgbSettings();

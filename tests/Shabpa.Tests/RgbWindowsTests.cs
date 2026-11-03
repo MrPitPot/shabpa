@@ -53,21 +53,4 @@ public class RgbWindowsTests
         });
     }
 
-    [Fact]
-    public void The_forced_update_window_counts_down_cannot_be_closed_and_names_the_version()
-    {
-        StaRunner.Run(() =>
-        {
-            Prepare();
-            var info = new UpdateInfo(new Version(9, 9, 9), "", "https://example.invalid/x.exe", "00", 1, DateTime.UtcNow);
-            ForcedUpdateWindow.Show(info);
-            StaRunner.Pump(5);
-            var window = (ForcedUpdateWindow)typeof(ForcedUpdateWindow).GetField("_open", BindingFlags.NonPublic | BindingFlags.Static)!.GetValue(null)!;
-            window.Close();
-            Assert.True(window.IsVisible);                                   // it refuses to close while it counts
-            Assert.True(window.Topmost);
-            typeof(ForcedUpdateWindow).GetField("_canClose", BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(window, true);   // only so the test can clean up
-            window.Close();
-        });
-    }
 }

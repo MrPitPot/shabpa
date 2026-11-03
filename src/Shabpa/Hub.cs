@@ -193,11 +193,21 @@ public sealed partial class Hub
         if (!DryRun && !Demo && Settings.Voice.AutoStart) StartVoice();
     }
 
+    /// <summary>Lighting that was left on starts with Shabpa: nothing else starts the lighting loop, so after a restart or a boot the lights stayed as they were until the person switched
+    /// lighting off and on by hand.</summary>
+    internal void StartRgbIfWanted()
+    {
+        if (WantsRgbAtStart(Settings, DryRun, Demo, TabOff("rgb"))) Rgb.Refresh();
+    }
+
+    internal static bool WantsRgbAtStart(Settings settings, bool dryRun, bool demo, bool tabOff) => !dryRun && !demo && settings.Rgb.Enabled && !tabOff;
+
     public void Start()
     {
         PrimeBirthday();
         StartPower();
         StartVoiceIfWanted();
+        StartRgbIfWanted();
         if (State.ActiveRule is { } rule) Engine.Activate(rule);
 
         // Whatever came due while Shabpa was not running (PC off or asleep) is gone, not "late": a PC that
@@ -378,7 +388,6 @@ public sealed partial class Hub
 
         CheckBirthday(Core.Birthday.Now());
         CheckForUpdates(now);
-        RunForcedUpdate();
         CheckBudget(now);
         RunDownloadPlans(now);
         RunComfort(now);
@@ -709,21 +718,9 @@ public sealed partial class Hub
         _ = AnnounceUpdate();
     }
 
-    /// <summary>A newer signed version is waiting and the update is not optional: the window that installs it should open (raised once, when no game is running).</summary>
-    public event Action<UpdateInfo>? UpdateRequired;
-    private UpdateInfo? _forced;
-
-    private void RunForcedUpdate()
-    {
-        if (_forced is not { } info || GameModeActive || Snapshot.GameRunning || UpdateRequired is null) return;
-        _forced = null;
-        UpdateRequired.Invoke(info);
-    }
-
     private async Task AnnounceUpdate()
     {
         if (await Updater.CheckAsync() is not { } info) return;
-        if (Settings.ForceUpdates && info.Manifest is not null && info.Source is { Legacy: false }) _forced = info;        // only a version from a signed manifest can force anything (the unsigned GitHub-API answer cannot)
         var version = info.Version.ToString(3);
         if (Settings.AnnouncedVersion == version) return;
         Settings.AnnouncedVersion = version;
