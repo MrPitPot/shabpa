@@ -1,0 +1,75 @@
+name: Screenshots
+
+# Photographs every page of the app with demo data (the app's own --screenshots mode)
+# and commits the PNGs back to this branch under reels/screens/<source>/.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  capture:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: main
+            ref: main
+          - name: pr11-medals
+            ref: claude/project-thread-iroi9i
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ matrix.ref }}
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Build
+        shell: pwsh
+        run: |
+          # test clock on, so the run can step past seasonal pop-ups (Halloween, birthday)
+          Set-Content Directory.Build.targets '<Project><PropertyGroup><DefineConstants>$(DefineConstants);SHABPA_TESTHOOKS</DefineConstants></PropertyGroup></Project>'
+          # photos at twice the size, sharp enough for a 1080-wide reel (build-only patch, not committed)
+          $app = 'src/Shabpa/App.xaml.cs'
+          (Get-Content $app -Raw).Replace('var dpi = VisualTreeHelper.GetDpi(element);', 'var dpi = new DpiScale(2, 2);') | Set-Content $app -Encoding utf8
+          dotnet build src/Shabpa/Shabpa.csproj -c Release -nologo
+      - name: Capture
+        shell: pwsh
+        env:
+          SHABPA_FAKE_TODAY: '2026-11-12'
+        run: |
+          # a plain evening (no Halloween/birthday lines on the home page either)
+          Stop-Service w32time -ErrorAction SilentlyContinue
+          Set-Date -Date '2026-11-12 21:40'
+          $out = Join-Path $env:RUNNER_TEMP "shots"
+          $exe = Get-ChildItem src/Shabpa/bin/Release -Recurse -Filter Shabpa.exe | Select-Object -First 1
+          $p = Start-Process $exe.FullName -ArgumentList @('--screenshots', $out) -PassThru
+          if (-not $p.WaitForExit(900000)) { $p.Kill(); Write-Host 'timed out' }
+          Get-ChildItem $out | Format-Table Name, Length
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shots-${{ matrix.name }}
+          path: ${{ runner.temp }}/shots
+
+  commit:
+    needs: capture
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v4
+        with:
+          path: dl
+      - name: Commit screenshots
+        run: |
+          for d in dl/shots-*; do
+            n=${d#dl/shots-}
+            rm -rf reels/screens/$n && mkdir -p reels/screens/$n && cp -r $d/. reels/screens/$n/
+          done
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reels/screens
+          git commit -m "Screenshots for the intro reel" || echo "nothing to commit"
+          git push
