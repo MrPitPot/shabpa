@@ -95,6 +95,10 @@ public sealed class Settings
     public FocusSettings Focus { get; set; } = new();
     /// <summary>Show a notice when a task's reminder time comes.</summary>
     public bool TaskReminders { get; set; } = true;
+    /// <summary>A due reminder opens a window on top of everything and plays an alarm sound until it is closed (otherwise it is an ordinary, silent notice).</summary>
+    public bool AlarmSound { get; set; } = true;
+    /// <summary>Tabs the person switched off (see <see cref="OptionalTabs"/>): hidden from the list, and what they ran in the background is stopped.</summary>
+    public List<string> HiddenTabs { get; set; } = [];
     /// <summary>Let the Telegram bot read today's task titles. Off by default: titles are personal.</summary>
     public bool TasksToBot { get; set; }
     /// <summary>Where the window was last: "left,top,width,height,maximized" in device-independent pixels.</summary>

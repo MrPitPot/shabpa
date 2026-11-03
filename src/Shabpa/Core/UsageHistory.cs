@@ -161,7 +161,8 @@ public sealed class UsageHistory
 
     // ---- persistence ------------------------------------------------------------------------------
 
-    public void Save(string file)
+    /// <summary><paramref name="background"/>: the text is made here and the disk is written by a worker (the once-a-minute save on the window's thread; the save at exit waits for the disk).</summary>
+    public void Save(string file, bool background = false)
     {
         string json;
         lock (_gate)
@@ -171,18 +172,28 @@ public sealed class UsageHistory
             var export = _days.Values.OrderBy(d => d.Date).Select(Compact).ToList();
             json = JsonSerializer.Serialize(export, Json);
         }
-        try
+        void Write()
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-            var tmp = file + ".tmp";
-            File.WriteAllText(tmp, json);
-            File.Move(tmp, file, true);
+            try
+            {
+                lock (_writeGate)
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+                    var tmp = file + ".tmp";
+                    File.WriteAllText(tmp, json);
+                    File.Move(tmp, file, true);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Write($"usage save failed: {ex.Message}");
+            }
         }
-        catch (Exception ex)
-        {
-            Log.Write($"usage save failed: {ex.Message}");
-        }
+        if (background) _ = Task.Run(Write);
+        else Write();
     }
+
+    private readonly object _writeGate = new();
 
     /// <summary>Small apps of a finished day are merged into "other"; today's data is kept as is.</summary>
     private static UsageDay Compact(UsageDay day)

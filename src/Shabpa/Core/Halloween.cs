@@ -128,7 +128,7 @@ public static class Halloween
     {
         try
         {
-            if (Hub.I is { } hub && (hub.Settings.LowMemory || hub.Snapshot.GameProcess.Length > 0)) return false;
+            if (AlarmTone.Active || Hub.I is { } hub && (hub.Settings.LowMemory || hub.Snapshot.GameProcess.Length > 0)) return false;
             _playingUntil = Environment.TickCount64 + 1600;
             if (!_pin.IsAllocated) _pin = GCHandle.Alloc(ScreamWav(), GCHandleType.Pinned);
             return PlaySound(_pin.AddrOfPinnedObject(), IntPtr.Zero, 0x4 | 0x1 | 0x2); // memory, async, no default beep

@@ -61,6 +61,7 @@ public sealed class UpdateSources(HttpClient http, string publicKey, bool allowL
     public async Task<UpdateCheckResult> CheckAsync(IReadOnlyList<UpdateSource> sources, Version current, CancellationToken ct = default)
     {
         var failures = new List<SourceFailure>();
+        UpdateSource? same = null;                  // a source that says «this is the version you have»: not the last word, a lagging mirror says the same
         foreach (var source in sources)
         {
             ct.ThrowIfCancellationRequested();
@@ -70,7 +71,7 @@ public sealed class UpdateSources(HttpClient http, string publicKey, bool allowL
                 timeout.CancelAfter(ManifestTimeout);
                 var manifest = source.Legacy ? await FetchLegacy(source, timeout.Token) : await FetchSigned(source, timeout.Token);
                 if (manifest.Version < current) { failures.Add(new(source.Id, "stale")); continue; }
-                if (manifest.Version == current) return new(null, source, true, failures);
+                if (manifest.Version == current) { same ??= source; continue; }       // keep asking: another source may already have the next version (a mirror that is behind must not hide it)
                 if (manifest.MinApp > current) { failures.Add(new(source.Id, "min-app")); continue; }
                 return new(manifest, source, false, failures);
             }
@@ -95,7 +96,7 @@ public sealed class UpdateSources(HttpClient http, string publicKey, bool allowL
                 failures.Add(new(source.Id, "io"));
             }
         }
-        return new(null, null, false, failures);
+        return same is not null ? new(null, same, true, failures) : new(null, null, false, failures);
     }
 
     private async Task<UpdateManifest> FetchSigned(UpdateSource source, CancellationToken ct)

@@ -232,7 +232,7 @@ public sealed class SupportPage : PageBase
             ? L.T("وارد شدی. تیکت‌ها رو با «به‌روزرسانی» تازه کن.", "Signed in. Refresh to load tickets.")
             : "";
         if (Client.IsAdmin && _all.Children.Count == 0) _ = RefreshAllAsync();
-        if (Client.Available) _ = RefreshMineAsync();
+        if (Client.Available && Hub.State.Tickets.Count > 0) _ = RefreshMineAsync();      // opening the page sends nothing unless there is a ticket whose answer is awaited
     }
 
     /// <summary>Sets a status line and lets it rise in, so a result does not just appear.</summary>

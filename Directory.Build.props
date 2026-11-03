@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <!-- the build folder's real path (it holds the PC's folder layout, and the Windows user name on some PCs) is not written into the program files' debug paths -->
+    <PathMap>$(MSBuildThisFileDirectory)=/shabpa/</PathMap>
+  </PropertyGroup>
+</Project>

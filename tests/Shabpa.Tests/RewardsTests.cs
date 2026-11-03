@@ -175,14 +175,51 @@ public class RewardsTests
         Assert.Equal(9, seen);
     }
 
+    [Theory]
+    [InlineData(2, 3)]
+    [InlineData(3, 4)]
+    [InlineData(5, 7)]
+    [InlineData(10, 13)]
+    [InlineData(30, 39)]
+    [InlineData(150, 195)]
+    public void Every_payment_is_thirty_percent_more_rounded_to_a_whole_feather(int baseFeathers, int expected) =>
+        Assert.Equal(expected, RewardsCatalog.Boost(baseFeathers));
+
+    [Fact]
+    public void The_seven_night_gift_is_paid_once_per_run_even_across_midnight()
+    {
+        var (_, e, _, set) = Engine(new DateTime(2026, 11, 8, 23, 0, 0));
+        for (var d = 2; d <= 8; d++) e.State.Active[$"2026-11-{d:00}"] = 30;          // seven active nights in a row, the 8th is today
+        var before = e.State.Feathers;
+        e.Evaluate();
+        var afterFirst = e.State.Feathers;
+        Assert.Contains("streak:2026-11-08", e.State.Claimed);
+        set(new DateTime(2026, 11, 9, 0, 5, 0));                                         // just after midnight: today has no active minute yet, the run is counted back from yesterday
+        e.Evaluate();
+        Assert.DoesNotContain("streak:2026-11-09", e.State.Claimed);
+        Assert.True(afterFirst > before);
+    }
+
+    [Fact]
+    public void The_week_does_not_change_when_the_interface_language_changes()
+    {
+        var wed = new DateTime(2026, 11, 4);                                             // a Wednesday
+        string key;
+        using (L.Scope(false)) key = RewardsCatalog.WeekKey(wed);
+        using (L.Scope(true)) Assert.Equal(key, RewardsCatalog.WeekKey(wed));
+        Assert.Equal(new DateTime(2026, 10, 31), RewardsCatalog.WeekStart(wed));         // Saturday
+    }
+
     [Fact]
     public void The_quest_tables_match_the_economy_plan()
     {
         Assert.Equal(25, RewardsCatalog.Once.Count);
-        Assert.Equal(427, RewardsCatalog.Once.Sum(q => q.Reward));
+        // the 24 other one-time quests were 227 feathers in the plan and pay a third more now (each rounded to a whole feather); the welcome gift stays the promised 200
         Assert.Equal(("o.profile", 200), (RewardsCatalog.Once[0].Id, RewardsCatalog.Once[0].Reward));
-        Assert.Equal(4, RewardsCatalog.DailyBonus);
-        Assert.Equal(15, RewardsCatalog.WeeklyBonus);
+        Assert.InRange(RewardsCatalog.Once.Skip(1).Sum(q => q.Reward), 227 * 1.3 - 6, 227 * 1.3 + 12);
+        Assert.Equal(5, RewardsCatalog.DailyBonus);
+        Assert.Equal(20, RewardsCatalog.WeeklyBonus);
+        Assert.Equal(4, RewardsCatalog.HourlyFeathers);
         Assert.All(RewardsCatalog.Once, q => Assert.Equal(q.Id, RewardsCatalog.ClaimKey(q, DateTime.Now))); // one-time quests are paid once, ever
     }
 
@@ -210,16 +247,16 @@ public class RewardsTests
     }
 
     [Fact]
-    public void Every_full_hour_with_shabpa_open_pays_three_feathers_up_to_eight_hours_a_day()
+    public void Every_full_hour_with_shabpa_open_pays_four_feathers_up_to_eight_hours_a_day()
     {
         var (_, e, _, set) = Engine(new DateTime(2026, 11, 2, 9, 0, 0));
         var start = e.State.Feathers;
         for (var m = 1; m <= 59; m++) e.ActiveMinute(new DateTime(2026, 11, 2, 9, 0, 0).AddMinutes(m));
         Assert.Equal(start, e.State.Feathers);                                // 59 minutes: nothing yet
         e.ActiveMinute(new DateTime(2026, 11, 2, 10, 0, 0));
-        Assert.Equal(start + 3, e.State.Feathers);
+        Assert.Equal(start + 4, e.State.Feathers);
         for (var m = 61; m <= 20 * 60; m++) e.ActiveMinute(new DateTime(2026, 11, 2, 9, 0, 0).AddMinutes(m));
-        Assert.Equal(start + 3 * 8, e.State.Feathers);                        // the day's cap is 8 hours
+        Assert.Equal(start + 4 * 8, e.State.Feathers);                        // the day's cap is 8 hours
         set(new DateTime(2026, 11, 3, 9, 1, 0));                              // the clock reaches the next day
         e.ActiveMinute(new DateTime(2026, 11, 3, 9, 1, 0));                   // and the count starts again
         Assert.Equal(1, e.State.DayCounters["present"]);

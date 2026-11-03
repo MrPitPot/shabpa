@@ -42,6 +42,7 @@ public sealed class SettingsPage : PageBase
     private readonly Switch AssistantDockCheck = new();
     private readonly Switch BidarLifeCheck = new();
     private readonly Switch BackupProfiles = new() { IsChecked = true }, BackupTasks = new();
+    private readonly TextBlock ReportHint = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
     private readonly TextBlock BackupHint = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
     private readonly StackPanel NoticeList = new() { Margin = new Thickness(0, 6, 0, 0) };
     private readonly HashSet<(long, string)> _noticesSeen = [];
@@ -278,6 +279,33 @@ public sealed class SettingsPage : PageBase
         backupBody.Children.Add(backupButtons);
         backupBody.Children.Add(BackupHint);
         Put(backup, 1, 3);
+
+        // ---- tabs on and off --------------------------------------------------------------------------
+        var (tabsCard, tabsBody) = Card(L.T("بخش‌های برنامه", "Parts of the app"),
+            L.T("هر بخشی رو که نمی‌خوای خاموش کن: از لیست کنار می‌ره و کارهایی که پشت صحنه می‌کرد (مثل نورپردازی، اورلی، محدودیت سرعت، یادآورها) متوقف می‌شه. هر وقت خواستی دوباره روشنش کن؛ چیزی پاک نمی‌شه.",
+                "Switch off any part you do not want: it leaves the list and what it did in the background (lighting, the overlay, speed limits, reminders) stops. Switch it on whenever you like; nothing is deleted."));
+        var tabRows = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
+        var firstTab = true;
+        foreach (var (key, fa, en) in OptionalTabs.All)
+        {
+            var tabKey = key;
+            var toggle = new Switch { IsChecked = !Hub.TabOff(key) };
+            toggle.Click += (_, _) => Hub.SetTab(tabKey, toggle.IsChecked == true);
+            tabRows.Children.Add(SwitchRow(toggle, L.T(fa, en), null, firstTab));
+            firstTab = false;
+        }
+        tabsBody.Children.Add(tabRows);
+        Put(tabsCard, 1, 4);
+
+        // ---- problem report ---------------------------------------------------------------------------
+        var (report, reportBody) = Card(L.T("گزارش برای رفع مشکل", "Report for fixing a problem"),
+            L.T("اگه برنامه گیر می‌کنه یا چیزی کار نمی‌کنه، با یک کلیک یه فایل زیپ روی دسکتاپت ساخته می‌شه (لاگ شب‌پا، لاگ سرور نورپردازی و چند خط درباره‌ی نسخه‌ی ویندوز). اسم و فایل‌های شخصی توش نیست و شب‌پا خودش چیزی نمی‌فرسته؛ فایل رو خودت برای ما بفرست.",
+                "If the app freezes or something does not work, one click makes a zip on your desktop (Shabpa's log, the lighting server's log and a few lines about your Windows version). No name or personal files are in it and Shabpa sends nothing itself; you send the file to us."));
+        var reportButton = new Button { Style = St("Btn"), Content = L.T("ذخیره‌ی گزارش روی دسکتاپ", "Save the report to the desktop"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
+        reportButton.Click += OnSaveReport;
+        reportBody.Children.Add(reportButton);
+        reportBody.Children.Add(ReportHint);
+        Put(report, 1, 4);
 
         // ---- rating -----------------------------------------------------------------------------------
         Put(new RatingCard(), 1, 5);
@@ -700,6 +728,28 @@ public sealed class SettingsPage : PageBase
         Hub.Settings.RecorderProcesses = RecorderBox.Text.Trim();
         Hub.Store.Save();
         Motion.Pop(RecorderBox);
+    }
+
+    private void OnSaveReport(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var now = DateTime.Now;
+            var path = LogExport.Create(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), now, Log.File ?? System.IO.Path.Combine(Hub.Store.Folder, "shabpa.log"),
+                LogExport.Info(Hub.Elevated, now), OpenRgbHost.Folder);
+            ReportHint.Foreground = Res("Muted");
+            ReportHint.Text = L.T($"ذخیره شد روی دسکتاپ: {System.IO.Path.GetFileName(path)}. این فایل رو برای ما بفرست.", $"Saved on the desktop: {System.IO.Path.GetFileName(path)}. Send this file to us.");
+            Motion.Rise(ReportHint, 0, 8, 0.45);
+            try { Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{path}\"") { UseShellExecute = false }); }
+            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException) { /* the file is on the desktop anyway */ }
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or ArgumentException or System.IO.InvalidDataException or NotSupportedException)
+        {
+            Log.Write($"report: {ex.GetType().Name}");
+            ReportHint.Foreground = Res("Red");
+            ReportHint.Text = L.T("ذخیره نشد. دسکتاپ جا یا دسترسی نوشتن نداره؛ پوشه‌ی داده‌ها (پایین) رو باز کن و shabpa.log رو بفرست.", "Could not save. The desktop has no room or no write access; open the data folder (below) and send shabpa.log.");
+            Motion.Rise(ReportHint, 0, 8, 0.45);
+        }
     }
 
     private void OnOpenFolder(object sender, RoutedEventArgs e)

@@ -17,7 +17,7 @@ public static class UiSound
     private static long _lastHover;
     private static bool _installed;
 
-    public static bool Enabled => Hub.I is { } hub && hub.Settings.UiSounds && !Halloween.Playing && !hub.Settings.LowMemory && hub.Snapshot.GameProcess.Length == 0;
+    public static bool Enabled => !AlarmTone.Active && Hub.I is { } hub && hub.Settings.UiSounds && !Halloween.Playing && !hub.Settings.LowMemory && hub.Snapshot.GameProcess.Length == 0;
 
     /// <summary>A mono 16-bit WAV of a short sine blip with a quick fade in and a smooth fade out.</summary>
     internal static byte[] Tone(double hz, double milliseconds, double volume, double hz2 = 0, int rate = 44100)

@@ -33,7 +33,7 @@ public static class RewardsMerge
         var m = new RewardsState
         {
             FirstRun = a.FirstRun < b.FirstRun ? a.FirstRun : b.FirstRun,
-            Feathers = a.Feathers,
+            Feathers = a.Balance,                          // the real balance, never the large number the owner's key shows
             TotalFeathers = a.TotalFeathers,
             TourDone = a.TourDone || b.TourDone,
             TourOffered = a.TourOffered || b.TourOffered,
@@ -230,7 +230,7 @@ public sealed class AccountService
     /// <summary>Reads the cloud copy, merges it into this PC's progress and writes back if anything is new. Safe to call any time.</summary>
     public async Task<bool> SyncAsync(CancellationToken ct = default)
     {
-        if (!SignedIn || !await _gate.WaitAsync(0, ct)) return false;
+        if (!SignedIn || _hub.State.Rewards.Unlimited || !await _gate.WaitAsync(0, ct)) return false;      // the owner's unlimited-feathers key is a local test mode: nothing of it goes to the cloud
         try
         {
             for (var attempt = 0; attempt < 3; attempt++)

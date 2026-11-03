@@ -601,7 +601,7 @@ public sealed class RgbPage : PageBase
                 var path = OpenRgbPath();
                 var actions = new List<(string, Action)>();
                 if (!OpenRgbHost.Installed) actions.Add((L.T("فعال‌سازی نورپردازی (دانلود ۲۲ مگابایت)", "Enable lighting (22 MB download)"), EnableLighting));
-                else actions.Add((L.T("دوباره راه‌انداز", "Start it again"), () => { OpenRgbHost.Start(Cfg.Port); Mo.Say(_customNote, L.T("در حال راه‌اندازی؛ چند ثانیه صبر کن.", "Starting; give it a few seconds.")); }));
+                else actions.Add((L.T("دوباره راه‌انداز", "Start it again"), () => { OpenRgbHost.Start(Cfg.Port, force: true); Mo.Say(_customNote, L.T("در حال راه‌اندازی؛ چند ثانیه صبر کن.", "Starting; give it a few seconds.")); }));
                 if (path is not null && !OpenRgbHost.Installed) actions.Add((L.T("استفاده از OpenRGB خودم", "Use my own OpenRGB"), () => StartOpenRgb(path)));
                 _alerts.Children.Add(Alert("Red",
                     L.T("نور به قطعه‌ها نمی‌رسه", "The effects are not reaching the lights"),

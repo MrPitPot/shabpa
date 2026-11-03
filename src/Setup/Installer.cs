@@ -124,12 +124,12 @@ public static class Installer
         try
         {
             var config = Sc("qc WinDivert");
-            if (config is null || config.IndexOf(dir.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase) < 0) return;
+            if (config is null || config.IndexOf(dir.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase) < 0) return;     // with the closing backslash: another program's folder that starts the same does not match
             SetupLog.Info("stopping the loaded WinDivert driver of the old version");
             Sc("stop WinDivert");
             for (var i = 0; i < 25; i++)
             {
-                if (Sc("query WinDivert") is { } state && !state.Contains("RUNNING")) break;
+                if (Sc("query WinDivert") is not { } state || state.Contains("STOPPED")) break;          // STOP_PENDING is not stopped yet
                 Thread.Sleep(200);
             }
         }
@@ -140,8 +140,10 @@ public static class Installer
     {
         using var process = Process.Start(new ProcessStartInfo("sc.exe", arguments) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true });
         if (process is null) return null;
-        var text = process.StandardOutput.ReadToEnd();
-        return process.WaitForExit(5000) ? text : null;
+        var text = process.StandardOutput.ReadToEndAsync();
+        if (process.WaitForExit(5000)) return text.Result;
+        try { process.Kill(); } catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { }
+        return null;
     }
 
     /// <summary>Before a copy that did not quit is killed: its running.flag gets the exit reason "installer", so the next start of Shabpa

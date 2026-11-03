@@ -36,6 +36,41 @@ public class OpenRgbHostTests : IDisposable
         Assert.Equal("runtime", OpenRgbHost.Blocked(system, 22631));            // the newer runtime file is the one that is often missing
     }
 
+    [Fact]
+    public void A_server_that_keeps_ending_right_away_is_not_started_again_for_five_minutes_until_the_person_asks()
+    {
+        OpenRgbHost.Start(force: true);                                               // clears any state from other tests
+        var now = Environment.TickCount64;
+        OpenRgbHost.NoteEnded(2_000, now);
+        OpenRgbHost.NoteEnded(3_000, now);
+        Assert.False(OpenRgbHost.Paused);                                              // two quick ends are bad luck
+        OpenRgbHost.NoteEnded(1_000, now);
+        Assert.True(OpenRgbHost.Paused);                                               // the third in a row pauses it
+        Assert.False(OpenRgbHost.Start());                                             // nothing is started while paused (and nothing is installed here anyway)
+        OpenRgbHost.Start(force: true);
+        Assert.False(OpenRgbHost.Paused);                                              // «start again» ends the pause
+        OpenRgbHost.NoteEnded(1_000, now);
+        OpenRgbHost.NoteEnded(60_000, now);                                            // a server that ran for a minute resets the count
+        OpenRgbHost.NoteEnded(1_000, now);
+        OpenRgbHost.NoteEnded(1_000, now);
+        Assert.False(OpenRgbHost.Paused);
+    }
+
+    [Fact]
+    public void A_replaced_openrgb_exe_is_never_started_and_an_older_install_is_recorded_as_it_is()
+    {
+        Directory.CreateDirectory(OpenRgbHost.Folder);
+        File.WriteAllText(OpenRgbHost.ExePath, "the real one");
+        var marker = Path.Combine(OpenRgbHost.Folder, "shabpa-openrgb.txt");
+        File.WriteAllText(marker, OpenRgbHost.Release.Sha256);                          // an install from before the check: one line only
+        Assert.True(OpenRgbHost.ExeIntact());                                           // taken as it is, and recorded
+        Assert.Equal(2, File.ReadAllText(marker).Split('\n').Length);
+        Assert.True(OpenRgbHost.Installed);                                             // the first line still decides «installed»
+        Assert.True(OpenRgbHost.ExeIntact());
+        File.WriteAllText(OpenRgbHost.ExePath, "something else put there");
+        Assert.False(OpenRgbHost.ExeIntact());                                          // replaced: refused
+    }
+
     private sealed class Serve(byte[] bytes, HttpStatusCode status = HttpStatusCode.OK) : HttpMessageHandler
     {
         public int Calls;

@@ -10,3 +10,17 @@ PROJECT_STATUS.md
 node_modules/
 TestResults/
 *.trx
+
+# secrets and personal data never belong in the repository
+.env
+.env.*
+.dev.vars*
+*.pem
+*.key
+*.pfx
+*.p12
+state.json
+state.json.*
+backups/
+*.bak
+Shabpa-Keys/

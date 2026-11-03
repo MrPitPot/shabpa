@@ -117,7 +117,11 @@ public sealed class Store
 
     private int _retrying;
 
+    // Saves made on the window's thread: the text is made there, the disk is touched by a worker. The text waits under its own small lock (never under _gate, which the worker holds while it
+    // writes: the window would then wait for the disk after all). Every save gets a number, and an older text never overwrites a newer file.
+    private readonly object _pendingGate = new();
     private string? _pendingJson;
+    private long _seq, _writtenSeq;
     private int _writing;
 
     /// <summary>Waits for a write that was handed to the background (called when the app exits so the last change is on disk).</summary>
@@ -125,10 +129,65 @@ public sealed class Store
     {
         for (var i = 0; i < 100 && Volatile.Read(ref _writing) == 1; i++) Thread.Sleep(50);
         string? text;
-        lock (_gate) { text = _pendingJson; _pendingJson = null; }
+        long seq;
+        lock (_pendingGate) { text = _pendingJson; _pendingJson = null; seq = Interlocked.Read(ref _seq); }
         if (text is null) return;
-        try { Directory.CreateDirectory(Folder); lock (_gate) File.WriteAllText(_file, text); }
+        try
+        {
+            Directory.CreateDirectory(Folder);
+            lock (_gate)
+            {
+                if (seq < _writtenSeq) return;
+                File.WriteAllText(_file, text);
+                _writtenSeq = seq;
+            }
+        }
         catch (Exception ex) { Log.Write($"state save failed: {ex.Message}"); }
+    }
+
+    private void StartWriter()
+    {
+        if (Interlocked.Exchange(ref _writing, 1) == 1) return;      // the running writer picks the newest text up
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                while (true)
+                {
+                    string? text;
+                    long seq;
+                    lock (_pendingGate) { text = _pendingJson; _pendingJson = null; seq = Interlocked.Read(ref _seq); }
+                    if (text is null) break;
+                    for (var attempt = 1; attempt <= 7; attempt++)
+                    {
+                        try
+                        {
+                            Directory.CreateDirectory(Folder);
+                            var tmp = _file + ".tmp";
+                            lock (_gate)
+                            {
+                                if (seq < _writtenSeq) break;                       // a newer save has been written meanwhile
+                                File.WriteAllText(tmp, text);
+                                File.Move(tmp, _file, true);
+                                _writtenSeq = seq;
+                            }
+                            break;
+                        }
+                        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                        {
+                            if (attempt == 7) Log.Write($"state save failed: {ex.Message}");
+                            else Thread.Sleep(150 * attempt);
+                        }
+                        catch (Exception ex) { Log.Write($"state save failed: {ex.Message}"); break; }
+                    }
+                }
+            }
+            finally { Interlocked.Exchange(ref _writing, 0); }
+            // a save that arrived after the last look and before the flag was cleared would wait for the next save: look once more
+            bool more;
+            lock (_pendingGate) more = _pendingJson is not null;
+            if (more) StartWriter();
+        });
     }
 
     public void Save()
@@ -138,43 +197,17 @@ public sealed class Store
         // touched in the background: a slow disk or a scanning antivirus used to freeze the window for seconds on every click.
         if (System.Windows.Application.Current?.Dispatcher is { } ui && ui.CheckAccess())
         {
-            var json = JsonSerializer.Serialize(State, Json);
-            lock (_gate) _pendingJson = json;
-            if (Interlocked.Exchange(ref _writing, 1) == 1) return;      // the running writer picks the newest text up
-            _ = Task.Run(() =>
-            {
-                try
-                {
-                    while (true)
-                    {
-                        string? text;
-                        lock (_gate) { text = _pendingJson; _pendingJson = null; }
-                        if (text is null) break;
-                        for (var attempt = 1; attempt <= 7; attempt++)
-                        {
-                            try
-                            {
-                                Directory.CreateDirectory(Folder);
-                                var tmp = _file + ".tmp";
-                                lock (_gate) { File.WriteAllText(tmp, text); File.Move(tmp, _file, true); }
-                                break;
-                            }
-                            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-                            {
-                                if (attempt == 7) Log.Write($"state save failed: {ex.Message}");
-                                else Thread.Sleep(150 * attempt);
-                            }
-                            catch (Exception ex) { Log.Write($"state save failed: {ex.Message}"); break; }
-                        }
-                    }
-                }
-                finally { Interlocked.Exchange(ref _writing, 0); }
-            });
+            string json;
+            try { json = JsonSerializer.Serialize(State, Json); }
+            catch (Exception ex) { Log.Write($"state save failed: {ex.Message}"); return; }      // the state changed under the serializer (another thread): the next save will do it
+            lock (_pendingGate) { _pendingJson = json; Interlocked.Increment(ref _seq); }
+            StartWriter();
             return;
         }
         lock (_gate)
         {
-            if (TryWrite()) return;
+            var mine = Interlocked.Increment(ref _seq);
+            if (TryWrite()) { _writtenSeq = mine; return; }
         }
         // Something else (an antivirus scan, a backup program, a second Shabpa) holds the file for a moment. The window must
         // not wait for it, so the writing is tried again in the background, a few times, then straight over the file.
@@ -188,12 +221,13 @@ public sealed class Store
                     Thread.Sleep(150 * attempt);
                     lock (_gate)
                     {
-                        if (TryWrite()) return;
+                        var mine = Interlocked.Increment(ref _seq);
+                        if (TryWrite()) { _writtenSeq = mine; return; }
                     }
                 }
                 lock (_gate)
                 {
-                    try { File.WriteAllText(_file, JsonSerializer.Serialize(State, Json)); }
+                    try { File.WriteAllText(_file, JsonSerializer.Serialize(State, Json)); _writtenSeq = Interlocked.Increment(ref _seq); }
                     catch (Exception ex) { Log.Write($"state save failed: {ex.Message}"); }
                 }
             }

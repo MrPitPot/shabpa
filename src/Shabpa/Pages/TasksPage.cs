@@ -56,6 +56,7 @@ public sealed class TodoPage : PageBase
     private readonly Icon _saveIcon = new("plus", 18) { Margin = new Thickness(0, 0, 8, 0) };
     private readonly Button _cancelEdit = new() { Style = St("Btn"), Padding = new Thickness(18, 9, 18, 9), Content = L.T("انصراف از ویرایش", "Cancel editing"), Visibility = Visibility.Collapsed, Margin = new Thickness(8, 0, 0, 0) };
     private readonly Switch _remindersOn = new();
+    private readonly Switch _alarmOn = new();
     private readonly CMo.Memo _rows;
 
     private int _dayOffset = 1; // chosen day chip (days from today), -1 none
@@ -169,6 +170,13 @@ public sealed class TodoPage : PageBase
             Hub.Store.Save();
         };
         list.Children.Add(K.SettingRow(L.T("وقتی زمان یادآور رسید اعلان بده", "Show a notice when a reminder is due"), _remindersOn));
+        _alarmOn.Click += (_, _) =>
+        {
+            if (_loading) return;
+            Hub.Settings.AlarmSound = _alarmOn.IsChecked == true;
+            Hub.Store.Save();
+        };
+        list.Children.Add(K.SettingRow(L.T("با صدای زنگ و پنجره‌ی بالای همه‌چیز (مثل ساعت زنگ‌دار)", "With an alarm sound and a window on top of everything (like an alarm clock)"), _alarmOn));
         root.Children.Add(listCard);
 
         // ---- the task rows (one lifting card each) ------------------------------------------------
@@ -307,6 +315,7 @@ public sealed class TodoPage : PageBase
     {
         _loading = true;
         _remindersOn.IsChecked = Hub.Settings.TaskReminders;
+        _alarmOn.IsChecked = Hub.Settings.AlarmSound;
         _loading = false;
         RefreshList();
     }

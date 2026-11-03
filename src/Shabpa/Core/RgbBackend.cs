@@ -45,9 +45,10 @@ public sealed class OpenRgbClient : IDisposable
     public bool Connect(string host, int port, int timeoutMs = 700)
     {
         Close();
+        TcpClient? tcp = null;
         try
         {
-            var tcp = new TcpClient { NoDelay = true, ReceiveTimeout = 2000, SendTimeout = 2000 };
+            tcp = new TcpClient { NoDelay = true, ReceiveTimeout = 2000, SendTimeout = 2000 };
             var connect = tcp.ConnectAsync(host, port);
             if (!connect.Wait(timeoutMs) || !tcp.Connected)
             {
@@ -62,19 +63,50 @@ public sealed class OpenRgbClient : IDisposable
             Send(0, RequestProtocolVersion, BitConverter.GetBytes(ClientProtocol));
             var version = Receive(RequestProtocolVersion);
             _protocol = Math.Min(ClientProtocol, version.Length >= 4 ? BitConverter.ToUInt32(version, 0) : 0);
-            Send(0, MagicRequestControllerCount, []);
-            var count = BitConverter.ToUInt32(Receive(MagicRequestControllerCount), 0);
-            var list = new List<RgbDevice>();
-            for (var i = 0; i < Math.Min(count, 64u); i++)
-            {
-                Send((uint)i, RequestControllerData, _protocol >= 1 ? BitConverter.GetBytes(_protocol) : []);
-                if (ParseController(i, Receive(RequestControllerData), _protocol) is { } device) list.Add(device);   // only looked at: nothing is changed on it yet
-            }
-            Devices = WithKeys(list);
-            _last.Clear();
+            ReadDevices();
             _costMs.Clear();
-            _controlled = false;
             LastError = "";
+            return true;
+        }
+        catch (Exception ex) when (ex is SocketException or IOException or AggregateException or ObjectDisposedException or InvalidOperationException or InvalidDataException)
+        {
+            LastError = ex is AggregateException a ? a.InnerException?.Message ?? ex.Message : ex.Message;
+            Close();
+            if (tcp is not null && !ReferenceEquals(_tcp, tcp)) tcp.Dispose();           // a refused connect left its socket behind (every 4 s while no server runs)
+            return false;
+        }
+    }
+
+    private int _serverCount = -1;
+
+    /// <summary>Asks how many devices the server has and reads every one of them (they are only looked at: nothing is changed on them yet).</summary>
+    private void ReadDevices()
+    {
+        Send(0, MagicRequestControllerCount, []);
+        var count = BitConverter.ToUInt32(Receive(MagicRequestControllerCount), 0);
+        var list = new List<RgbDevice>();
+        for (var i = 0; i < Math.Min(count, 64u); i++)
+        {
+            Send((uint)i, RequestControllerData, _protocol >= 1 ? BitConverter.GetBytes(_protocol) : []);
+            if (ParseController(i, Receive(RequestControllerData), _protocol) is { } device) list.Add(device);
+        }
+        Devices = WithKeys(list);
+        _serverCount = (int)count;
+        _last.Clear();
+        _controlledSet.Clear();
+    }
+
+    /// <summary>OpenRGB opens its port before it has finished looking for hardware, so a connection made early sees no device, or only some (memory and the motherboard come last).
+    /// This asks again and reads the list anew when the number of devices changed. True when the list changed.</summary>
+    public bool Reload()
+    {
+        if (!Connected) return false;
+        try
+        {
+            Send(0, MagicRequestControllerCount, []);
+            var count = (int)BitConverter.ToUInt32(Receive(MagicRequestControllerCount), 0);
+            if (count == _serverCount) return false;
+            ReadDevices();
             return true;
         }
         catch (Exception ex) when (ex is SocketException or IOException or AggregateException or ObjectDisposedException or InvalidOperationException or InvalidDataException)
@@ -104,14 +136,13 @@ public sealed class OpenRgbClient : IDisposable
     /// <summary>How long (ms) the server takes to put one frame on this device, measured on every frame sent. A big motherboard header or memory over a slow bus takes tens of
     /// milliseconds; it is also how far this device runs behind, which the caller makes up for by showing it the effect that far ahead.</summary>
     public double CostMs(int deviceIndex) => _costMs.GetValueOrDefault(deviceIndex);
-    private bool _controlled;
+    private readonly HashSet<int> _controlledSet = [];
 
     /// <summary>Puts every device into the mode where it takes its colours from us. Done once, when the first frame is about to be sent.</summary>
-    private void TakeControl()
+    /// <summary>A device is put in direct control the first time it is given a frame, never before: a device the person left out (no frame for it) keeps its own effect.</summary>
+    private void TakeControl(RgbDevice device)
     {
-        if (_controlled) return;
-        foreach (var device in Devices) Send((uint)device.Index, SetCustomMode, []);
-        _controlled = true;
+        if (_controlledSet.Add(device.Index)) Send((uint)device.Index, SetCustomMode, []);
     }
 
     /// <summary>Devices that talk over a slow bus (memory and many motherboards, over SMBus) get fewer frames; everything else gets up to 40 a second.</summary>
@@ -127,11 +158,11 @@ public sealed class OpenRgbClient : IDisposable
         if (!Connected) return false;
         try
         {
-            TakeControl();
             var now = Environment.TickCount64;
             foreach (var device in Devices.OrderBy(d => _costMs.GetValueOrDefault(d.Index)))    // quick devices first, the slow ones after them
             {
                 if (frameFor(device) is not { Length: > 0 } frame) continue;
+                TakeControl(device);
                 var leds = RgbEngine.Resample(frame, device.Leds);
                 var colours = new byte[leds.Length * 3];
                 for (var i = 0; i < leds.Length; i++) { colours[i * 3] = leds[i].R; colours[i * 3 + 1] = leds[i].G; colours[i * 3 + 2] = leds[i].B; }
@@ -202,7 +233,7 @@ public sealed class OpenRgbClient : IDisposable
             list[at] = fresh;
             Devices = WithKeys(list);
             _last.Remove(deviceIndex);
-            if (_controlled) Send((uint)deviceIndex, SetCustomMode, []);
+            if (_controlledSet.Contains(deviceIndex)) Send((uint)deviceIndex, SetCustomMode, []);
             return true;
         }
         catch (Exception ex) when (ex is SocketException or IOException or ObjectDisposedException or InvalidOperationException or InvalidDataException)
@@ -380,7 +411,7 @@ public sealed class OpenRgbClient : IDisposable
         try { _tcp?.Dispose(); } catch (SocketException) { }
         _stream = null;
         _tcp = null;
-        _controlled = false;
+        _controlledSet.Clear();
     }
 
     public void Dispose() => Close();

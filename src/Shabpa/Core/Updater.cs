@@ -278,7 +278,14 @@ public sealed class Updater
 
     private async Task<string> Download(UpdateInfo info, CancellationToken ct)
     {
-        var folder = Path.Combine(Path.GetTempPath(), "Shabpa-update");
+        // a fresh folder with a random name for every download: a predictable, shared folder let another program of the same user put a DLL beside the installer that then runs elevated
+        var root = Path.Combine(Path.GetTempPath(), "Shabpa-update");
+        try
+        {
+            foreach (var old in Directory.GetDirectories(root).Where(d => Directory.GetCreationTimeUtc(d) < DateTime.UtcNow.AddDays(-1))) Directory.Delete(old, true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* nothing old, or still in use */ }
+        var folder = Path.Combine(root, Guid.NewGuid().ToString("N"));
         var manifest = info.Manifest ?? throw new InvalidDataException(L.T("اطلاعات به‌روزرسانی کامل نیست.", "The update details are incomplete."));
         using var http = Http();
         var urls = UpdateSources.OrderUrls(manifest, info.Source);

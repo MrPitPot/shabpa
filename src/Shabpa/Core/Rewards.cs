@@ -15,6 +15,12 @@ public sealed class RewardsState
 {
     public DateTime FirstRun { get; set; } = DateTime.Now;
     public int Feathers { get; set; }
+    /// <summary>The owner's key is on (see <see cref="AdminKey"/>): buying costs nothing and the balance shows a very large number. The level never changes because of it.</summary>
+    public bool Unlimited { get; set; }
+    /// <summary>The balance that was really earned and not spent, kept while <see cref="Unlimited"/> shows a large number; earnings made meanwhile are added to it.</summary>
+    public int RealFeathers { get; set; }
+    /// <summary>What the balance really is: the large shown number is never used for the story picture, the chat answer or the cloud copy.</summary>
+    [System.Text.Json.Serialization.JsonIgnore] public int Balance => Unlimited ? RealFeathers : Feathers;
     /// <summary>Everything ever earned (spending is a later phase); the level comes from this.</summary>
     public int TotalFeathers { get; set; }
     public Dictionary<string, DateTime> Medals { get; set; } = [];
@@ -62,7 +68,7 @@ public sealed record MedalDef(string Id, string Icon, MedalTier Tier, bool Hidde
 {
     public string Name => L.T(NameFa, NameEn);
     public string Desc => L.T(DescFa, DescEn);
-    public int Reward => Tier switch { MedalTier.Bronze => 2, MedalTier.Silver => 5, MedalTier.Gold => 10, MedalTier.Platinum => 25, MedalTier.Diamond => 60, MedalTier.Legendary => 150, _ => 20 };
+    public int Reward => Tier switch { MedalTier.Bronze => RewardsCatalog.Boost(2), MedalTier.Silver => RewardsCatalog.Boost(5), MedalTier.Gold => RewardsCatalog.Boost(10), MedalTier.Platinum => RewardsCatalog.Boost(25), MedalTier.Diamond => RewardsCatalog.Boost(60), MedalTier.Legendary => RewardsCatalog.Boost(150), _ => RewardsCatalog.Boost(20) };
     public string TierName => Tier switch
     {
         MedalTier.Bronze => L.T("برنزی", "Bronze"),
@@ -87,6 +93,11 @@ public sealed record LevelDef(int Level, int From, string Fa, string En)
 
 public static class RewardsCatalog
 {
+    /// <summary>Every feather payment (quests, medals, bonuses, the hour) is a third more than the plan's base numbers: 30 percent, rounded to a whole feather.</summary>
+    public const double EarnBoost = 1.3;
+
+    public static int Boost(int baseFeathers) => (int)Math.Round(baseFeathers * EarnBoost, MidpointRounding.AwayFromZero);
+
     private static (double, double) Flag(bool b) => (b ? 1 : 0, 1);
     private static (double, double) Cnt(double cur, double target) => (Math.Min(cur, target), target);
 
@@ -235,7 +246,7 @@ public static class RewardsCatalog
     // The numbers come from the economy plan (economy/quests-and-referrals.md): a regular person earns about 20 feathers a day,
     // the daily ceiling is about 34. Quests of the same Family never show on the same day.
     private static QuestDef D(string id, string fa, string en, int reward, double target, Func<RewardsContext, double> v, string family = "")
-        => new(id, QuestKind.Daily, fa, en, reward, target, v, family);
+        => new(id, QuestKind.Daily, fa, en, Boost(reward), target, v, family);
 
     private static double FocusToday(RewardsContext c) => c.S.FocusLog.Count(f => f.Completed && f.Start.Date == c.Now.Date);
 
@@ -256,15 +267,15 @@ public static class RewardsCatalog
     ];
 
     /// <summary>Everything done today pays a little extra.</summary>
-    public const int DailyBonus = 4;
+    public const int DailyBonus = 5;                  // 4 + 30%
 
     /// <summary>Feathers for every full hour the person really spends with Shabpa open (typing or moving the mouse; an idle PC earns nothing), up to <see cref="HourlyMaxHours"/> hours a day.</summary>
-    public const int HourlyFeathers = 3, HourlyMaxHours = 8;
+    public const int HourlyFeathers = 4, HourlyMaxHours = 8;       // 3 + 30%
     /// <summary>All three weekly quests pay a bonus.</summary>
-    public const int WeeklyBonus = 15;
+    public const int WeeklyBonus = 20;                // 15 + 30%
 
     private static QuestDef W(string id, int tier, string fa, string en, int reward, double target, Func<RewardsContext, double> v)
-        => new(id, QuestKind.Weekly, fa, en, reward, target, v, "", tier);
+        => new(id, QuestKind.Weekly, fa, en, Boost(reward), target, v, "", tier);
 
     private static double FocusThisWeek(RewardsContext c) => c.S.FocusLog.Count(f => f.Completed && f.Start.Date >= WeekStart(c.Now));
 
@@ -289,12 +300,13 @@ public static class RewardsCatalog
         ],
     ];
 
+    // the welcome gift keeps its promised 200; the other one-time quests pay the boosted amount
     private static QuestDef O(string id, string fa, string en, int reward, double target, Func<RewardsContext, double> v)
-        => new(id, QuestKind.Once, fa, en, reward, target, v);
+        => new(id, QuestKind.Once, fa, en, id == "o.profile" ? reward : Boost(reward), target, v);
 
     private static double Yes(bool b) => b ? 1 : 0;
 
-    // 25 one-time quests that walk a new person through the app (427 feathers), the last two through Boofi's wardrobe. The first is the welcome gift of an
+    // 25 one-time quests that walk a new person through the app (200 + 30% more than the 227 of the plan), the last two through Boofi's wardrobe. The first is the welcome gift of an
     // update: a name and a birthday in Settings pay 200 feathers, enough to dress Boofi in a first few parts.
     private static readonly QuestDef[] OncePool =
     [
@@ -326,10 +338,11 @@ public static class RewardsCatalog
         O("o.firstbuy", "اولین قطعه‌ی فروشگاه رو بخر", "Buy your first store item", 10, 1, c => c.Counter("storeBuy")),
     ];
 
-    /// <summary>Saturday is the first day of the Persian week; the English interface uses Monday.</summary>
+    /// <summary>Saturday is the first day of the week, in both languages. (It used to follow the interface language, and switching language in the middle of a week changed the week's
+    /// key, so the weekly quests and their bonus were paid again.)</summary>
     public static DateTime WeekStart(DateTime now)
     {
-        var back = L.En ? ((int)now.DayOfWeek + 6) % 7 : ((int)now.DayOfWeek + 1) % 7;
+        var back = ((int)now.DayOfWeek + 1) % 7;
         return now.Date.AddDays(-back);
     }
 
@@ -388,13 +401,24 @@ public sealed class RewardsEngine
 
     public enum BuyResult { Ok, Unknown, AlreadyOwned, NotEnough }
 
+    /// <summary>Turns the owner's key on or off. On: the balance shows <see cref="AdminKey.Shown"/>. Off: the balance goes back to what was really earned.</summary>
+    public void SetUnlimited(bool on)
+    {
+        if (on == State.Unlimited) return;
+        State.Unlimited = on;
+        if (on) { State.RealFeathers = State.Feathers; State.Feathers = Math.Max(State.Feathers, AdminKey.Shown); }
+        else { State.Feathers = State.RealFeathers; State.RealFeathers = 0; }            // spending that was made before stays spent; nothing is refunded
+        _dirty = true;
+        Changed?.Invoke();
+    }
+
     /// <summary>Spends feathers on a part. Total feathers (the level) do not go down.</summary>
     public BuyResult Buy(string id)
     {
         if (BoofiCatalog.Find(id) is not { } p) return BuyResult.Unknown;
         if (Owns(id)) return BuyResult.AlreadyOwned;
-        if (State.Feathers < p.Price) return BuyResult.NotEnough;
-        State.Feathers -= p.Price;
+        if (!State.Unlimited && State.Feathers < p.Price) return BuyResult.NotEnough;
+        if (!State.Unlimited) State.Feathers -= p.Price;
         State.Owned.Add(id);
         Count("storeBuy");
         return BuyResult.Ok;
@@ -407,8 +431,8 @@ public sealed class RewardsEngine
     {
         if (PremiumTheme.Find(key) is not { } t) return BuyResult.Unknown;
         if (OwnsTheme(key)) return BuyResult.AlreadyOwned;
-        if (State.Feathers < t.Price) return BuyResult.NotEnough;
-        State.Feathers -= t.Price;
+        if (!State.Unlimited && State.Feathers < t.Price) return BuyResult.NotEnough;
+        if (!State.Unlimited) State.Feathers -= t.Price;
         State.Owned.Add(t.OwnedId);
         Count("storeBuy");
         return BuyResult.Ok;
@@ -688,12 +712,15 @@ public sealed class RewardsEngine
         if (streak > State.BestStreak) { State.BestStreak = streak; changed = true; }
         if (streak >= 7 && streak % 7 == 0)
         {
-            var mark = $"streak:{today}";
+            // keyed on the last active day of the run: at midnight, before today has an active minute, the same run is counted back from yesterday and was paid twice
+            var lastActive = State.Active.GetValueOrDefault(Key(now.Date)) >= 1 ? now.Date : now.Date.AddDays(-1);
+            var mark = $"streak:{Key(lastActive)}";
             if (!State.Claimed.Contains(mark))
             {
                 Claim(mark);
-                Pay(10);
-                _hub.Notify(L.T("هفت شب پیاپی", "Seven nights in a row"), L.T("۱۰ پَر هدیه گرفتی.", "You got 10 feathers."));
+                var gift = RewardsCatalog.Boost(10);
+                Pay(gift);
+                _hub.Notify(L.T("هفت شب پیاپی", "Seven nights in a row"), L.T($"{Fa.N(gift)} پَر هدیه گرفتی.", $"You got {gift} feathers."));
                 changed = true;
             }
         }
@@ -728,6 +755,7 @@ public sealed class RewardsEngine
     private void Pay(int feathers)
     {
         State.Feathers += feathers;
+        if (State.Unlimited) State.RealFeathers += feathers;
         State.TotalFeathers += feathers;
         if (feathers > 0) AddDay("earned", feathers);
     }

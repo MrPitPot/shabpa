@@ -93,7 +93,7 @@ public static class Payload
         {
             var path = body.ReadString();
             // Never write outside the install folder, whatever the archive says.
-            if (path.Length == 0 || System.IO.Path.IsPathRooted(path) || path.IndexOf(':') >= 0 || path.Split('/').Contains(".."))
+            if (path.Length == 0 || System.IO.Path.IsPathRooted(path) || path.IndexOf(':') >= 0 || path.IndexOf((char)92) >= 0 || path.Split('/').Contains(".."))   // a backslash separates folders on Windows: a path like dotdot-backslash-x must not slip through
                 throw new InvalidDataException($"bad path in payload: {path}");
             files.Add(new PayloadFile(path, body.ReadBytes(body.ReadInt32())));
         }

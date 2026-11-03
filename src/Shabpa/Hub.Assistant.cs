@@ -47,6 +47,14 @@ public sealed partial class Hub
         // a card that waited on screen past its own time must not run late
         if (command.At is { } late && late <= now && command.Intent is CommandIntent.Power or CommandIntent.Reminder && command.Repeat.Count == 0)
             return Reply(false, L.T("زمانش گذشت. دوباره بنویس.", "That time has passed. Type it again."));
+        // what the person switched off in Settings is not started again by a sentence (the lights, the overlay, night light and game mode, tasks and focus)
+        var offTab = command.Intent switch
+        {
+            CommandIntent.Rgb => "rgb", CommandIntent.Overlay => "gaming", CommandIntent.NightLight or CommandIntent.SleepMode or CommandIntent.GameMode => "comfort",
+            CommandIntent.Focus => "tasks", CommandIntent.OpenPage => command.Page.Split(':')[0], _ => "",
+        };
+        if (offTab is { Length: > 0 } && OptionalTabs.Contains(offTab) && TabOff(offTab))
+            return Reply(false, L.T("این بخش توی تنظیمات خاموش شده؛ از «بخش‌های برنامه» روشنش کن.", "That part is switched off in Settings; switch it on under “Parts of the app”."));
         switch (command.Intent)
         {
             case CommandIntent.Power when command.Condition is { } rule:
@@ -95,9 +103,14 @@ public sealed partial class Hub
             {
                 var item = Tasks.Add(command.Title, command.At, command.At is null ? -1 : 0, now: now);
                 if (item is null) return Reply(false, L.T("کار اضافه نشد (لیست پره یا عنوان خالیه).", "The task was not added (the list is full or the title is empty)."));
-                return Reply(true, command.At is { } due
+                // asking for a reminder switches the reminders back on if they were off (they stay off when the person never asks)
+                var wasOff = command.At is not null && !Settings.TaskReminders;
+                if (wasOff) { Settings.TaskReminders = true; Store.Save(); }
+                return Reply(true, (command.At is { } due
                     ? L.T($"یادآوری ثبت شد: {Fa.DayOf(due, now)} ساعت {Fa.Clock(due)}.", $"Reminder set: {Fa.DayOf(due, now)} at {Fa.Clock(due)}.")
-                    : L.T("به کارها اضافه شد.", "Added to your tasks."));
+                    : L.T("به کارها اضافه شد.", "Added to your tasks."))
+                    + (wasOff ? L.T(" (یادآورها خاموش بودن؛ روشنشون کردم.)", " (Reminders were off; I switched them on.)") : "")
+                    + (TabOff("tasks") ? L.T(" بخش «کارها» توی تنظیمات خاموشه، ولی یادآور کار می‌کنه.", " The Tasks part is switched off in Settings, but the reminder works.") : ""));
             }
             case CommandIntent.Focus when !command.On:
                 Focus.Stop(now);
@@ -320,8 +333,18 @@ public sealed partial class Hub
                 var r = Rewards;
                 var lv = r.Level;
                 var next = r.NextLevel;
-                return L.T($"سطح {Fa.N(lv.Level)} «{lv.Name}» · {Fa.N(r.State.Feathers)} پَر · {Fa.N(r.Streak)} شب پیاپی · {Fa.N(r.State.Medals.Count)} مدال.", $"Level {lv.Level} “{lv.Name}” · {r.State.Feathers} feathers · {r.Streak}-night streak · {r.State.Medals.Count} medals.")
+                return L.T($"سطح {Fa.N(lv.Level)} «{lv.Name}» · {Fa.N(r.State.Balance)} پَر · {Fa.N(r.Streak)} شب پیاپی · {Fa.N(r.State.Medals.Count)} مدال.", $"Level {lv.Level} “{lv.Name}” · {r.State.Balance} feathers · {r.Streak}-night streak · {r.State.Medals.Count} medals.")
                     + (next is null ? "" : L.T($" تا سطح بعد {Fa.N(next.From - r.State.TotalFeathers)} پَر مونده.", $" {next.From - r.State.TotalFeathers} feathers to the next level."));
+            }
+            case var adminKind when adminKind.StartsWith("admin:", StringComparison.Ordinal):
+            {
+                // never over the Telegram bot, and the wrong word looks like any unknown sentence
+                if (origin == "bot" || !AdminKey.Verify(adminKind[6..])) return L.T("نمی‌دونم چی بگم.", "I do not know what to say.");
+                var on = !Rewards.State.Unlimited;
+                Rewards.SetUnlimited(on);
+                Store.Save();
+                return on ? L.T("پَر نامحدود روشن شد. 🪶 (دوباره بنویسی خاموش می‌شه.)", "Unlimited feathers are on. 🪶 (Write it again to turn it off.)")
+                          : L.T("پَر نامحدود خاموش شد.", "Unlimited feathers are off.");
             }
             case var calcKind when calcKind.StartsWith("calc:"):
                 return CalcText(calcKind[5..]) is { } answer ? $"{calcKind[5..].Trim()} = {Fa.Digits(answer)}" : L.T("این رو نتونستم حساب کنم.", "I could not work that out.");

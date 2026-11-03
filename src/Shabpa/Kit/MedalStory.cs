@@ -46,7 +46,7 @@ public static class MedalStory
         var level = hub.Rewards.Level;
         var rank = r.Medals.Count(m => m.Value <= when);
         var monthStart = Fa.MonthStart(DateTime.Now);
-        return new StoryData(medal, when, r.Medals.Count, RewardsCatalog.Medals.Count, Math.Max(1, rank), level.Level, level.Name, hub.Rewards.Streak, r.Feathers,
+        return new StoryData(medal, when, r.Medals.Count, RewardsCatalog.Medals.Count, Math.Max(1, rank), level.Level, level.Name, hub.Rewards.Streak, r.Balance,
             r.Medals.Count(m => m.Value >= monthStart),
             r.Days.Count(d => DateTime.TryParseExact(d, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var t) && t >= monthStart),
             hub.Settings.Birthday.Name);

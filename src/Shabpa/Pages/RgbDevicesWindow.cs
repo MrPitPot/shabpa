@@ -55,6 +55,7 @@ public sealed class RgbDevicesWindow : Window
         ShowInTaskbar = false;
         WindowStartupLocation = MainOrNull() is not null ? WindowStartupLocation.CenterOwner : WindowStartupLocation.CenterScreen;
         Background = (Brush)Application.Current.Resources["Bg"];
+        Foreground = (Brush)Application.Current.Resources["Text"];     // without it every text without its own colour is the system's black on the dark window
         FontFamily = (FontFamily)Application.Current.Resources["Ui"];
         UseLayoutRounding = true;
         SourceInitialized += (_, _) => Ui.Chrome(this);
@@ -139,7 +140,7 @@ public sealed class RgbDevicesWindow : Window
 
         // title row: name and facts on one side, the switch on the other
         var head = new DockPanel();
-        var toggle = new Switch { IsChecked = enabled, VerticalAlignment = VerticalAlignment.Center, ToolTip = L.T("خاموش باشه، شب‌پا به این دستگاه دست نمی‌زنه.", "Off: Shabpa does not touch this device.") };
+        var toggle = new Switch { IsChecked = enabled, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(14, 0, 14, 0), ToolTip = L.T("خاموش باشه، شب‌پا به این دستگاه دست نمی‌زنه.", "Off: Shabpa does not touch this device.") };
         toggle.Click += (_, _) => { rgb.DeviceSetting(device.Key).Enabled = toggle.IsChecked == true; Hub.Store.Save(); Refresh(true); };
         DockPanel.SetDock(toggle, Dock.Left);
         head.Children.Add(toggle);
@@ -148,7 +149,7 @@ public sealed class RgbDevicesWindow : Window
         var facts = $"{TypeName(device.Type)}  ·  {Fa.Digits(device.Leds.ToString())} {L.T("ال‌ای‌دی", "LEDs")}" + (device.Vendor.Length > 0 ? $"  ·  {device.Vendor}" : "");
         titles.Children.Add(new TextBlock { Text = facts, Style = (Style)Application.Current.Resources["Label"], TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Left });
         if (device.Location.Length > 0 || device.Description.Length > 0)
-            titles.Children.Add(new TextBlock { Text = string.Join("  ·  ", new[] { device.Description, device.Location }.Where(x => x.Length > 0)), Style = (Style)Application.Current.Resources["Label"], FontSize = 11, Opacity = .7, TextTrimming = TextTrimming.CharacterEllipsis, HorizontalAlignment = HorizontalAlignment.Left, FlowDirection = FlowDirection.LeftToRight });
+            titles.Children.Add(new TextBlock { Text = string.Join("  ·  ", new[] { device.Description, device.Location }.Where(x => x.Length > 0)), Style = (Style)Application.Current.Resources["Label"], FontSize = 12, Opacity = .9, TextTrimming = TextTrimming.CharacterEllipsis, HorizontalAlignment = HorizontalAlignment.Left, FlowDirection = FlowDirection.LeftToRight });
         head.Children.Add(titles);
         stack.Children.Add(head);
 
@@ -163,7 +164,7 @@ public sealed class RgbDevicesWindow : Window
             {
                 CornerRadius = new CornerRadius(9), Padding = new Thickness(10, 4, 10, 4), Margin = new Thickness(0, 0, 6, 4), Cursor = System.Windows.Input.Cursors.Hand, BorderThickness = new Thickness(1.3),
                 BorderBrush = on ? Res("Accent") : Res("Line"), Background = on ? Res("AccentSoft") : Res("Panel2"),
-                Child = new TextBlock { Text = z.Name, FontSize = 12, FontWeight = on ? FontWeights.Bold : FontWeights.Normal },
+                Child = new TextBlock { Text = z.Name, FontSize = 13, FontWeight = on ? FontWeights.Bold : FontWeights.Normal },
             };
             var key = z.Key;
             chip.MouseLeftButtonUp += (_, _) => { rgb.DeviceSetting(device.Key).Zone = key == device.Zone ? "" : key; Hub.Store.Save(); Refresh(true); };
@@ -216,7 +217,8 @@ public sealed class RgbDevicesWindow : Window
         var apply = new Button { Style = (Style)Application.Current.Resources["Btn"], Content = L.T("اعمال", "Apply"), Padding = new Thickness(12, 5, 12, 5), VerticalAlignment = VerticalAlignment.Center };
         apply.Click += (_, _) =>
         {
-            if (!int.TryParse(box.Text.Trim(), out var n)) return;
+            var typed = new string(box.Text.Trim().Select(c => c is >= '۰' and <= '۹' ? (char)('0' + (c - '۰')) : c is >= '٠' and <= '٩' ? (char)('0' + (c - '٠')) : c).ToArray());     // Persian and Arabic digits too
+            if (!int.TryParse(typed, out var n)) { _status.Text = L.T("یک عدد بنویس.", "Type a number."); return; }
             n = Math.Clamp(n, zone.Min, zone.Max);
             box.Text = n.ToString();
             Hub.Settings.Rgb.ZoneSizes[RgbService.SizeKey(device, zone)] = n;       // remembered: the automatic maximum does not undo it

@@ -103,6 +103,8 @@ public partial class MainWindow : Window
         DryRunPill.Visibility = hub.DryRun ? Visibility.Visible : Visibility.Collapsed;
         // Nobody sees a hidden window, so it is not redrawn every second; showing it again refreshes everything.
         hub.OpenPage += Navigate;
+        hub.TabsChanged += ApplyTabs;
+        ApplyTabs();
         hub.Changed += OnHubChanged;
         hub.Tick += s => { if (!Shown || _inTick) return; _inTick = true; var t0 = System.Diagnostics.Stopwatch.GetTimestamp(); try { StackGauge.Sample("hub.tick"); PageBase.SafeTick(_current, s); UpdateSide(); } finally { _inTick = false; PageTiming.Record("hub.tick (page + side)", System.Diagnostics.Stopwatch.GetElapsedTime(t0).TotalMilliseconds); } };
         hub.Second += () => { if (Shown) { PageBase.SafeSecond(_current); UpdateSide(); if (++_trimTick % 30 == 0) TrimPages(); } };
@@ -196,8 +198,8 @@ public partial class MainWindow : Window
         if (System.Windows.Input.Keyboard.Modifiers != System.Windows.Input.ModifierKeys.Control) return;
         string? key = e.Key switch
         {
-            >= System.Windows.Input.Key.D1 and <= System.Windows.Input.Key.D9 => _pages.Keys.ElementAtOrDefault(e.Key - System.Windows.Input.Key.D1),
-            >= System.Windows.Input.Key.NumPad1 and <= System.Windows.Input.Key.NumPad9 => _pages.Keys.ElementAtOrDefault(e.Key - System.Windows.Input.Key.NumPad1),
+            >= System.Windows.Input.Key.D1 and <= System.Windows.Input.Key.D9 => ShownKeys().ElementAtOrDefault(e.Key - System.Windows.Input.Key.D1),
+            >= System.Windows.Input.Key.NumPad1 and <= System.Windows.Input.Key.NumPad9 => ShownKeys().ElementAtOrDefault(e.Key - System.Windows.Input.Key.NumPad1),
             System.Windows.Input.Key.OemComma => "settings",
             _ => null,
         };
@@ -365,6 +367,34 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>The page keys in the order of the list, without the tabs switched off (Ctrl+1 is the first tab that is there).</summary>
+    private IEnumerable<string> ShownKeys() => _pages.Keys.Where(k => !Hub.I.TabOff(k));
+
+    /// <summary>The tabs switched off in Settings leave the list (and their pages are let go); a heading with nothing under it goes too. If the open page was switched off, Home opens.</summary>
+    private void ApplyTabs()
+    {
+        var hub = Hub.I;
+        foreach (var (key, _, _) in OptionalTabs.All)
+        {
+            if (!_pages.TryGetValue(key, out var entry)) continue;
+            var off = hub.TabOff(key);
+            entry.nav.Visibility = off ? Visibility.Collapsed : Visibility.Visible;
+            if (off && _built.TryGetValue(key, out var built) && !ReferenceEquals(built, _current)) { _built.Remove(key); _leftAt.Remove(key); }
+        }
+        RewardsEngine.PageCount = _pages.Keys.Count(k => k != "kit" && !hub.TabOff(k));        // «open N different parts» counts the parts that are there
+        // a group heading shows only while one of the tabs under it does
+        TextBlock? heading = null;
+        var any = false;
+        void Settle() { if (heading is not null) heading.Visibility = any ? Visibility.Visible : Visibility.Collapsed; }
+        foreach (var child in NavPanel.Children)
+        {
+            if (child is TextBlock t) { Settle(); heading = t; any = false; }
+            else if (child is RadioButton r && r.Visibility == Visibility.Visible) any = true;
+        }
+        Settle();
+        if (_current is not null && _built.FirstOrDefault(kv => ReferenceEquals(kv.Value, _current)).Key is { } openKey && hub.TabOff(openKey)) Navigate("home");
+    }
+
     private PageBase Page(string key)
     {
         if (_built.TryGetValue(key, out var page)) return page;
@@ -381,6 +411,7 @@ public partial class MainWindow : Window
     {
         var parts = key.Split(':');
         if (!_pages.TryGetValue(parts[0], out var entry)) return;
+        if (Hub.I.TabOff(parts[0])) return;                    // switched off in Settings
         var page = Page(parts[0]);
         if (parts.Length > 1 && page is SystemPage system) system.Select(parts[1]);
         if (parts.Length > 1 && page is TabsPage tabs) tabs.Select(parts[1]);

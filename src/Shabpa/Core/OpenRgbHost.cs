@@ -44,7 +44,7 @@ public static class OpenRgbHost
     {
         get
         {
-            try { return File.Exists(ExePath) && File.Exists(Marker) && File.ReadAllText(Marker).Trim() == Release.Sha256; }
+            try { return File.Exists(ExePath) && File.Exists(Marker) && File.ReadAllText(Marker).Split('\n')[0].Trim() == Release.Sha256; }
             catch (IOException) { return false; }
         }
     }
@@ -114,7 +114,8 @@ public static class OpenRgbHost
 
             Unpack(temp, staging);
             if (!File.Exists(Path.Combine(staging, "OpenRGB.exe"))) return new(false, "unpack");
-            File.WriteAllText(Path.Combine(staging, "shabpa-openrgb.txt"), release.Sha256);
+            // line 1: the SHA-256 of the file that was downloaded; line 2: the SHA-256 of the OpenRGB.exe that came out of it, checked again before every start
+            File.WriteAllText(Path.Combine(staging, "shabpa-openrgb.txt"), release.Sha256 + "\n" + HashOf(Path.Combine(staging, "OpenRGB.exe")));
             Stop();
             if (Directory.Exists(Folder)) Directory.Delete(Folder, true);   // only ever Shabpa's own copy
             Directory.Move(staging, Folder);
@@ -193,12 +194,58 @@ public static class OpenRgbHost
         catch (Exception ex) when (ex is SocketException or AggregateException) { return false; }
     }
 
-    /// <summary>Starts the hidden server unless one already answers. Returns true when Shabpa started it just now.</summary>
-    public static bool Start(int port = 6742)
+    private static string HashOf(string file)
+    {
+        using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read);
+        return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
+    }
+
+    /// <summary>The folder is writable by anything the person runs, and Shabpa is often elevated: an OpenRGB.exe that is not the one that was unpacked is never started. An install from before this
+    /// check has no second line; its exe is taken as it is now, and recorded.</summary>
+    internal static bool ExeIntact()
+    {
+        try
+        {
+            var lines = File.ReadAllText(Marker).Split('\n');
+            var now = HashOf(ExePath);
+            if (lines.Length < 2 || lines[1].Trim().Length == 0)
+            {
+                File.WriteAllText(Marker, lines[0].Trim() + "\n" + now);
+                return true;
+            }
+            return string.Equals(lines[1].Trim(), now, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return false; }
+    }
+
+    private static long _noRetryUntil;
+    private static int _quickEnds;
+
+    /// <summary>A server that ends within this time of its start did not really start (a missing file, a blocked driver).</summary>
+    internal const int QuickEndMs = 20_000;
+
+    /// <summary>Called when the server we started has ended by itself after <paramref name="aliveMs"/>: three such quick ends in a row stop the restarts for five minutes (a server that
+    /// cannot start was started again every few seconds, for ever).</summary>
+    internal static void NoteEnded(long aliveMs, long now)
+    {
+        if (aliveMs >= QuickEndMs) { _quickEnds = 0; return; }
+        if (++_quickEnds < 3) return;
+        _quickEnds = 0;
+        _noRetryUntil = now + 5 * 60_000;
+        Log.Write("openrgb server keeps ending right after it starts: not tried again for five minutes");
+    }
+
+    /// <summary>True while restarts are paused because the server keeps ending right after it starts.</summary>
+    public static bool Paused => Environment.TickCount64 < _noRetryUntil;
+
+    /// <summary>Starts the hidden server unless one already answers. Returns true when Shabpa started it just now. <paramref name="force"/> (the person pressed «start again») ends a pause.</summary>
+    public static bool Start(int port = 6742, bool force = false)
     {
         lock (Gate)
         {
-            if (!Installed || IsListening(port)) return false;
+            if (force) { _noRetryUntil = 0; _quickEnds = 0; }
+            if (!Installed || IsListening(port) || Paused) return false;
+            if (!ExeIntact()) { Log.Write("openrgb: the program file is not the one that was unpacked; it is not started"); return false; }
             if (_process is { HasExited: false }) return false;                 // started a moment ago, still detecting hardware
             try
             {
@@ -210,9 +257,16 @@ public static class OpenRgbHost
                 if (_process is { } started)
                 {
                     started.EnableRaisingEvents = true;
+                    var since = Environment.TickCount64;
                     started.Exited += (_, _) =>
                     {
-                        try { LastExit = started.ExitCode; Log.Write($"openrgb server ended by itself, exit code {started.ExitCode}"); }
+                        try
+                        {
+                            if (Environment.TickCount64 - _lastStop < 4000) return;      // Shabpa ended it (the lights were switched off), not a failure
+                            LastExit = started.ExitCode;
+                            Log.Write($"openrgb server ended by itself, exit code {started.ExitCode}");
+                            NoteEnded(Environment.TickCount64 - since, Environment.TickCount64);
+                        }
                         catch (InvalidOperationException) { /* disposed by Stop */ }
                     };
                 }
@@ -228,10 +282,13 @@ public static class OpenRgbHost
     }
 
     /// <summary>Ends the server Shabpa started (and any left over from a crash of Shabpa), never one the person runs from somewhere else.</summary>
+    private static long _lastStop;
+
     public static void Stop()
     {
         lock (Gate)
         {
+            _lastStop = Environment.TickCount64;
             try { if (_process is { HasExited: false }) _process.Kill(entireProcessTree: true); }
             catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { }
             _process?.Dispose();

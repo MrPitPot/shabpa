@@ -558,7 +558,13 @@ public partial class App : Application
 
         _tray = new Tray(ShowWindow, Quit);
         hub.UpdateRequired += info => Dispatcher.BeginInvoke(() => ForcedUpdateWindow.Show(info));
-        hub.Notified += (title, text) => { if (_window?.ShowToast(title, text) != true) _tray?.Balloon(title, text); };
+        hub.Notified += (title, text) =>
+        {
+            if (_window?.ShowToast(title, text) == true) return;
+            _tray?.Balloon(title, text);
+            UiSound.Play(UiSound.Kind.Notice);              // the Windows balloon is silent when the window is closed to the tray
+        };
+        hub.AlarmRaised += (title, text, snooze) => Dispatcher.BeginInvoke(() => AlarmWindow.Show(title, text, snooze));
         hub.Changed += () => _tray.Refresh();
         _tray.Refresh();
 

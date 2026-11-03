@@ -63,9 +63,12 @@ public sealed class RgbService : IDisposable
         if (e.Mode == Microsoft.Win32.PowerModes.Suspend)
         {
             _suspended = true;
-            using var done = new ManualResetEventSlim();
-            _jobs.Enqueue(c => { c.Update(_ => [Rgb.Black]); done.Set(); });
-            done.Wait(600);                                     // the lights go out before the PC does
+            if (_client.Connected)
+            {
+                using var done = new ManualResetEventSlim();
+                _jobs.Enqueue(c => { c.Update(Dark, force: true); done.Set(); });
+                done.Wait(600);                                 // the lights go out before the PC does
+            }
         }
         else if (e.Mode == Microsoft.Win32.PowerModes.Resume)
         {
@@ -81,9 +84,12 @@ public sealed class RgbService : IDisposable
         if (!rgb.Enabled || !rgb.StartupEffect || !_driving || rgb.Transition == "none") return;
         PlayTransition(false);                                  // the shutdown effect: about a second, then dark
         Thread.Sleep(RgbTransitions.DurationMs + 150);
-        _jobs.Enqueue(c => c.Update(_ => [Rgb.Black]));
+        _jobs.Enqueue(c => c.Update(Dark, force: true));
         Thread.Sleep(150);
     }
+
+    /// <summary>The frame of «off»: black for every device Shabpa drives, nothing for one the person left out (Shabpa never touches that one).</summary>
+    private Rgb[]? Dark(RgbDevice device) => _settings().Rgb.FindDevice(device.Key) is { Enabled: false } ? null : [Rgb.Black];
 
     private void PlayTransition(bool on)
     {
@@ -92,6 +98,17 @@ public sealed class RgbService : IDisposable
     }
 
     private bool _transOn;
+    private long _connectedAt, _nextReload;
+
+    /// <summary>For the first three minutes after connecting, every few seconds: has the server found more devices since? (It listens before it has finished looking, and on a slow PC the
+    /// memory and the motherboard turn up last.) New devices get their header sizes at once.</summary>
+    private void MaybeReload(RgbSettings rgb)
+    {
+        var now = Environment.TickCount64;
+        if (!_client.Connected || now < _nextReload) return;
+        _nextReload = now - _connectedAt < 180_000 ? now + 6000 : _client.Devices.Count == 0 ? now + 30_000 : long.MaxValue;     // a server that is still empty after three minutes (slow boot) keeps being asked
+        if (_client.Reload()) { QueueHeaderSizes(rgb); Log.Write($"lighting: the server now has {_client.Devices.Count} devices"); }
+    }
 
     /// <summary>0 to 1: how much of the lights shows while a fade in or out is running; 1 when none is.</summary>
     private double TransitionVisible()
@@ -179,6 +196,7 @@ public sealed class RgbService : IDisposable
     /// <summary>Gives a header zone of a device a size (how many LEDs are plugged in) and re-reads the device. <paramref name="done"/> gets the result on the loop's thread.</summary>
     public void ResizeZone(int deviceIndex, int zoneIndex, int count, Action<bool>? done = null)
     {
+        if (!_client.Connected) { done?.Invoke(false); return; }
         _jobs.Enqueue(client => done?.Invoke(client.ResizeZone(deviceIndex, zoneIndex, count)));
         EnsureRunning();
     }
@@ -305,7 +323,7 @@ public sealed class RgbService : IDisposable
         if (local && OpenRgbHost.Installed && OpenRgbHost.Start(port)) { _nextConnect = Environment.TickCount64 + 6000; return; }
         var ok = _client.Connect(rgb.Host.Length > 0 ? rgb.Host : "127.0.0.1", port);
         _nextConnect = Environment.TickCount64 + (ok ? 0 : 4000);
-        if (ok) QueueHeaderSizes(rgb);
+        if (ok) { QueueHeaderSizes(rgb); _connectedAt = Environment.TickCount64; _nextReload = _connectedAt + 5000; }
         if (silent) return;
         if (!ok) SetLink(RgbLink.NoServer, _client.LastError);
         else SetLink(_client.Devices.Count == 0 ? RgbLink.NoDevices : RgbLink.Sending);
@@ -330,11 +348,15 @@ public sealed class RgbService : IDisposable
     }
 
     private static bool Needs(RgbSettings rgb, RgbPattern pattern) =>
-        RgbZones.All.Any(z => LookOf(rgb, z.Key) is { } look && (look.CustomPattern ?? look.Effect.Pattern) == pattern);
+        RgbZones.All.Any(z => LookOf(rgb, z.Key) is { } look && (look.CustomPattern ?? look.Effect.Pattern) == pattern)
+        || rgb.Devices.Any(d => d.Own && d.Enabled && LookOf(rgb, d.Look) is { } own && (own.CustomPattern ?? own.Effect.Pattern) == pattern);
+
+    private volatile bool _disposed;
 
     private async Task Loop(CancellationToken token)
     {
         var started = Environment.TickCount64;
+        var failed = false;
         try
         {
             using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(33));
@@ -398,15 +420,15 @@ public sealed class RgbService : IDisposable
                     if (_client.Connected && _blackLeft > 0)
                     {
                         // «off» is sent three times and never held back by the usual rate limits: a device that had just been given a frame used to skip it and stay lit
-                        _client.Update(_ => [Rgb.Black], force: true);
+                        _client.Update(Dark, force: true);
                         _blackLeft--;
                     }
-                    else if (!_client.Connected) { _blackLeft = 0; _driving = false; }
+                    else if (!_client.Connected) { _blackLeft = 0; _driving = false; _transStart = 0; }      // no fade left over: it would keep every frame black the next time the lights are switched on
                     if (_previewUsers > 0)
                     {
                         // the page is open with the lights off: still look at what is there (the devices window needs it) and let «test» blink a device
                         if (!_client.Connected) Connect(rgb, silent: true);
-                        else if (!_identify.IsEmpty) _client.Update(IdentifyOnly);
+                        else { MaybeReload(rgb); if (!_identify.IsEmpty) _client.Update(IdentifyOnly); }
                     }
                     continue;
                 }
@@ -415,6 +437,7 @@ public sealed class RgbService : IDisposable
                     if (Environment.TickCount64 >= _nextConnect) Connect(rgb, silent: false);
                     continue;
                 }
+                MaybeReload(rgb);
                 if (_client.Devices.Count == 0) { SetLink(RgbLink.NoDevices); continue; }
                 if (_suspended) continue;                                                       // Windows is going to sleep (or just woke): nothing is sent
                 if (rgb.PauseInGame && _gameRunning?.Invoke() == true) { SetLink(RgbLink.Sending); continue; }   // a game is running: the lights keep what they show
@@ -435,6 +458,7 @@ public sealed class RgbService : IDisposable
         catch (OperationCanceledException) { /* stopped */ }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
+            failed = true;
             Log.Write($"rgb loop: {ex.GetType().Name}: {ex.Message}");
         }
         finally
@@ -445,6 +469,9 @@ public sealed class RgbService : IDisposable
                 _cts = null;
             }
             if (!_settings().Rgb.Enabled) { SetLink(RgbLink.Off); if (_previewUsers <= 0) OpenRgbHost.Stop(); }   // lights off: the hidden server stops too and costs nothing
+            // The lights were switched on again (or the page opened) in the instant the loop was deciding to stop: that request found the loop still "running" and did nothing, and the
+            // lights stayed dark until the next click. A loop that died of an error starts again after a moment.
+            if (!_disposed && (WantsHardware || _previewUsers > 0)) _ = Task.Delay(failed ? 2000 : 0).ContinueWith(_ => EnsureRunning(), TaskScheduler.Default);
         }
     }
 
@@ -463,6 +490,7 @@ public sealed class RgbService : IDisposable
             Microsoft.Win32.SystemEvents.SessionEnding -= OnSessionEnding;
         }
         catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { }
+        _disposed = true;
         lock (_gate) { _cts?.Cancel(); }
         _client.Dispose();
         OpenRgbHost.Stop();

@@ -326,7 +326,7 @@ public sealed partial class Hub
             if (!_appStartRan && now - _startedAt > TimeSpan.FromSeconds(20))
             {
                 _appStartRan = true;
-                foreach (var trigger in State.Triggers.Where(t => t.Enabled && t.Kind == TriggerKind.AppStart).ToList())
+                foreach (var trigger in State.Triggers.Where(t => t.Enabled && t.Kind == TriggerKind.AppStart && !TabOff("profiles")).ToList())
                     if (State.Profiles.FirstOrDefault(p => p.Id == trigger.ProfileId) is { } profile && !Core.Profiles.HasPower(profile))
                     {
                         trigger.LastRun = now;
@@ -388,7 +388,7 @@ public sealed partial class Hub
             _lastSave = now;
             // On the UI thread on purpose: everything that mutates the state lives here too.
             Store.Save();
-            if (!Store.ReadOnly && !Demo) Usage.Save(UsageFile);
+            if (!Store.ReadOnly && !Demo) Usage.Save(UsageFile, background: true);
         }
         Second?.Invoke();
     }
@@ -505,14 +505,16 @@ public sealed partial class Hub
             Usage.Update(s.Time, Apps);
         }
 
-        GameProcess = s.GameProcess;
+        // the game that is still running counts for the speed guard even while another window is in front (alt-tab to voice chat): the limiter used to stop and start again at every alt-tab
+        GameProcess = s.GameProcess.Length > 0 ? s.GameProcess : s.GameKey;
         Replan();
         NetTick?.Invoke();
     }
 
     private void Replan()
     {
-        var plan = LimitPlanner.Plan(State.NetLimits, Settings.GuardEnabled, Settings.GuardCapMbps, GameProcess, Apps, DateTime.Now, Settings.GuardDownCapMbps);
+        // a tab switched off runs nothing: no limits and no automatic game cap while «ping stability» is off
+        var plan = TabOff("ping") ? [] : LimitPlanner.Plan(State.NetLimits, Settings.GuardEnabled, Settings.GuardCapMbps, GameProcess, Apps, DateTime.Now, Settings.GuardDownCapMbps);
         Planned = plan;
         var signature = LimitPlanner.Signature(plan);
         if (signature == _appliedSignature || _applying) return;
@@ -529,7 +531,8 @@ public sealed partial class Hub
         _applying = true;
         Task.Run(() =>
         {
-            Shaper.Apply(plan);
+            try { Shaper.Apply(plan); }
+            catch (Exception ex) { Log.Write($"shaper apply: {ex.GetType().Name}: {ex.Message}"); }      // a throw here used to leave _applying set for ever, and no later plan was applied
             Application.Current?.Dispatcher.BeginInvoke(() =>
             {
                 _applying = false;
@@ -720,7 +723,7 @@ public sealed partial class Hub
     private async Task AnnounceUpdate()
     {
         if (await Updater.CheckAsync() is not { } info) return;
-        if (Settings.ForceUpdates && info.Manifest is not null) _forced = info;        // only a version from a signed manifest can force anything
+        if (Settings.ForceUpdates && info.Manifest is not null && info.Source is { Legacy: false }) _forced = info;        // only a version from a signed manifest can force anything (the unsigned GitHub-API answer cannot)
         var version = info.Version.ToString(3);
         if (Settings.AnnouncedVersion == version) return;
         Settings.AnnouncedVersion = version;
@@ -846,6 +849,7 @@ public sealed partial class Hub
 
     private void RunBackups(DateTime now)
     {
+        if (TabOff("files")) return;
         if (now - _lastBackupCheck < TimeSpan.FromSeconds(30)) return;
         _lastBackupCheck = now;
         // not right after start (the PC is busy booting), not while a game runs, one at a time
@@ -1041,6 +1045,7 @@ public sealed partial class Hub
     }
     private void RunTriggers(DateTime now)
     {
+        if (TabOff("profiles")) return;
         // game start / end: edges of the "a game is running" flag
         var game = Snapshot.GameRunning;
         var edge = game != _gameWas;
@@ -1132,15 +1137,18 @@ public sealed partial class Hub
                 ended == FocusPhase.Focus
                     ? (Focus.Phase == FocusPhase.LongBreak ? L.T("آفرین! یه استراحت بلند بکن.", "Well done! Take a long break.") : L.T("آفرین! چند دقیقه استراحت کن.", "Well done! Take a short break."))
                     : (Focus.Phase == FocusPhase.Focus ? L.T("وقت دور بعدی تمرکزه.", "Time for the next focus round.") : L.T("هر وقت آماده بودی دوباره شروع کن.", "Start again whenever you are ready.")));
-            try { System.Media.SystemSounds.Asterisk.Play(); } catch (Exception ex) { Log.Write($"focus sound: {ex.Message}"); }
+            try { if (!AlarmTone.Active) System.Media.SystemSounds.Asterisk.Play(); } catch (Exception ex) { Log.Write($"focus sound: {ex.Message}"); }
         }
         if (now - _lastTaskCheck < TimeSpan.FromSeconds(10)) return;
         _lastTaskCheck = now;
         if (!Settings.TaskReminders) return;
+        // while a game runs in quiet mode nothing is announced, and a reminder must not be used up unseen: it is announced when the game is over
+        if (GameModeActive && Settings.Comfort.GameModeQuiet) return;
         foreach (var task in Tasks.TakeDueReminders(now))
         {
             var when = task.Due is { } due ? L.T($"موعد: {Fa.Clock(due)}", $"Due: {due:HH:mm}") : "";
-            Notify(L.T("یادآور کار", "Task reminder"), task.Title + (when.Length > 0 ? Environment.NewLine + when : ""));
+            var id = task.Id;
+            Alarm(L.T("یادآور کار", "Task reminder"), task.Title + (when.Length > 0 ? Environment.NewLine + when : ""), () => Tasks.Snooze(id, 10, DateTime.Now));
         }
     }
 
@@ -1192,7 +1200,7 @@ public sealed partial class Hub
         }
 
         // keep the PC awake around a scheduled download, and wake it up for the next one
-        var soon = State.DownloadPlans.Any(p => p.State == PlanState.Running || (p.State == PlanState.Waiting && Math.Abs((p.StartAt - now).TotalMinutes) < 3));
+        var soon = !TabOff("download") && State.DownloadPlans.Any(p => p.State == PlanState.Running || (p.State == PlanState.Waiting && Math.Abs((p.StartAt - now).TotalMinutes) < 3));
         if (soon != _holdingAwake)
         {
             _holdingAwake = soon;
@@ -1201,7 +1209,7 @@ public sealed partial class Hub
         if (now - _lastWakeCheck > TimeSpan.FromSeconds(30))
         {
             _lastWakeCheck = now;
-            if (NextWakeForDownloads(now) is { } wake) _wake.Set(wake);
+            if (!TabOff("download") && NextWakeForDownloads(now) is { } wake) _wake.Set(wake);
             else _wake.Clear();
         }
     }
@@ -1359,6 +1367,7 @@ public sealed partial class Hub
 
     private void RunDownloadPlans(DateTime now)
     {
+        if (TabOff("download")) return;
         foreach (var plan in State.DownloadPlans.ToList())
         {
             if (plan.State == PlanState.Waiting)
@@ -1822,7 +1831,7 @@ public sealed partial class Hub
 
     public void Notify(string title, string text, string? target = null)
     {
-        if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+        if (!Synchronous && Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
         {
             dispatcher.BeginInvoke(() => Notify(title, text, target));
             return;
@@ -1833,6 +1842,89 @@ public sealed partial class Hub
         // game mode: nothing pops up over the game; it is all in the notice list afterwards
         if (GameModeActive && Settings.Comfort.GameModeQuiet) return;
         Notified?.Invoke(title, text);
+    }
+
+    /// <summary>A reminder is due and must be noticed: the window with the alarm sound (see <see cref="AlarmWindow"/>). The text is the notice's title, its text and what
+    /// «ten minutes later» does (null: no such button).</summary>
+    public event Action<string, string, Action?>? AlarmRaised;
+
+    /// <summary>Tests: notices and alarms are raised on the calling thread, even when some other test has left a WPF application with a window thread behind.</summary>
+    internal bool Synchronous;
+
+    /// <summary>Raises a reminder with the alarm sound. With the alarm switched off in Settings, or while a game runs in quiet mode, it is only an ordinary notice
+    /// (the game-quiet rule is the person's own choice and still holds).</summary>
+    public void Alarm(string title, string text, Action? snooze = null)
+    {
+        if (!Synchronous && Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+        {
+            dispatcher.BeginInvoke(() => Alarm(title, text, snooze));
+            return;
+        }
+        if (!Settings.AlarmSound || AlarmRaised is null) { Notify(title, text); return; }
+        Notices.Add((DateTime.Now, title, text));
+        if (Notices.Count > 30) Notices.RemoveAt(0);
+        if (GameModeActive && Settings.Comfort.GameModeQuiet) return;
+        AlarmRaised.Invoke(title, text, snooze);
+    }
+
+    // ---- tabs the person switched off ---------------------------------------------------------------
+
+    /// <summary>The tab list changed (a tab was switched off or on in Settings).</summary>
+    public event Action? TabsChanged;
+
+    public bool TabOff(string key) => OptionalTabs.Contains(key) && Settings.HiddenTabs.Contains(key);
+
+    /// <summary>Switches a tab off or on. Off: it leaves the list and what it ran in the background stops (the lights, the overlay, the speed limits, the break and night-light
+    /// timers, task reminders, scheduled downloads). On: it comes back; the things that were stopped stay stopped until the person turns them on again on the tab.</summary>
+    public void SetTab(string key, bool visible)
+    {
+        if (!OptionalTabs.Contains(key)) return;
+        var hidden = Settings.HiddenTabs;
+        if (visible) hidden.RemoveAll(k => k == key);
+        else if (!hidden.Contains(key))
+        {
+            hidden.Add(key);
+            StopSection(key);
+        }
+        Store.Save();
+        TabsChanged?.Invoke();
+        Changed?.Invoke();
+    }
+
+    private void StopSection(string key)
+    {
+        switch (key)
+        {
+            case "rgb":
+                Settings.Rgb.Enabled = false;
+                Rgb.Refresh();
+                break;
+            case "gaming":
+                Settings.Overlay.Mode = OverlayMode.Off;
+                OverlayChanged();
+                break;
+            case "comfort":
+                Settings.Comfort.DimOn = false;
+                Settings.Comfort.DimAuto = false;
+                Settings.Comfort.BreakOn = false;
+                Dim?.Apply();
+                break;
+            case "tasks":
+                Settings.TaskReminders = false;
+                Focus.Stop(DateTime.Now);
+                break;
+            case "mic":
+                Voice.Stop();
+                Settings.Voice.AutoStart = false;
+                break;
+            case "files":
+            case "profiles":
+            case "download":
+                break;                                     // these are gated where they run (RunBackups, RunTriggers, RunDownloadPlans, the keep-awake and wake timer)
+            case "ping":
+                Replan();                                  // the plan is empty while the tab is off: normal traffic again at once
+                break;
+        }
     }
 
     public void RaiseChanged() => Changed?.Invoke();

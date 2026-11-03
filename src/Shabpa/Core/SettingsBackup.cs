@@ -41,6 +41,11 @@ public static class SettingsBackup
         s.BotSecretProtected = "";
         s.Support.DeviceId = "";
         s.Support.AdminKeyProtected = "";
+        s.Support.Contact = "";            // an e-mail or a Telegram name typed for support tickets
+        s.ProxyUrl = "";                   // can hold «user:password@host»
+        s.Launchers = [];                  // paths of programs on this PC (they hold the Windows user name)
+        s.WeatherCity = null;              // where the person lives
+        s.WeatherFavorites = [];
         s.WindowPlacement = "";
         s.Overnight = new(); // the wake task, plans and commands of the night window exist only on this PC
         s.Birthday = new(); // a name and a birthday are personal: a shared settings file does not carry them
@@ -94,6 +99,10 @@ public static class SettingsBackup
         incoming.BotEndpoint = keep.BotEndpoint;
         incoming.Support.DeviceId = keep.Support.DeviceId;
         incoming.Support.AdminKeyProtected = keep.Support.AdminKeyProtected;
+        incoming.Support.Endpoint = keep.Support.Endpoint;               // a file from someone else cannot point support tickets (and the admin key) at another server
+        incoming.Support.Contact = keep.Support.Contact;
+        incoming.ProxyUrl = keep.ProxyUrl;
+        incoming.Launchers = keep.Launchers;                             // detected on this PC; a file cannot plant a program path that a click would run
         incoming.WindowPlacement = keep.WindowPlacement;
         incoming.Overnight = keep.Overnight;
         incoming.Birthday = keep.Birthday;

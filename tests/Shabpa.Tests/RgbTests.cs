@@ -244,9 +244,12 @@ public class OpenRgbClientTests
         private readonly Task _loop;
         private readonly Dictionary<uint, int> _current = [];
         public int UpdateDelayMs;
+        /// <summary>How many devices the server says it has now (a real one is still looking for hardware for a while after it opens its port).</summary>
+        public volatile int Count;
         public FakeServer((int type, string name, int leds)[] devices, int[]? startCounts = null)
         {
             for (var i = 0; i < devices.Length; i++) _current[(uint)i] = startCounts?[i] ?? devices[i].leds;
+            Count = devices.Length;
             _listener.Start();
             _loop = Task.Run(() =>
             {
@@ -263,7 +266,7 @@ public class OpenRgbClientTests
                         lock (Seen) Seen.Add((device, id, payload));
                         void Reply(uint rid, byte[] data) { var p = new List<byte>("ORGB"u8.ToArray()); p.AddRange(BitConverter.GetBytes(device)); p.AddRange(BitConverter.GetBytes(rid)); p.AddRange(BitConverter.GetBytes((uint)data.Length)); p.AddRange(data); stream.Write([.. p]); }
                         if (id == 40) Reply(40, BitConverter.GetBytes(3u));
-                        else if (id == 0) Reply(0, BitConverter.GetBytes((uint)devices.Length));
+                        else if (id == 0) Reply(0, BitConverter.GetBytes((uint)Count));
                         else if (id == 1050 && UpdateDelayMs > 0) Thread.Sleep(UpdateDelayMs);
                         else if (id == 1000) _current[device] = BitConverter.ToInt32(payload, 4);
                         else if (id == 1) Reply(1, Controller(devices[device].type, devices[device].name, _current[device], true, devices[device].leds));
@@ -300,6 +303,27 @@ public class OpenRgbClientTests
         Assert.Equal(12, BitConverter.ToUInt16(fan, 4));
         Assert.Equal((1, 2, 3), (fan[6], fan[7], fan[8]));
         lock (server.Seen) Assert.Equal(2, server.Seen.Count(s => s.id == 1100));          // both devices were put in direct control
+    }
+
+    [Fact]
+    public void A_server_that_is_still_looking_for_hardware_gets_asked_again_and_the_new_devices_appear()
+    {
+        using var server = new FakeServer([(1, "RAM stick", 5), (3, "Case fan", 12)]);
+        server.Count = 0;
+        using var client = new OpenRgbClient();
+        Assert.True(client.Connect("127.0.0.1", server.Port), client.LastError);
+        Assert.Empty(client.Devices);                                  // it listened before it had found anything
+        Assert.False(client.Reload());                                 // still nothing: no change
+
+        server.Count = 1;
+        Assert.True(client.Reload());
+        Assert.Equal(["1|RAM stick"], client.Devices.Select(d => d.Key));
+        server.Count = 2;
+        Assert.True(client.Reload());
+        Assert.Equal(2, client.Devices.Count);
+        Assert.False(client.Reload());                                 // the same number: nothing is read again
+        Assert.True(client.Connected);
+        Assert.True(client.Update(_ => [new Rgb(1, 2, 3)]));           // and the new devices take frames
     }
 
     [Fact]

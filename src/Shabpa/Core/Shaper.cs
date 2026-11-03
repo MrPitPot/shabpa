@@ -245,7 +245,7 @@ public sealed class Shaper : IDisposable
     public void Apply(IReadOnlyList<EffectiveLimit> plan)
     {
         var count = SetRules(plan);
-        if (count == 0) Stop();
+        if (count == 0) { Error = null; Stop(); }          // nothing to limit: an old start error is no longer true
         else if (!_running) Start();
     }
 
@@ -272,7 +272,15 @@ public sealed class Shaper : IDisposable
                     if (queue is not null && !rules.Values.Any(r => r.Down == queue || r.Up == queue))
                         queue.Flush(Inject);
 
+            // the port map still points at the old rule objects until the refresh below has run (it can take seconds when a process name has to be looked up): packets of a
+            // limited app would be put in the old, already emptied queue that nothing releases. Point the known ports at the new rules now.
+            var oldKeys = new Dictionary<AppRule, string>(ReferenceEqualityComparer.Instance);
+            foreach (var (key, old) in _rules) oldKeys[old] = key;
+            var remapped = new Dictionary<int, AppRule>();
+            foreach (var (port, rule) in _ports)
+                if (oldKeys.TryGetValue(rule, out var key) && rules.TryGetValue(key, out var fresh)) remapped[port] = fresh;
             _rules = rules;
+            _ports = remapped;
             _lastRefresh = 0;
         }
 
@@ -352,12 +360,12 @@ public sealed class Shaper : IDisposable
         try
         {
             if (Sc("qc WinDivert") is not { } config) return false;
-            var folder = AppContext.BaseDirectory.TrimEnd('\\');
+            var folder = AppContext.BaseDirectory.TrimEnd('\\') + "\\";           // with the closing backslash: another program's folder that starts the same does not match
             if (config.IndexOf(folder, StringComparison.OrdinalIgnoreCase) < 0) return false;
             Sc("stop WinDivert");
             for (var i = 0; i < 20; i++)
             {
-                if (Sc("query WinDivert") is { } state && !state.Contains("RUNNING", StringComparison.Ordinal)) return true;
+                if (Sc("query WinDivert") is not { } state || state.Contains("STOPPED", StringComparison.Ordinal)) return true;
                 Thread.Sleep(250);
             }
             return false;
@@ -373,8 +381,10 @@ public sealed class Shaper : IDisposable
     {
         using var process = Process.Start(new ProcessStartInfo("sc.exe", arguments) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true });
         if (process is null) return null;
-        var text = process.StandardOutput.ReadToEnd();
-        return process.WaitForExit(5000) ? text : null;
+        var text = process.StandardOutput.ReadToEndAsync();
+        if (process.WaitForExit(5000)) return text.Result;
+        try { process.Kill(); } catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { }
+        return null;
     }
 
     private void Stop()

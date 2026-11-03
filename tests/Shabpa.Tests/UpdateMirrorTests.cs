@@ -271,6 +271,26 @@ public sealed class UpdateMirrorTests : IDisposable
     }
 
     [Fact]
+    public async Task A_mirror_that_is_behind_does_not_hide_a_newer_version_from_the_next_source()
+    {
+        // GitHub still says 3.10.0 (what is installed: the publish is half done), the site already has 3.11.0
+        var net = Mirror(Mirror(new FakeNet(), Gh, Json("3.10.0")), Site, Json("3.11.0"));
+        var r = await Sources(net).CheckAsync(UpdateSources.Build("", ""), Now);
+        Assert.False(r.UpToDate);
+        Assert.Equal("shabpa.ir", r.Source!.Id);
+        Assert.Equal(new Version(3, 11, 0), r.Manifest!.Version);
+    }
+
+    [Fact]
+    public async Task When_every_source_that_answers_says_the_same_version_it_is_up_to_date()
+    {
+        var net = Mirror(Mirror(new FakeNet(), Gh, Json("3.10.0")), Site, Json("3.10.0"));
+        var r = await Sources(net).CheckAsync(UpdateSources.Build("", ""), Now);
+        Assert.True(r.UpToDate);
+        Assert.Null(r.Manifest);
+    }
+
+    [Fact]
     public async Task A_404_or_a_dead_source_falls_through_to_the_next_in_order()
     {
         var net = Mirror(new FakeNet().Status(Gh, HttpStatusCode.NotFound).Status(Gh + ".sig", HttpStatusCode.NotFound), Site, Json());
