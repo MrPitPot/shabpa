@@ -232,6 +232,8 @@ public sealed class Shaper : IDisposable
     public bool Running => _running;
     /// <summary>Why shaping is not active although limits exist, or null.</summary>
     public string? Error { get; private set; }
+    /// <summary>The error is one that goes away by itself when the other program lets go of the driver: worth trying again every little while.</summary>
+    public bool Retryable { get; private set; }
     public long Dropped { get; private set; }
 
     /// <summary>True when the driver library sits next to the app.</summary>
@@ -291,6 +293,7 @@ public sealed class Shaper : IDisposable
     private void Start()
     {
         Error = null;
+        Retryable = false;
         try
         {
             // Layer 0 = network. Everything TCP/UDP is diverted while limits exist, loopback included,
@@ -331,11 +334,15 @@ public sealed class Shaper : IDisposable
                 5 => "needs-admin",
                 577 => L.T("ویندوز امضای درایور WinDivert رو قبول نکرد.", "Windows rejected the WinDivert driver signature."),
                 1275 => L.T("ویندوز یا آنتی‌ویروس جلوی درایور WinDivert رو گرفته.", "Windows or the antivirus blocked the WinDivert driver."),
+                _ when IsStaleDriverError(code) && ForeignDriverOwner(Sc("qc WinDivert"), AppContext.BaseDirectory) is { } owner =>
+                    L.T($"برنامه‌ی «{owner}» درایور WinDivert خودش رو بالا آورده و شب‌پا نمی‌تونه کنارش از محدودیت سرعت استفاده کنه. اون برنامه رو ببند؛ شب‌پا چند ثانیه بعد خودش دوباره امتحان می‌کنه.",
+                        $"“{owner}” has loaded its own WinDivert driver and Shabpa cannot use the speed limits next to it. Close that program; Shabpa tries again by itself a few seconds later."),
                 _ when IsStaleDriverError(code) => L.T("درایور محدودیت سرعت از اجرای قبلی گیر کرده. یک بار ویندوز رو ری‌استارت کن تا آزاد بشه (یا برنامه‌ی دیگه‌ای که از WinDivert استفاده می‌کنه رو ببند).",
                     "The speed-limit driver is stuck from an earlier run. Restart Windows once to free it (or close another program that uses WinDivert)."),
                 _ => L.T($"درایور WinDivert باز نشد (کد {code}).", $"Could not open the WinDivert driver (code {code})."),
             };
-            Log.Write($"WinDivertOpen failed: {code}");
+            Retryable = IsStaleDriverError(code);
+            Log.Write($"WinDivertOpen failed: {code}" + (Retryable ? " (the driver is held by " + (ForeignDriverOwner(Sc("qc WinDivert"), AppContext.BaseDirectory) ?? "an earlier run of Shabpa") + ")" : ""));
             return;
         }
 
@@ -352,6 +359,25 @@ public sealed class Shaper : IDisposable
 
     /// <summary>Windows Filtering Platform errors (0x8032xxxx as a signed number): the driver is loaded but its filter objects are in a state no new handle can use.</summary>
     internal static bool IsStaleDriverError(int code) => ((uint)code & 0xFFFF0000u) == 0x80320000u;
+
+    /// <summary>The name of the program whose WinDivert driver is the one loaded (the folder of its driver file), or null when the loaded driver is ours or unknown. Two programs cannot
+    /// each bring their own copy: Windows has one driver service called WinDivert, and whoever loaded it first keeps it.</summary>
+    internal static string? ForeignDriverOwner(string? serviceConfig, string ourFolder)
+    {
+        if (serviceConfig is null) return null;
+        foreach (var raw in serviceConfig.Split('\n'))
+        {
+            var line = raw.Trim();
+            if (!line.StartsWith("BINARY_PATH_NAME", StringComparison.OrdinalIgnoreCase)) continue;
+            var path = line[(line.IndexOf(':') + 1)..].Trim().TrimStart('\\', '?', '"').TrimEnd('"');
+            var ours = ourFolder.TrimEnd('\\') + "\\";
+            if (path.StartsWith(ours, StringComparison.OrdinalIgnoreCase)) return null;
+            var folder = System.IO.Path.GetDirectoryName(path);
+            var name = folder is null ? null : System.IO.Path.GetFileName(folder);
+            return string.IsNullOrWhiteSpace(name) ? null : name;
+        }
+        return null;
+    }
 
     /// <summary>Stops the WinDivert service when it was started from our own folder (never another program's copy) so the next open loads it afresh.
     /// It only works while no handle is open, which is exactly the stale case; if something still holds it, stopping fails and nothing changes.</summary>

@@ -9,6 +9,24 @@ public class ShaperLockTests
 {
     private static EffectiveLimit Rule(string app) => new(app, 5, 5, false, false);
 
+    private const string Config = "[SC] QueryServiceConfig SUCCESS" + Nl + Nl + "SERVICE_NAME: WinDivert" + Nl
+        + "        TYPE               : 1  KERNEL_DRIVER " + Nl + "        START_TYPE         : 4   DISABLED" + Nl
+        + "        BINARY_PATH_NAME   : " + @"\??\{0}" + Nl + "        DISPLAY_NAME       : WinDivert" + Nl;
+    private const string Nl = "\r\n";
+
+    [Fact]
+    public void The_program_whose_driver_is_loaded_is_named_and_our_own_or_an_unknown_one_is_not()
+    {
+        var other = string.Format(Config, @"C:\Program Files\PacketRaft\WinDivert64.sys");
+        Assert.Equal("PacketRaft", Shaper.ForeignDriverOwner(other, @"C:\Program Files\Shabpa\"));
+        var ours = string.Format(Config, @"C:\Program Files\Shabpa\WinDivert64.sys");
+        Assert.Null(Shaper.ForeignDriverOwner(ours, @"C:\Program Files\Shabpa\"));
+        Assert.Null(Shaper.ForeignDriverOwner(ours, @"C:\Program Files\Shabpa"));                       // with or without the closing backslash
+        Assert.Equal("Shabpa Tools", Shaper.ForeignDriverOwner(string.Format(Config, @"C:\Program Files\Shabpa Tools\WinDivert64.sys"), @"C:\Program Files\Shabpa\"));
+        Assert.Null(Shaper.ForeignDriverOwner(null, @"C:\Program Files\Shabpa\"));
+        Assert.Null(Shaper.ForeignDriverOwner("[SC] OpenService FAILED 1060", @"C:\Program Files\Shabpa\"));
+    }
+
     [Theory]
     [InlineData(-2144206838, true)]     // 0x8032000A, what the owner's PC reported
     [InlineData(-2144206847, true)]     // 0x80320001
