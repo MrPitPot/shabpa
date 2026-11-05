@@ -81,4 +81,25 @@ public class AdminKeyTests
         Assert.Equal(100, e.State.Feathers);                                              // not 500
         Assert.Equal(0, e.State.RealFeathers);
     }
+
+    [Fact]
+    public void The_gift_code_pays_ten_thousand_once_and_only_for_the_right_code()
+    {
+        Assert.False(AdminKey.VerifyGift("BOOFI-00000-00000"));
+        Assert.False(AdminKey.VerifyGift("admin"));
+        Assert.Equal("ab-12", AdminKey.ParseGift("gift ab-12"));
+        Assert.Equal("ab-12", AdminKey.ParseGift("هدیه ab-12"));
+        Assert.Null(AdminKey.ParseGift("gift"));
+        Assert.Null(AdminKey.ParseGift("give me a gift ab-12"));
+        Assert.Equal("gift:ab-12", CommandParser.Parse("gift ab-12", new DateTime(2026, 11, 6, 12, 0, 0)).Command!.Value);
+
+        var hub = new Hub(new Store(Path.Combine(Path.GetTempPath(), "shabpa-gift-" + Guid.NewGuid().ToString("N"))) { ReadOnly = true }, dryRun: true, demo: true);
+        hub.State.Rewards = new RewardsState { Feathers = 5, TotalFeathers = 5 };
+        var e = new RewardsEngine(hub, () => new DateTime(2026, 11, 6, 12, 0, 0));
+        Assert.True(e.RedeemGift());
+        Assert.Equal(10_005, e.State.Feathers);
+        Assert.Equal(5, e.State.TotalFeathers);                                  // the level does not move
+        Assert.False(e.RedeemGift());
+        Assert.Equal(10_005, e.State.Feathers);
+    }
 }

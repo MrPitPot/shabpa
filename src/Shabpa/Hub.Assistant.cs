@@ -346,6 +346,14 @@ public sealed partial class Hub
                 return on ? L.T("پَر نامحدود روشن شد. 🪶 (دوباره بنویسی خاموش می‌شه.)", "Unlimited feathers are on. 🪶 (Write it again to turn it off.)")
                           : L.T("پَر نامحدود خاموش شد.", "Unlimited feathers are off.");
             }
+            case var giftKind when giftKind.StartsWith("gift:", StringComparison.Ordinal):
+            {
+                if (origin == "bot" || !AdminKey.VerifyGift(giftKind[5..])) return L.T("نمی‌دونم چی بگم.", "I do not know what to say.");
+                if (!Rewards.RedeemGift()) return L.T("این کد رو قبلاً زدی، دوست من 😄 هر کد فقط یک بار کار می‌کنه.", "You already used that code, my friend 😄 it only works once.");
+                Store.Save();
+                return L.T($"اینم {Fa.N(AdminKey.GiftFeathers)} پَر رایگان برای دوست به‌دردنخورم ❤️ کمه؟ از سرتم زیاده 😂",
+                           $"Here are {AdminKey.GiftFeathers:N0} free feathers for my useless friend ❤️ Too few? It is more than plenty 😂");
+            }
             case var calcKind when calcKind.StartsWith("calc:"):
                 return CalcText(calcKind[5..]) is { } answer ? $"{calcKind[5..].Trim()} = {Fa.Digits(answer)}" : L.T("این رو نتونستم حساب کنم.", "I could not work that out.");
             case var extra when extra.StartsWith("ex:", StringComparison.Ordinal):

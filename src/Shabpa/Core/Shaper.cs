@@ -334,7 +334,7 @@ public sealed class Shaper : IDisposable
                 5 => "needs-admin",
                 577 => L.T("ویندوز امضای درایور WinDivert رو قبول نکرد.", "Windows rejected the WinDivert driver signature."),
                 1275 => L.T("ویندوز یا آنتی‌ویروس جلوی درایور WinDivert رو گرفته.", "Windows or the antivirus blocked the WinDivert driver."),
-                _ when IsStaleDriverError(code) && ForeignDriverOwner(Sc("qc WinDivert"), AppContext.BaseDirectory) is { } owner =>
+                _ when IsStaleDriverError(code) && HolderName() is { } owner =>
                     L.T($"برنامه‌ی «{owner}» درایور WinDivert خودش رو بالا آورده و شب‌پا نمی‌تونه کنارش از محدودیت سرعت استفاده کنه. اون برنامه رو ببند؛ شب‌پا چند ثانیه بعد خودش دوباره امتحان می‌کنه.",
                         $"“{owner}” has loaded its own WinDivert driver and Shabpa cannot use the speed limits next to it. Close that program; Shabpa tries again by itself a few seconds later."),
                 _ when IsStaleDriverError(code) => L.T("درایور محدودیت سرعت از اجرای قبلی گیر کرده. یک بار ویندوز رو ری‌استارت کن تا آزاد بشه (یا برنامه‌ی دیگه‌ای که از WinDivert استفاده می‌کنه رو ببند).",
@@ -342,7 +342,7 @@ public sealed class Shaper : IDisposable
                 _ => L.T($"درایور WinDivert باز نشد (کد {code}).", $"Could not open the WinDivert driver (code {code})."),
             };
             Retryable = IsStaleDriverError(code);
-            Log.Write($"WinDivertOpen failed: {code}" + (Retryable ? " (the driver is held by " + (ForeignDriverOwner(Sc("qc WinDivert"), AppContext.BaseDirectory) ?? "an earlier run of Shabpa") + ")" : ""));
+            Log.Write($"WinDivertOpen failed: {code}" + (Retryable ? " (the driver is held by " + (HolderName() ?? "an earlier run of Shabpa") + ")" : ""));
             return;
         }
 
@@ -359,6 +359,30 @@ public sealed class Shaper : IDisposable
 
     /// <summary>Windows Filtering Platform errors (0x8032xxxx as a signed number): the driver is loaded but its filter objects are in a state no new handle can use.</summary>
     internal static bool IsStaleDriverError(int code) => ((uint)code & 0xFFFF0000u) == 0x80320000u;
+
+    /// <summary>Who holds the driver: the folder of the loaded service's file, or else a running program that ships its own WinDivert next to its exe (a proxy or VPN client can load its copy under another service name).</summary>
+    private static string? HolderName()
+    {
+        try
+        {
+            if (ForeignDriverOwner(Sc("qc WinDivert"), AppContext.BaseDirectory) is { } owner) return owner;
+            var ours = AppContext.BaseDirectory.TrimEnd('\\') + "\\";
+            foreach (var process in Process.GetProcesses())
+                using (process)
+                {
+                    try
+                    {
+                        var file = process.MainModule?.FileName;
+                        var folder = file is null ? null : System.IO.Path.GetDirectoryName(file);
+                        if (folder is null || (folder.TrimEnd('\\') + "\\").StartsWith(ours, StringComparison.OrdinalIgnoreCase)) continue;
+                        if (System.IO.Directory.GetFiles(folder, "WinDivert*").Length > 0) return process.ProcessName;
+                    }
+                    catch (Exception) { /* a protected process: not ours to look at */ }
+                }
+        }
+        catch (Exception) { }
+        return null;
+    }
 
     /// <summary>The name of the program whose WinDivert driver is the one loaded (the folder of its driver file), or null when the loaded driver is ours or unknown. Two programs cannot
     /// each bring their own copy: Windows has one driver service called WinDivert, and whoever loaded it first keeps it.</summary>

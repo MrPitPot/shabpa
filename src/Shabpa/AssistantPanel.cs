@@ -97,7 +97,7 @@ public sealed class AssistantPanel : StackPanel
                 var reply = Hub.I.RunAssistant(instant, "box");
                 Mood?.Invoke(reply.Ok ? BidarMood.Happy : BidarMood.Worried);
                 _result.Children.Add(Line(L.En ? reply.En : reply.Fa, reply.Ok ? "Text" : "Red"));
-                if (reply.Ok && (instant.Intent != CommandIntent.Info || instant.Value.StartsWith("admin:", StringComparison.Ordinal))) _input.Clear();   // the owner's passphrase never stays on screen
+                if (reply.Ok && (instant.Intent != CommandIntent.Info || instant.Value.StartsWith("admin:", StringComparison.Ordinal) || instant.Value.StartsWith("gift:", StringComparison.Ordinal))) _input.Clear();   // the owner's passphrase never stays on screen
                 Spoke?.Invoke();
                 break;
             case CommandStatus.Ready when result.Command is { } command:

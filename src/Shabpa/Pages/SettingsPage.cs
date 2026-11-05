@@ -19,7 +19,7 @@ public sealed class SettingsPage : PageBase
     public override string PageSubtitle => L.T("زبان، ظاهر و رفتار برنامه.", "Language, look and behaviour.");
 
     // appearance
-    private readonly WrapPanel LanguageChips = new(), ThemePanel = new(), GlassChips = new(), CountdownChips = new();
+    private readonly WrapPanel LanguageChips = new(), ThemePanel = new(), OwnedThemePanel = new(), GlassChips = new(), CountdownChips = new();
     private readonly Slider GlassLevelSlider;
     private readonly TextBlock GlassLevelText;
     private readonly FrameworkElement GlassLevelRow;
@@ -76,6 +76,8 @@ public sealed class SettingsPage : PageBase
         lookBody.Children.Add(Stacked(L.T("واحد سرعت اینترنت", "Internet speed unit"), speedBox));
         lookBody.Children.Add(Stacked(L.T("تم رنگی", "Colour theme"), ThemePanel));
         BuildThemes();
+        // the premium themes bought with feathers sit apart from the free ones, under their own heading
+        if (OwnedThemePanel.Children.Count > 0) lookBody.Children.Add(Stacked(L.T("تم‌های اختصاصی که خریدی", "Premium themes you own"), OwnedThemePanel));
 
         var glassRow = K.SettingRow(L.T("شیشه‌ای (ویندوز ۱۱)", "Glass (Windows 11)"), GlassChips);
         glassRow.ToolTip = L.T("پس‌زمینه‌ی پنجره نیمه‌شفاف می‌شه و رنگ میز کار یا عکس پس‌زمینه کم‌رنگ از زیرش پیداست. در حالت «رم کمتر» خاموشه.", "The window background turns translucent and your wallpaper shows faintly through. Off in “Use less RAM” mode.");
@@ -388,7 +390,8 @@ public sealed class SettingsPage : PageBase
     /// <summary>One selectable swatch per theme, drawn in that theme's own colours.</summary>
     private void BuildThemes()
     {
-        foreach (var palette in Palette.All.Concat(PremiumTheme.All.Where(t => Hub.Rewards.OwnsTheme(t.Key)).Select(t => t.Palette)))
+        var owned = PremiumTheme.All.Where(t => Hub.Rewards.OwnsTheme(t.Key)).Select(t => t.Palette).ToList();
+        foreach (var palette in Palette.All.Concat(owned))
         {
             static Brush Paint(Palette p, string key)
             {
@@ -417,7 +420,7 @@ public sealed class SettingsPage : PageBase
                 if (Application.Current.MainWindow is MainWindow main) main.SwitchTheme(key, chip); // live, no restart
                 else { Hub.Settings.Theme = key; Apply(); }
             };
-            ThemePanel.Children.Add(chip);
+            (owned.Contains(palette) ? OwnedThemePanel : ThemePanel).Children.Add(chip);
         }
     }
 

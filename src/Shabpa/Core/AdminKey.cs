@@ -24,6 +24,23 @@ public static class AdminKey
         return CryptographicOperations.FixedTimeEquals(got, hash);
     }
 
+    private static readonly byte[] GiftSalt = Convert.FromBase64String("+UHywSlCSDkJsUYqTRGN0Q==");
+    private static readonly byte[] GiftHash = Convert.FromBase64String("qW9xmc2VYDCt5I62S/5dV7v8sniOFiiN5e2ESkgFO4g=");
+
+    /// <summary>A one-time gift code for a friend: it pays <see cref="GiftFeathers"/> once per copy of the program (the same salted-hash idea; the code itself is not in the source).</summary>
+    public const int GiftFeathers = 10_000;
+    public const string GiftMark = "gift-10k";
+
+    public static bool VerifyGift(string? code) => Verify(code, GiftSalt, GiftHash);
+
+    /// <summary>"gift &lt;code&gt;" (or «هدیه»): the code, or null when the text is not that command.</summary>
+    public static string? ParseGift(string? text)
+    {
+        if (text is null) return null;
+        var m = System.Text.RegularExpressions.Regex.Match(text.Trim(), @"^(?:gift|هدیه)\s+([A-Za-z0-9\-]{4,64})$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return m.Success ? m.Groups[1].Value : null;
+    }
+
     /// <summary>"admin &lt;passphrase&gt;" (or «ادمین»/«مدیر»): the passphrase, or null when the text is not that command.</summary>
     public static string? Parse(string? text)
     {

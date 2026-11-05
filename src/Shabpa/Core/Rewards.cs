@@ -412,6 +412,18 @@ public sealed class RewardsEngine
         Changed?.Invoke();
     }
 
+    /// <summary>Pays the one-time gift of <see cref="AdminKey.GiftFeathers"/> (cosmetic spending money: the level does not change). False when it was already paid on this copy.</summary>
+    public bool RedeemGift()
+    {
+        if (State.Claimed.Contains(AdminKey.GiftMark)) return false;
+        State.Claimed.Add(AdminKey.GiftMark);          // no colon in the mark: the trimming of old entries never touches it
+        State.Feathers += AdminKey.GiftFeathers;
+        if (State.Unlimited) State.RealFeathers += AdminKey.GiftFeathers;
+        _dirty = true;
+        Changed?.Invoke();
+        return true;
+    }
+
     /// <summary>Spends feathers on a part. Total feathers (the level) do not go down.</summary>
     public BuyResult Buy(string id)
     {

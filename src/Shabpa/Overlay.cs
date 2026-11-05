@@ -801,7 +801,10 @@ public sealed class OverlayWindow : Window
         if (!IsVisible || _handle == IntPtr.Zero || OverlayWin.Dragging) return;
         var o = _hub.Settings.Overlay.WithProfile(_game);
         var foreground = Native.GetForegroundWindow();
-        var screen = foreground != IntPtr.Zero ? WF.Screen.FromHandle(foreground) : WF.Screen.PrimaryScreen ?? WF.Screen.AllScreens[0];
+        // the monitor of the window in front, except Shabpa's own windows (or the desktop): clicking the app on a second monitor must not carry the overlay over to it
+        var ownWindow = foreground != IntPtr.Zero && Native.GetWindowThreadProcessId(foreground, out var pid) != 0 && pid == (uint)Environment.ProcessId;
+        var screen = foreground != IntPtr.Zero && !ownWindow ? WF.Screen.FromHandle(foreground) : _lastScreen ?? WF.Screen.PrimaryScreen ?? WF.Screen.AllScreens[0];
+        _lastScreen = screen;
         var area = OverlayWin.Box(screen.Bounds);
         var scale = OverlayWin.ScaleOf(screen);
 #if DEBUG || SHABPA_TESTHOOKS
@@ -906,6 +909,8 @@ public sealed class OverlayWindow : Window
         _hub.OverlayChanged();
         Place();
     }
+
+    private WF.Screen? _lastScreen;
 
     public bool MoveMode => _moving;
 
