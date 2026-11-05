@@ -4,6 +4,19 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [3.15.1] - 2026-11-06
+
+### Added
+- A one-time gift code typed to Boofi pays 10,000 feathers once per copy; only a salted hash of the code is in the program.
+
+### Changed
+- Premium themes the person owns are listed under their own heading in Settings, apart from the free themes.
+
+### Fixed
+- Speed limits: when another program (a proxy or VPN client) already holds the WinDivert driver, the message names that program, and Shabpa tries again every half minute until it lets go.
+- The overlay jumped to another monitor when Shabpa's own window was clicked on a second screen; it now stays on the monitor of the game.
+- Animated backdrops of premium themes were washed out by the window's veil in the real app; they are drawn above it now.
+
 ## [3.15.0] - 2026-11-03
 
 ### Added
