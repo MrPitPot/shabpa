@@ -1,3 +1,4 @@
+using System.IO;
 using Shabpa.Core;
 
 namespace Shabpa.Tests;
@@ -229,5 +230,27 @@ public class OverlayDragStickTests
         Assert.False(Shabpa.OverlayWin.Dragging);
         Assert.Throws<InvalidOperationException>(() => Shabpa.OverlayWin.Drag(() => throw new InvalidOperationException()));
         Assert.False(Shabpa.OverlayWin.Dragging);
+    }
+
+    [Fact]
+    public void Monitors_come_straight_from_windows_with_a_real_size_and_scale()
+    {
+        var primary = Shabpa.OverlayWin.PrimaryMonitor();
+        Assert.True(primary.Bounds.W >= 640 && primary.Bounds.H >= 480, $"{primary.Bounds}");
+        Assert.InRange(primary.Scale, 1.0, 5.0);
+        var near = Shabpa.OverlayWin.MonitorAt(new PxBox(primary.Bounds.X + 10, primary.Bounds.Y + 10, 200, 100));
+        Assert.Equal(primary.Bounds, near.Bounds);                                       // a box on the primary screen is on the primary screen
+        Assert.True(Shabpa.OverlayWin.MonitorAt(new PxBox(-90000, -90000, 10, 10)).Bounds.W > 0);   // far away: the nearest monitor, never an empty one
+        Assert.True(Shabpa.OverlayWin.MonitorOf(IntPtr.Zero).Bounds.W > 0);
+    }
+
+    [Fact]
+    public void The_overlay_never_asks_windows_forms_for_a_screen_because_that_waits_for_the_display_driver()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Shabpa.slnx"))) dir = dir.Parent;
+        var text = File.ReadAllText(Path.Combine(dir!.FullName, "src", "Shabpa", "Overlay.cs"));
+        // Screen.FromHandle / FromRectangle open a device context for the display on every call; in the logs that froze the window thread for up to 31 seconds
+        foreach (var banned in new[] { "Screen.FromHandle", "Screen.FromRectangle", "Screen.FromPoint", "Screen.AllScreens", "Screen.PrimaryScreen" }) Assert.DoesNotContain(banned, text);
     }
 }

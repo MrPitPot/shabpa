@@ -803,10 +803,12 @@ public sealed class OverlayWindow : Window
         var foreground = Native.GetForegroundWindow();
         // the monitor of the window in front, except Shabpa's own windows (or the desktop): clicking the app on a second monitor must not carry the overlay over to it
         var ownWindow = foreground != IntPtr.Zero && Native.GetWindowThreadProcessId(foreground, out var pid) != 0 && pid == (uint)Environment.ProcessId;
-        var screen = foreground != IntPtr.Zero && !ownWindow ? WF.Screen.FromHandle(foreground) : _lastScreen ?? WF.Screen.PrimaryScreen ?? WF.Screen.AllScreens[0];
-        _lastScreen = screen;
-        var area = OverlayWin.Box(screen.Bounds);
-        var scale = OverlayWin.ScaleOf(screen);
+        // the monitor is asked from Windows directly (a few cheap calls): System.Windows.Forms.Screen opens a device context for the display each time, which can wait seconds (up to
+        // half a minute in the logs) while the graphics driver is busy, and this runs on the window thread at every sensor tick
+        var monitor = foreground != IntPtr.Zero && !ownWindow ? OverlayWin.MonitorOf(foreground) : _lastMonitor ?? OverlayWin.PrimaryMonitor();
+        _lastMonitor = monitor;
+        var area = monitor.Bounds;
+        var scale = monitor.Scale;
 #if DEBUG || SHABPA_TESTHOOKS
         if (ProbeArea is { } fake) (area, scale) = (fake, ProbeScale);
 #endif
@@ -824,7 +826,7 @@ public sealed class OverlayWindow : Window
             if (anchor == "free")
             {
                 // a saved spot: stay on the monitor it was saved on (the nearest one if that screen is gone)
-                target = OverlayWin.Box(WF.Screen.FromRectangle(new System.Drawing.Rectangle((int)x, (int)y, width, height)).Bounds);
+                target = OverlayWin.MonitorAt(new PxBox((int)x, (int)y, width, height)).Bounds;
                 (left, top) = ((int)Math.Round(x), (int)Math.Round(y));
             }
             else
@@ -873,9 +875,8 @@ public sealed class OverlayWindow : Window
     /// <summary>Pulls a box that was just dropped to the corners / edges of the monitor it is on.</summary>
     private static (PxBox box, string? zone) SnapToMonitor(PxBox box)
     {
-        var screen = WF.Screen.FromRectangle(new System.Drawing.Rectangle(box.X, box.Y, box.W, box.H));
-        var scale = OverlayWin.ScaleOf(screen);
-        var result = OverlayPlacement.Snap(box, OverlayWin.Box(screen.Bounds), (int)Math.Round(36 * scale), 0);
+        var monitor = OverlayWin.MonitorAt(box);
+        var result = OverlayPlacement.Snap(box, monitor.Bounds, (int)Math.Round(36 * monitor.Scale), 0);
         return (result.Box, result.Zone);
     }
 
@@ -910,7 +911,7 @@ public sealed class OverlayWindow : Window
         Place();
     }
 
-    private WF.Screen? _lastScreen;
+    private MonitorInfo? _lastMonitor;
 
     public bool MoveMode => _moving;
 
@@ -1053,6 +1054,11 @@ internal static class OverlayWin
     [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr hwnd, out Rc rect);
     [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
     [DllImport("user32.dll")] private static extern IntPtr MonitorFromPoint(Pt point, uint flags);
+    [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+    [DllImport("user32.dll")] private static extern IntPtr MonitorFromRect(ref Rc rect, uint flags);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern bool GetMonitorInfoW(IntPtr monitor, ref MonitorInfoRaw info);
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MonitorInfoRaw { public int Size; public Rc Monitor, Work; public uint Flags; }
     [DllImport("shcore.dll")] private static extern int GetDpiForMonitor(IntPtr monitor, int type, out uint dpiX, out uint dpiY);
 
     /// <summary>True while the user holds an overlay window with the mouse (DragMove runs its own loop).</summary>
@@ -1085,16 +1091,36 @@ internal static class OverlayWin
         if (hwnd != IntPtr.Zero) SetWindowPos(hwnd, Topmost, 0, 0, 0, 0, NoSize | NoMove | NoActivate);
     }
 
-    /// <summary>The monitor's scale (1 = 96 dpi, 1.5 = 150 %), so offsets and snap distances look the same on every screen.</summary>
-    public static double ScaleOf(WF.Screen screen)
+    /// <summary>The monitor that holds most of a window (or the nearest one).</summary>
+    public static MonitorInfo MonitorOf(IntPtr hwnd) => Describe(MonitorFromWindow(hwnd, 2));
+
+    /// <summary>The monitor that holds most of a rectangle (or the nearest one).</summary>
+    public static MonitorInfo MonitorAt(PxBox box)
+    {
+        var rc = new Rc { Left = box.X, Top = box.Y, Right = box.X + box.W, Bottom = box.Y + box.H };
+        return Describe(MonitorFromRect(ref rc, 2));
+    }
+
+    public static MonitorInfo PrimaryMonitor() => Describe(MonitorFromPoint(new Pt { X = 0, Y = 0 }, 1));
+
+    /// <summary>Pixels and scale of a monitor (scale: 1 = 96 dpi, 1.5 = 150 %, so offsets and snap distances look the same on every screen). Falls back to the system's primary screen size.</summary>
+    private static MonitorInfo Describe(IntPtr monitor)
     {
         try
         {
-            var b = screen.Bounds;
-            var monitor = MonitorFromPoint(new Pt { X = b.X + b.Width / 2, Y = b.Y + b.Height / 2 }, 2);
-            if (monitor != IntPtr.Zero && GetDpiForMonitor(monitor, 0, out var dpi, out _) == 0 && dpi > 0) return dpi / 96.0;
+            var info = new MonitorInfoRaw { Size = Marshal.SizeOf<MonitorInfoRaw>() };
+            if (monitor != IntPtr.Zero && GetMonitorInfoW(monitor, ref info))
+            {
+                var scale = 1.0;
+                try { if (GetDpiForMonitor(monitor, 0, out var dpi, out _) == 0 && dpi > 0) scale = dpi / 96.0; }
+                catch (Exception) { /* shcore missing: treat as 96 dpi */ }
+                return new MonitorInfo(new PxBox(info.Monitor.Left, info.Monitor.Top, info.Monitor.Right - info.Monitor.Left, info.Monitor.Bottom - info.Monitor.Top), scale);
+            }
         }
-        catch (Exception) { /* shcore missing: treat as 96 dpi */ }
-        return 1;
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException) { /* below */ }
+        return new MonitorInfo(new PxBox(0, 0, (int)SystemParameters.PrimaryScreenWidth, (int)SystemParameters.PrimaryScreenHeight), 1);
     }
 }
+
+/// <summary>A monitor's rectangle in physical pixels and its scale.</summary>
+internal readonly record struct MonitorInfo(PxBox Bounds, double Scale);
