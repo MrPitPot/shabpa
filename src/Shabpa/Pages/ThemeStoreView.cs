@@ -86,7 +86,7 @@ internal sealed class ThemeStoreView : StackPanel
         var frame = Mock(sel.Palette, 620, 250);
         var host = (Grid)((Border)frame).Child;
         
-        _live = new ThemeScene(sel.Scene, sel.Palette) { IsHitTestVisible = false, Width = 620, Height = 250 };
+        _live = new ThemeScene(sel.Scene) { IsHitTestVisible = false, Width = 620, Height = 250 };
         host.Children.Insert(0, _live);
         frame.HorizontalAlignment = HorizontalAlignment.Center;
         frame.Margin = new Thickness(0, 4, 0, 10);

@@ -67,4 +67,25 @@ public class PremiumThemeTests
         }
         Assert.Equal(30, PremiumTheme.All.Count);
     }
+
+    [Theory]
+    [MemberData(nameof(Keys))]
+    public void Each_has_its_painting_and_every_sprite_its_layers_use(string key)
+    {
+        var dir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "Shabpa", "Assets", "themes"));
+        using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(dir, "scenes.json")));
+        Assert.True(doc.RootElement.TryGetProperty(key, out var spec), $"{key} has no entry in scenes.json");
+        Assert.Equal(PremiumTheme.All.Single(t => t.Key == key).Scene.ToString(), spec.GetProperty("scene").GetString());
+        Assert.True(File.Exists(Path.Combine(dir, key + ".jpg")), $"{key}.jpg is missing");
+        Assert.True(File.Exists(Path.Combine(dir, key + ".thumb.jpg")), $"{key}.thumb.jpg is missing");
+        var sprites = spec.GetProperty("sprites");
+        foreach (var s in sprites.EnumerateObject()) Assert.True(File.Exists(Path.Combine(dir, $"{key}.{s.Name}.png")), $"{key}.{s.Name}.png is missing");
+        foreach (var layer in spec.GetProperty("layers").EnumerateArray())
+        {
+            var sp = layer.GetProperty("sprite");
+            var names = sp.ValueKind == System.Text.Json.JsonValueKind.Array ? sp.EnumerateArray().Select(n => n.GetString()!).ToArray() : [sp.GetString()!];
+            foreach (var n in names.Where(n => !n.StartsWith('#'))) Assert.True(sprites.TryGetProperty(n, out _), $"{key}: a layer uses the unknown sprite {n}");
+            if (layer.TryGetProperty("fps", out var fps)) Assert.InRange(fps.GetInt32(), 4, 24);   // only quick streaks (meteors, tracers) go above the scene rate
+        }
+    }
 }
