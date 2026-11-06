@@ -10,7 +10,7 @@ namespace Shabpa.Pages;
 
 /// <summary>The premium themes: a live preview of the chosen one (its palette and its moving backdrop) above a grid of small
 /// mock-ups. Buying spends feathers; applying uses the same circle reveal as the colour chips in Settings.
-/// Only the big preview animates; the tiles are still pictures built from the palette.</summary>
+/// Only the big preview animates; the tiles are still pictures: the theme's painting under a mock-up in its colours.</summary>
 internal sealed class ThemeStoreView : StackPanel
 {
     private readonly Hub _hub;
@@ -40,12 +40,14 @@ internal sealed class ThemeStoreView : StackPanel
     }
 
     /// <summary>A small picture of a window in the theme's colours: sidebar, two cards, an accent button and a few lines of text.</summary>
-    private static Border Mock(Palette p, double width, double height, bool detailed)
+    private static Border Mock(Palette p, double width, double height, ImageSource? art = null)
     {
         var bg = new LinearGradientBrush(Col(p, "Bg"), Col(p, "Bg2"), 90);
         bg.Freeze();
         var root = new Grid { ClipToBounds = true };
-        var side = new Border { Width = width * .2, HorizontalAlignment = HorizontalAlignment.Right, Background = Solid(p, "Side") };
+        // the painting shows through: the mock-up's panels are a little see-through, as the real pages are over the backdrop
+        if (art is not null) root.Children.Add(new Image { Source = art, Stretch = Stretch.UniformToFill, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+        var side = new Border { Width = width * .2, HorizontalAlignment = HorizontalAlignment.Right, Background = Solid(p, "Side"), Opacity = .82 };
         var lines = new StackPanel { Margin = new Thickness(width * .03, height * .1, width * .03, 0), VerticalAlignment = VerticalAlignment.Top };
         for (var i = 0; i < 4; i++) lines.Children.Add(new Rectangle { Height = height * .045, RadiusX = 3, RadiusY = 3, Margin = new Thickness(0, 0, 0, height * .06), Fill = Solid(p, i == 0 ? "Accent" : "Faint"), Opacity = i == 0 ? 1 : .6 });
         side.Child = lines;
@@ -53,13 +55,13 @@ internal sealed class ThemeStoreView : StackPanel
         body.RowDefinitions.Add(new RowDefinition { Height = new GridLength(.9, GridUnitType.Star) });
         body.RowDefinitions.Add(new RowDefinition { Height = new GridLength(8) });
         body.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        var hero = new Border { CornerRadius = new CornerRadius(8), Background = new LinearGradientBrush(Col(p, "Hero"), Col(p, "Hero2"), 20) };
+        var hero = new Border { CornerRadius = new CornerRadius(8), Background = new LinearGradientBrush(Col(p, "Hero"), Col(p, "Hero2"), 20), Opacity = .9 };
         var heroLines = new StackPanel { Margin = new Thickness(10, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center };
         heroLines.Children.Add(new Rectangle { Height = height * .06, Width = width * .22, RadiusX = 3, RadiusY = 3, HorizontalAlignment = HorizontalAlignment.Right, Fill = Solid(p, "Text") });
         heroLines.Children.Add(new Rectangle { Height = height * .04, Width = width * .32, RadiusX = 2, RadiusY = 2, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 6, 0, 0), Fill = Solid(p, "Muted") });
         hero.Child = heroLines;
         Grid.SetRow(hero, 0);
-        var card = new Border { CornerRadius = new CornerRadius(8), Background = Solid(p, "Panel"), BorderBrush = Solid(p, "Line"), BorderThickness = new Thickness(1) };
+        var card = new Border { CornerRadius = new CornerRadius(8), Background = Solid(p, "Panel"), BorderBrush = Solid(p, "Line"), BorderThickness = new Thickness(1), Opacity = .86 };
         var cardGrid = new Grid { Margin = new Thickness(10) };
         cardGrid.Children.Add(new Border { Width = width * .16, Height = height * .09, CornerRadius = new CornerRadius(height * .045), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom, Background = new LinearGradientBrush(Col(p, "Accent1"), Col(p, "Accent2"), 0) });
         cardGrid.Children.Add(new Rectangle { Height = height * .04, Width = width * .3, RadiusX = 2, RadiusY = 2, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top, Fill = Solid(p, "Muted") });
@@ -69,7 +71,6 @@ internal sealed class ThemeStoreView : StackPanel
         body.Children.Add(card);
         root.Children.Add(body);
         root.Children.Add(side);
-        _ = detailed;
         return new Border { Width = width, Height = height, CornerRadius = new CornerRadius(12), Background = bg, ClipToBounds = true, Child = root, BorderBrush = Solid(p, "Line"), BorderThickness = new Thickness(1.2) };
     }
 
@@ -82,7 +83,7 @@ internal sealed class ThemeStoreView : StackPanel
         var applied = Ui.BaseTheme.Key == sel.Key;
 
         // the big live preview: the mock-up with the backdrop moving behind it
-        var frame = Mock(sel.Palette, 620, 250, true);
+        var frame = Mock(sel.Palette, 620, 250);
         var host = (Grid)((Border)frame).Child;
         
         _live = new ThemeScene(sel.Scene, sel.Palette) { IsHitTestVisible = false, Width = 620, Height = 250 };
@@ -117,7 +118,7 @@ internal sealed class ThemeStoreView : StackPanel
             var theme = t;
             var has = e.OwnsTheme(theme.Key);
             var cell = new StackPanel { Width = 176, Margin = new Thickness(6, 0, 6, 12), Cursor = Cursors.Hand, Background = Brushes.Transparent };
-            var mock = Mock(theme.Palette, 176, 108, false);
+            var mock = Mock(theme.Palette, 176, 108, ThemeScene.Thumb(theme.Key));
             mock.BorderBrush = theme.Key == _selected ? Ui.Live("Accent") : mock.BorderBrush;
             mock.BorderThickness = new Thickness(theme.Key == _selected ? 2.4 : 1.2);
             cell.Children.Add(mock);

@@ -62,6 +62,7 @@ public sealed partial class ThemeScene : Canvas
     private static void StopAll(UIElement e)
     {
         e.BeginAnimation(OpacityProperty, null);
+        if (e is Panel panel) foreach (UIElement child in panel.Children) StopAll(child);
         if (e.RenderTransform is TransformGroup g) foreach (var t in g.Children) Stop(t);
         else Stop(e.RenderTransform);
         static void Stop(Transform t)
@@ -107,6 +108,7 @@ public sealed partial class ThemeScene : Canvas
         if (w < 80 || h < 80 || !IsVisible) return;
         _rng = new Random(7);
         SceneFps = FpsFor(_scene);
+        if (!Art(w, h))
         switch (_scene)
         {
             case Scene.Lanterns: Lanterns(w, h); break;

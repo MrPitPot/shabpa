@@ -36,6 +36,7 @@
     <Resource Include="Assets\logo.png" />
     <Resource Include="Assets\bidar\*.png" />
     <Resource Include="Assets\boofi\*.png" />
+    <Resource Include="Assets\themes\*.*" />
     <InternalsVisibleTo Include="Shabpa.Tests" />
   </ItemGroup>
 
