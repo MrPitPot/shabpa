@@ -70,8 +70,8 @@ as a network tool. All source is here to read and build.
 ## Privacy and safety
 
 - Everything is stored locally in `%AppData%\Shabpa`. There is no telemetry and no account is needed. If you choose the optional cloud save, only your feathers, medals and counters are sent (no name, no file paths, no usage details); you can log out or delete it from the server at any time. See `server/account-worker`.
-- Only things you switch on use the internet: the update check (GitHub), weather (Open-Meteo), the Telegram link
-  and support tickets.
+- Only things you switch on use the internet: the update check (GitHub), weather (Open-Meteo), the Telegram link,
+  support tickets, a gift code typed to Boofi (only a hash of the code is sent) and sending a star rating. The rating is a separate yes/no question that defaults to no; if you say yes, only the number of stars, the app version, the language and a random install id are sent to shabpa.ir (the site keeps a hash of that id, never an address), and you can change your vote later.
 - Telegram control is opt-in. The app asks for a one-time code; it never sees a Telegram token.
 - Every schedule, deletion, lock or clean-up shows its exact effect and asks first. Your files are removed only
   through the Recycle Bin, after a preview, and only from the folder you scanned; clean-up touches temporary and cache

@@ -84,6 +84,8 @@ public sealed class Settings
     /// <summary>The stars the person gave the app (0 = none). Kept on this PC only.</summary>
     public int Rating { get; set; }
     public DateTime? RatedAt { get; set; }
+    /// <summary>The person agreed to put the rating on shabpa.ir and it arrived (only the stars, the app version and the language are sent).</summary>
+    public bool RatingShared { get; set; }
     /// <summary>Draw the window in software: less RAM while it is open, a little more CPU. Applied at start.</summary>
     public bool LowMemory { get; set; }
     /// <summary>Draw the window with the processor instead of the graphics card (lighter on the GPU, a little more CPU). Applied at start.</summary>

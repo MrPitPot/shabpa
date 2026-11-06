@@ -9,6 +9,10 @@ Do not open a public issue for something that could be abused.
   file is re-checked while locked right before it starts. Installers are not code-signed yet.
 - Telegram control goes through the project's bot, @ShabPa_Bot. The app never asks for or holds a bot token; it only
   makes outgoing HTTPS calls to the bot's server, and nothing is sent until you press "Connect to the bot".
+- A star rating is sent to shabpa.ir only when you answer yes to a separate question (the default is no). It carries the number of
+  stars, the app version, the interface language and a random install id (a GUID made once; not derived from your hardware, account or
+  PC name). The site stores only a SHA-256 of that id, so each install has one vote it can change, and it never stores IP addresses or user agents.
+  The Boofi gift code sends only a SHA-256 of the code to the project's server so a code works once.
 - Only Telegram chats that sent the one-time code (single use, 10 minutes) can control the PC. The device secret is
   stored encrypted for your Windows user (DPAPI); the server keeps only its hash.
 - The bot can only ask for a fixed list of commands (status, power actions with an on-screen countdown, cancel, free

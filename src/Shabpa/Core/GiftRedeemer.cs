@@ -43,7 +43,7 @@ public static class GiftRedeemer
         return GiftAnswer.Offline;
     }
 
-    private static HttpMessageHandler Real(string proxyUrl)
+    internal static HttpMessageHandler Real(string proxyUrl)
     {
         var real = new HttpClientHandler();
         if (!string.IsNullOrWhiteSpace(proxyUrl))

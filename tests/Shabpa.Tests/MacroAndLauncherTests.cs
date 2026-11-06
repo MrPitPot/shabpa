@@ -288,12 +288,17 @@ public sealed class RatingTests
     }
 
     [Fact]
-    public void A_rating_never_leaves_the_pc()
+    public void The_card_has_no_network_code_of_its_own_and_sends_only_after_the_separate_question()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Shabpa.slnx"))) dir = dir.Parent;
         var text = File.ReadAllText(Path.Combine(dir!.FullName, "src", "Shabpa", "Pages", "RatingCard.cs"));
         foreach (var banned in new[] { "HttpClient", "WebClient", "Socket" }) Assert.DoesNotContain(banned, text);
+        // the only way out is PublicRating.ShareAsync, called after the yes/no question and never before it
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(text, @"PublicRating\.ShareAsync"));
+        var ask = text.IndexOf("ConfirmWindow.AskAlways(L.T(\"ثبت روی shabpa.ir", StringComparison.Ordinal);
+        Assert.True(ask > 0 && text.IndexOf("PublicRating.ShareAsync", StringComparison.Ordinal) > ask);
+        Assert.Contains("if (!agreed) return;", text);
     }
 }
 

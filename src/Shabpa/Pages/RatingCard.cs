@@ -8,8 +8,8 @@ using Shabpa.Kit;
 
 namespace Shabpa.Pages;
 
-/// <summary>"Rate Shabpa": one to five stars. Nothing is sent anywhere: the choice is kept on this PC, and the card can
-/// open the project's GitHub page (to leave a real star) or its issue page (for a written opinion).</summary>
+/// <summary>"Rate Shabpa": one to five stars. The choice is kept on this PC. A second, separate question (default no) asks whether it may also be shown on shabpa.ir: only then are the stars,
+/// the app version and the language sent (see <see cref="PublicRating"/>). The card can also open the project's GitHub page (to leave a real star) or its issue page (for a written opinion).</summary>
 public sealed class RatingCard : GlassCard
 {
     private const string RepoUrl = "https://github.com/" + GitHubIssue.Repo;
@@ -47,8 +47,8 @@ public sealed class RatingCard : GlassCard
         titles.Children.Add(new TextBlock { Text = L.T("به شب‌پا امتیاز بده", "Rate Shabpa"), Style = (Style)Application.Current.Resources["H2"] });
         titles.Children.Add(new TextBlock
         {
-            Text = L.T("از یک تا پنج ستاره. امتیازت فقط روی همین کامپیوتر ذخیره می‌شه و چیزی جایی فرستاده نمی‌شه. برای ثبت واقعی می‌تونی توی گیت‌هاب ستاره بدی.",
-                "One to five stars. Your choice stays on this PC and nothing is sent. For a public one you can star the project on GitHub."),
+            Text = L.T("از یک تا پنج ستاره. امتیازت روی همین کامپیوتر ذخیره می‌شه؛ اگه بخوای می‌تونی همون رو روی shabpa.ir هم ثبت کنی (فقط تعداد ستاره و نسخه‌ی برنامه). بدون اجازه‌ی تو چیزی فرستاده نمی‌شه.",
+                "One to five stars. Your choice is kept on this PC; if you want, it can also be shown on shabpa.ir (only the number of stars and the app version). Nothing is sent without your yes."),
             Style = (Style)Application.Current.Resources["Body"], TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0),
         });
         Grid.SetColumn(titles, 1);
@@ -121,6 +121,31 @@ public sealed class RatingCard : GlassCard
         Refresh();
         _state.Text += "  " + Reply(stars);
         Celebrate(stars);
+        AskToShare(stars);
+    }
+
+    /// <summary>The separate, optional question. Default is no; saying no (or closing the window) keeps everything on this PC.</summary>
+    private void AskToShare(int stars)
+    {
+        var hub = Hub.I;
+        if (hub.Demo) return;
+        var agreed = ConfirmWindow.AskAlways(L.T("ثبت روی shabpa.ir هم بشه؟", "Show it on shabpa.ir too?"),
+            L.T("فقط تعداد ستاره و نسخه‌ی برنامه فرستاده می‌شه؛ بدون اسم، بدون ایمیل و بدون هیچ اطلاعاتی از کامپیوترت. هر نصب فقط یک رأی داره و می‌تونی بعداً عوضش کنی.",
+                "Only the number of stars and the app version are sent; no name, no email and nothing about your PC. Each install has one vote and you can change it later."),
+            L.T("آره، ثبت بشه", "Yes, share it"), L.T("نه، فقط روی همین کامپیوتر", "No, keep it on this PC"));
+        if (!agreed) return;
+        _state.Text += "  " + L.T("در حال ثبت روی سایت…", "Sending to the site…");
+        var (folder, version, lang, proxy) = (hub.Store.Folder, Updater.Current.ToString(3), L.En ? "en" : "fa", hub.Settings.ProxyUrl);
+        _ = Task.Run(async () =>
+        {
+            var outcome = await PublicRating.ShareAsync(true, stars, folder, version, lang, proxyUrl: proxy);
+            await Dispatcher.InvokeAsync(() =>
+            {
+                if (outcome == ShareOutcome.Sent) { hub.Settings.RatingShared = true; hub.Store.Save(); }
+                Refresh();
+                _state.Text += "  " + (outcome == ShareOutcome.Sent ? L.T("روی سایت ثبت شد ✓", "Shown on the site ✓") : L.T("ثبت نشد، بعداً دوباره امتحان کن (امتیازت روی همین کامپیوتر موند).", "Could not be sent, try again later (your rating is kept on this PC)."));
+            });
+        });
     }
 
     /// <summary>The chosen stars spring in one after another, then the reply line rises in.</summary>

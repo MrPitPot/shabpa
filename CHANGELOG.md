@@ -4,13 +4,25 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [3.16.0] - 2026-11-06
+
+### Added
+- Public ratings: after you pick stars in «Rate Shabpa», a separate question (default no) asks whether the rating may also be shown on shabpa.ir. Only if you say yes, the number of stars, the app version, the language and a random install id (a GUID made once, not derived from the hardware or the account) are sent; each install has one vote it can change. The site stores only a hash of the id and no address. The website shows the average from five votes.
+- Lighting: a full-circle rainbow and seven saturated flowing looks (spectrum, sunset drive, tropical, northern lights, neon duo, fire wave, ocean depth), and a switch «Richer colours» (on by default).
+
+### Changed
+- Lighting: synchronised lights now show the same effect at the same moment on every device (a rainbow is two or three neighbouring colours on each fan, strip and keyboard) instead of one long rainbow with a different colour on each device. Gradients blend through the hues between two colours instead of through grey, and colours are corrected for LEDs so mixed colours are not pale and whitish.
+- The Boofi gift code pays 5,000 feathers and is used up on Shabpa's server, so it works once in the whole world; with no answer from the server nothing is paid. Only a SHA-256 of the code is sent.
+
+### Fixed
+- The overlay preview on the Game overlay page was cut off at the bottom with the taller layouts.
+
 ## [3.15.1] - 2026-11-06
 
 ### Added
-- A one-time gift code typed to Boofi pays 5,000 feathers. The code is used up on Shabpa's server, so it works once in the whole world; with no answer from the server nothing is paid. Only a salted hash of the code is in the program and only its SHA-256 is sent.
+- A one-time gift code typed to Boofi pays 10,000 feathers once per copy; only a salted hash of the code is in the program.
 
 ### Changed
-- Lighting: synchronised lights now show the same effect at the same moment on every device (a rainbow is two or three neighbouring colours on each fan, strip and keyboard) instead of one long rainbow with a different colour on each device. Gradients blend through the hues between two colours instead of through grey. Colours are corrected for LEDs (a switch, on by default) so mixed colours are not pale and whitish. A full-circle rainbow and seven saturated flowing looks were added.
 - Premium themes the person owns are listed under their own heading in Settings, apart from the free themes.
 
 ### Fixed

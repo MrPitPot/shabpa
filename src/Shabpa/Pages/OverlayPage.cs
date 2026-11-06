@@ -122,7 +122,7 @@ public sealed class OverlayPage : PageBase
 
         // ---- preview ---------------------------------------------------------------------------------
         var (previewCard, preview) = Ui2.Card(L.T("پیش‌نمایش", "Preview"), L.T("هر تغییری همان لحظه این‌جا دیده می‌شه.", "Every change shows here right away."));
-        _previewStage.Height = 250;
+        _previewStage.MinHeight = 250;      // grows with the card: a tall layout (many rows) was cut off at the bottom
         _previewStage.CornerRadius = new CornerRadius(14);
         _previewStage.ClipToBounds = true;
         _previewStage.FlowDirection = FlowDirection.LeftToRight;
