@@ -30,12 +30,14 @@ public sealed record RgbZoneInfo(int Index, string Name, int Type, int Min, int 
 /// is sent and the page says so. Only localhost is ever used unless the person typed another address.</summary>
 public sealed class OpenRgbClient : IDisposable
 {
-    private const uint MagicRequestControllerCount = 0, RequestControllerData = 1, RequestProtocolVersion = 40, SetClientName = 50, ResizeZoneId = 1000, UpdateLeds = 1050, SetCustomMode = 1100;
+    internal const uint MagicRequestControllerCount = 0, RequestControllerData = 1, RequestProtocolVersion = 40, SetClientName = 50, ResizeZoneId = 1000, UpdateLeds = 1050, SetCustomMode = 1100;
     private const uint ClientProtocol = 3;
 
     private TcpClient? _tcp;
     private NetworkStream? _stream;
     private uint _protocol = 1;
+    private string _host = "127.0.0.1";
+    private int _port = 6742;
 
     public IReadOnlyList<RgbDevice> Devices { get; private set; } = [];
     public bool Connected => _tcp is { Connected: true } && _stream is not null;
@@ -45,6 +47,8 @@ public sealed class OpenRgbClient : IDisposable
     public bool Connect(string host, int port, int timeoutMs = 700)
     {
         Close();
+        _host = host;
+        _port = port;
         TcpClient? tcp = null;
         try
         {
@@ -64,7 +68,6 @@ public sealed class OpenRgbClient : IDisposable
             var version = Receive(RequestProtocolVersion);
             _protocol = Math.Min(ClientProtocol, version.Length >= 4 ? BitConverter.ToUInt32(version, 0) : 0);
             ReadDevices();
-            _costMs.Clear();
             LastError = "";
             return true;
         }
@@ -92,7 +95,7 @@ public sealed class OpenRgbClient : IDisposable
         }
         Devices = WithKeys(list);
         _serverCount = (int)count;
-        _last.Clear();
+        StopLanes();                                             // device numbers may have moved: every lane starts again
         _controlledSet.Clear();
     }
 
@@ -130,19 +133,26 @@ public sealed class OpenRgbClient : IDisposable
         return list;
     }
 
-    private readonly Dictionary<int, (byte[] Colours, long At)> _last = [];
-    private readonly Dictionary<int, double> _costMs = [];
+    private readonly Dictionary<int, RgbLane> _lanes = [];
 
     /// <summary>How long (ms) the server takes to put one frame on this device, measured on every frame sent. A big motherboard header or memory over a slow bus takes tens of
     /// milliseconds; it is also how far this device runs behind, which the caller makes up for by showing it the effect that far ahead.</summary>
-    public double CostMs(int deviceIndex) => _costMs.GetValueOrDefault(deviceIndex);
+    public double CostMs(int deviceIndex) => _lanes.TryGetValue(deviceIndex, out var lane) ? lane.CostMs : 0;
     private readonly HashSet<int> _controlledSet = [];
 
-    /// <summary>Puts every device into the mode where it takes its colours from us. Done once, when the first frame is about to be sent.</summary>
-    /// <summary>A device is put in direct control the first time it is given a frame, never before: a device the person left out (no frame for it) keeps its own effect.</summary>
-    private void TakeControl(RgbDevice device)
+    /// <summary>Every device has a lane of its own (its own connection and thread), made when the first frame for it is offered: a device the person left out (no frame for it) is never
+    /// touched and keeps its own effect.</summary>
+    private RgbLane LaneFor(RgbDevice device)
     {
-        if (_controlledSet.Add(device.Index)) Send((uint)device.Index, SetCustomMode, []);
+        if (!_lanes.TryGetValue(device.Index, out var lane)) _lanes[device.Index] = lane = new RgbLane(_host, _port, device.Index);
+        return lane;
+    }
+
+    private void StopLanes()
+    {
+        var lanes = _lanes.Values.ToList();
+        _lanes.Clear();
+        foreach (var lane in lanes) lane.Dispose();
     }
 
     /// <summary>Devices that talk over a slow bus (memory and many motherboards, over SMBus) get fewer frames; everything else gets up to 40 a second.</summary>
@@ -153,46 +163,48 @@ public sealed class OpenRgbClient : IDisposable
     /// <summary>Colours are corrected for LEDs (see <see cref="Rgb.ForLight"/>) before they are sent.</summary>
     public bool RichColours { get; set; }
 
-    /// <summary>Sets every LED of the devices. <paramref name="frameFor"/> gives a device's frame (or null to leave it alone); it is stretched to the device's LED count.
-    /// A device only gets a frame when its colours changed (or every two seconds, so none falls back to its own program), and a slow one only every 100 ms.</summary>
-    public bool Update(Func<RgbDevice, Rgb[]?> frameFor, bool force = false)
+    /// <summary>Sets every LED of the devices. <paramref name="frameFor"/> gives a device's frame (or null to leave it alone); it is stretched to the device's LED count and handed to
+    /// that device's lane, which sends it as soon as the device can take it (all devices at once, not one after the other). A device only gets a frame when its colours changed
+    /// (or every two seconds, so none falls back to its own program), and a slow one only every 100 ms. <paramref name="wait"/> holds the call until every lane has
+    /// finished with what it was given (the light loop does not wait: it must never be slowed by a slow device); false when the server is gone.</summary>
+    public bool Update(Func<RgbDevice, Rgb[]?> frameFor, bool force = false, bool wait = true) => UpdateAt((device, _) => frameFor(device), force, wait);
+
+    /// <summary>Like <see cref="Update"/>, but the frame is drawn by the lane at the moment it really goes out: <paramref name="frameAt"/> gets the device and how many seconds late
+    /// that is compared with now, and shows the effect that much further on. Every device is then shown the same moment of the effect, however long it had to wait its turn.</summary>
+    public bool UpdateAt(Func<RgbDevice, double, Rgb[]?> frameAt, bool force = false, bool wait = true)
     {
         if (!Connected) return false;
         try
         {
-            var now = Environment.TickCount64;
-            foreach (var device in Devices.OrderBy(d => _costMs.GetValueOrDefault(d.Index)))    // quick devices first, the slow ones after them
+            var offered = new List<RgbLane>();
+            foreach (var device in Devices)
             {
-                if (frameFor(device) is not { Length: > 0 } frame) continue;
-                TakeControl(device);
-                var leds = RgbEngine.Resample(frame, device.Leds);
-                if (RichColours) leds = [.. leds.Select(c => c.ForLight())];
-                var colours = new byte[leds.Length * 3];
-                for (var i = 0; i < leds.Length; i++) { colours[i * 3] = leds[i].R; colours[i * 3 + 1] = leds[i].G; colours[i * 3 + 2] = leds[i].B; }
-                if (!force && _last.TryGetValue(device.Index, out var before))
+                if (frameAt(device, 0) is not { Length: > 0 }) continue;                       // left out: never touched
+                var lane = LaneFor(device);
+                _controlledSet.Add(device.Index);
+                var d = device;
+                var rich = RichColours;
+                lane.Offer(late =>
                 {
-                    var age = now - before.At;
-                    if (age < Math.Max(MinIntervalMs(device, Smooth), Math.Min(400, _costMs.GetValueOrDefault(device.Index) * 1.2))) continue;     // never faster than the device can take them
-                    if (age < 2000 && before.Colours.AsSpan().SequenceEqual(colours)) continue;
-                }
-                _last[device.Index] = (colours, now);
-                var payload = new byte[4 + 2 + leds.Length * 4];
-                BitConverter.GetBytes(payload.Length).CopyTo(payload, 0);
-                BitConverter.GetBytes((ushort)leds.Length).CopyTo(payload, 4);
-                for (var i = 0; i < leds.Length; i++)
-                {
-                    payload[6 + i * 4] = leds[i].R;
-                    payload[7 + i * 4] = leds[i].G;
-                    payload[8 + i * 4] = leds[i].B;
-                }
-                // A frame is sent, then a question the server only answers once it has finished with that frame (it handles our requests in order). Waiting for the answer means frames
-                // can never pile up behind a slow device, which is what made some lights run a second behind the others; and the time it takes is how slow the device is.
-                var timer = Stopwatch.StartNew();
-                Send((uint)device.Index, UpdateLeds, payload);
-                Send(0, MagicRequestControllerCount, []);
-                Receive(MagicRequestControllerCount);
-                var took = timer.Elapsed.TotalMilliseconds;
-                _costMs[device.Index] = _costMs.TryGetValue(device.Index, out var old) ? old * 0.7 + took * 0.3 : took;
+                    if (frameAt(d, late) is not { Length: > 0 } frame) return null;
+                    var leds = RgbEngine.Resample(frame, d.Leds);
+                    if (rich) leds = [.. leds.Select(c => c.ForLight())];
+                    var colours = new byte[leds.Length * 3];
+                    for (var i = 0; i < leds.Length; i++) { colours[i * 3] = leds[i].R; colours[i * 3 + 1] = leds[i].G; colours[i * 3 + 2] = leds[i].B; }
+                    return colours;
+                }, force, MinIntervalMs(device, Smooth));
+                offered.Add(lane);
+            }
+            if (wait)
+            {
+                var until = Environment.TickCount64 + 4000;
+                while (offered.Any(l => !l.Idle && !l.Broken) && Environment.TickCount64 < until) Thread.Sleep(1);
+            }
+            if (_lanes.Values.Any(l => l.Broken))
+            {
+                LastError = "the lighting server stopped answering";
+                Close();
+                return false;
             }
             return true;
         }
@@ -202,6 +214,13 @@ public sealed class OpenRgbClient : IDisposable
             Close();
             return false;
         }
+    }
+
+    /// <summary>Waits (at most <paramref name="timeoutMs"/>) until every lane has put what it was given on its device.</summary>
+    public void Flush(int timeoutMs = 1000)
+    {
+        var until = Environment.TickCount64 + timeoutMs;
+        while (_lanes.Values.Any(l => !l.Idle && !l.Broken) && Environment.TickCount64 < until) Thread.Sleep(1);
     }
 
     /// <summary>Sets every header whose size can be set to the size <paramref name="target"/> gives for it (null leaves it). Returns how many were changed.</summary>
@@ -235,7 +254,6 @@ public sealed class OpenRgbClient : IDisposable
             if (at < 0) return false;
             list[at] = fresh;
             Devices = WithKeys(list);
-            _last.Remove(deviceIndex);
             if (_controlledSet.Contains(deviceIndex)) Send((uint)deviceIndex, SetCustomMode, []);
             return true;
         }
@@ -247,7 +265,9 @@ public sealed class OpenRgbClient : IDisposable
         }
     }
 
-    private void Send(uint device, uint id, byte[] payload)
+    private void Send(uint device, uint id, byte[] payload) => WritePacket(_stream!, device, id, payload);
+
+    internal static void WritePacket(Stream stream, uint device, uint id, byte[] payload)
     {
         var packet = new byte[16 + payload.Length];
         "ORGB"u8.CopyTo(packet);
@@ -255,31 +275,33 @@ public sealed class OpenRgbClient : IDisposable
         BitConverter.GetBytes(id).CopyTo(packet, 8);
         BitConverter.GetBytes((uint)payload.Length).CopyTo(packet, 12);
         payload.CopyTo(packet, 16);
-        _stream!.Write(packet, 0, packet.Length);
+        stream.Write(packet, 0, packet.Length);
     }
 
-    private byte[] Receive(uint expectedId)
+    private byte[] Receive(uint expectedId) => ReadAnswer(_stream!, expectedId);
+
+    internal static byte[] ReadAnswer(Stream stream, uint expectedId)
     {
         for (var attempt = 0; attempt < 8; attempt++)
         {
-            var header = ReadExactly(16);
+            var header = ReadExactly(stream, 16);
             if (header[0] != 'O' || header[1] != 'R' || header[2] != 'G' || header[3] != 'B') throw new InvalidDataException("not an OpenRGB answer");
             var id = BitConverter.ToUInt32(header, 8);
             var size = BitConverter.ToUInt32(header, 12);
             if (size > 4 * 1024 * 1024) throw new InvalidDataException("answer too big");
-            var body = ReadExactly((int)size);
+            var body = ReadExactly(stream, (int)size);
             if (id == expectedId) return body;                   // anything else (a "device list changed" note) is skipped
         }
         throw new InvalidDataException("no answer to the request");
     }
 
-    private byte[] ReadExactly(int count)
+    private static byte[] ReadExactly(Stream stream, int count)
     {
         var buffer = new byte[count];
         var read = 0;
         while (read < count)
         {
-            var n = _stream!.Read(buffer, read, count - read);
+            var n = stream.Read(buffer, read, count - read);
             if (n <= 0) throw new IOException("connection closed");
             read += n;
         }
@@ -410,6 +432,7 @@ public sealed class OpenRgbClient : IDisposable
 
     public void Close()
     {
+        StopLanes();
         try { _stream?.Dispose(); } catch (IOException) { }
         try { _tcp?.Dispose(); } catch (SocketException) { }
         _stream = null;

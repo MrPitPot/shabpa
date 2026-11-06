@@ -242,8 +242,11 @@ public class OpenRgbClientTests
         public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
         public readonly List<(uint device, uint id, byte[] payload)> Seen = [];
         private readonly Task _loop;
-        private readonly Dictionary<uint, int> _current = [];
+        private readonly List<TcpClient> _clients = [];
+        private readonly Dictionary<uint, int> _current = [];   // guarded by itself
         public int UpdateDelayMs;
+        /// <summary>A delay of its own for one device (milliseconds), when set it wins over <see cref="UpdateDelayMs"/>.</summary>
+        public Func<uint, int>? DelayOf;
         /// <summary>How many devices the server says it has now (a real one is still looking for hardware for a while after it opens its port).</summary>
         public volatile int Count;
         public FakeServer((int type, string name, int leds)[] devices, int[]? startCounts = null)
@@ -251,11 +254,28 @@ public class OpenRgbClientTests
             for (var i = 0; i < devices.Length; i++) _current[(uint)i] = startCounts?[i] ?? devices[i].leds;
             Count = devices.Length;
             _listener.Start();
+            // every connection (the first one lists the devices, and each device gets one of its own for its frames) is served on its own thread, like the real server does
             _loop = Task.Run(() =>
             {
                 try
                 {
-                    using var client = _listener.AcceptTcpClient();
+                    while (true)
+                    {
+                        var accepted = _listener.AcceptTcpClient();
+                        lock (_clients) _clients.Add(accepted);
+                        _ = Task.Run(() => Serve(accepted, devices));
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or SocketException or ObjectDisposedException or InvalidOperationException) { }
+            });
+        }
+
+        private void Serve(TcpClient client, (int type, string name, int leds)[] devices)
+        {
+            using (client)
+            {
+                try
+                {
                     using var stream = client.GetStream();
                     while (true)
                     {
@@ -267,16 +287,21 @@ public class OpenRgbClientTests
                         void Reply(uint rid, byte[] data) { var p = new List<byte>("ORGB"u8.ToArray()); p.AddRange(BitConverter.GetBytes(device)); p.AddRange(BitConverter.GetBytes(rid)); p.AddRange(BitConverter.GetBytes((uint)data.Length)); p.AddRange(data); stream.Write([.. p]); }
                         if (id == 40) Reply(40, BitConverter.GetBytes(3u));
                         else if (id == 0) Reply(0, BitConverter.GetBytes((uint)Count));
-                        else if (id == 1050 && UpdateDelayMs > 0) Thread.Sleep(UpdateDelayMs);
-                        else if (id == 1000) _current[device] = BitConverter.ToInt32(payload, 4);
-                        else if (id == 1) Reply(1, Controller(devices[device].type, devices[device].name, _current[device], true, devices[device].leds));
+                        else if (id == 1050 && (DelayOf?.Invoke(device) ?? UpdateDelayMs) is var delay && delay > 0) Thread.Sleep(delay);
+                        else if (id == 1000) lock (_current) _current[device] = BitConverter.ToInt32(payload, 4);
+                        else if (id == 1) { int now; lock (_current) now = _current[device]; Reply(1, Controller(devices[device].type, devices[device].name, now, true, devices[device].leds)); }
                     }
                 }
                 catch (Exception ex) when (ex is IOException or SocketException or ObjectDisposedException or InvalidOperationException) { }
-            });
+            }
         }
         private static byte[] Read(NetworkStream s, int n) { var b = new byte[n]; var r = 0; while (r < n) { var k = s.Read(b, r, n - r); if (k <= 0) throw new IOException(); r += k; } return b; }
-        public void Dispose() { _listener.Stop(); try { _loop.Wait(500); } catch (AggregateException) { } }
+        public void Dispose()
+        {
+            _listener.Stop();
+            lock (_clients) foreach (var c in _clients) { try { c.Close(); } catch (Exception ex) when (ex is IOException or SocketException or ObjectDisposedException) { } }
+            try { _loop.Wait(500); } catch (AggregateException) { }
+        }
     }
 
     [Fact]
@@ -540,17 +565,15 @@ public class OpenRgbClientTests
         using var client = new OpenRgbClient();
         Assert.True(client.Connect("127.0.0.1", server.Port), client.LastError);
         server.UpdateDelayMs = 80;                                                            // every frame now takes 80 ms to put on a device
-        var sent = 0;
-        for (var i = 0; i < 6; i++)
+        for (var i = 0; i < 40; i++)
         {
-            var colour = new Rgb((byte)(10 + i * 30), 0, 0);
-            var before = Environment.TickCount64;
-            Assert.True(client.Update(_ => [colour]));
-            if (Environment.TickCount64 - before >= 60) sent++;                               // this call really waited for a frame to be put on a device
+            var colour = new Rgb((byte)(10 + i * 5), 0, 0);
+            Assert.True(client.Update(_ => [colour], wait: false));                           // the caller is never slowed down
+            Thread.Sleep(25);                                                                 // one second of frames at 40 a second
         }
+        client.Flush(2000);
         Assert.InRange(client.CostMs(0), 50, 400);                                            // the measured delay of a device
-        Assert.True(sent >= 4);                                                               // every call waited for the slow device: nothing was queued up behind it
-        lock (server.Seen) Assert.True(server.Seen.Count(x => x.id == 1050) <= 12);
+        lock (server.Seen) Assert.InRange(server.Seen.Count(x => x.id == 1050), 8, 28);       // about ten frames a second for each of the two devices, not forty
     }
 
     [Fact]
@@ -565,5 +588,61 @@ public class OpenRgbClientTests
         client.Update(_ => [new Rgb(2, 2, 2)]);
         Thread.Sleep(80);
         lock (server.Seen) Assert.Equal(2, server.Seen.Count(x => x.id == 1050));
+    }
+
+    [Fact]
+    public void A_slow_device_does_not_hold_up_a_quick_one()
+    {
+        using var server = new FakeServer([(1, "Slow RAM", 4), (3, "Quick fan", 4)]) { DelayOf = d => d == 0 ? 150 : 0 };
+        using var client = new OpenRgbClient { Smooth = true };
+        Assert.True(client.Connect("127.0.0.1", server.Port), client.LastError);
+        var started = Environment.TickCount64;
+        for (var i = 0; i < 25; i++)
+        {
+            var colour = new Rgb((byte)(i * 9), 0, 0);
+            Assert.True(client.Update(_ => [colour], wait: false));
+            Thread.Sleep(20);
+        }
+        client.Flush(2000);
+        var elapsed = Environment.TickCount64 - started;
+        int slow, quick;
+        lock (server.Seen) { slow = server.Seen.Count(x => x.id == 1050 && x.device == 0); quick = server.Seen.Count(x => x.id == 1050 && x.device == 1); }
+        Assert.True(quick >= 10, $"the quick device got only {quick} frames in {elapsed} ms");              // it kept its own pace
+        Assert.True(slow <= 6, $"the slow device got {slow} frames");                                       // and the slow one was never queued up
+        Assert.True(quick > slow * 2);
+    }
+
+    [Fact]
+    public void A_frame_that_had_to_wait_for_a_busy_device_is_drawn_for_the_moment_it_goes_out()
+    {
+        using var server = new FakeServer([(3, "Slow hub", 4), (3, "Quick fan", 4)]) { DelayOf = d => d == 0 ? 120 : 0 };
+        using var client = new OpenRgbClient { Smooth = true };
+        Assert.True(client.Connect("127.0.0.1", server.Port), client.LastError);
+        var lates = new Dictionary<int, List<double>> { [0] = [], [1] = [] };
+        void Offer(int i) => Assert.True(client.UpdateAt((device, late) => { lock (lates) lates[device.Index].Add(late); return [new Rgb((byte)(i * 20), 1, 1)]; }, wait: false));
+        Offer(1);
+        Thread.Sleep(10);
+        Offer(2);                                                                             // the slow device is busy with the first frame: this one waits for it
+        client.Flush(2000);
+        lock (lates)
+        {
+            Assert.Contains(lates[0], l => l >= 0.07);                                        // drawn when the slow device was ready, a good while after it was offered
+            Assert.All(lates[0], l => Assert.InRange(l, 0, 1));
+            Assert.All(lates[1], l => Assert.InRange(l, 0, 0.05));                            // the quick device is never made to wait
+        }
+    }
+
+    [Fact]
+    public void A_server_that_goes_away_is_noticed_by_the_next_update()
+    {
+        var server = new FakeServer([(3, "Quick fan", 4)]);
+        using var client = new OpenRgbClient();
+        Assert.True(client.Connect("127.0.0.1", server.Port), client.LastError);
+        Assert.True(client.Update(_ => [new Rgb(1, 1, 1)]));
+        server.Dispose();
+        var ok = true;
+        for (var i = 0; i < 20 && ok; i++) { ok = client.Update(_ => [new Rgb((byte)(i + 2), 2, 2)], force: true); Thread.Sleep(50); }
+        Assert.False(ok);
+        Assert.False(client.Connected);
     }
 }
