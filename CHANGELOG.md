@@ -4,6 +4,11 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [Unreleased]
+
+### Changed
+- Premium themes: all 30 backdrops are redrawn as detailed paintings (a layered snowy village with a decorated Christmas tree, koi that swim head first along curving paths, lantern-lit harbours, Persepolis, Yalda night and more) with small animated parts on top (snow, steam, flames, fish, rain, lightning). The theme store shows each painting on its tile. The scenes still move only a few dozen sprites at a low frame rate.
+
 ## [3.16.0] - 2026-11-06
 
 ### Added
