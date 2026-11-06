@@ -7,7 +7,7 @@ a patch release only fixes bugs, a minor release adds a tested batch of features
 ## [Unreleased]
 
 ### Changed
-- Premium themes: all 30 backdrops are redrawn as detailed paintings (a layered snowy village with a decorated Christmas tree, koi that swim head first along curving paths, lantern-lit harbours, Persepolis, Yalda night and more) with small animated parts on top (snow, steam, flames, fish, rain, lightning). The theme store shows each painting on its tile. The scenes still move only a few dozen sprites at a low frame rate.
+- Premium themes: all 30 backdrops are redrawn as detailed paintings (a layered snowy village with a decorated Christmas tree, koi that swim head first along curving paths, lantern-lit harbours, Persepolis, Yalda night and more) with small animated parts on top (snow, steam, flames, fish, rain, lightning). The theme store shows each painting on its tile. The scenes still move only a few dozen sprites at a low frame rate. A soft veil in each theme's own colour keeps the sidebar, page titles and footer readable over every painting.
 
 ## [3.16.0] - 2026-11-06
 

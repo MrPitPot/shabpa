@@ -350,7 +350,45 @@ public sealed partial class ThemeScene
                 else if (inner.Count > 1) for (var k = 1; k < inner.Count; k++) inner[k].Opacity = 0;
             }
         }
+        if (Veiled) Scrim(key, w, h);   // last: over the moving parts too, so a cloud or a lily pad passing behind a label never washes it out
         return true;
+    }
+
+    /// <summary>Text sits straight on the painting in the sidebar, the page header and the footer: a soft veil in the theme's own background colour
+    /// keeps it readable on any plate (strong where the words are, almost nothing in the middle where the cards already carry the text).</summary>
+    /// <summary>How much of the theme's own background colour is laid over the whole painting so text that sits straight on it stays readable.
+    /// Worked out per theme from screenshots of every page (the muted text against the brightest 5 % of the backdrop); bright, busy paintings need more.</summary>
+    private static readonly Dictionary<string, double> Dim = new()
+    {
+        ["sakura"] = .14, ["embers"] = .14, ["synthwave"] = .14, ["dunes"] = .18, ["prism"] = .18, ["rainglass"] = .28, ["snowfall"] = .30, ["christmas"] = .30, ["teahouse"] = .30,
+        ["yalda"] = .40, ["fireflies"] = .42, ["koi"] = .44, ["tilework"] = .46, ["persepolis"] = .46, ["deep"] = .46, ["radiant"] = .38, ["blocky"] = .50,
+    };
+
+    internal static double DimFor(string key) => Dim.GetValueOrDefault(key, .12);
+
+    private void Scrim(string key, double w, double h)
+    {
+        var (r, g, b) = Ui.Theme.Rgb("Bg");
+        Color At(double a) => Color.FromArgb((byte)Math.Round(a * 255), r, g, b);
+        void Veil(double x, double y, double vw, double vh, Brush fill)
+        {
+            var veil = new Rectangle { Width = vw, Height = vh, Fill = fill, IsHitTestVisible = false };
+            SetLeft(veil, x);
+            SetTop(veil, y);
+            Children.Add(veil);
+        }
+        LinearGradientBrush Fade(Point from, Point to, params (double at, double alpha)[] stops)
+        {
+            var brush = new LinearGradientBrush { StartPoint = from, EndPoint = to };
+            foreach (var (at, alpha) in stops) brush.GradientStops.Add(new GradientStop(At(alpha), at));
+            brush.Freeze();
+            return brush;
+        }
+        Veil(0, 0, w, h, Freeze(new SolidColorBrush(At(DimFor(key)))));                          // the whole painting a little calmer
+        var side = Math.Min(w, 262);
+        Veil(0, 0, side, h, Fade(new Point(0, 0), new Point(1, 0), (0, .78), (.86, .78), (1, 0)));                  // the sidebar
+        Veil(0, 0, w, Math.Min(h, 150), Fade(new Point(0, 0), new Point(0, 1), (0, .62), (1, 0)));                  // the page title
+        Veil(0, Math.Max(0, h - 64), w, Math.Min(h, 64), Fade(new Point(0, 0), new Point(0, 1), (0, 0), (1, .72)));   // the footer
     }
 
     /// <summary>A sprite that swims or flies along a loop: key frames for its position and its heading, so it always faces

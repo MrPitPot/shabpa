@@ -88,4 +88,12 @@ public class PremiumThemeTests
             if (layer.TryGetProperty("fps", out var fps)) Assert.InRange(fps.GetInt32(), 4, 24);   // only quick streaks (meteors, tracers) go above the scene rate
         }
     }
+
+    [Theory]
+    [MemberData(nameof(Keys))]
+    public void The_veil_that_keeps_text_readable_stays_between_a_whisper_and_half(string key)
+    {
+        // too little leaves labels lost on a bright painting, too much hides the painting the theme is bought for
+        Assert.InRange(Shabpa.Kit.ThemeScene.DimFor(key), .1, .5);
+    }
 }

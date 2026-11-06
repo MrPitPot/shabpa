@@ -34,6 +34,10 @@ public sealed partial class ThemeScene : Canvas
 
     public Scene Kind => _scene;
 
+    /// <summary>True for the backdrop of the real window, where the sidebar, the page title and the footer put text straight on the painting: a veil keeps it readable.
+    /// The small store preview shows the bare painting.</summary>
+    public bool Veiled { get; init; }
+
     public ThemeScene(Scene scene)
     {
         _scene = scene;
