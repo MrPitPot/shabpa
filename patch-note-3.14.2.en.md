@@ -1,4 +1,1 @@
-📣 Shabpa 3.14.2 is out
-
-🛠 Fixes
-• If lighting did not work on your PC (especially Windows 10), the app now says why and shows the right fix
+If lighting does not work, the app now says why and shows the fix
