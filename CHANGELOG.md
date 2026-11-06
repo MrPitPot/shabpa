@@ -4,6 +4,18 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [3.16.1] - 2026-11-07
+
+### Changed
+- Lighting: every device now has its own connection and thread to the lighting server, so a slow device (memory, motherboard) no longer holds up the fans and strips; the loop never waits for a device, and each frame is drawn for the moment it really goes out. Devices change together more closely.
+- The Medals page opens about four times faster: the shop, wardrobe and theme views are built when their tab is opened.
+- Rounded window corners are asked for on Windows 11 only (always on) and again once the window is up; Windows 10 keeps the square window.
+
+### Fixed
+- The window could freeze for seconds (up to half a minute in one log) while the overlay was on: the overlay asked Windows Forms for the monitor on the window thread, which waits for the display driver. It now asks Windows directly.
+- Quitting or restarting (language change) waited three to five seconds for the internet-usage tracer to stop; it now stops in the background.
+- The stall log also writes the native stack (libraries and offsets) of the window thread, and a new log line shows how long a tab takes to settle, so a freeze inside a driver or a slow tab names its owner.
+
 ## [3.16.0] - 2026-11-06
 
 ### Added
