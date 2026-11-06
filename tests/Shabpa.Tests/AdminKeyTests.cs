@@ -83,7 +83,7 @@ public class AdminKeyTests
     }
 
     [Fact]
-    public void The_gift_code_pays_ten_thousand_once_and_only_for_the_right_code()
+    public void The_gift_code_pays_five_thousand_once_and_only_for_the_right_code()
     {
         Assert.False(AdminKey.VerifyGift("BOOFI-00000-00000"));
         Assert.False(AdminKey.VerifyGift("admin"));
@@ -97,9 +97,9 @@ public class AdminKeyTests
         hub.State.Rewards = new RewardsState { Feathers = 5, TotalFeathers = 5 };
         var e = new RewardsEngine(hub, () => new DateTime(2026, 11, 6, 12, 0, 0));
         Assert.True(e.RedeemGift());
-        Assert.Equal(10_005, e.State.Feathers);
+        Assert.Equal(5_005, e.State.Feathers);
         Assert.Equal(5, e.State.TotalFeathers);                                  // the level does not move
         Assert.False(e.RedeemGift());
-        Assert.Equal(10_005, e.State.Feathers);
+        Assert.Equal(5_005, e.State.Feathers);
     }
 }

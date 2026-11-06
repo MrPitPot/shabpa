@@ -24,12 +24,12 @@ public static class AdminKey
         return CryptographicOperations.FixedTimeEquals(got, hash);
     }
 
-    private static readonly byte[] GiftSalt = Convert.FromBase64String("+UHywSlCSDkJsUYqTRGN0Q==");
-    private static readonly byte[] GiftHash = Convert.FromBase64String("qW9xmc2VYDCt5I62S/5dV7v8sniOFiiN5e2ESkgFO4g=");
+    private static readonly byte[] GiftSalt = Convert.FromBase64String("zxJNP807aqtoyi/jjiBNyg==");
+    private static readonly byte[] GiftHash = Convert.FromBase64String("+GaQe2YcKlV+4bPylQfsjwWRN3L3DEqhnwg1rzoxcVU=");
 
     /// <summary>A one-time gift code for a friend: it pays <see cref="GiftFeathers"/> once per copy of the program (the same salted-hash idea; the code itself is not in the source).</summary>
-    public const int GiftFeathers = 10_000;
-    public const string GiftMark = "gift-10k";
+    public const int GiftFeathers = 5_000;
+    public const string GiftMark = "gift-5k";
 
     public static bool VerifyGift(string? code) => Verify(code, GiftSalt, GiftHash);
 
