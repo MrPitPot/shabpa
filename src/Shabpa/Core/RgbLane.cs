@@ -41,6 +41,15 @@ internal sealed class RgbLane : IDisposable
     /// <summary>How long the server takes to put one frame on this device (ms, smoothed).</summary>
     public double CostMs => _cost10 / 10.0;
 
+    private readonly System.Collections.Concurrent.ConcurrentQueue<double> _samples = new();
+    private int _sent;
+
+    /// <summary>Frames put on the device so far.</summary>
+    public int Sent => _sent;
+
+    /// <summary>The last 200 measured delays (ms), for the benchmark and for logs.</summary>
+    public double[] Samples => [.. _samples];
+
     /// <summary>True after the last attempt to talk to the server failed (it is gone or refused); the caller then connects again from the start.</summary>
     public bool Broken => _broken;
 
@@ -133,6 +142,9 @@ internal sealed class RgbLane : IDisposable
         _cost10 = (int)Math.Round((_cost10 == 0 ? took : _cost10 / 10.0 * 0.7 + took * 0.3) * 10);
         _lastColours = colours;
         _lastAt = Environment.TickCount64;
+        Interlocked.Increment(ref _sent);
+        _samples.Enqueue(took);
+        while (_samples.Count > 200) _samples.TryDequeue(out _);
     }
 
     private void Open()

@@ -77,6 +77,13 @@ public static class Ui
 
     public static bool GlassSupported(int build) => build >= GlassMinBuild;
 
+    /// <summary>First Windows build that rounds the corners of windows (Windows 11, 21H2). Windows 10 draws square windows and the setting does not exist there: nothing is asked of it.</summary>
+    public const int RoundedMinBuild = 22000;
+
+    public static bool RoundedCornersSupported(int build) => build >= RoundedMinBuild;
+
+    public static bool RoundedCornersSupported() => RoundedCornersSupported(WindowsBuild);
+
     public static bool GlassSupported() => GlassSupported(WindowsBuild);
 
     /// <summary>What the saved glass choice means on this Windows: unsupported systems always get the normal theme.</summary>
@@ -326,10 +333,14 @@ public static class Ui
         Native.DwmSetWindowAttribute(hwnd, 20, ref dark, sizeof(int));
         if (window is MainWindow)
         {
-            var round = 2; // DWMWCP_ROUND
-            Native.DwmSetWindowAttribute(hwnd, 33, ref round, sizeof(int));
-            var noBorder = unchecked((int)0xFFFFFFFE); // DWMWA_BORDER_COLOR = DWMWA_COLOR_NONE: no Windows outline around the window, only the app's own look
-            Native.DwmSetWindowAttribute(hwnd, 34, ref noBorder, sizeof(int));
+            if (RoundedCornersSupported())
+            {
+                // Windows 11 only, always on (no setting): the window gets the system's rounded corners; on Windows 10 the square window stays as it is
+                var round = 2; // DWMWCP_ROUND
+                Native.DwmSetWindowAttribute(hwnd, 33, ref round, sizeof(int));
+                var noBorder = unchecked((int)0xFFFFFFFE); // DWMWA_BORDER_COLOR = DWMWA_COLOR_NONE: no Windows outline around the window, only the app's own look
+                Native.DwmSetWindowAttribute(hwnd, 34, ref noBorder, sizeof(int));
+            }
             if (IsGlass)
             {
                 if (HwndSource.FromHwnd(hwnd) is { CompositionTarget: { } target }) target.BackgroundColor = System.Windows.Media.Colors.Transparent;

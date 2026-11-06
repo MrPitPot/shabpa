@@ -216,6 +216,9 @@ public sealed class OpenRgbClient : IDisposable
         }
     }
 
+    /// <summary>For every device that has a lane: its number, frames sent and the recent delays (ms). Used by the benchmark probe.</summary>
+    internal IReadOnlyList<(int Device, int Sent, double[] Delays)> LaneStats() => [.. _lanes.Select(l => (l.Key, l.Value.Sent, l.Value.Samples))];
+
     /// <summary>Waits (at most <paramref name="timeoutMs"/>) until every lane has put what it was given on its device.</summary>
     public void Flush(int timeoutMs = 1000)
     {

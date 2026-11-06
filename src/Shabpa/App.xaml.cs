@@ -503,6 +503,7 @@ public partial class App : Application
             else if (Value(e.Args, "--assistant-probe") is { } assistantDir) _ = AssistantProbe(assistantDir);
             else if (Value(e.Args, "--birthday-probe") is { } birthdayDir) _ = Pages.BirthdayProbe.Run(_window, birthdayDir, Save);
 #if DEBUG || SHABPA_TESTHOOKS
+            else if (Value(e.Args, "--rgb-bench") is { } benchReport) _ = Pages.RgbBench.Run(benchReport, int.TryParse(Value(e.Args, "--seconds"), out var benchSeconds) ? benchSeconds : 6);
             else if (Value(e.Args, "--halloween-probe") is { } halloweenDir) _ = Pages.HalloweenProbe.Run(_window, halloweenDir, Save);
 #endif
 #endif

@@ -273,6 +273,8 @@ public partial class MainWindow : Window
     {
         base.OnSourceInitialized(e);
         Ui.Chrome(this);
+        // the window frame is rebuilt once the custom title bar takes over: ask for the rounded corners again when the window is up (Windows 11)
+        Loaded += (_, _) => { if (Ui.RoundedCornersSupported()) Ui.Chrome(this); };
         ApplyIcon();
         DpiChanged += (_, _) => ApplyIcon();
     }

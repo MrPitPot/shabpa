@@ -88,3 +88,15 @@ public class NativeStackTests
         }
     }
 }
+
+public class RoundedCornerTests
+{
+    [Theory]
+    [InlineData(19045, false)]     // Windows 10 22H2: square, no setting
+    [InlineData(21996, false)]
+    [InlineData(22000, true)]      // Windows 11 21H2
+    [InlineData(22631, true)]
+    [InlineData(26300, true)]
+    public void Only_windows_eleven_asks_for_rounded_corners(int build, bool expected) =>
+        Assert.Equal(expected, Shabpa.Ui.RoundedCornersSupported(build));
+}
