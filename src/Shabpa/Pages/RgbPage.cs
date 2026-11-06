@@ -289,6 +289,7 @@ public sealed class RgbPage : PageBase
         panel.Children.Add(Row(L.T("افکت هنگام شروع شب‌پا و خاموش شدن ویندوز", "An effect when Shabpa starts and Windows shuts down"), Sw(Cfg.StartupEffect, v => Cfg.StartupEffect = v)));
         panel.Children.Add(Row(L.T("برنامه‌های نورپردازی دیگه همیشه بسته بمونن", "Keep other lighting programs closed"), Sw(Cfg.KeepRivalsClosed, v => Cfg.KeepRivalsClosed = v)));
         panel.Children.Add(Row(L.T("افکت‌ها نرم‌تر حرکت کنن", "Smoother movement"), Sw(Cfg.Smooth, v => Cfg.Smooth = v)));
+        panel.Children.Add(Row(L.T("رنگ‌های غنی‌تر (اصلاح رنگ برای LED)", "Richer colours (colour correction for LEDs)"), Sw(Cfg.RichColours, v => Cfg.RichColours = v)));
 
         // the on/off effect: a row that opens a list of its own
         var list = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(10, 0, 10, 8) };

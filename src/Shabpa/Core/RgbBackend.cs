@@ -150,6 +150,8 @@ public sealed class OpenRgbClient : IDisposable
 
     /// <summary>More frames a second for devices that can take them (the page's «smoother» switch).</summary>
     public bool Smooth { get; set; } = true;
+    /// <summary>Colours are corrected for LEDs (see <see cref="Rgb.ForLight"/>) before they are sent.</summary>
+    public bool RichColours { get; set; }
 
     /// <summary>Sets every LED of the devices. <paramref name="frameFor"/> gives a device's frame (or null to leave it alone); it is stretched to the device's LED count.
     /// A device only gets a frame when its colours changed (or every two seconds, so none falls back to its own program), and a slow one only every 100 ms.</summary>
@@ -164,6 +166,7 @@ public sealed class OpenRgbClient : IDisposable
                 if (frameFor(device) is not { Length: > 0 } frame) continue;
                 TakeControl(device);
                 var leds = RgbEngine.Resample(frame, device.Leds);
+                if (RichColours) leds = [.. leds.Select(c => c.ForLight())];
                 var colours = new byte[leds.Length * 3];
                 for (var i = 0; i < leds.Length; i++) { colours[i * 3] = leds[i].R; colours[i * 3 + 1] = leds[i].G; colours[i * 3 + 2] = leds[i].B; }
                 if (!force && _last.TryGetValue(device.Index, out var before))

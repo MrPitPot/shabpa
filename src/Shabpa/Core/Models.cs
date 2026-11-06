@@ -285,6 +285,8 @@ public sealed class RgbSettings
     public bool KeepRivalsClosed { get; set; }
     /// <summary>More frames a second, for smoother movement (and a little more work for the PC).</summary>
     public bool Smooth { get; set; } = true;
+    /// <summary>Colours are corrected for LEDs so mixed colours look rich instead of pale and whitish.</summary>
+    public bool RichColours { get; set; } = true;
     /// <summary>How the lights fade in and out ("blaze", "sunrise", "center", "darkwave", "soft", "none").</summary>
     public string Transition { get; set; } = "blaze";
 

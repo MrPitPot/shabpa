@@ -10,6 +10,7 @@ a patch release only fixes bugs, a minor release adds a tested batch of features
 - A one-time gift code typed to Boofi pays 5,000 feathers. The code is used up on Shabpa's server, so it works once in the whole world; with no answer from the server nothing is paid. Only a salted hash of the code is in the program and only its SHA-256 is sent.
 
 ### Changed
+- Lighting: synchronised lights now show the same effect at the same moment on every device (a rainbow is two or three neighbouring colours on each fan, strip and keyboard) instead of one long rainbow with a different colour on each device. Gradients blend through the hues between two colours instead of through grey. Colours are corrected for LEDs (a switch, on by default) so mixed colours are not pale and whitish. A full-circle rainbow and seven saturated flowing looks were added.
 - Premium themes the person owns are listed under their own heading in Settings, apart from the free themes.
 
 ### Fixed

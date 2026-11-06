@@ -240,48 +240,24 @@ public sealed class RgbService : IDisposable
         return frame is null || _transStart == 0 ? frame : RgbTransitions.Apply(RgbEngine.Resample(frame, Math.Max(1, device.Leds)), rgb.Transition, TransitionVisible());
     }
 
-    /// <summary>Synchronised lights: ONE flowing effect laid along all the lights of the PC in a fixed order (fans, memory, cooler, strips, board, graphics card, keyboard, mouse), so a
-    /// rainbow runs through the whole case instead of every device showing its own copy. Each device takes the stretch that belongs to it. The preview frames of the zones are
-    /// filled the same way, so the picture matches the hardware.</summary>
+    /// <summary>Synchronised lights: every light of the PC shows the same effect at the same moment, so the whole case moves as one. Each device lays the effect along its own LEDs
+    /// (a rainbow is two or three neighbouring colours on every fan, strip and keyboard, not a different colour on each device), and every device is shown as far ahead as it needs, so
+    /// they all change together. The preview frames of the zones are filled the same way, so the picture matches the hardware.</summary>
     private Dictionary<int, Rgb[]> SyncFrames(RgbSettings rgb, double t, double music, double temp, Dictionary<string, Rgb[]> zoneFrames)
     {
         var look = LookOf(rgb, rgb.All);
         var pattern = look.CustomPattern ?? look.Effect.Pattern;
         var level = pattern == RgbPattern.Music ? music : temp;
-        var devices = _client.Devices
-            .Where(d => rgb.FindDevice(d.Key) is not { Enabled: false } and not { Own: true })
-            .OrderBy(d => RgbZones.All.ToList().FindIndex(z => z.Key == (rgb.FindDevice(d.Key) is { Zone.Length: > 0 } o ? o.Zone : d.Zone))).ThenBy(d => d.Index).ToList();
-        // every device takes a stretch of the flow that is about as long as a fan or a strip (a board with 400 LEDs must not swallow the rainbow), and that stretch is a part of the
-        // colour circle, so each device shows two or three neighbouring colours that run and turn, not one colour that cycles
-        double Weight(int leds) => Math.Clamp(leds, 8, 40);
-        var count = devices.Count > 0 ? devices.Count : RgbZones.All.Count;
-        var spread = Math.Max(1.0, count * 0.4);
-        var nominal = RgbZones.All.Sum(z => z.Leds);
-        var weightTotal = Math.Max(1.0, devices.Sum(d => Weight(d.Leds)));
-        var length = Math.Clamp((int)Math.Round(Math.Max(devices.Count > 0 ? weightTotal : nominal, 8) * 4), 32, 1024);
-        look = look with { Spread = spread };
-        var global = RgbEngine.Frame(look, length, t, level);
+        foreach (var zone in RgbZones.All) zoneFrames[zone.Key] = RgbEngine.Frame(look, zone.Leds, t, level);
 
-        double at = 0;
-        foreach (var zone in RgbZones.All)
-        {
-            zoneFrames[zone.Key] = RgbEngine.Slice(global, at / nominal, (at + zone.Leds) / nominal, zone.Leds);
-            at += zone.Leds;
-        }
         var slices = new Dictionary<int, Rgb[]>();
-        var shifted = new Dictionary<int, Rgb[]> { [0] = global };       // the flow at other moments, for devices shown ahead of or behind the rest
-        double pos = 0;
-        foreach (var d in devices)
+        var cache = new Dictionary<(int Leds, int Shift), Rgb[]>();            // devices of the same length and delay share one frame
+        foreach (var d in _client.Devices.Where(d => rgb.FindDevice(d.Key) is not { Enabled: false } and not { Own: true }))
         {
             var n = Math.Max(1, d.Leds);
-            var w = Weight(d.Leds);
-            var setting = rgb.FindDevice(d.Key);
-            var shift = (int)Math.Round(Ahead(d) * 1000 / 20.0) * 20;      // in steps of 20 ms, so devices that run alike share one frame
-            if (!shifted.TryGetValue(shift, out var flow)) shifted[shift] = flow = RgbEngine.Frame(look, length, t + shift / 1000.0, level);
-            var slice = RgbEngine.Slice(flow, pos / weightTotal, (pos + w) / weightTotal, n);
-            if (setting is { OneColour: true }) slice = [.. Enumerable.Repeat(slice[slice.Length / 2], n)];
-            slices[d.Index] = slice;
-            pos += w;
+            var shift = (int)Math.Round(Ahead(d) * 1000 / 20.0) * 20;          // in steps of 20 ms
+            if (!cache.TryGetValue((n, shift), out var frame)) cache[(n, shift)] = frame = RgbEngine.Frame(look, n, t + shift / 1000.0, level);
+            slices[d.Index] = rgb.FindDevice(d.Key) is { OneColour: true } ? [.. Enumerable.Repeat(frame[frame.Length / 2], n)] : frame;
         }
         return slices;
     }
@@ -379,6 +355,7 @@ public sealed class RgbService : IDisposable
 
                 // a page of lights that only show one fixed colour changes nothing between frames: look four times a second instead of thirty
                 _client.Smooth = rgb.Smooth;
+                _client.RichColours = rgb.RichColours;
                 timer.Period = IsStill(rgb) && _identify.IsEmpty && !TransitionRunning ? TimeSpan.FromMilliseconds(250) : TimeSpan.FromMilliseconds(rgb.Smooth ? 20 : 40);
                 var frames = new Dictionary<string, Rgb[]>();
                 foreach (var zone in RgbZones.All)

@@ -27,6 +27,29 @@ public readonly record struct Rgb(byte R, byte G, byte B)
         return new Rgb((byte)Math.Round(a.R + (b.R - a.R) * t), (byte)Math.Round(a.G + (b.G - a.G) * t), (byte)Math.Round(a.B + (b.B - a.B) * t));
     }
 
+    /// <summary>A blend that keeps colours rich: two saturated colours are mixed through the hues between them (blue to red goes through violet, not through a grey-purple),
+    /// greys and near-greys are mixed plainly. A straight mix of two RGB colours loses saturation in the middle, which is what made gradients look washed out.</summary>
+    public static Rgb Blend(Rgb a, Rgb b, double t)
+    {
+        t = Math.Clamp(t, 0, 1);
+        var (sa, va) = (a.Saturation, a.Value);
+        var (sb, vb) = (b.Saturation, b.Value);
+        if (sa < 0.3 || sb < 0.3 || va < 0.05 || vb < 0.05) return Lerp(a, b, t);
+        var ha = a.Hue;
+        var d = b.Hue - ha;
+        if (d > 0.5) d -= 1; else if (d < -0.5) d += 1;               // the short way round the colour circle
+        return FromHsv(ha + d * t, sa + (sb - sa) * t, va + (vb - va) * t);
+    }
+
+    public double Saturation { get { var max = Math.Max(R, Math.Max(G, B)); return max == 0 ? 0 : (max - Math.Min(R, Math.Min(G, B))) / (double)max; } }
+    public double Value => Math.Max(R, Math.Max(G, B)) / 255.0;
+
+    private static readonly byte[] GammaTable = [.. Enumerable.Range(0, 256).Select(i => (byte)Math.Round(Math.Pow(i / 255.0, 2.2) * 255))];
+
+    /// <summary>What to send to the light so it looks the way the colour looks on a screen. LEDs answer a number in a straight line, a screen answers it in a curve; without this
+    /// every mixed colour (yellow, pink, cyan, anything pastel) looks pale and whitish on the lights.</summary>
+    public Rgb ForLight() => new(GammaTable[R], GammaTable[G], GammaTable[B]);
+
     public static Rgb Max(Rgb a, Rgb b) => new(Math.Max(a.R, b.R), Math.Max(a.G, b.G), Math.Max(a.B, b.B));
 
     /// <summary>"RRGGBB" (no #).</summary>
@@ -63,7 +86,7 @@ public readonly record struct Rgb(byte R, byte G, byte B)
 public enum RgbPattern { Solid, Breathe, Flash, DoubleFlash, Random, Rainbow, Cycle, Wave, Chase, Meteor, Scan, Stack, Sparkle, Heartbeat, Siren, Lightning, Ripple, Fire, Temperature, Music }
 
 /// <summary>A named lighting effect. <see cref="UsesColor"/> effects follow the colour the person picks; the others carry their own palette.</summary>
-public sealed record RgbEffect(string Key, string Fa, string En, string Group, RgbPattern Pattern, string[] Palette, double Speed = 1, bool UsesColor = false)
+public sealed record RgbEffect(string Key, string Fa, string En, string Group, RgbPattern Pattern, string[] Palette, double Speed = 1, bool UsesColor = false, double Span = 1)
 {
     public string Name => L.T(Fa, En);
     public Rgb[] Colors => [.. Palette.Select(h => Rgb.Parse(h, Rgb.Black))];
@@ -74,6 +97,8 @@ public static class RgbEffects
     public const string GroupBase = "base", GroupCalm = "calm", GroupNature = "nature", GroupSpace = "space", GroupEnergy = "energy", GroupPersian = "persian", GroupSeason = "season";
 
     private static RgbEffect B(string key, string fa, string en, RgbPattern p, double speed = 1, params string[] palette) => new(key, fa, en, GroupBase, p, palette.Length > 0 ? palette : ["FF2D55"], speed, UsesColor: palette.Length == 0);
+    /// <summary>A flowing look whose lights each show only a part of the palette at a time (<paramref name="span"/> of it, so two or three neighbouring colours) while the whole palette slowly rolls through.</summary>
+    private static RgbEffect F(string key, string fa, string en, string group, double span, double speed, params string[] palette) => new(key, fa, en, group, RgbPattern.Wave, palette, speed, Span: span);
     private static RgbEffect S(string key, string fa, string en, string group, RgbPattern p, double speed, params string[] palette) => new(key, fa, en, group, p, palette, speed);
 
     /// <summary>The basic effects of a lighting program: they follow the colour and brightness chosen on the page (MSI Center's static, breathing,
@@ -84,7 +109,8 @@ public static class RgbEffects
         B("breathe", "تنفسی", "Breathing", RgbPattern.Breathe, 0.8),
         B("flash", "چشمک", "Flashing", RgbPattern.Flash, 1),
         B("double", "دو چشمک", "Double flash", RgbPattern.DoubleFlash, 1),
-        B("rainbow", "رنگین‌کمان", "Rainbow", RgbPattern.Rainbow, 1),
+        new("rainbow", "رنگین‌کمان", "Rainbow", GroupBase, RgbPattern.Rainbow, ["FF2D55"], 0.8, UsesColor: true, Span: 0.34),        // two or three neighbouring hues on every light, all lights in step
+        new("rainbowwide", "رنگین‌کمان کامل", "Full rainbow", GroupBase, RgbPattern.Rainbow, ["FF2D55"], 0.8, UsesColor: true, Span: 1),
         B("cycle", "چرخش رنگ", "Colour cycle", RgbPattern.Cycle, 1),
         B("random", "تصادفی", "Random", RgbPattern.Random, 1),
         B("chase", "تعقیب", "Chase", RgbPattern.Chase, 1),
@@ -149,6 +175,14 @@ public static class RgbEffects
         S("pomegranate", "انار", "Pomegranate", GroupPersian, RgbPattern.Wave, 0.5, "7A0019", "C1121F", "3A7D44", "7A0019"),
         S("christmas", "کریسمس", "Christmas", GroupSeason, RgbPattern.Sparkle, 0.9, "E63946", "2A9D8F", "FFFFFF"),
         S("valentine", "ولنتاین", "Valentine", GroupSeason, RgbPattern.Heartbeat, 0.9, "FF4D8D"),
+        // rich, saturated flowing looks: every light shows two or three of these colours at once, all lights in step, the palette rolling slowly
+        F("spectrum", "طیف رنگی", "Spectrum", GroupEnergy, 0.4, 0.7, "FF1744", "FF9100", "FFD600", "00E676", "00B0FF", "651FFF", "F50057"),
+        F("sunsetdrive", "جاده‌ی غروب", "Sunset drive", GroupNature, 0.5, 0.6, "FF1E56", "FF6B00", "FFC400", "FF1E56", "9C27B0", "3F1DCB"),
+        F("tropical", "گرمسیری", "Tropical", GroupNature, 0.45, 0.7, "00E5A0", "00B8FF", "FF2E93", "FFB800", "00E5A0"),
+        F("northern", "شمالگان", "Northern lights", GroupNature, 0.5, 0.55, "00FF87", "00C2FF", "7B2CFF", "FF2EA6", "00FF87"),
+        F("neonduo", "نئون دوقلو", "Neon duo", GroupEnergy, 0.5, 0.8, "FF0080", "7000FF", "00D4FF", "7000FF"),
+        F("firewave", "موج آتش", "Fire wave", GroupEnergy, 0.5, 0.8, "FF0000", "FF5A00", "FFB000", "FF0050"),
+        F("oceandeep", "عمق اقیانوس", "Ocean depth", GroupCalm, 0.5, 0.5, "0033FF", "00A2FF", "00E0D0", "0033FF", "5A00FF"),
     ];
 
     public static IReadOnlyList<RgbEffect> All => [.. Basic, .. Special];
@@ -252,7 +286,7 @@ public static class RgbEngine
         for (var i = 0; i < leds; i++)
         {
             var x = leds == 1 ? 0 : i / (double)(leds - 1);
-            frame[i] = Pixel(pattern, palette, i, leds, x, t, speed, level, look.Color, Math.Max(0.25, look.Spread));
+            frame[i] = Pixel(pattern, palette, i, leds, x, t, speed, level, look.Color, Math.Max(0.1, look.Spread * effect.Span));
         }
         if (look.Starry && pattern is not (RgbPattern.Solid or RgbPattern.Flash or RgbPattern.DoubleFlash or RgbPattern.Temperature or RgbPattern.Music or RgbPattern.Sparkle))
         {
@@ -287,7 +321,7 @@ public static class RgbEngine
         var b = (a + 1) % palette.Length;
         var f = pos - Math.Floor(pos);
         f = f * f * (3 - 2 * f);                          // smooth step: no visible bands between colours
-        return Rgb.Lerp(palette[a], palette[b], f);
+        return Rgb.Blend(palette[a], palette[b], f);
     }
 
     private static double Hash(int a, int b)
@@ -338,7 +372,7 @@ public static class RgbEngine
                 return Rgb.FromHsv(Hash(i + 1, slot), 0.9, 1);
             }
             case RgbPattern.Rainbow:
-                return Rgb.FromHsv(x * spread - t * 0.12 * speed, 1, 1);
+                return Rgb.FromHsv(x * spread - t * 0.12 * speed, 1, 1);          // spread is the part of the colour circle laid along one light
             case RgbPattern.Cycle:
                 return Rgb.FromHsv(t * 0.08 * speed, 1, 1);
             case RgbPattern.Wave:

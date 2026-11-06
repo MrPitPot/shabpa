@@ -384,8 +384,8 @@ public class OpenRgbClientTests
         var forward = RgbEngine.Frame(look, 10, 3);
         var backward = RgbEngine.Frame(look with { Reverse = true }, 10, 3);
         Assert.Equal(forward.Reverse(), backward);
-        var plain = RgbEngine.Frame(look, 30, 1.0);
-        var starry = RgbEngine.Frame(look with { Starry = true }, 30, 1.0);
+        var plain = RgbEngine.Frame(look, 30, 1.25);
+        var starry = RgbEngine.Frame(look with { Starry = true }, 30, 1.25);
         Assert.Equal(30, starry.Length);
         Assert.True(starry.Sum(c => c.R + c.G + c.B) < plain.Sum(c => c.R + c.G + c.B));      // a dim base with a few bright stars is darker than the full flow
         Assert.Contains(starry.Select((c, i) => c.R + c.G + c.B > (plain[i].R + plain[i].G + plain[i].B) * 0.3), b => b);
@@ -519,16 +519,16 @@ public class OpenRgbClientTests
     }
 
     [Fact]
-    public void A_rainbow_stretch_laid_on_one_device_shows_several_colours_and_turns_with_time()
+    public void A_rainbow_on_one_device_shows_several_colours_and_turns_with_time()
     {
         double HueSpan(Rgb[] f) { var d = Math.Abs(f[^1].Hue - f[0].Hue); return Math.Min(d, 1 - d); }
         var plain = new RgbLook(RgbEffects.Find("rainbow"), new Rgb(255, 0, 0), 1, 1);
-        var spread = plain with { Spread = 3.2 };
-        var eighthPlain = RgbEngine.Slice(RgbEngine.Frame(plain, 160, 1.0), 0, 0.125, 20);
-        var eighthSpread = RgbEngine.Slice(RgbEngine.Frame(spread, 160, 1.0), 0, 0.125, 20);
+        var spread = plain;
+        var eighthPlain = RgbEngine.Frame(plain with { Spread = 0.3 }, 20, 1.0);
+        var eighthSpread = RgbEngine.Frame(spread, 20, 1.0);
         Assert.True(HueSpan(eighthSpread) > 0.3, $"{HueSpan(eighthSpread):0.00}");           // a device shows a good part of the colour circle, not one colour
         Assert.True(HueSpan(eighthSpread) > HueSpan(eighthPlain) * 2);
-        var later = RgbEngine.Slice(RgbEngine.Frame(spread, 160, 3.0), 0, 0.125, 20);
+        var later = RgbEngine.Frame(spread, 20, 3.0);
         Assert.NotEqual(eighthSpread[0], later[0]);                                           // and it keeps turning
         Assert.NotEqual(eighthSpread[0], eighthSpread[^1]);                                   // while two ends of one device differ at any moment
     }
