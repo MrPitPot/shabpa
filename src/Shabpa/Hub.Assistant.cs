@@ -262,6 +262,32 @@ public sealed partial class Hub
     }
 
     /// <summary>Answers to quick questions and small talk.</summary>
+    /// <summary>A one-time gift code typed to Boofi. Checked here first (so a wrong word looks like any unknown sentence and never reaches the network), then used up on the server so it works
+    /// once in the whole world. Without an answer from the server nothing is paid.</summary>
+    public async Task<string> RedeemGiftAsync(string code, Func<string, Task<GiftAnswer>>? ask = null)
+    {
+        if (!AdminKey.VerifyGift(code)) return L.T("نمی‌دونم چی بگم.", "I do not know what to say.");
+        var used = L.T("این کد قبلاً استفاده شده، دوست من 😄 هر کد فقط یک بار کار می‌کنه.", "That code was already used, my friend 😄 it only works once.");
+        if (Rewards.State.Claimed.Contains(AdminKey.GiftMark)) return used;
+        var custom = Settings.BotEndpoint;
+        IReadOnlyList<string> endpoints = string.IsNullOrWhiteSpace(custom) ? BotLink.FallbackEndpoints : [custom.TrimEnd('/')];
+        var answer = ask is null ? await GiftRedeemer.RedeemAsync(code, endpoints, Settings.ProxyUrl) : await ask(code);
+        switch (answer)
+        {
+            case GiftAnswer.Ok:
+                Rewards.RedeemGift();
+                Store.Save();
+                return L.T($"اینم {Fa.N(AdminKey.GiftFeathers)} پَر رایگان برای دوست به‌دردنخورم ❤️ کمه؟ از سرتم زیاده 😂",
+                           $"Here are {AdminKey.GiftFeathers:N0} free feathers for my useless friend ❤️ Too few? It is more than plenty 😂");
+            case GiftAnswer.Used:
+                return used;
+            case GiftAnswer.Unknown:
+                return L.T("الان نمی‌تونم این کد رو تأیید کنم؛ یه کم بعد دوباره امتحان کن.", "I cannot confirm that code right now; try again a little later.");
+            default:
+                return L.T("برای زدن کد باید به اینترنت وصل باشی؛ وصل که شدی دوباره امتحان کن.", "You need to be online to use a code; try again once you are connected.");
+        }
+    }
+
     internal string InfoText(string kind, DateTime now, string origin = "")
     {
         var s = Snapshot;
@@ -347,13 +373,7 @@ public sealed partial class Hub
                           : L.T("پَر نامحدود خاموش شد.", "Unlimited feathers are off.");
             }
             case var giftKind when giftKind.StartsWith("gift:", StringComparison.Ordinal):
-            {
-                if (origin == "bot" || !AdminKey.VerifyGift(giftKind[5..])) return L.T("نمی‌دونم چی بگم.", "I do not know what to say.");
-                if (!Rewards.RedeemGift()) return L.T("این کد رو قبلاً زدی، دوست من 😄 هر کد فقط یک بار کار می‌کنه.", "You already used that code, my friend 😄 it only works once.");
-                Store.Save();
-                return L.T($"اینم {Fa.N(AdminKey.GiftFeathers)} پَر رایگان برای دوست به‌دردنخورم ❤️ کمه؟ از سرتم زیاده 😂",
-                           $"Here are {AdminKey.GiftFeathers:N0} free feathers for my useless friend ❤️ Too few? It is more than plenty 😂");
-            }
+                return L.T("نمی‌دونم چی بگم.", "I do not know what to say.");       // a gift code needs the server (see RedeemGiftAsync), so it is never answered here
             case var calcKind when calcKind.StartsWith("calc:"):
                 return CalcText(calcKind[5..]) is { } answer ? $"{calcKind[5..].Trim()} = {Fa.Digits(answer)}" : L.T("این رو نتونستم حساب کنم.", "I could not work that out.");
             case var extra when extra.StartsWith("ex:", StringComparison.Ordinal):

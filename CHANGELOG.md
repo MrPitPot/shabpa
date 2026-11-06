@@ -7,7 +7,7 @@ a patch release only fixes bugs, a minor release adds a tested batch of features
 ## [3.15.1] - 2026-11-06
 
 ### Added
-- A one-time gift code typed to Boofi pays 5,000 feathers once per copy; only a salted hash of the code is in the program.
+- A one-time gift code typed to Boofi pays 5,000 feathers. The code is used up on Shabpa's server, so it works once in the whole world; with no answer from the server nothing is paid. Only a salted hash of the code is in the program and only its SHA-256 is sent.
 
 ### Changed
 - Premium themes the person owns are listed under their own heading in Settings, apart from the free themes.
