@@ -198,7 +198,16 @@ public sealed partial class ThemeScene
                 var wagT = new RotateTransform();
                 var swayT = new TranslateTransform();
                 var moveT = new TranslateTransform();
-                holder.RenderTransform = new TransformGroup { Children = { flipT, growT, pulseT, rotT, spinT, faceT, wagT, swayT, moveT } };
+                var group = new TransformGroup { Children = { flipT, growT, pulseT, rotT, spinT, faceT, wagT } };
+                if (l.TryGetProperty("tilt", out var tilt))
+                {
+                    // a disc seen at an angle: turned in its own plane first, then flattened and leaned
+                    group.Children.Add(new ScaleTransform(1, Num(tilt, "squash", 1)));
+                    group.Children.Add(new RotateTransform(Num(tilt, "rot", 0)));
+                }
+                group.Children.Add(swayT);
+                group.Children.Add(moveT);
+                holder.RenderTransform = group;
                 SetLeft(holder, ox + px * s - ew * s / 2);
                 SetTop(holder, oy + py * s - eh * s / 2);
                 Children.Add(holder);

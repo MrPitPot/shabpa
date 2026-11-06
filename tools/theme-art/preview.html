@@ -105,7 +105,8 @@ window.renderAt = (t) => {
       if (L.path.face !== false) rot += a[3] + (b[3] - a[3]) * m;
     }
     const s = e.s, X = e.ox + x * s - e.w * s / 2, Y = e.oy + y * s - e.h * s / 2;
-    e.div.style.transform = `translate(${X}px,${Y}px) rotate(${rot}deg) scale(${e.flip * sc},${sc * (L.squash || 1)})`;
+    const tilt = L.tilt ? `rotate(${L.tilt.rot || 0}deg) scale(1,${L.tilt.squash || 1}) ` : '';
+    e.div.style.transform = `translate(${X}px,${Y}px) ${tilt}rotate(${rot}deg) scale(${e.flip * sc},${sc * (L.squash || 1)})`;
     e.div.style.opacity = op;
     if (e.imgs.length > 1) { const k = Math.floor(t * e.fps + e.frph * e.imgs.length) % e.imgs.length; e.imgs.forEach((im, j) => im.style.opacity = j === k ? tw : 0); }
     else e.imgs[0].style.opacity = tw;
