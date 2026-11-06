@@ -183,7 +183,8 @@ public sealed partial class ThemeScene
                 var flip = l.TryGetProperty("flip", out var fl) ? fl.ValueKind == JsonValueKind.String ? (R(0, 1) < .5 ? -1 : 1) : fl.ValueKind == JsonValueKind.True ? -1 : 1 : 1;
                 var op = Pick(l, "op", 1);
 
-                var holder = new Grid { Width = ew * s, Height = eh * s, IsHitTestVisible = false, RenderTransformOrigin = new Point(.5, .5), Opacity = op };
+                var origin = l.TryGetProperty("origin", out var org) ? new Point(org[0].GetDouble(), org[1].GetDouble()) : new Point(.5, .5);
+                var holder = new Grid { Width = ew * s, Height = eh * s, IsHitTestVisible = false, RenderTransformOrigin = origin, Opacity = op };
                 var inner = new List<UIElement>();
                 if (rect) inner.Add(new Rectangle { Fill = Freeze(new SolidColorBrush((Color)ColorConverter.ConvertFromString(names[0]))) });
                 else foreach (var img in images!) inner.Add(new Image { Source = img, Stretch = Stretch.Fill });

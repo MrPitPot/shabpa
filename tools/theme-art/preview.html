@@ -73,6 +73,7 @@ window.ready = fetch(base + 'scenes.json').then((r) => r.json()).then((all) => {
       if (frames.length > 1) { e.fps = (L.frames && L.frames.fps) || 2; e.frph = ph(); }
       const div = document.createElement('div'); div.className = 'e';
       div.style.width = w * s + 'px'; div.style.height = h * s + 'px';
+      if (L.origin) div.style.transformOrigin = `${L.origin[0] * 100}% ${L.origin[1] * 100}%`;
       e.imgs = frames.map((nm) => { if (isRect) { const d = document.createElement('div'); d.style.background = nm; div.appendChild(d); return d; } const im = new Image(); im.src = `${base + key}.${nm}.png`; div.appendChild(im); return im; });
       stage.insertBefore(div, document.getElementById('ui'));
       e.div = div; ents.push(e);

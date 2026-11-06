@@ -175,3 +175,87 @@ function pine(r, x, yBase, h, { color = '#0b2a1c', w = .42, tiers = 14, snow = n
 }
 
 module.exports = { rng, id, f, svg, lin, rad, blurF, grainF, cloudF, hex, rgb01, mix, glow, starfield, ridge, ridgeFn, ridgePath, smooth, blob, pine };
+
+/** A painting in progress: defs and body lists plus gradient/filter shorthands; finish() adds vignette + grain and returns the SVG. */
+function canvas(W, H) {
+  const defs = [], b = [];
+  const c = {
+    W, H, defs, b,
+    g: (k, stops, ...a) => { const i = id(k); defs.push(lin(i, stops, ...a)); return `url(#${i})`; },
+    rg: (k, stops, ...a) => { const i = id(k); defs.push(rad(i, stops, ...a)); return `url(#${i})`; },
+    blur: (sd, pad = 50) => { const i = id('bl'); defs.push(blurF(i, sd, pad)); return `filter="url(#${i})"`; },
+    glow: (x, y, r, col, op, fall) => glow(defs, x, y, r, col, op, fall),
+    cloud: (opts) => { const i = id('cl'); defs.push(cloudF(i, opts)); return `filter="url(#${i})"`; },
+    finish: ({ vignette = .55, grain = .05, extra = '' } = {}) => {
+      if (vignette) b.push(`<rect width="${W}" height="${H}" fill="${c.rg('vg', [[0, '#000', 0], [.7, '#000', vignette * .1], [1, '#000', vignette]], .5, .5, .75)}"/>`);
+      const gr = id('gr'); defs.push(grainF(gr, grain));
+      return svg(W, H, defs.join(''), `<g filter="url(#${gr})">${b.join('')}</g>${extra}`);
+    },
+  };
+  return c;
+}
+
+/** A sprite: a small SVG with its own defs. */
+function sprite(w, h, defs, body) { return { w, h, svg: svg(w, h, defs, body) }; }
+
+/** A soft round dot (snow, dust, glow): core colour fading out. */
+function softDot(size, color, { core = .35, coreOp = 1, mid = .45 } = {}) {
+  return sprite(size, size, rad('d', [[0, color, coreOp], [core, color, mid], [1, color, 0]]), `<circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="url(#d)"/>`);
+}
+
+module.exports.canvas = canvas;
+module.exports.sprite = sprite;
+module.exports.softDot = softDot;
+
+/** A mountain range with real faces: jagged ridge (midpoint displacement), the faces turned to the light lit and the
+ *  others in shadow, gullies streaking down, and snow above a ragged snowline. light: 1 = from the right, -1 = from the left. */
+function mountains(c, r, { base, amp, x0 = -60, x1 = null, rough = .55, light = 1, rock = ['#1c2a3a', '#3a5068'], snow = ['#8aa4bc', '#e6f0fa'], snowline = .45, bottom = null, detail = 9 } = {}) {
+  x1 = x1 ?? c.W + 60;
+  const n = 2 ** detail;
+  const ys = new Array(n + 1);
+  ys[0] = base - r(.2, .6) * amp; ys[n] = base - r(.2, .6) * amp;
+  for (let step = n; step > 1; step /= 2) {
+    const sc = amp * Math.pow(rough, Math.log2(n / step)) * 1.4;
+    for (let i = step / 2; i < n; i += step) ys[i] = (ys[i - step / 2] + ys[i + step / 2]) / 2 - r(-.45, 1) * sc;
+  }
+  const pts = [];
+  for (let i = 0; i <= n; i++) { const xa = x0 + (x1 - x0) * i / n; pts.push([xa, Math.min(base, ys[i])]); if (i < n) for (let q = 1; q < 4; q++) pts.push([xa + (x1 - x0) / n * q / 4, Math.min(base, ys[i] + (ys[i + 1] - ys[i]) * q / 4 + r(-1, 1) * amp * .025)]); }
+  const bot = bottom ?? c.H + 10;
+  const body = `M${x0} ${bot}` + pts.map(([x, y]) => `L${f(x)} ${f(y)}`).join('') + `L${x1} ${bot}Z`;
+  const clip = id('mc');
+  c.defs.push(`<clipPath id="${clip}"><path d="${body}"/></clipPath>`);
+  let s = `<path d="${body}" fill="${rock[0]}"/>`;
+  // lit faces: from each peak, the side toward the light, down to the foot
+  let lit = '', snowS = '', gul = '';
+  const top = Math.min(...pts.map((p) => p[1]));
+  const sl = (x) => top + (base - top) * snowline + Math.sin(x * .02) * 14 + Math.sin(x * .055) * 8;
+  const coarse = ys.map((y, i) => [x0 + (x1 - x0) * i / n, Math.min(base, y)]);
+  for (let i = 1; i < coarse.length - 1; i++) {
+    const pts = coarse;
+    const [x, y] = pts[i];
+    if (!(y <= pts[i - 1][1] && y <= pts[i + 1][1])) continue;
+    // walk toward the light until the ridge turns up again; the face ends in a spur running back down from that valley
+    let j = i, poly = [[x, y]];
+    while (j + light >= 0 && j + light < pts.length && pts[j + light][1] >= pts[j][1] - 1) { j += light; poly.push(pts[j]); }
+    const [vx, vy] = pts[j], foot = Math.min(bot, base + 30);
+    poly.push([vx + light * (foot - vy) * .55, foot], [x + light * (foot - y) * .3, foot]);
+    lit += `<path d="M${poly.map(([a, b]) => `${f(a)} ${f(b)}`).join('L')}Z"/>`;
+    // a few gullies streaking down the lit face
+    for (let k = 0; k < 3; k++) { const gx = x + light * r(.1, .9) * Math.abs(vx - x), gy = y + Math.abs(gx - x) * .25; gul += `M${f(gx)} ${f(gy + r(10, 30))}l${f(-light * r(4, 20))} ${f(r(40, 120))}`; }
+  }
+  const fade = id('mf');
+  c.defs.push(`<linearGradient id="${fade}g" x1="0" y1="0" x2="0" y2="1" gradientUnits="userSpaceOnUse" y1="${f(top)}" y2="${f(base + 30)}"><stop offset="0" stop-color="#fff"/><stop offset=".55" stop-color="#fff" stop-opacity=".75"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><mask id="${fade}"><rect x="${x0}" y="${f(top - 10)}" width="${x1 - x0}" height="${f(bot - top + 20)}" fill="url(#${fade}g)"/></mask>`);
+  s += `<g clip-path="url(#${clip})"><g fill="${rock[1]}" opacity=".9" mask="url(#${fade})">${lit}</g>`;
+  // snow cap: everything above the snowline, shadow tone, then lit tone on the lit faces
+  let cap = `M${x0} ${f(sl(x0))}`;
+  for (let x = x0; x <= x1; x += 12) cap += `L${f(x)} ${f(sl(x) + r(-10, 16))}`;
+  cap += `L${x1} -10L${x0} -10Z`;
+  const capId = id('cap');
+  c.defs.push(`<clipPath id="${capId}"><path d="${cap}"/></clipPath>`);
+  snowS += `<g clip-path="url(#${capId})"><path d="${body}" fill="${snow[0]}"/><g fill="${snow[1]}">${lit}</g></g>`;
+  s += snowS;
+  s += `<path d="${gul}" stroke="${snow[0]}" stroke-opacity=".35" stroke-width="2" fill="none" stroke-linecap="round" mask="url(#${fade})"/>`;
+  s += `</g>`;
+  return { svg: s, pts, at: (x) => { const i = Math.max(0, Math.min(pts.length - 1, Math.round((x - x0) / (x1 - x0) * (pts.length - 1)))); return pts[i][1]; } };
+}
+module.exports.mountains = mountains;
