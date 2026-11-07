@@ -235,6 +235,8 @@ public sealed class Shaper : IDisposable
     /// <summary>The error is one that goes away by itself when the other program lets go of the driver: worth trying again every little while.</summary>
     public bool Retryable { get; private set; }
     public long Dropped { get; private set; }
+    /// <summary>How many starts in a row the driver refused (the first retries come quickly, later ones every half minute).</summary>
+    public int FailedStarts { get; private set; }
 
     /// <summary>True when the driver library sits next to the app.</summary>
     public static bool DriverPresent =>
@@ -337,15 +339,18 @@ public sealed class Shaper : IDisposable
                 _ when IsStaleDriverError(code) && HolderName() is { } owner =>
                     L.T($"برنامه‌ی «{owner}» درایور WinDivert خودش رو بالا آورده و شب‌پا نمی‌تونه کنارش از محدودیت سرعت استفاده کنه. اون برنامه رو ببند؛ شب‌پا چند ثانیه بعد خودش دوباره امتحان می‌کنه.",
                         $"“{owner}” has loaded its own WinDivert driver and Shabpa cannot use the speed limits next to it. Close that program; Shabpa tries again by itself a few seconds later."),
-                _ when IsStaleDriverError(code) => L.T("درایور محدودیت سرعت از اجرای قبلی گیر کرده. یک بار ویندوز رو ری‌استارت کن تا آزاد بشه (یا برنامه‌ی دیگه‌ای که از WinDivert استفاده می‌کنه رو ببند).",
-                    "The speed-limit driver is stuck from an earlier run. Restart Windows once to free it (or close another program that uses WinDivert)."),
+                _ when IsStaleDriverError(code) => L.T("ویندوز الان درایور محدودیت سرعت رو بهمون نمی‌ده؛ شب‌پا خودش چند بار دوباره امتحان می‌کنه. اگه ادامه پیدا کرد، یک بار ویندوز رو ری‌استارت کن (یا برنامه‌ی دیگه‌ای که از WinDivert استفاده می‌کنه رو ببند).",
+                    "Windows is not giving Shabpa the speed-limit driver right now; Shabpa tries again by itself. If it keeps failing, restart Windows once (or close another program that uses WinDivert)."),
                 _ => L.T($"درایور WinDivert باز نشد (کد {code}).", $"Could not open the WinDivert driver (code {code})."),
             };
             Retryable = IsStaleDriverError(code);
-            Log.Write($"WinDivertOpen failed: {code}" + (Retryable ? " (the driver is held by " + (HolderName() ?? "an earlier run of Shabpa") + ")" : ""));
+            FailedStarts++;
+            Log.Write($"WinDivertOpen failed: {code} (0x{(uint)code:X8}, attempt {FailedStarts})" + (Retryable ? " (the driver is held by " + (HolderName() ?? "an earlier run of Shabpa") + ")" : ""));
+            if (Retryable && FailedStarts <= 2) Log.Write("WinDivert situation: " + Situation());
             return;
         }
 
+        FailedStarts = 0;
         WinDivertSetParam(_handle, 0, 16384);     // queue length (packets)
         WinDivertSetParam(_handle, 2, 33554432);  // queue size (bytes)
 
@@ -425,6 +430,41 @@ public sealed class Shaper : IDisposable
             Log.Write($"resetting the WinDivert driver failed: {ex.Message}");
             return false;
         }
+    }
+
+    /// <summary>One line for the log when the driver refuses: the state of the WinDivert service and which other packet-level drivers are running (VPN, tunnel, firewall tools), so a log says who is in the way.</summary>
+    private static string Situation()
+    {
+        try
+        {
+            var own = Sc("query WinDivert");
+            var all = Sc("query type= driver state= all");
+            return SituationFrom(own, all);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { return "unknown"; }
+    }
+
+    internal static string SituationFrom(string? ownQuery, string? allDrivers)
+    {
+        string state = "no WinDivert service";
+        if (ownQuery is not null)
+        {
+            var line = ownQuery.Split('\n').FirstOrDefault(l => l.TrimStart().StartsWith("STATE", StringComparison.OrdinalIgnoreCase));
+            if (line is not null) state = "WinDivert service " + string.Join(' ', line.Split(':').Last().Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).Skip(1).Take(1));
+        }
+        var others = new List<string>();
+        string? name = null;
+        foreach (var raw in (allDrivers ?? "").Split('\n'))
+        {
+            var line = raw.Trim();
+            if (line.StartsWith("SERVICE_NAME:", StringComparison.OrdinalIgnoreCase)) name = line[13..].Trim();
+            else if (name is not null && line.StartsWith("STATE", StringComparison.OrdinalIgnoreCase))
+            {
+                if (line.Contains("RUNNING", StringComparison.OrdinalIgnoreCase) && System.Text.RegularExpressions.Regex.IsMatch(name, "divert|wintun|tap|ovpn|npcap|netlimiter|nlm|wfp|tun|vpn|clash|sing|proxy|wireguard|cfos", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) others.Add(name);
+                name = null;
+            }
+        }
+        return state + "; other running network drivers: " + (others.Count == 0 ? "none seen" : string.Join(", ", others));
     }
 
     private static string? Sc(string arguments)

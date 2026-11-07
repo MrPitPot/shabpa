@@ -527,8 +527,8 @@ public sealed partial class Hub
         var plan = TabOff("ping") ? [] : LimitPlanner.Plan(State.NetLimits, Settings.GuardEnabled, Settings.GuardCapMbps, GameProcess, Apps, DateTime.Now, Settings.GuardDownCapMbps);
         Planned = plan;
         var signature = LimitPlanner.Signature(plan);
-        // a start that failed only because another program holds the driver is tried again every half minute, so the limits come back by themselves once that program is closed
-        var retry = plan.Count > 0 && Applied.Count == 0 && Shaper.Retryable && Environment.TickCount64 - _applyFailedAt > 30_000;
+        // a start that failed only because another program holds the driver is tried again after four seconds (three times), then every half minute, so the limits come back by themselves once that program is closed
+        var retry = plan.Count > 0 && Applied.Count == 0 && Shaper.Retryable && Environment.TickCount64 - _applyFailedAt > (Shaper.FailedStarts <= 3 ? 4_000 : 30_000);
         if ((signature == _appliedSignature && !retry) || _applying) return;
 
         if (Demo)

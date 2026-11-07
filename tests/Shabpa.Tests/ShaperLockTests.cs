@@ -87,4 +87,17 @@ public class ShaperLockTests
         shaper.SetRules([Rule("game")]);
         Assert.Equal(1, shaper.MappedPorts);
     }
+
+    [Fact]
+    public void The_log_line_names_the_service_state_and_the_other_network_drivers_running()
+    {
+        var own = "SERVICE_NAME: WinDivert\n        TYPE               : 1  KERNEL_DRIVER\n        STATE              : 4  RUNNING\n";
+        var all = "SERVICE_NAME: wintun\n        STATE              : 4  RUNNING\nSERVICE_NAME: ndiswan\n        STATE              : 1  STOPPED\nSERVICE_NAME: ovpn-dco\n        STATE              : 4  RUNNING\nSERVICE_NAME: dxgkrnl\n        STATE              : 4  RUNNING\n";
+        var line = Shaper.SituationFrom(own, all);
+        Assert.Contains("WinDivert service RUNNING", line);
+        Assert.Contains("wintun, ovpn-dco", line);
+        Assert.DoesNotContain("dxgkrnl", line);
+        Assert.Contains("no WinDivert service", Shaper.SituationFrom(null, null));
+        Assert.Contains("none seen", Shaper.SituationFrom(null, null));
+    }
 }
