@@ -193,6 +193,11 @@ a patch release only fixes bugs, a minor release adds a tested batch of features
 - **Command box (assistant, phase 0)** - type a command in Persian or English («یه ساعت و ربع دیگه خاموش کن»، «ساعت ۲ و نیم شب بخوابون»، «وقتی دانلود تموم شد خاموش کن»، "remind me at 5pm to call mom"). It works fully offline with no language model: shutdown, sleep, hibernate, restart, lock, cancel, wake timers, reminders, focus timer, night light, sleep mode and the list of what is scheduled, plus the conditions the rules already have (download or upload done, idle, a program closed, heavy work done). Every command shows a card with the exact time first; anything unclear (2 o'clock morning or afternoon?, a question, «خاموش نکن») offers choices instead and runs nothing. Open it from the tray menu or with Ctrl+Alt+Space (changeable in Settings). Bidar the owl shows what it is doing.
 - **Telegram:** the app understands a new `text` bot command with the same parser, so free text sent to the bot can be routed to it once the bot server forwards it.
 
+### Fixed
+- **Overlay over full-screen games:** games guarded by an anti-cheat (Valorant with Vanguard, CS2 with FACEIT) hide their library list, so they were not recognised as games on PCs where the card is not very busy, and "only while gaming" never showed the overlay. Their file is now read with the smallest right Windows offers, and a game from a game folder counts even when its libraries cannot be read.
+- **Overlay:** it takes the top spot back the moment a game comes to the front (started or alt-tabbed into), instead of on the next one-second tick, and follows the game to its monitor at once.
+- **Overlay:** when a game runs in true exclusive full screen with "fullscreen optimizations" turned off (the compatibility check box, or an "optimizer" tool's GameDVR switch), no window can be drawn over it. Shabpa now says so once, explains it on the gaming page, and can turn the optimizations back on for that game with one click (current user, takes effect on the next start). The diagnostics report shows the full-screen state too.
+
 ## [3.11.5] - 2026-10-24
 
 ### Fixed
