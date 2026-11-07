@@ -19,7 +19,7 @@ public partial class MainWindow
         if (want == SceneKind) return;
         if (_scene is not null) { Root.Children.Remove(_scene); _scene = null; }
         if (want == Scene.None) return;
-        _scene = new ThemeScene(want) { IsHitTestVisible = false };
+        _scene = new ThemeScene(want) { IsHitTestVisible = false, Veiled = true };
         // above the Mica veil (which would wash it out) and below the frame with the sidebar and pages
         Root.Children.Insert(Math.Min(1, Root.Children.Count), _scene);
     }
