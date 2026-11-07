@@ -4,6 +4,18 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [3.18.0] - 2026-11-07
+
+### Added
+- The feathers the Telegram bot holds for the linked accounts (daily feathers, feather codes, gifts from the owner panel) are taken into the app: the app asks the bot every five minutes and at once when the bot says feathers are waiting, adds the balance and empties the bot's. The take carries an id that is saved before the request, so a cut connection is asked again and pays exactly once. The level does not change (cosmetic spending money, like the owner's gift).
+- Boofi reads feather codes: `code NIGHT100` (or `کد NIGHT100`) is sent to the bot, which checks it (once per person, limited uses, expiry); the feathers arrive in the app at once. Needs the bot to be linked.
+- Bot: `POST /api/device/feathers/take` and `/redeem`, and a `feathers` flag in the poll answer (see the bot's `docs/PROTOCOL.md`).
+
+### Fixed
+- Speed limits: a driver the system refuses is tried again after four seconds (three times) before the half-minute rounds, and the message no longer only says to restart Windows. The log now names the state of the WinDivert service and the other network drivers running when it is refused.
+- The lighting server's own log is read thirty seconds after it starts and one line says whether the PawnIO driver refused access (and whether Shabpa had administrator rights).
+- The diagnostics loopback test of the limiter no longer races the process-name lookup.
+
 ## [3.17.0] - 2026-11-07
 
 ### Changed
