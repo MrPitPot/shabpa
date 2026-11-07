@@ -95,6 +95,7 @@ public sealed class AssistantPanel : StackPanel
             case CommandStatus.Ready when result.Command is { Immediate: true } instant:
                 // shows or tells, or changes something visible and undoable on the spot: no card to confirm
                 if (instant.Value.StartsWith("gift:", StringComparison.Ordinal)) { _ = RedeemGift(instant.Value[5..]); break; }
+                if (instant.Value.StartsWith("fcode:", StringComparison.Ordinal)) { _ = RedeemFeatherCode(instant.Value[6..]); break; }
                 var reply = Hub.I.RunAssistant(instant, "box");
                 Mood?.Invoke(reply.Ok ? BidarMood.Happy : BidarMood.Worried);
                 _result.Children.Add(Line(L.En ? reply.En : reply.Fa, reply.Ok ? "Text" : "Red"));
@@ -115,6 +116,22 @@ public sealed class AssistantPanel : StackPanel
                 Spoke?.Invoke();
                 break;
         }
+    }
+
+    /// <summary>A feather code goes to the bot, so the answer comes a moment later.</summary>
+    private async Task RedeemFeatherCode(string code)
+    {
+        var english = BidarJokes.IsEnglish(_input.Text);
+        using (L.Scope(english)) _result.Children.Add(Line(L.T("یه لحظه، دارم چک می‌کنم…", "One moment, checking…"), "Muted"));
+        string text;
+        using (L.Scope(english)) text = await Hub.I.RedeemFeatherCodeAsync(code);
+        using var chat = L.Scope(english);
+        _result.Children.Clear();
+        var ok = text.Contains("اضافه شد") || text.Contains("were added");
+        Mood?.Invoke(ok ? BidarMood.Happy : BidarMood.Confused);
+        _result.Children.Add(Line(text, ok ? "Text" : "Red"));
+        if (ok) _input.Clear();
+        Spoke?.Invoke();
     }
 
     /// <summary>A gift code needs the server, so the answer comes a moment later; the box shows that it is checking meanwhile.</summary>

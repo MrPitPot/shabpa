@@ -41,6 +41,16 @@ public static class AdminKey
         return m.Success ? m.Groups[1].Value : null;
     }
 
+    /// <summary>"code &lt;CODE&gt;" (or «کد»): a feather code the owner made in the bot, typed to Boofi; the code in capitals, or null when the text is not that command.
+    /// Persian digits are accepted. The server decides whether the code is good; nothing here is secret.</summary>
+    public static string? ParseFeatherCode(string? text)
+    {
+        if (text is null) return null;
+        var latin = new string(text.Trim().Select(c => c is >= '\u06F0' and <= '\u06F9' ? (char)('0' + (c - '\u06F0')) : c is >= '\u0660' and <= '\u0669' ? (char)('0' + (c - '\u0660')) : c).ToArray());
+        var m = System.Text.RegularExpressions.Regex.Match(latin, @"^(?:code|کد)\s+([A-Za-z0-9_\-]{3,20})$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return m.Success ? m.Groups[1].Value.ToUpperInvariant() : null;
+    }
+
     /// <summary>"admin &lt;passphrase&gt;" (or «ادمین»/«مدیر»): the passphrase, or null when the text is not that command.</summary>
     public static string? Parse(string? text)
     {

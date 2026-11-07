@@ -40,6 +40,26 @@ public class AdminKeyTests
     [InlineData("اینو بگو admin x", null)]
     public void The_key_is_read_only_from_the_exact_command(string text, string? word) => Assert.Equal(word, AdminKey.Parse(text));
 
+    [Theory]
+    [InlineData("code night100", "NIGHT100")]
+    [InlineData("کد NIGHT100", "NIGHT100")]
+    [InlineData("  Code  ab-12_x ", "AB-12_X")]
+    [InlineData("کد ۱۲۳۴۵", "12345")]
+    [InlineData("کد", null)]
+    [InlineData("code ab", null)]
+    [InlineData("کد خاموش کن", null)]
+    [InlineData("code night100 please", null)]
+    [InlineData("خاموش کن", null)]
+    public void A_feather_code_is_read_only_from_the_exact_command(string text, string? code) => Assert.Equal(code, AdminKey.ParseFeatherCode(text));
+
+    [Fact]
+    public void A_feather_code_is_an_info_command_so_it_never_reaches_a_power_action()
+    {
+        var result = CommandParser.Parse("code night100", new DateTime(2026, 11, 3, 12, 0, 0));
+        Assert.Equal(CommandIntent.Info, result.Command!.Intent);
+        Assert.Equal("fcode:NIGHT100", result.Command.Value);
+    }
+
     [Fact]
     public void The_command_is_an_info_command_so_it_never_reaches_a_power_action()
     {

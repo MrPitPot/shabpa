@@ -262,6 +262,28 @@ public sealed partial class Hub
     }
 
     /// <summary>Answers to quick questions and small talk.</summary>
+    /// <summary>A feather code the owner made in the bot, typed to Boofi: the bot checks it (once per person, limited uses, expiry) and the feathers are in the app a moment later.
+    /// Needs the Telegram bot to be linked, because the feathers belong to the person's Telegram account.</summary>
+    public async Task<string> RedeemFeatherCodeAsync(string code)
+    {
+        var result = await Bot.RedeemCodeAsync(code);
+        switch (result.Status)
+        {
+            case FeatherCodeStatus.Ok:
+                return L.T($"{Fa.N(result.Feathers)} پَر به حسابت اضافه شد! 🪶", $"{result.Feathers} feathers were added to your account! 🪶");
+            case FeatherCodeStatus.Used:
+                return L.T("این کد رو قبلاً زدی 😄 هر کد برای هر نفر فقط یک بار کار می‌کنه.", "You already used that code 😄 it works once per person.");
+            case FeatherCodeStatus.Unknown:
+                return L.T("این کد درست نیست یا منقضی شده.", "That code is not right or it has expired.");
+            case FeatherCodeStatus.Limited:
+                return L.T("خیلی کد زدی؛ یه کم بعد دوباره امتحان کن.", "Too many tries; try again a little later.");
+            case FeatherCodeStatus.NotLinked:
+                return L.T("برای زدن کد پَر باید ربات تلگرام وصل باشه، چون پَرها مال حساب تلگرامت هستن. از صفحه‌ی «ربات» وصلش کن.", "To use a feather code the Telegram bot has to be linked, because the feathers belong to your Telegram account. Link it from the Bot page.");
+            default:
+                return L.T("الان به ربات نمی‌رسم؛ اینترنتت رو چک کن و دوباره امتحان کن.", "I cannot reach the bot right now; check your internet and try again.");
+        }
+    }
+
     /// <summary>A one-time gift code typed to Boofi. Checked here first (so a wrong word looks like any unknown sentence and never reaches the network), then used up on the server so it works
     /// once in the whole world. Without an answer from the server nothing is paid.</summary>
     public async Task<string> RedeemGiftAsync(string code, Func<string, Task<GiftAnswer>>? ask = null)
@@ -372,6 +394,8 @@ public sealed partial class Hub
                 return on ? L.T("پَر نامحدود روشن شد. 🪶 (دوباره بنویسی خاموش می‌شه.)", "Unlimited feathers are on. 🪶 (Write it again to turn it off.)")
                           : L.T("پَر نامحدود خاموش شد.", "Unlimited feathers are off.");
             }
+            case var codeKind when codeKind.StartsWith("fcode:", StringComparison.Ordinal):
+                return L.T("نمی‌دونم چی بگم.", "I do not know what to say.");       // a feather code goes to the bot (see RedeemFeatherCodeAsync), so it is never answered here
             case var giftKind when giftKind.StartsWith("gift:", StringComparison.Ordinal):
                 return L.T("نمی‌دونم چی بگم.", "I do not know what to say.");       // a gift code needs the server (see RedeemGiftAsync), so it is never answered here
             case var calcKind when calcKind.StartsWith("calc:"):

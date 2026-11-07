@@ -19,6 +19,10 @@ public sealed record RemoteReply(bool Ok, string Fa, string En)
 
 /// <summary>What the bot is allowed to do to the app: it can only ask for the fixed set of commands in
 /// docs/PROTOCOL.md, never run anything else.</summary>
+public enum FeatherCodeStatus { Ok, Unknown, Used, Limited, NotLinked, Offline }
+
+public sealed record FeatherCodeResult(FeatherCodeStatus Status, int Feathers);
+
 public sealed class BotHost
 {
     /// <summary>Runs one command (status, power, cancel, ram-clean, dim, volume, sleep-mode, sleep-cancel,
@@ -220,6 +224,30 @@ public sealed class BotLink : IDisposable
         response.EnsureSuccessStatusCode();
         var text = await response.Content.ReadAsStringAsync(ct);
         return text.Length == 0 ? null : JsonDocument.Parse(text);
+    }
+
+    /// <summary>Uses a feather code for the first linked Telegram account (the bot decides: once per person, uses, expiry) and takes the feathers into the app at once.</summary>
+    public async Task<FeatherCodeResult> RedeemCodeAsync(string code, CancellationToken ct = default)
+    {
+        var http = _http;
+        if (http is null || !HasDevice || Chats == 0) return new(FeatherCodeStatus.NotLinked, 0);
+        try
+        {
+            using var list = await Send(http, HttpMethod.Get, "/api/device/feathers", null, ct);
+            string? handle = null;
+            if (list is not null && list.RootElement.TryGetProperty("chats", out var chats) && chats.ValueKind == JsonValueKind.Array)
+                foreach (var chat in chats.EnumerateArray()) { handle = chat.TryGetProperty("ref", out var r) ? r.GetString() : null; break; }
+            if (string.IsNullOrEmpty(handle)) return new(FeatherCodeStatus.NotLinked, 0);
+            using var answer = await Send(http, HttpMethod.Post, "/api/device/feathers/redeem", new { @ref = handle, code }, ct);
+            var feathers = answer is not null && answer.RootElement.TryGetProperty("feathers", out var f) && f.ValueKind == JsonValueKind.Number ? f.GetInt32() : 0;
+            try { await TakeFeathers(http, ct); }
+            catch (Exception ex) when (ex is not OperationCanceledException) { Log.Write($"bot feathers: {BotBackoff.Kind(ex)}"); }      // the next round brings them
+            return new(FeatherCodeStatus.Ok, feathers);
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.NotFound) { return new(FeatherCodeStatus.Unknown, 0); }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.Conflict) { return new(FeatherCodeStatus.Used, 0); }
+        catch (HttpRequestException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests) { return new(FeatherCodeStatus.Limited, 0); }
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested) { Log.Write($"bot code: {BotBackoff.Kind(ex)}"); return new(FeatherCodeStatus.Offline, 0); }
     }
 
     /// <summary>Feathers a person earned or was given in the bot (daily claims, feather codes) live in the bot. Each linked account's balance is moved into the app: the take carries an id that is saved

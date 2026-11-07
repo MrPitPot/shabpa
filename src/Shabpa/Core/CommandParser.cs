@@ -387,6 +387,8 @@ public static class CommandParser
             return new(CommandStatus.Ready, new AssistantCommand { Intent = CommandIntent.Info, Value = "admin:" + admin, ChatEnglish = english }, [], "", 1);
         if (AdminKey.ParseGift(text) is { } gift)
             return new(CommandStatus.Ready, new AssistantCommand { Intent = CommandIntent.Info, Value = "gift:" + gift, ChatEnglish = english }, [], "", 1);
+        if (AdminKey.ParseFeatherCode(text) is { } featherCode)
+            return new(CommandStatus.Ready, new AssistantCommand { Intent = CommandIntent.Info, Value = "fcode:" + featherCode, ChatEnglish = english }, [], "", 1);
         if (text is not null && BidarExtras.Match(text, now) is { } extra)
             return new(CommandStatus.Ready, new AssistantCommand { Intent = CommandIntent.Info, Value = "ex:" + extra.Kind + "|" + extra.Arg, ChatEnglish = english }, [], "", 1);
         var result = ParseCore(text, now);

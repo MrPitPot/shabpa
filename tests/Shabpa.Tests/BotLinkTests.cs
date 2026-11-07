@@ -19,7 +19,8 @@ internal sealed class FakeBotServer : HttpMessageHandler
     private int _codes;
     public int BotBalance;                                  // what the bot holds for the one linked chat
     public bool FeathersWaiting;                            // the bot tells the app in its poll answer that feathers are waiting
-    public bool LoseNextTakeAnswer;                         // the bot takes the feathers, but the answer never arrives
+    public bool LoseNextTakeAnswer;
+    public Dictionary<string, (int Status, int Feathers)> Codes = [];   // what the bot answers to a feather code                         // the bot takes the feathers, but the answer never arrives
     private readonly Dictionary<string, string> _takes = [];
 
     public int Count(string path) { lock (Calls) return Calls.Count(c => c.Path == path); }
@@ -41,6 +42,13 @@ internal sealed class FakeBotServer : HttpMessageHandler
         {
             FailEvents--;
             return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+        }
+        if (path == "/api/device/feathers/redeem")
+        {
+            var code = JsonDocument.Parse(body).RootElement.GetProperty("code").GetString()!;
+            var (status, feathers) = Codes.TryGetValue(code, out var known) ? known : (404, 0);
+            if (status == 200) BotBalance += feathers;
+            return new HttpResponseMessage((HttpStatusCode)status) { Content = new StringContent(status == 200 ? $$"""{"ok":true,"feathers":{{feathers}},"balance":{{BotBalance}}}""" : "{}", Encoding.UTF8, "application/json") };
         }
         if (path == "/api/device/feathers/take")
         {
@@ -154,6 +162,29 @@ public class BotLinkTests
         _server.BotBalance = 300;                                         // ...until a feather code is used in the bot
         _server.FeathersWaiting = true;
         WaitFor(() => Volatile.Read(ref total) == 300);
+    }
+
+    [Fact]
+    public async Task A_feather_code_typed_to_boofi_goes_to_the_bot_and_the_feathers_arrive_at_once()
+    {
+        var open = new Dictionary<string, string>();
+        var total = 0;
+        _server.Codes["NIGHT100"] = (200, 300);
+        _server.Codes["USED1"] = (409, 0);
+        _server.Codes["SLOW1"] = (429, 0);
+        using var link = FeatherLink(open, n => Interlocked.Add(ref total, n), TimeSpan.FromHours(1));
+        Assert.Equal(FeatherCodeStatus.NotLinked, (await link.RedeemCodeAsync("NIGHT100")).Status);      // not linked yet
+        link.Enable();
+        WaitFor(() => link.State == BotState.WaitingForPair);
+        _server.Chats = 1;
+        WaitFor(() => link.State == BotState.Connected);
+        var ok = await link.RedeemCodeAsync("NIGHT100");
+        Assert.Equal((FeatherCodeStatus.Ok, 300), (ok.Status, ok.Feathers));
+        Assert.Equal(300, Volatile.Read(ref total));                                                      // in the app already, not at the next round
+        Assert.Equal(FeatherCodeStatus.Used, (await link.RedeemCodeAsync("USED1")).Status);
+        Assert.Equal(FeatherCodeStatus.Limited, (await link.RedeemCodeAsync("SLOW1")).Status);
+        Assert.Equal(FeatherCodeStatus.Unknown, (await link.RedeemCodeAsync("NOPE")).Status);
+        Assert.Equal(300, Volatile.Read(ref total));
     }
 
     [Fact]
