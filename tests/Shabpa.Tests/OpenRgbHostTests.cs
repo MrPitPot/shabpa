@@ -24,6 +24,20 @@ public class OpenRgbHostTests : IDisposable
     }
 
     [Fact]
+    public void The_server_log_says_when_the_driver_refused_and_stays_quiet_when_all_is_well()
+    {
+        var logs = Path.Combine(_root, "logs");
+        Directory.CreateDirectory(logs);
+        Assert.Null(OpenRgbHost.DiagnoseLog(logs));
+        File.WriteAllText(Path.Combine(logs, "a.log"), "[1][Info]Start PawnIO: LpcIO.bin\n[1][Error]Permission Denied, PawnIO initialization aborted\n[2][Error]Permission Denied, PawnIO initialization aborted\n");
+        Assert.Contains("refused access 2 times", OpenRgbHost.DiagnoseLog(logs));
+        File.WriteAllText(Path.Combine(logs, "b.log"), "[1][Info]Start PawnIO: LpcIO.bin\n[3][Info]detected 4 devices\n");
+        File.SetLastWriteTimeUtc(Path.Combine(logs, "b.log"), DateTime.UtcNow.AddMinutes(1));
+        Assert.Null(OpenRgbHost.DiagnoseLog(logs));                                   // only the newest log counts
+        Assert.Null(OpenRgbHost.DiagnoseLog(Path.Combine(_root, "none")));
+    }
+
+    [Fact]
     public void ServerIsBlockedWhenTheVisualCppRuntimeIsMissingOrWindowsIsTooOld()
     {
         var system = Path.Combine(_root, "system32");

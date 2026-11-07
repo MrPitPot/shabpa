@@ -270,7 +270,8 @@ public static class OpenRgbHost
                         catch (InvalidOperationException) { /* disposed by Stop */ }
                     };
                 }
-                Log.Write("openrgb server started (hidden, local only)");
+                Log.Write($"openrgb server started (hidden, local only, admin={Elevation.IsElevated})");
+                _ = Task.Run(async () => { await Task.Delay(30_000); var note = DiagnoseLog(Path.Combine(Folder, "logs")); if (note is not null) Log.Write(note); });
                 return _process is not null;
             }
             catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or IOException)
@@ -279,6 +280,27 @@ public static class OpenRgbHost
                 return false;
             }
         }
+    }
+
+    /// <summary>Reads the newest server log and says in one line why memory, motherboard or graphics-card lighting was not found (null when nothing is wrong), so a log sent in
+    /// tells whether the driver refused (it only answers administrators) or is missing, instead of guessing.</summary>
+    public static string? DiagnoseLog(string logFolder)
+    {
+        try
+        {
+            if (!Directory.Exists(logFolder)) return null;
+            var newest = new DirectoryInfo(logFolder).GetFiles("*.log").OrderByDescending(f => f.LastWriteTimeUtc).FirstOrDefault();
+            if (newest is null) return null;
+            string text;
+            using (var stream = new FileStream(newest.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            using (var reader = new StreamReader(stream)) text = reader.ReadToEnd();
+            var denied = System.Text.RegularExpressions.Regex.Matches(text, "Permission Denied, PawnIO").Count;
+            var missing = System.Text.RegularExpressions.Regex.Matches(text, @"PawnIO[^\r\n]*(not found|not installed|failed to open)", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Count;
+            if (denied > 0) return $"openrgb: the PawnIO driver refused access {denied} times (admin={Elevation.IsElevated}); memory, motherboard and graphics-card lighting are not controlled";
+            if (missing > 0) return "openrgb: the PawnIO driver could not be opened; memory, motherboard and graphics-card lighting are not controlled";
+            return null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
     }
 
     /// <summary>Ends the server Shabpa started (and any left over from a crash of Shabpa), never one the person runs from somewhere else.</summary>
