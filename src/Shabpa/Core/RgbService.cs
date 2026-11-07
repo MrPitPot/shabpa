@@ -211,7 +211,7 @@ public sealed class RgbService : IDisposable
     private static Rgb[] Blink(RgbDevice device) => [.. Enumerable.Repeat(Environment.TickCount64 / 250 % 2 == 0 ? new Rgb(255, 255, 255) : Rgb.Black, Math.Max(1, device.Leds))];
 
     /// <summary>What one device shows now: a white blink while being identified, nothing when the person left it out, its own look when it has one, otherwise its zone's frame.</summary>
-    private Rgb[]? FrameFor(RgbDevice device, RgbSettings rgb, Dictionary<string, Rgb[]> frames, double t, double music, double temp)
+    private Rgb[]? FrameFor(RgbDevice device, RgbSettings rgb, Dictionary<string, Rgb[]> frames, double t, double music, double temp, double late = 0)
     {
         if (_identify.ContainsKey(device.Index)) return IdentifyOnly(device);
         var setting = rgb.FindDevice(device.Key);
@@ -221,17 +221,17 @@ public sealed class RgbService : IDisposable
         {
             var look = LookOf(rgb, setting.Look);
             var pattern = look.CustomPattern ?? look.Effect.Pattern;
-            frame = RgbEngine.Frame(look, Math.Max(1, device.Leds), t + Ahead(device), pattern == RgbPattern.Music ? music : temp);
+            frame = RgbEngine.Frame(look, Math.Max(1, device.Leds), t + Ahead(device) + late, pattern == RgbPattern.Music ? music : temp);
         }
-        else if (_slices is not null && _slices.TryGetValue(device.Index, out var slice)) frame = slice;
+        else if (_slices is not null && _slices.ContainsKey(device.Index)) frame = SyncFrame(device, rgb, t + late, music, temp);
         else
         {
             var zone = setting is { Zone.Length: > 0 } ? setting.Zone : device.Zone;
             frame = frames.TryGetValue(zone, out var f) ? f : null;
-            var ahead = Ahead(device);
-            if (frame is not null && ahead >= 0.012)
+            var ahead = Ahead(device) + late;
+            if (frame is not null && ahead >= 0.004)
             {
-                // a device that takes time to show a frame gets the effect as it will be when the frame arrives
+                // a device that takes time to show a frame gets the effect as it will be when the frame arrives (and as late as it really is when the frame goes out)
                 var look = LookOf(rgb, zone);
                 var pattern = look.CustomPattern ?? look.Effect.Pattern;
                 frame = RgbEngine.Frame(look, RgbZones.Find(zone).Leds, t + ahead, pattern == RgbPattern.Music ? music : temp);
@@ -260,6 +260,16 @@ public sealed class RgbService : IDisposable
             slices[d.Index] = rgb.FindDevice(d.Key) is { OneColour: true } ? [.. Enumerable.Repeat(frame[frame.Length / 2], n)] : frame;
         }
         return slices;
+    }
+
+    /// <summary>What one device shows when the lights are synchronised: the one shared effect laid along its own LEDs, as far ahead as it needs (see <see cref="SyncFrames"/>).</summary>
+    private Rgb[] SyncFrame(RgbDevice device, RgbSettings rgb, double t, double music, double temp)
+    {
+        var look = LookOf(rgb, rgb.All);
+        var pattern = look.CustomPattern ?? look.Effect.Pattern;
+        var n = Math.Max(1, device.Leds);
+        var frame = RgbEngine.Frame(look, n, t + Ahead(device), pattern == RgbPattern.Music ? music : temp);
+        return rgb.FindDevice(device.Key) is { OneColour: true } ? [.. Enumerable.Repeat(frame[frame.Length / 2], n)] : frame;
     }
 
     /// <summary>Seconds this device runs behind (the measured time to put a frame on it, at most 0.8): the effect is shown that far ahead, so every light changes at the same moment.</summary>
@@ -392,7 +402,7 @@ public sealed class RgbService : IDisposable
                 if (!rgb.Enabled)
                 {
                     SetLink(RgbLink.Off);
-                    if (_client.Connected && _driving && TransitionRunning) _client.Update(device => FrameFor(device, rgb, frames, t, music, temp), force: true);     // fading out
+                    if (_client.Connected && _driving && TransitionRunning) _client.UpdateAt((device, late) => FrameFor(device, rgb, frames, t, music, temp, late), force: true, wait: false);     // fading out
                     else if (_client.Connected && _driving) { _driving = false; _transStart = 0; _blackLeft = 3; }
                     if (_client.Connected && _blackLeft > 0)
                     {
@@ -424,7 +434,7 @@ public sealed class RgbService : IDisposable
                     if (rgb.StartupEffect && rgb.Transition != "none") PlayTransition(true);   // the lights come on with the chosen effect
                 }
                 _driving = true;
-                if (!_client.Update(device => FrameFor(device, rgb, frames, t, music, temp)))
+                if (!_client.UpdateAt((device, late) => FrameFor(device, rgb, frames, t, music, temp, late), wait: false))
                 {
                     SetLink(RgbLink.NoServer, _client.LastError);
                     _nextConnect = Environment.TickCount64 + 2000;

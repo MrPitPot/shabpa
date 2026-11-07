@@ -71,22 +71,17 @@ public sealed class RewardsPage : PageBase
         var (shopCard, shopBody) = K.Card(L.T("فروشگاه پَر", "Feather shop"),
             L.T("با پَرهایی که جمع کردی برای بوفی کلاه، عینک، ساعت، فانوس و رنگ پر بخر. خرج کردن سطحت رو پایین نمی‌آره.",
                 "Spend your feathers on hats, glasses, watches, lanterns and fur colours for Boofi. Spending never lowers your level."));
-        _storeView = new BoofiStoreView(Hub);
-        shopBody.Children.Add(_storeView);
+        // the three views below are built the first time their tab opens: they are hidden at first, and building them (every tile, every picture) was most of the page's opening time
         shopCard.Visibility = Visibility.Collapsed;
         _root.Children.Add(shopCard);
         var (wardCard, wardBody) = K.Card(L.T("بوفی من", "My Boofi"),
             L.T("هر چی خریدی رو اینجا تنش کن یا دربیار. هر تغییر خودکار ذخیره می‌شه.", "Put on or take off whatever you bought. Every change is saved by itself."));
-        _wardView = new BoofiWardrobeView(Hub);
-        wardBody.Children.Add(_wardView);
         wardCard.Visibility = Visibility.Collapsed;
         _root.Children.Add(wardCard);
 
         var (themeCard, themeBody) = K.Card(L.T("تم‌های ویژه", "Special themes"),
             L.T("تم‌هایی با پس‌زمینه‌ی متحرک و رنگ‌بندی مخصوص خودشون. فقط ظاهرن و با پَر خریده می‌شن.",
                 "Themes with their own moving backdrop and colours. Purely cosmetic, bought with feathers."));
-        _themeView = new ThemeStoreView(Hub);
-        themeBody.Children.Add(_themeView);
         themeCard.Visibility = Visibility.Collapsed;
         _root.Children.Add(themeCard);
 
@@ -102,19 +97,40 @@ public sealed class RewardsPage : PageBase
         Hub.Account.Changed += () => Dispatcher.BeginInvoke(() => { if (IsVisible) BuildCloud(); });
 
         var cabinet = new FrameworkElement[] { heroCard, cloudCard, qCard, mCard };
+        var tabList = new[] { (0, L.T("مدال و مأموریت", "Medals & quests")), (1, L.T("فروشگاه", "Shop")), (2, L.T("بوفی من", "My Boofi")), (3, L.T("تم‌ها", "Themes")) };
+        Action<int> showTab = null!;
+        BoofiWardrobeView Wardrobe()
+        {
+            if (_wardView is null) { _wardView = new BoofiWardrobeView(Hub); wardBody.Children.Add(_wardView); }
+            return _wardView;
+        }
+        BoofiStoreView Store()
+        {
+            if (_storeView is null)
+            {
+                _storeView = new BoofiStoreView(Hub);
+                shopBody.Children.Add(_storeView);
+                _storeView.PreviewRequested += part => { Wardrobe().Preview(part); Chips(tabs, tabList, 2, showTab); showTab(2); };
+            }
+            return _storeView;
+        }
         void ShowTab(int tab)
         {
             foreach (var c in cabinet) c.Visibility = tab == 0 ? Visibility.Visible : Visibility.Collapsed;
             shopCard.Visibility = tab == 1 ? Visibility.Visible : Visibility.Collapsed;
             wardCard.Visibility = tab == 2 ? Visibility.Visible : Visibility.Collapsed;
-            if (tab == 1) { _storeView?.Refresh(); Motion.Pop(shopCard); }
+            if (tab == 1) { Store().Refresh(); Motion.Pop(shopCard); }
             themeCard.Visibility = tab == 3 ? Visibility.Visible : Visibility.Collapsed;
-            if (tab == 2) { _wardView?.Refresh(); Motion.Pop(wardCard); }
-            if (tab == 3) { _themeView?.Refresh(); Motion.Pop(themeCard); }
+            if (tab == 2) { Wardrobe().Refresh(); Motion.Pop(wardCard); }
+            if (tab == 3)
+            {
+                if (_themeView is null) { _themeView = new ThemeStoreView(Hub); themeBody.Children.Add(_themeView); }
+                _themeView.Refresh();
+                Motion.Pop(themeCard);
+            }
         }
-        var tabList = new[] { (0, L.T("مدال و مأموریت", "Medals & quests")), (1, L.T("فروشگاه", "Shop")), (2, L.T("بوفی من", "My Boofi")), (3, L.T("تم‌ها", "Themes")) };
+        showTab = ShowTab;
         Chips(tabs, tabList, 0, ShowTab);
-        _storeView.PreviewRequested += part => { _wardView?.Preview(part); Chips(tabs, tabList, 2, ShowTab); ShowTab(2); };
 
         // test aid (screenshots of the medal grid on a short window): SHABPA_RW_ONLY=medals hides the two cards above it
         if (Environment.GetEnvironmentVariable("SHABPA_RW_ONLY") == "medals") { heroCard.Visibility = Visibility.Collapsed; qCard.Visibility = Visibility.Collapsed; }

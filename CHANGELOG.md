@@ -9,6 +9,18 @@ a patch release only fixes bugs, a minor release adds a tested batch of features
 ### Changed
 - Premium themes: all 30 backdrops are redrawn as detailed paintings (a layered snowy village with a decorated Christmas tree, koi that swim head first along curving paths, lantern-lit harbours, Persepolis, Yalda night and more) with small animated parts on top (snow, steam, flames, fish, rain, lightning). The theme store shows each painting on its tile. The scenes still move only a few dozen sprites at a low frame rate. A soft veil in each theme's own colour keeps the sidebar, page titles and footer readable over every painting.
 
+## [3.16.1] - 2026-11-07
+
+### Changed
+- Lighting: every device now has its own connection and thread to the lighting server, so a slow device (memory, motherboard) no longer holds up the fans and strips; the loop never waits for a device, and each frame is drawn for the moment it really goes out. Devices change together more closely.
+- The Medals page opens about four times faster: the shop, wardrobe and theme views are built when their tab is opened.
+- Rounded window corners are asked for on Windows 11 only (always on) and again once the window is up; Windows 10 keeps the square window.
+
+### Fixed
+- The window could freeze for seconds (up to half a minute in one log) while the overlay was on: the overlay asked Windows Forms for the monitor on the window thread, which waits for the display driver. It now asks Windows directly.
+- Quitting or restarting (language change) waited three to five seconds for the internet-usage tracer to stop; it now stops in the background.
+- The stall log also writes the native stack (libraries and offsets) of the window thread, and a new log line shows how long a tab takes to settle, so a freeze inside a driver or a slow tab names its owner.
+
 ## [3.16.0] - 2026-11-06
 
 ### Added

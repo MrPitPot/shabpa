@@ -73,7 +73,13 @@ public sealed class NetMonitor : IDisposable
 
     public void Dispose()
     {
-        try { _session.Dispose(); }
-        catch { /* already stopped */ }
+        // Stopping a Windows trace session can take several seconds (the logs show 3 to 5 s frozen windows on quit and on a language change), so it is stopped on another thread and the
+        // window waits for it only a moment. A session still running when the program ends is replaced by the next start (see TryStart).
+        var stop = Task.Run(() =>
+        {
+            try { _session.Dispose(); }
+            catch { /* already stopped */ }
+        });
+        stop.Wait(1500);
     }
 }

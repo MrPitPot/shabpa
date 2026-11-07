@@ -273,6 +273,8 @@ public partial class MainWindow : Window
     {
         base.OnSourceInitialized(e);
         Ui.Chrome(this);
+        // the window frame is rebuilt once the custom title bar takes over: ask for the rounded corners again when the window is up (Windows 11)
+        Loaded += (_, _) => { if (Ui.RoundedCornersSupported()) Ui.Chrome(this); };
         ApplyIcon();
         DpiChanged += (_, _) => ApplyIcon();
     }
@@ -449,6 +451,8 @@ public partial class MainWindow : Window
             var swapStart = System.Diagnostics.Stopwatch.GetTimestamp();
             try { SwapNow(); }
             finally { PageTiming.Record("swap:" + page.GetType().Name, System.Diagnostics.Stopwatch.GetElapsedTime(swapStart).TotalMilliseconds); }
+            // layout, rendering and the enter animation happen after the swap returns: the time until the window thread is idle again is what a person feels as "the tab is slow"
+            Dispatcher.BeginInvoke(() => PageTiming.Record("settle:" + page.GetType().Name, System.Diagnostics.Stopwatch.GetElapsedTime(swapStart).TotalMilliseconds), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         }
         void SwapNow()
         {

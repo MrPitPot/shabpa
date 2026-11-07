@@ -68,6 +68,10 @@ public static class UiWatchdog
 
     /// <summary>Replaceable for tests: how the window thread's stack is read.</summary>
     internal static Func<int, IReadOnlyList<string>> StackReader { get; set; } = StallStack.Capture;
+    /// <summary>The Windows id of the window thread (read on that thread once the watchdog starts), for the native stack of a stall.</summary>
+    internal static volatile uint OsThreadId;
+    /// <summary>Replaceable for tests: how the native part of the window thread's stack is read.</summary>
+    internal static Func<uint, IReadOnlyList<string>> NativeReader { get; set; } = NativeStack.Capture;
     /// <summary>Set to false to skip reading stacks (the stall lines are still written).</summary>
     public static bool CaptureStacks { get; set; } = true;
 
@@ -77,6 +81,7 @@ public static class UiWatchdog
         if (_thread is not null) return;
         _stop = false;
         var uiThread = dispatcher.Thread.ManagedThreadId;
+        dispatcher.BeginInvoke(() => OsThreadId = NativeStack.CurrentThreadId());
         _thread = new Thread(() => Run(dispatcher, page, uiThread, 500)) { IsBackground = true, Name = "ui-watchdog", Priority = ThreadPriority.AboveNormal };
         _thread.Start();
     }
@@ -171,6 +176,12 @@ public static class UiWatchdog
                 }
                 Log.Write($"ui stall stack (window thread, {silentMs} ms into the stall, top {lines.Count}):" + Environment.NewLine
                           + string.Join(Environment.NewLine, lines.Select(l => "    at " + l)));
+                // the .NET stack ends at the last .NET frame; this is the same thread seen from Windows (libraries and offsets), so a stall inside a driver or a hook names its owner
+                if (OsThreadId != 0)
+                {
+                    var native = NativeReader(OsThreadId);
+                    Log.Write($"ui stall native stack (window thread, top {native.Count}):" + Environment.NewLine + string.Join(Environment.NewLine, native.Select(l => "    at " + l)));
+                }
             }
             catch (Exception ex)
             {
