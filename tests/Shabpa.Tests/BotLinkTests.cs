@@ -17,6 +17,10 @@ internal sealed class FakeBotServer : HttpMessageHandler
     public int FailEvents;
     public string? DownHost; // requests to this host fail like a cut connection
     private int _codes;
+    public int BotBalance;                                  // what the bot holds for the one linked chat
+    public bool FeathersWaiting;                            // the bot tells the app in its poll answer that feathers are waiting
+    public bool LoseNextTakeAnswer;                         // the bot takes the feathers, but the answer never arrives
+    private readonly Dictionary<string, string> _takes = [];
 
     public int Count(string path) { lock (Calls) return Calls.Count(c => c.Path == path); }
     public string[] Bodies(string path) { lock (Calls) return [.. Calls.Where(c => c.Path == path).Select(c => c.Body)]; }
@@ -38,12 +42,27 @@ internal sealed class FakeBotServer : HttpMessageHandler
             FailEvents--;
             return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
         }
+        if (path == "/api/device/feathers/take")
+        {
+            lock (_takes)
+            {
+                var id = JsonDocument.Parse(body).RootElement.GetProperty("requestId").GetString()!;
+                if (!_takes.TryGetValue(id, out var cached))
+                {
+                    _takes[id] = cached = $$"""{"ok":true,"taken":{{BotBalance}},"balance":0}""";
+                    BotBalance = 0;
+                }
+                if (LoseNextTakeAnswer) { LoseNextTakeAnswer = false; throw new HttpRequestException("connection cut"); }
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(cached, Encoding.UTF8, "application/json") };
+            }
+        }
         string json = path switch
         {
             "/api/device/pair" => """{"deviceId":"dev1","secret":"s3cret","code":"K7QM-4TXE","expiresIn":600}""",
             "/api/device/code" => $$"""{"code":"NEW{{++_codes}}-CODE","expiresIn":600}""",
-            "/api/device/poll" => $$"""{"commands":[{{string.Join(',', DrainCommands())}}],"chats":{{Chats}},"serverTime":0}""",
+            "/api/device/poll" => $$"""{"commands":[{{string.Join(',', DrainCommands())}}],"chats":{{Chats}},"serverTime":0{{(FeathersWaiting ? ",\"feathers\":true" : "")}}}""",
             "/api/device/event" => """{"ok":true,"sent":1}""",
+            "/api/device/feathers" => $$"""{"chats":[{"ref":"abc123def456","balance":{{BotBalance}},"streak":0,"best":0,"owned":[]}]}""",
             _ => """{"ok":true}""",
         };
         return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
@@ -76,6 +95,83 @@ public class BotLinkTests
             return type == "status" ? RemoteReply.Done("وضعیت", "STATUS") : RemoteReply.Fail("نه", "NO");
         },
     }, _server, outboxFile: _outbox) { PollEvery = TimeSpan.FromMilliseconds(30) };
+
+    /// <summary>A link whose app side keeps what the bot hands over, the way the engine does: one open take per account, closed in the same step the feathers are added.</summary>
+    private BotLink FeatherLink(Dictionary<string, string> open, Action<int> added, TimeSpan? every = null) => new(() => _settings, () => { }, new BotHost
+    {
+        Execute = (_, _) => RemoteReply.Fail("", ""),
+        FeatherTicket = (handle, balance) =>
+        {
+            lock (open)
+            {
+                if (open.TryGetValue(handle, out var id)) return id;
+                if (balance <= 0) return null;
+                return open[handle] = Guid.NewGuid().ToString("N");
+            }
+        },
+        FeatherTaken = (handle, ticket, taken) =>
+        {
+            lock (open)
+            {
+                if (!open.TryGetValue(handle, out var id) || id != ticket) return;
+                open.Remove(handle);
+                added(taken);
+            }
+        },
+    }, _server, outboxFile: _outbox) { PollEvery = TimeSpan.FromMilliseconds(30), FeatherEvery = every ?? TimeSpan.FromMilliseconds(60) };
+
+    [Fact]
+    public void Feathers_the_bot_holds_are_taken_into_the_app_once()
+    {
+        var open = new Dictionary<string, string>();
+        var total = 0;
+        _server.BotBalance = 300;
+        using var link = FeatherLink(open, n => Interlocked.Add(ref total, n));
+        link.Enable();
+        WaitFor(() => link.State == BotState.WaitingForPair);
+        _server.Chats = 1;
+        WaitFor(() => Volatile.Read(ref total) == 300);
+        Thread.Sleep(300);                                          // several more rounds: nothing is taken again
+        Assert.Equal(300, Volatile.Read(ref total));
+        Assert.Equal(1, _server.Count("/api/device/feathers/take"));
+        lock (open) Assert.Empty(open);
+        _server.BotBalance = 30;                                    // the person claimed more in the bot
+        WaitFor(() => Volatile.Read(ref total) == 330);
+    }
+
+    [Fact]
+    public void When_the_bot_says_feathers_are_waiting_they_are_taken_at_once_not_at_the_next_round()
+    {
+        var open = new Dictionary<string, string>();
+        var total = 0;
+        using var link = FeatherLink(open, n => Interlocked.Add(ref total, n), TimeSpan.FromHours(1));
+        link.Enable();
+        WaitFor(() => link.State == BotState.WaitingForPair);
+        _server.Chats = 1;
+        WaitFor(() => _server.Count("/api/device/feathers") == 1);       // the first round after linking
+        Thread.Sleep(200);
+        Assert.Equal(1, _server.Count("/api/device/feathers"));          // and then nothing for an hour...
+        _server.BotBalance = 300;                                         // ...until a feather code is used in the bot
+        _server.FeathersWaiting = true;
+        WaitFor(() => Volatile.Read(ref total) == 300);
+    }
+
+    [Fact]
+    public void An_answer_lost_on_the_way_is_asked_again_and_the_feathers_are_added_exactly_once()
+    {
+        var open = new Dictionary<string, string>();
+        var total = 0;
+        _server.BotBalance = 300;
+        _server.LoseNextTakeAnswer = true;
+        using var link = FeatherLink(open, n => Interlocked.Add(ref total, n));
+        link.Enable();
+        WaitFor(() => link.State == BotState.WaitingForPair);
+        _server.Chats = 1;
+        WaitFor(() => Volatile.Read(ref total) == 300);
+        Thread.Sleep(300);
+        Assert.Equal(300, Volatile.Read(ref total));               // the bot had already emptied its balance; the retry got the same answer
+        Assert.True(_server.Count("/api/device/feathers/take") >= 2);
+    }
 
     private static void WaitFor(Func<bool> condition)
     {

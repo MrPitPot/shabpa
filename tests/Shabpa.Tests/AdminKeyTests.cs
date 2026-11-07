@@ -69,6 +69,23 @@ public class AdminKeyTests
     }
 
     [Fact]
+    public void Feathers_taken_from_the_bot_are_added_once_and_leave_the_level_alone()
+    {
+        var hub = new Hub(new Store(Path.Combine(Path.GetTempPath(), "shabpa-ak-" + Guid.NewGuid().ToString("N"))) { ReadOnly = true }, dryRun: true, demo: true);
+        hub.State.Rewards = new RewardsState { Feathers = 10, TotalFeathers = 10 };
+        var e = new RewardsEngine(hub, () => new DateTime(2026, 11, 2, 12, 0, 0));
+        Assert.Null(e.BotTakeTicket("abc", 0));                                  // nothing there, nothing to take
+        var ticket = e.BotTakeTicket("abc", 300)!;
+        Assert.Equal(ticket, e.BotTakeTicket("abc", 0));                         // an open take is kept (the answer may be on its way) even when the bot reads zero now
+        Assert.Equal(0, e.FinishBotTake("abc", "other", 300));                   // only the open take can be closed
+        Assert.Equal(300, e.FinishBotTake("abc", ticket, 300));
+        Assert.Equal(0, e.FinishBotTake("abc", ticket, 300));                    // closed: a second answer adds nothing
+        Assert.Equal(310, e.State.Feathers);
+        Assert.Equal(10, e.State.TotalFeathers);
+        Assert.Empty(e.State.BotTakes);
+    }
+
+    [Fact]
     public void Switching_the_key_off_does_not_refund_what_was_spent_before()
     {
         var hub = new Hub(new Store(Path.Combine(Path.GetTempPath(), "shabpa-ak-" + Guid.NewGuid().ToString("N"))) { ReadOnly = true }, dryRun: true, demo: true);

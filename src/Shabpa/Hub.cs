@@ -118,6 +118,22 @@ public sealed partial class Hub
         Bot = new BotLink(() => Settings, Store.Save, new BotHost
         {
             Execute = (type, args) => OnUi(() => ExecuteRemote(type, args)),
+            FeatherTicket = (handle, balance) => OnUi(() =>
+            {
+                var ticket = Rewards.BotTakeTicket(handle, balance);
+                if (ticket is not null && !Demo) Store.Save();                 // written before the bot is asked, so a crash never loses the id
+                return ticket;
+            }),
+            FeatherTaken = (handle, ticket, taken) => Application.Current.Dispatcher.Invoke(() =>
+            {
+                var added = Rewards.FinishBotTake(handle, ticket, taken);
+                if (!Demo) Store.Save();
+                if (added > 0)
+                {
+                    Log.Write($"bot feathers: {added} taken from the bot");
+                    Notify(L.T("پَر از ربات", "Feathers from the bot"), L.T($"{Fa.N(added)} پَر از ربات به برنامه اضافه شد.", $"{added} feathers from the bot were added."));
+                }
+            }),
         }, outboxFile: demo ? null : System.IO.Path.Combine(Store.Folder, "bot-outbox.json"));
     }
 

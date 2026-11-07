@@ -24,6 +24,11 @@ public sealed class BotHost
     /// <summary>Runs one command (status, power, cancel, ram-clean, dim, volume, sleep-mode, sleep-cancel,
     /// after-download) and returns the answer. Called from a background thread.</summary>
     public required Func<string, JsonElement, RemoteReply> Execute { get; init; }
+
+    /// <summary>The id of the take that is open for a Telegram account (its handle, and what the bot says it holds), a new one when there is something to take, or null. Saved before it is used.</summary>
+    public Func<string, int, string?>? FeatherTicket { get; init; }
+    /// <summary>The bot handed over this many feathers for that take: add them and close it (handle, ticket, amount).</summary>
+    public Action<string, string, int>? FeatherTaken { get; init; }
 }
 
 /// <summary>Encrypts small secrets for the current Windows user (device secret, support admin key).</summary>
@@ -49,6 +54,9 @@ public sealed class BotLink : IDisposable
     public const string BotUsername = "ShabPa_Bot";
 
     internal TimeSpan PollEvery { get; init; } = TimeSpan.FromSeconds(3);
+    /// <summary>How often the feathers the bot holds for the linked Telegram accounts are brought into the app.</summary>
+    internal TimeSpan FeatherEvery { get; init; } = TimeSpan.FromMinutes(5);
+    private DateTimeOffset _lastFeathers = DateTimeOffset.MinValue;
     /// <summary>How long to wait after the n-th failure in a row (replaceable so tests do not wait minutes).</summary>
     internal Func<int, TimeSpan> RetryWait { get; init; } = BotBackoff.Wait;
 
@@ -214,6 +222,30 @@ public sealed class BotLink : IDisposable
         return text.Length == 0 ? null : JsonDocument.Parse(text);
     }
 
+    /// <summary>Feathers a person earned or was given in the bot (daily claims, feather codes) live in the bot. Each linked account's balance is moved into the app: the take carries an id that is saved
+    /// first, so a connection cut halfway is simply asked again and gets the same answer, never a second payment.</summary>
+    private async Task TakeFeathers(HttpClient http, CancellationToken ct)
+    {
+        if (_host.FeatherTicket is null || _host.FeatherTaken is null) return;
+        using var list = await Send(http, HttpMethod.Get, "/api/device/feathers", null, ct);
+        if (list is null || !list.RootElement.TryGetProperty("chats", out var chats) || chats.ValueKind != JsonValueKind.Array) return;
+        foreach (var chat in chats.EnumerateArray())
+        {
+            var handle = chat.TryGetProperty("ref", out var r) && r.ValueKind == JsonValueKind.String ? r.GetString() ?? "" : "";
+            var balance = chat.TryGetProperty("balance", out var b) && b.ValueKind == JsonValueKind.Number ? b.GetInt32() : 0;
+            if (handle.Length == 0) continue;
+            var ticket = _host.FeatherTicket(handle, balance);
+            if (ticket is null) continue;
+            try
+            {
+                using var answer = await Send(http, HttpMethod.Post, "/api/device/feathers/take", new { @ref = handle, requestId = ticket }, ct);
+                if (answer is null || !answer.RootElement.TryGetProperty("taken", out var taken) || taken.ValueKind != JsonValueKind.Number) continue;
+                _host.FeatherTaken(handle, ticket, taken.GetInt32());
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode is not null) { Log.Write($"bot feathers: the bot said {(int)ex.StatusCode}"); }
+        }
+    }
+
     private async Task Loop(CancellationToken ct)
     {
         var http = _http!;
@@ -252,6 +284,14 @@ public sealed class BotLink : IDisposable
                 }
                 if (root.TryGetProperty("commands", out var commands) && commands.ValueKind == JsonValueKind.Array)
                     foreach (var command in commands.EnumerateArray()) await Run(http, command, ct);
+                // the bot says feathers are waiting (a code was used, a daily claim, a gift): take them now, not at the next round
+                if (root.TryGetProperty("feathers", out var waiting) && waiting.ValueKind == JsonValueKind.True) _lastFeathers = DateTimeOffset.MinValue;
+                if (Chats > 0 && _now() - _lastFeathers >= FeatherEvery)
+                {
+                    _lastFeathers = _now();
+                    try { await TakeFeathers(http, ct); }
+                    catch (Exception ex) when (ex is not OperationCanceledException && ex is not UnauthorizedAccessException) { Log.Write($"bot feathers: {BotBackoff.Kind(ex)}"); }
+                }
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {

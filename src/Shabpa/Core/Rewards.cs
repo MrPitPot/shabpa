@@ -38,6 +38,8 @@ public sealed class RewardsState
     public Dictionary<string, int> WeekCounters { get; set; } = [];
     /// <summary>Quests and streak rewards already paid, so each is paid once.</summary>
     public List<string> Claimed { get; set; } = [];
+    /// <summary>Feathers being taken from the bot: the Telegram account's handle and the id of the take that is under way, kept until its answer is in so a cut connection never loses or doubles them.</summary>
+    public Dictionary<string, string> BotTakes { get; set; } = [];
     public List<string> DoneTasks { get; set; } = [];
     public List<string> Games { get; set; } = [];
     public bool TourDone { get; set; }
@@ -422,6 +424,31 @@ public sealed class RewardsEngine
         _dirty = true;
         Changed?.Invoke();
         return true;
+    }
+
+    /// <summary>The id of the take from this Telegram account that is under way, or (when the bot holds <paramref name="botBalance"/> above zero) a new one that is remembered; null when there is nothing to take.
+    /// The id outlives a restart: asking the bot again with the same id returns the same answer and never takes twice.</summary>
+    public string? BotTakeTicket(string chatRef, int botBalance)
+    {
+        if (State.BotTakes.TryGetValue(chatRef, out var open)) return open;
+        if (botBalance <= 0) return null;
+        var id = Guid.NewGuid().ToString("N");
+        State.BotTakes[chatRef] = id;
+        _dirty = true;
+        return id;
+    }
+
+    /// <summary>The bot gave <paramref name="taken"/> feathers for the take <paramref name="ticket"/>: they are added (cosmetic spending money like the owner's gift: the level does not change) and the take is closed in the same step. 0 when that take is not open any more.</summary>
+    public int FinishBotTake(string chatRef, string ticket, int taken)
+    {
+        if (!State.BotTakes.TryGetValue(chatRef, out var open) || open != ticket) return 0;
+        State.BotTakes.Remove(chatRef);
+        taken = Math.Max(0, taken);
+        State.Feathers += taken;
+        if (State.Unlimited) State.RealFeathers += taken;
+        _dirty = true;
+        Changed?.Invoke();
+        return taken;
     }
 
     /// <summary>Spends feathers on a part. Total feathers (the level) do not go down.</summary>
