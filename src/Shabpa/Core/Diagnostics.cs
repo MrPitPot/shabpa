@@ -52,6 +52,10 @@ public static class Diagnostics
             }
         }
 
+        // A process the limiter has not named yet escapes for its first few milliseconds (the name is read a moment after its first port appears), and a loopback transfer is over in
+        // fewer than that: hold one port open so this process is known before the limits start, as every long-running program is.
+        using var holder = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        holder.Start();
         using var shaper = new Shaper();
         var results = new List<string>();
         var (free, _) = Transfer(16 << 20, 5000);
