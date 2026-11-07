@@ -41,6 +41,8 @@ public sealed partial class ThemeScene : Canvas
     public ThemeScene(Scene scene)
     {
         _scene = scene;
+        // a painting is never mirrored: in the Persian layout (right to left) WPF would flip the picture and every sprite, so the koi swam tail first and the scenes no longer matched their art
+        FlowDirection = FlowDirection.LeftToRight;
         IsHitTestVisible = false;
         ClipToBounds = true;
         SnapsToDevicePixels = false;
@@ -103,7 +105,12 @@ public sealed partial class ThemeScene : Canvas
         if (w < 80 || h < 80 || !IsVisible) return;
         _rng = new Random(7);
         SceneFps = FpsFor(_scene);
-        if (!Art(w, h)) return;   // every scene is a painting now (Assets/themes); a missing one just leaves the plain window background
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        var built = Art(w, h);
+        var took = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+        PageTiming.Record("scene:" + _scene, took);          // decoding the painting and laying out its sprites runs on the window thread: a slow one is written to the log
+        if (Environment.GetEnvironmentVariable("SHABPA_SCENE_LOG") is { Length: > 0 } sceneLog) System.IO.File.AppendAllText(sceneLog, $"{_scene} {took:F0} ms, {Children.Count} elements{Environment.NewLine}");   // test aid
+        if (!built) return;   // every scene is a painting now (Assets/themes); a missing one just leaves the plain window background
         if (Animated) { Opacity = 0; BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(900)) { EasingFunction = new QuadraticEase() }); }
         else Opacity = 1;
     }

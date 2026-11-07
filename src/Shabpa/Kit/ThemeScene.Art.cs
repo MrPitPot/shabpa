@@ -360,8 +360,9 @@ public sealed partial class ThemeScene
     /// Worked out per theme from screenshots of every page (the muted text against the brightest 5 % of the backdrop); bright, busy paintings need more.</summary>
     private static readonly Dictionary<string, double> Dim = new()
     {
-        ["sakura"] = .14, ["embers"] = .14, ["synthwave"] = .14, ["dunes"] = .18, ["prism"] = .18, ["rainglass"] = .28, ["snowfall"] = .30, ["christmas"] = .30, ["teahouse"] = .30,
-        ["yalda"] = .40, ["fireflies"] = .42, ["koi"] = .44, ["tilework"] = .46, ["persepolis"] = .46, ["deep"] = .46, ["radiant"] = .38, ["blocky"] = .50,
+        ["sakura"] = .14, ["synthwave"] = .14, ["dunes"] = .18, ["rainglass"] = .28, ["storm"] = .22, ["orbit"] = .22, ["battlefield"] = .22, ["prism"] = .26, ["embers"] = .30,
+        ["christmas"] = .36, ["snowfall"] = .36, ["teahouse"] = .38, ["yalda"] = .40, ["fireflies"] = .42, ["koi"] = .44, ["tilework"] = .46, ["persepolis"] = .46, ["deep"] = .46,
+        ["arcade"] = .45, ["radiant"] = .38, ["blocky"] = .50,
     };
 
     internal static double DimFor(string key) => Dim.GetValueOrDefault(key, .12);
@@ -386,7 +387,8 @@ public sealed partial class ThemeScene
         }
         Veil(0, 0, w, h, Freeze(new SolidColorBrush(At(DimFor(key)))));                          // the whole painting a little calmer
         var side = Math.Min(w, 262);
-        Veil(0, 0, side, h, Fade(new Point(0, 0), new Point(1, 0), (0, .78), (.86, .78), (1, 0)));                  // the sidebar
+        if (Ui.Flow == FlowDirection.RightToLeft) Veil(w - side, 0, side, h, Fade(new Point(1, 0), new Point(0, 0), (0, .78), (.86, .78), (1, 0)));   // the sidebar is on the right in Persian
+        else Veil(0, 0, side, h, Fade(new Point(0, 0), new Point(1, 0), (0, .78), (.86, .78), (1, 0)));                                                  // the sidebar
         Veil(0, 0, w, Math.Min(h, 150), Fade(new Point(0, 0), new Point(0, 1), (0, .62), (1, 0)));                  // the page title
         Veil(0, Math.Max(0, h - 64), w, Math.Min(h, 64), Fade(new Point(0, 0), new Point(0, 1), (0, 0), (1, .72)));   // the footer
     }

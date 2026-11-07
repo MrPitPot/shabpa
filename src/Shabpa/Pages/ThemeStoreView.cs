@@ -46,7 +46,7 @@ internal sealed class ThemeStoreView : StackPanel
         bg.Freeze();
         var root = new Grid { ClipToBounds = true };
         // the painting shows through: the mock-up's panels are a little see-through, as the real pages are over the backdrop
-        if (art is not null) root.Children.Add(new Image { Source = art, Stretch = Stretch.UniformToFill, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
+        if (art is not null) root.Children.Add(new Image { Source = art, FlowDirection = FlowDirection.LeftToRight, Stretch = Stretch.UniformToFill, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center });
         var side = new Border { Width = width * .2, HorizontalAlignment = HorizontalAlignment.Right, Background = Solid(p, "Side"), Opacity = .82 };
         var lines = new StackPanel { Margin = new Thickness(width * .03, height * .1, width * .03, 0), VerticalAlignment = VerticalAlignment.Top };
         for (var i = 0; i < 4; i++) lines.Children.Add(new Rectangle { Height = height * .045, RadiusX = 3, RadiusY = 3, Margin = new Thickness(0, 0, 0, height * .06), Fill = Solid(p, i == 0 ? "Accent" : "Faint"), Opacity = i == 0 ? 1 : .6 });

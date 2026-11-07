@@ -28,7 +28,18 @@ public sealed record GlassTokens(
         return (C((a >> 16) & 255, (b >> 16) & 255, t) << 16) | (C((a >> 8) & 255, (b >> 8) & 255, t) << 8) | C(a & 255, b & 255, t);
     }
 
+    /// <summary>How much of the backdrop shows through a card: a premium theme has a painting with moving parts behind the pages, and text on a half-clear card was read over a passing
+    /// invader or fish. Its cards are a little less clear so the words stay on a calm surface; the ordinary themes keep the design's glass.</summary>
+    public const byte SceneCardAlpha = 0xC0, SceneCard2Alpha = 0xDC;
+
     public static GlassTokens Of(Palette p)
+    {
+        var tokens = Plain(p);
+        if (PremiumTheme.Find(p.Key) is null) return tokens;
+        return tokens with { Card = Argb(Math.Max((byte)(tokens.Card >> 24), SceneCardAlpha), tokens.Card), Card2 = Argb(Math.Max((byte)(tokens.Card2 >> 24), SceneCard2Alpha), tokens.Card2) };
+    }
+
+    private static GlassTokens Plain(Palette p)
     {
         uint Col(string key) => Rgb(p.Colors[key]);
         if (p.BaseKey is not null && p.Light)
