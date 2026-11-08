@@ -683,6 +683,7 @@ public sealed class OverlayWindow : Window
         }
         if (want && !IsVisible)
         {
+            Log.Write($"overlay shown (mode {o.Mode}, game running: {_hub.Snapshot.GameRunning})");
             Show();
             FadeIn(this);
             AcquireDemand(true);
@@ -722,6 +723,7 @@ public sealed class OverlayWindow : Window
 
     private void HideNow()
     {
+        Log.Write($"overlay hidden (game running: {_hub.Snapshot.GameRunning})");
         Hide();
         foreach (var block in _blocks.Values) block.Close();
         _blocks.Clear();
