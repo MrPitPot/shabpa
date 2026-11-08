@@ -1086,9 +1086,23 @@ internal static class OverlayWin
 
     public static void MoveTo(IntPtr hwnd, int x, int y) => SetWindowPos(hwnd, IntPtr.Zero, x, y, 0, 0, NoSize | NoZOrder | NoActivate);
 
+    [DllImport("user32.dll")] private static extern IntPtr GetWindow(IntPtr hwnd, uint cmd);
+    [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr hwnd);
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
+
+    /// <summary>Takes the top spot back when another program's window has slipped above this one. Does nothing when only Shabpa's own
+    /// windows are above (or nothing is): asking Windows to re-stack a window every second makes some borderless games flicker.</summary>
     public static void KeepOnTop(IntPtr hwnd)
     {
-        if (hwnd != IntPtr.Zero) SetWindowPos(hwnd, Topmost, 0, 0, 0, 0, NoSize | NoMove | NoActivate);
+        if (hwnd == IntPtr.Zero) return;
+        var mine = (uint)Environment.ProcessId;
+        var above = GetWindow(hwnd, 3);                    // GW_HWNDPREV: the window just above
+        for (var i = 0; i < 64 && above != IntPtr.Zero; i++, above = GetWindow(above, 3))
+        {
+            if (!IsWindowVisible(above)) continue;
+            GetWindowThreadProcessId(above, out var pid);
+            if (pid != mine) { SetWindowPos(hwnd, Topmost, 0, 0, 0, 0, NoSize | NoMove | NoActivate); return; }
+        }
     }
 
     /// <summary>The monitor that holds most of a window (or the nearest one).</summary>

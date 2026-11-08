@@ -12,6 +12,7 @@ public static class NightLight
     [DllImport("gdi32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr CreateDC(string? driver, string device, string? port, IntPtr data);
     [DllImport("gdi32.dll")] private static extern bool DeleteDC(IntPtr dc);
     [DllImport("gdi32.dll")] private static extern bool SetDeviceGammaRamp(IntPtr dc, [In] ushort[] ramp);
+    [DllImport("gdi32.dll")] private static extern bool GetDeviceGammaRamp(IntPtr dc, [Out] ushort[] ramp);
 
     /// <summary>The smallest share of a channel Windows lets through without a registry change (tested: 0.52 is accepted, 0.45 is not).</summary>
     public const double Floor = 0.52;
@@ -87,7 +88,12 @@ public static class NightLight
         try
         {
             dc = CreateDC(null, device, null, IntPtr.Zero);
-            return dc != IntPtr.Zero && SetDeviceGammaRamp(dc, ramp);
+            if (dc == IntPtr.Zero) return false;
+            // the curve is looked at again every twenty seconds (a game or a driver can reset it): writing the same curve again makes some drivers
+            // flash the picture, so it is only written when the screen really has another one
+            var now = new ushort[768];
+            if (GetDeviceGammaRamp(dc, now) && now.AsSpan().SequenceEqual(ramp)) return true;
+            return SetDeviceGammaRamp(dc, ramp);
         }
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or ExternalException)
         {
