@@ -9,10 +9,10 @@ using Shabpa.Kit;
 namespace Shabpa.Pages;
 
 /// <summary>"Rate Shabpa": one to five stars. The choice is kept on this PC. A second, separate question (default no) asks whether it may also be shown on shabpa.ir: only then are the stars,
-/// the app version and the language sent (see <see cref="PublicRating"/>). The card can also open the project's GitHub page (to leave a real star) or its issue page (for a written opinion).</summary>
+/// the app version and the language sent (see <see cref="PublicRating"/>). The card can also open the project's Codeberg page (Codeberg or GitLab, to leave a real star) or its issue page (for a written opinion).</summary>
 public sealed class RatingCard : GlassCard
 {
-    private const string RepoUrl = "https://github.com/" + GitHubIssue.Repo;
+    private const string RepoUrl = "https://codeberg.org/" + GitHubIssue.Repo;
 
     private readonly List<System.Windows.Shapes.Path> _stars = [];
     private readonly TextBlock _state = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
@@ -29,7 +29,7 @@ public sealed class RatingCard : GlassCard
     };
 
     internal static string Reply(int stars) => stars >= 4
-        ? L.T("ممنون! اگه دوست داشتی، یه ستاره‌ی واقعی هم توی گیت‌هاب بده.", "Thank you! If you like, leave a real star on GitHub too.")
+        ? L.T("ممنون! اگه دوست داشتی، یه ستاره‌ی واقعی هم توی کدبرگ بده.", "Thank you! If you like, leave a real star on Codeberg too.")
         : stars == 3
             ? L.T("ممنون از صداقتت. بگو چی رو بهتر کنم؟", "Thanks for being honest. What should I improve?")
             : L.T("ممنون که رک گفتی. اگه بگی چی خراب بود، درستش می‌کنم.", "Thanks for saying it straight. Tell me what was broken and I'll fix it.");
@@ -77,11 +77,14 @@ public sealed class RatingCard : GlassCard
         _state.Style = (Style)Application.Current.Resources["Label"];
         body.Children.Add(_state);
 
-        var github = new Button { Style = (Style)Application.Current.Resources["Btn"], Content = L.T("ستاره در گیتهاب ⭐", "Star on GitHub ⭐"), Margin = new Thickness(0, 0, 8, 6) };
+        var github = new Button { Style = (Style)Application.Current.Resources["Btn"], Content = L.T("ستاره در کدبرگ ⭐", "Star on Codeberg ⭐"), Margin = new Thickness(0, 0, 8, 6) };
         github.Click += (_, _) => Open(RepoUrl);
+        var gitlab = new Button { Style = (Style)Application.Current.Resources["Btn"], Content = L.T("ستاره در گیت‌لب ⭐", "Star on GitLab ⭐"), Margin = new Thickness(0, 0, 8, 6) };
+        gitlab.Click += (_, _) => Open(GitHubIssue.GitLabUrl);
         var feedback = new Button { Style = (Style)Application.Current.Resources["Btn"], Content = L.T("نظر یا پیشنهاد بنویس", "Write feedback"), Margin = new Thickness(0, 0, 8, 6) };
         feedback.Click += (_, _) => Open(GitHubIssue.NewIssueUrl(L.T("نظر درباره‌ی شب‌پا", "Feedback about Shabpa"), Hub.I.Settings.Rating > 0 ? $"{Hub.I.Settings.Rating}/5\n\n" : "", "idea"));
         _actions.Children.Add(github);
+        _actions.Children.Add(gitlab);
         _actions.Children.Add(feedback);
         body.Children.Add(_actions);
         Child = body;

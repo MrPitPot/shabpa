@@ -40,7 +40,7 @@ public sealed partial class Hub
     public PingMeter Ping { get; }
     public Shaper Shaper { get; } = new();
     public UsageHistory Usage { get; } = new();
-    /// <summary>Support tickets (GitHub link or the project server).</summary>
+    /// <summary>Support tickets (Codeberg link or the project server).</summary>
     public SupportClient Support { get; }
     public Telemetry Telemetry { get; }
 

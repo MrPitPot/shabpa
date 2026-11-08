@@ -111,10 +111,10 @@ public sealed class UpdatePage : PageBase
         var open = new Button { Style = St("Btn"), Padding = new Thickness(16, 8, 16, 8) };
         var openRow = new StackPanel { Orientation = Orientation.Horizontal };
         openRow.Children.Add(new Icon("ext", 16) { Margin = new Thickness(0, 0, 8, 0) });
-        openRow.Children.Add(new TextBlock { Text = L.T("صفحه‌ی نسخه‌ها در GitHub", "Releases on GitHub"), VerticalAlignment = VerticalAlignment.Center });
+        openRow.Children.Add(new TextBlock { Text = L.T("صفحه‌ی نسخه‌ها در کدبرگ", "Releases on Codeberg"), VerticalAlignment = VerticalAlignment.Center });
         open.Content = openRow;
         open.Click += OnOpenReleases;
-        body.Children.Add(K.SettingRow(L.T("نسخه‌های جدید مستقیم از صفحه‌ی رسمی شب‌پا در GitHub گرفته می‌شن؛ لازم نیست لینکی وارد کنی.", "New versions come straight from Shabpa’s official GitHub page; there is no link to enter."), open));
+        body.Children.Add(K.SettingRow(L.T("نسخه‌های جدید مستقیم از صفحه‌ی رسمی شب‌پا در کدبرگ گرفته می‌شن؛ لازم نیست لینکی وارد کنی.", "New versions come straight from Shabpa’s official Codeberg page; there is no link to enter."), open));
         settings.Padding = new Thickness(24, 20, 24, 12);
         root.Children.Add(settings);
 
@@ -182,8 +182,8 @@ public sealed class UpdatePage : PageBase
         if (failed) _offlineHint.Foreground = Res("Red"); else _offlineHint.ClearValue(TextBlock.ForegroundProperty);
         _offlineHint.Text = failed
             ? u.Error
-            : L.T("اگه GitHub و سایت‌های خارجی باز نمی‌شن، شب‌پا خودش از آینه‌های داخلی هم می‌گیره. دستی هم می‌تونی فایل نصب یا بستهٔ به‌روزرسانی رو از فلش یا تلگرام بیاری؛ امضا و چک‌سامش قبل از نصب بررسی می‌شه.",
-                "If GitHub and foreign sites are blocked, Shabpa also tries domestic mirrors. You can also bring an installer or update bundle from a USB stick or Telegram; its signature and checksum are verified before installing.");
+            : L.T("اگه کدبرگ و سایت‌های خارجی باز نمی‌شن، شب‌پا خودش از آینه‌های داخلی هم می‌گیره. دستی هم می‌تونی فایل نصب یا بستهٔ به‌روزرسانی رو از فلش یا تلگرام بیاری؛ امضا و چک‌سامش قبل از نصب بررسی می‌شه.",
+                "If Codeberg and foreign sites are blocked, Shabpa also tries domestic mirrors. You can also bring an installer or update bundle from a USB stick or Telegram; its signature and checksum are verified before installing.");
 
         var showNotes = available is not null && available.Notes.Trim().Length > 0;
         _notesCard.Visibility = showNotes ? Visibility.Visible : Visibility.Collapsed;
@@ -260,8 +260,8 @@ public sealed class UpdatePage : PageBase
         if (sha is null)
         {
             if (!ConfirmWindow.AskAlways(L.T("نصب از فایل", "Install from file"),
-                    L.T("کنار این فایل latest.json پیدا نشد. چک‌سام SHA-256 اعلام‌شده در shabpa.ir یا GitHub رو کپی کن (کلیپ‌بورد)، بعد «بررسی و نصب» رو بزن.",
-                        "No latest.json was found next to this file. Copy the SHA-256 published on shabpa.ir or GitHub to the clipboard, then press “Check and install”."),
+                    L.T("کنار این فایل latest.json پیدا نشد. چک‌سام SHA-256 اعلام‌شده در shabpa.ir یا کدبرگ رو کپی کن (کلیپ‌بورد)، بعد «بررسی و نصب» رو بزن.",
+                        "No latest.json was found next to this file. Copy the SHA-256 published on shabpa.ir or Codeberg to the clipboard, then press “Check and install”."),
                     yes: L.T("بررسی و نصب", "Check and install")))
                 return;
             string clip;

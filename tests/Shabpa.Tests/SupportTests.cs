@@ -26,9 +26,8 @@ public class SupportTests
     public void A_github_link_carries_the_text_and_a_label_and_stays_short()
     {
         var url = GitHubIssue.NewIssueUrl("Overlay is empty", "FPS shows a dash & nothing else", "bug");
-        Assert.StartsWith("https://github.com/MrPitPot/shabpa/issues/new?title=", url);
+        Assert.StartsWith("https://codeberg.org/MrPitPot/Shabpa_app/issues/new?title=", url);
         Assert.Contains("FPS%20shows%20a%20dash%20%26%20nothing%20else", url);
-        Assert.EndsWith("&labels=bug", url);
         Assert.True(GitHubIssue.NewIssueUrl("t", new string('x', 20000), "idea").Length < 5200);
     }
 

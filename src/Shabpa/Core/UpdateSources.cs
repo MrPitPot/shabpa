@@ -20,7 +20,7 @@ public sealed record UpdateCheckResult(UpdateManifest? Manifest, UpdateSource? S
 /// (tests pass a fake handler), nothing here touches the UI thread.</summary>
 public sealed class UpdateSources(HttpClient http, string publicKey, bool allowLocal = false)
 {
-    public const string GitHubId = "github", SiteId = "shabpa.ir", DomesticId = "dl.shabpa.ir", ArvanId = "arvan", CustomId = "custom", LegacyId = "github-api";
+    public const string GitHubId = "codeberg", SiteId = "shabpa.ir", DomesticId = "dl.shabpa.ir", ArvanId = "arvan", CustomId = "custom", LegacyId = "github-api";
     /// <summary>The public ArvanCloud storage box (Iran, Tehran) that serves /update/ when the international internet is cut.</summary>
     public const string ArvanBase = "https://shabpa-dl.s3.ir-central1.arvanstorage.ir/update/";
     public const string LegacyApi = "https://api.github.com/repos/" + Updater.DefaultFeed + "/releases/latest";
@@ -33,7 +33,7 @@ public sealed class UpdateSources(HttpClient http, string publicKey, bool allowL
     {
         var list = new List<UpdateSource>
         {
-            new(GitHubId, "GitHub", "https://github.com/" + Updater.DefaultFeed + "/releases/latest/download/latest.json"),
+            new(GitHubId, "Codeberg", "https://codeberg.org/" + Updater.DefaultFeed + "/releases/latest/download/latest.json"),
             new(SiteId, "shabpa.ir", "https://shabpa.ir/update/latest.json"),
             new(ArvanId, "ArvanCloud", ArvanBase + "latest.json"),
             new(DomesticId, "dl.shabpa.ir", "https://dl.shabpa.ir/update/latest.json"),
@@ -41,7 +41,6 @@ public sealed class UpdateSources(HttpClient http, string publicKey, bool allowL
         if (NormalizeMirror(extraMirror, allowLocal) is { } custom) list.Add(new UpdateSource(CustomId, custom, custom));
         var last = list.FirstOrDefault(s => s.Id == lastWorkingId);
         if (last is not null) { list.Remove(last); list.Insert(0, last); }
-        list.Add(new UpdateSource(LegacyId, "GitHub API", LegacyApi, Legacy: true));
         return list;
     }
 

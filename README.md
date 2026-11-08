@@ -6,13 +6,13 @@
 
 **A night watch for your Windows PC** - scheduled power control, gaming overlay, network tools, daily tasks, backups and system health in one light app.
 
-[![Release](https://img.shields.io/github/v/release/MrPitPot/shabpa?color=7B6BF5&label=release)](https://github.com/MrPitPot/shabpa/releases/latest)
+[![Release](https://img.shields.io/github/v/release/MrPitPot/shabpa?color=7B6BF5&label=release)](https://codeberg.org/MrPitPot/Shabpa_app/releases/latest)
 [![CI](https://github.com/MrPitPot/shabpa/actions/workflows/ci.yml/badge.svg)](https://github.com/MrPitPot/shabpa/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4)
 
-[**Download**](https://github.com/MrPitPot/shabpa/releases/latest) &nbsp;·&nbsp; [Website](https://shabpa.ir) &nbsp;·&nbsp; [فارسی](README.fa.md) &nbsp;·&nbsp; [Changelog](CHANGELOG.md)
+[**Download**](https://codeberg.org/MrPitPot/Shabpa_app/releases/latest) &nbsp;·&nbsp; [Website](https://shabpa.ir) &nbsp;·&nbsp; [فارسی](README.fa.md) &nbsp;·&nbsp; [Changelog](CHANGELOG.md)
 
 <img src="docs/screenshots/home.png" width="780" alt="Shabpa home screen">
 
@@ -57,7 +57,7 @@ your data on your PC, and speaks Persian and English with 21 colour themes.
 
 ## Install
 
-Download `ShabpaSetup.exe` from the [latest release](https://github.com/MrPitPot/shabpa/releases/latest) and run it
+Download `ShabpaSetup.exe` from the [latest release](https://codeberg.org/MrPitPot/Shabpa_app/releases/latest) and run it
 (Windows 10 or 11, 64-bit). If .NET 10 is missing, the installer fetches Microsoft's official runtime. The SHA-256 of
 every installer is published next to it.
 
@@ -102,7 +102,7 @@ Useful switches: `--dry-run` simulates power commands, `--demo` uses sample data
 
 ## Contributing
 
-Bug reports and ideas are welcome through [issues](https://github.com/MrPitPot/shabpa/issues); see
+Bug reports and ideas are welcome through [issues](https://codeberg.org/MrPitPot/Shabpa_app/issues); see
 [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
 ## License
@@ -110,4 +110,4 @@ Bug reports and ideas are welcome through [issues](https://github.com/MrPitPot/s
 MIT - see [LICENSE](LICENSE). Bundled third-party components keep their own licenses, listed in
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
-Made by [Mr.PitPot](https://github.com/MrPitPot).
+Made by [Mr.PitPot](https://codeberg.org/MrPitPot).

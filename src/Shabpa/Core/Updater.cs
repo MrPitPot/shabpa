@@ -23,10 +23,10 @@ public sealed class Updater
 {
     /// <summary>Where releases are published: "owner/repo" on GitHub, or an https:// URL to a manifest
     /// like {"version":"2.1.0","url":"https://…/ShabpaSetup.exe","sha256":"…","notes":"…"}.</summary>
-    public const string DefaultFeed = "MrPitPot/shabpa";
+    public const string DefaultFeed = "MrPitPot/Shabpa_app";
 
     /// <summary>The page people can open to see every release.</summary>
-    public const string ReleasesPage = "https://github.com/" + DefaultFeed + "/releases";
+    public const string ReleasesPage = "https://codeberg.org/" + DefaultFeed + "/releases";
 
     public const string SetupName = "ShabpaSetup.exe";
 

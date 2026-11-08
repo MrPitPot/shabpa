@@ -249,8 +249,8 @@ public static class Installer
             ("QuietUninstallString", $"\"{target.Uninstaller}\" --uninstall --quiet", RegistryValueKind.String),
             ("EstimatedSize", Math.Max(1, (int)(totalBytes / 1024)), RegistryValueKind.DWord),
             ("InstallDate", DateTime.Now.ToString("yyyyMMdd"), RegistryValueKind.String),
-            ("URLInfoAbout", "https://github.com/MrPitPot/shabpa", RegistryValueKind.String),
-            ("HelpLink", "https://github.com/MrPitPot/shabpa/issues", RegistryValueKind.String),
+            ("URLInfoAbout", "https://codeberg.org/MrPitPot/Shabpa_app", RegistryValueKind.String),
+            ("HelpLink", "https://codeberg.org/MrPitPot/Shabpa_app/issues", RegistryValueKind.String),
             ("NoModify", 1, RegistryValueKind.DWord),
             ("NoRepair", 1, RegistryValueKind.DWord),
         };

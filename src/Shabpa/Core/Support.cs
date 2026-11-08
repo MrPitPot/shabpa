@@ -104,20 +104,21 @@ public static class SupportInfo
         ]);
 }
 
-/// <summary>Opens a pre-filled new-issue page on the project's GitHub. Nothing is sent by Shabpa itself; the person
+/// <summary>Opens a pre-filled new-issue page on the project's Codeberg repository. Nothing is sent by Shabpa itself; the person
 /// reads the page in the browser and presses the button there.</summary>
 public static class GitHubIssue
 {
-    public const string Repo = "MrPitPot/shabpa";
-    public const string IssuesUrl = "https://github.com/" + Repo + "/issues";
+    public const string Repo = "MrPitPot/Shabpa_app";
+    public const string IssuesUrl = "https://codeberg.org/" + Repo + "/issues";
+    /// <summary>The second home of the code (a mirror), for a second star.</summary>
+    public const string GitLabUrl = "https://gitlab.com/MrPitPot/shabpa_app";
 
     public static string NewIssueUrl(string title, string body, string category)
     {
         // Long text in a link is cut off by browsers and servers; the page keeps the rest for the person to paste.
         if (body.Length > 4500) body = body[..4500] + "\n…";
-        var label = category switch { "bug" => "bug", "idea" => "enhancement", "question" => "question", _ => "" };
-        var url = $"https://github.com/{Repo}/issues/new?title={Uri.EscapeDataString(title)}&body={Uri.EscapeDataString(body)}";
-        return label.Length > 0 ? url + "&labels=" + label : url;
+        var url = $"https://codeberg.org/{Repo}/issues/new?title={Uri.EscapeDataString(title)}&body={Uri.EscapeDataString(body)}";
+        return url;
     }
 }
 

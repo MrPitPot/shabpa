@@ -319,8 +319,8 @@ public sealed class SettingsPage : PageBase
 
         // ---- about ------------------------------------------------------------------------------------
         var (about, aboutBody) = Card(L.T("شب‌پا", "Shabpa"),
-            L.T("ساخته‌ی Mr.PitPot. داده‌هات روی همین سیستم می‌مونن. فقط چیزهایی که خودت روشن می‌کنی به اینترنت وصل می‌شن: بررسی به‌روزرسانی (GitHub)، آب‌وهوا، ربات تلگرام و ارسال تیکت پشتیبانی. صدای میکروفون (نویزگیر) فقط لحظه‌ای توی حافظه پردازش می‌شه و ذخیره نمی‌شه؛ «یادگیری دستی» هم فقط جای کلیک‌های ماوس روی پنجره‌ی لانچر رو نگه می‌داره، نه کلید یا متن.",
-                "Made by Mr.PitPot. Your data stays on this PC. Only what you switch on uses the internet: the update check (GitHub), weather, the Telegram bot and support tickets. Microphone sound (noise suppression) is only processed for a moment in memory and never stored; “Teach by hand” keeps only where you clicked in a launcher window, never keys or text."));
+            L.T("ساخته‌ی Mr.PitPot. داده‌هات روی همین سیستم می‌مونن. فقط چیزهایی که خودت روشن می‌کنی به اینترنت وصل می‌شن: بررسی به‌روزرسانی (Codeberg و آینه‌ها)، آب‌وهوا، ربات تلگرام و ارسال تیکت پشتیبانی. صدای میکروفون (نویزگیر) فقط لحظه‌ای توی حافظه پردازش می‌شه و ذخیره نمی‌شه؛ «یادگیری دستی» هم فقط جای کلیک‌های ماوس روی پنجره‌ی لانچر رو نگه می‌داره، نه کلید یا متن.",
+                "Made by Mr.PitPot. Your data stays on this PC. Only what you switch on uses the internet: the update check (Codeberg and mirrors), weather, the Telegram bot and support tickets. Microphone sound (noise suppression) is only processed for a moment in memory and never stored; “Teach by hand” keeps only where you clicked in a launcher window, never keys or text."));
         var folder = new Button { Style = St("Btn"), Content = L.T("پوشه‌ی داده‌ها", "Data folder"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
         folder.Click += OnOpenFolder;
         var tour = new Button { Style = St("Btn"), Content = L.T("دیدن دوباره‌ی تور آموزشی", "See the guided tour again"), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };

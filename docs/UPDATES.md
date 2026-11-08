@@ -5,11 +5,10 @@ and the installer. The first source that answers wins (6 s timeout each); the on
 
 | # | Source | Manifest | Notes |
 |---|--------|----------|-------|
-| 1 | GitHub release | `https://github.com/MrPitPot/shabpa/releases/latest/download/latest.json` | attach `latest.json` and `latest.json.sig` to every release |
+| 1 | Codeberg release | `https://codeberg.org/MrPitPot/Shabpa_app/releases/latest/download/latest.json` | attach `latest.json` and `latest.json.sig` to every release |
 | 2 | shabpa.ir | `https://shabpa.ir/update/latest.json` | static files in the site repo (`public/update/`) |
 | 3 | dl.shabpa.ir | `https://dl.shabpa.ir/update/latest.json` | domestic host (placeholder until provisioned) |
 | 4 | Extra mirror | whatever the person types in Updates, Update settings | HTTPS only |
-| 5 | GitHub API | `api.github.com/.../releases/latest` | legacy, unsigned but GitHub-only and checksum-pinned; keeps old releases working |
 
 ## Trust model
 

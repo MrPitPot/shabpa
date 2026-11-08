@@ -128,7 +128,7 @@ public sealed class SupportPage : PageBase
         save.Click += async (_, _) => await SaveAdminAsync();
         var forget = new Button { Style = St("Btn"), Content = L.T("خروج مدیر", "Sign out"), Margin = new Thickness(0, 0, 8, 0) };
         forget.Click += (_, _) => ForgetAdmin();
-        var issues = new Button { Style = St("Btn"), Content = L.T("باز کردن ایشوهای گیت‌هاب", "Open GitHub issues") };
+        var issues = new Button { Style = St("Btn"), Content = L.T("باز کردن ایشوهای کدبرگ", "Open Codeberg issues") };
         issues.Click += (_, _) => OpenUrl(GitHubIssue.IssuesUrl);
         row.Children.Add(save);
         row.Children.Add(forget);
@@ -217,7 +217,7 @@ public sealed class SupportPage : PageBase
         var s = Hub.Settings.Support;
         if (_contact.Text.Length == 0) _contact.Text = s.Contact;
         _endpoint.Text = s.Endpoint;
-        var options = new List<(string, string)> { ("github", L.T("گیت‌هاب", "GitHub")) };
+        var options = new List<(string, string)> { ("github", L.T("کدبرگ", "Codeberg")) };
         if (Client.Available) options.Add(("server", L.T("سرور شب‌پا", "Shabpa server")));
         if (_via == "server" && !Client.Available) _via = "github";
         Chips(_viaChips, options, _via, v =>
@@ -246,10 +246,10 @@ public sealed class SupportPage : PageBase
     private void UpdateViaNote()
     {
         _viaNote.Text = _via == "github"
-            ? L.T("یه صفحه‌ی گیت‌هاب با متنت پر شده باز می‌شه و خودت اون‌جا «Submit» رو می‌زنی. حساب گیت‌هاب لازمه و تیکت عمومی می‌شه، پس رمز یا اطلاعات شخصی ننویس.",
-                "A GitHub page opens with your text filled in and you press Submit there. It needs a GitHub account and the ticket is public, so do not write passwords or personal details.")
-            : L.T("مستقیم به سرور پروژه می‌ره و خصوصیه. بدون حساب گیت‌هاب؛ جواب رو همین‌جا می‌بینی.",
-                "Goes straight to the project's server and stays private. No GitHub account needed; you see the answer here.");
+            ? L.T("یه صفحه‌ی کدبرگ با متنت پر شده باز می‌شه و خودت اون‌جا «Create Issue» رو می‌زنی. حساب کدبرگ لازمه و تیکت عمومی می‌شه، پس رمز یا اطلاعات شخصی ننویس.",
+                "A Codeberg page opens with your text filled in and you press Create Issue there. It needs a Codeberg account and the ticket is public, so do not write passwords or personal details.")
+            : L.T("مستقیم به سرور پروژه می‌ره و خصوصیه. بدون حساب کدبرگ؛ جواب رو همین‌جا می‌بینی.",
+                "Goes straight to the project's server and stays private. No Codeberg account needed; you see the answer here.");
     }
 
     private async Task SendAsync()
@@ -265,7 +265,7 @@ public sealed class SupportPage : PageBase
         var diag = _diag.IsChecked == true ? SupportInfo.Diagnostics(Hub.Elevated) : "";
         var contact = _contact.Text.Trim();
         var where = _via == "github"
-            ? L.T("یه صفحه‌ی گیت‌هاب با این متن باز می‌شه (عمومی).", "A GitHub page opens with this text (public).")
+            ? L.T("یه صفحه‌ی کدبرگ با این متن باز می‌شه (عمومی).", "A Codeberg page opens with this text (public).")
             : L.T("این متن به سرور پشتیبانی پروژه فرستاده می‌شه (خصوصی).", "This text is sent to the project's support server (private).");
         var detail = $"{SupportInfo.CategoryName(_category)}\n{title}\n\n{body}" + (contact.Length > 0 ? $"\n\n{L.T("تماس", "Contact")}: {contact}" : "")
             + (diag.Length > 0 ? $"\n\n{diag}" : "");
@@ -278,7 +278,7 @@ public sealed class SupportPage : PageBase
             var text = body + (contact.Length > 0 ? $"\n\n{L.T("تماس", "Contact")}: {contact}" : "") + (diag.Length > 0 ? $"\n\n---\n{diag}" : "");
             OpenUrl(GitHubIssue.NewIssueUrl(title, text, _category));
             Remember($"gh-{DateTime.Now:yyyyMMddHHmmss}", title, "github");
-            _sendNote.Text = L.T("صفحه‌ی گیت‌هاب باز شد؛ اون‌جا «Submit new issue» رو بزن.", "The GitHub page opened; press “Submit new issue” there.");
+            _sendNote.Text = L.T("صفحه‌ی کدبرگ باز شد؛ اون‌جا «Create Issue» رو بزن.", "The Codeberg page opened; press “Create Issue” there.");
             return;
         }
 
@@ -336,7 +336,7 @@ public sealed class SupportPage : PageBase
             texts.Children.Add(new TextBlock { Text = r.Title, FontSize = 14, FontWeight = FontWeights.Bold, TextWrapping = TextWrapping.Wrap, Foreground = Res("Text") });
             texts.Children.Add(new TextBlock
             {
-                Text = (github ? L.T("گیت‌هاب", "GitHub") : L.T("سرور شب‌پا", "Shabpa server")) + " · " + $"{Fa.RelativeDay(r.Created, DateTime.Now)} {Fa.Clock(r.Created)}",
+                Text = (github ? L.T("کدبرگ", "Codeberg") : L.T("سرور شب‌پا", "Shabpa server")) + " · " + $"{Fa.RelativeDay(r.Created, DateTime.Now)} {Fa.Clock(r.Created)}",
                 Style = St("Label"), Margin = new Thickness(0, 3, 0, 0),
             });
             line.Children.Add(texts);
@@ -345,7 +345,7 @@ public sealed class SupportPage : PageBase
             actions.Children.Add(IconButton("trash", L.T("حذف از این فهرست", "Remove from this list"), () =>
             {
                 if (!Ask(L.T("حذف از فهرست؟", "Remove from the list?"),
-                        github ? L.T("فقط از فهرست همین برنامه پاک می‌شه؛ ایشوی گیت‌هاب سر جاش می‌مونه.", "It is only removed from this app's list; the GitHub issue stays.")
+                        github ? L.T("فقط از فهرست همین برنامه پاک می‌شه؛ ایشوی کدبرگ سر جاش می‌مونه.", "It is only removed from this app's list; the Codeberg issue stays.")
                                : L.T("از فهرست این برنامه پاک می‌شه.", "It is removed from this app's list."), L.T("حذف", "Remove"), danger: true)) return;
                 Hub.State.Tickets.Remove(record);
                 Hub.Store.Save();

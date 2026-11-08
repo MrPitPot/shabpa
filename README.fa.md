@@ -6,7 +6,7 @@
 
 **نگهبان شبانه‌ی ویندوز** - کنترل برق زمان‌بندی‌شده، اورلی بازی، ابزارهای شبکه، کارهای روزانه، پشتیبان‌گیری و سلامت سیستم، توی یه برنامه‌ی سبک.
 
-[**دانلود**](https://github.com/MrPitPot/shabpa/releases/latest) &nbsp;·&nbsp; [وب‌سایت](https://shabpa.ir) &nbsp;·&nbsp; [English](README.md) &nbsp;·&nbsp; [تاریخچه‌ی تغییرات](CHANGELOG.md)
+[**دانلود**](https://codeberg.org/MrPitPot/Shabpa_app/releases/latest) &nbsp;·&nbsp; [وب‌سایت](https://shabpa.ir) &nbsp;·&nbsp; [English](README.md) &nbsp;·&nbsp; [تاریخچه‌ی تغییرات](CHANGELOG.md)
 
 <img src="docs/screenshots/home.png" width="780" alt="صفحه‌ی خانه">
 
@@ -44,7 +44,7 @@
 
 ## نصب
 
-فایل `ShabpaSetup.exe` رو از [آخرین نسخه](https://github.com/MrPitPot/shabpa/releases/latest) بگیر و اجرا کن (ویندوز ۱۰ یا ۱۱، ۶۴ بیتی). اگه ‎.NET 10 نداشتی، نصب‌کننده نسخه‌ی رسمی مایکروسافت رو می‌گیره.
+فایل `ShabpaSetup.exe` رو از [آخرین نسخه](https://codeberg.org/MrPitPot/Shabpa_app/releases/latest) بگیر و اجرا کن (ویندوز ۱۰ یا ۱۱، ۶۴ بیتی). اگه ‎.NET 10 نداشتی، نصب‌کننده نسخه‌ی رسمی مایکروسافت رو می‌گیره.
 
 برنامه امضای دیجیتال پولی نداره، پس ویندوز ممکنه هشدار SmartScreen بده: **More info ← Run anyway**. کد کامل همین‌جاست و هر کسی می‌تونه خودش بسازدش.
 
@@ -63,4 +63,4 @@ dotnet test Shabpa.slnx        # تست‌ها
 bash build-installer.sh        # ساخت installer/ShabpaSetup.exe
 ```
 
-مجوز: MIT. ساخته‌ی [Mr.PitPot](https://github.com/MrPitPot).
+مجوز: MIT. ساخته‌ی [Mr.PitPot](https://codeberg.org/MrPitPot).
