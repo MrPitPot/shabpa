@@ -12,7 +12,7 @@ public static class SteamResume
 {
     public enum Outcome { Resumed, AlreadyRunning, NothingQueued, NoWindow, ScreenLocked }
 
-    [DllImport("user32.dll")] private static extern IntPtr FindWindow(string? cls, string? title);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr FindWindow(string? cls, string? title);
     [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr h, out Rect r);
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr h);
     [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr h, int cmd);

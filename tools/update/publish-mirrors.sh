@@ -6,7 +6,7 @@
 #   SHABPA_SITE_DIR   checkout of the website repo; files go to $SHABPA_SITE_DIR/public/update/  (then run `npx wrangler deploy` there)
 #   SHABPA_DL_TARGET  scp/rsync destination of the domestic host, e.g. user@dl.example.ir:/var/www/dl/update/
 #   ARVAN_ACCESS_KEY + ARVAN_SECRET_KEY  uploads to the ArvanCloud bucket shabpa-dl/update/ (installer first, then manifest, each verified publicly)
-#   SHABPA_GH_TAG     GitHub release tag (e.g. v3.10.1): uploads latest.json and latest.json.sig with `gh release upload --clobber`
+#   SHABPA_GH_TAG     (old, GitHub only; Codeberg uses tools/update/publish-codeberg.sh) GitHub release tag (e.g. v3.10.1): uploads latest.json and latest.json.sig with `gh release upload --clobber`
 # Always upload the installer BEFORE the manifest, so no mirror ever announces a file it does not have yet.
 set -euo pipefail
 go=0; [ "${1:-}" = "--go" ] && { go=1; shift; }

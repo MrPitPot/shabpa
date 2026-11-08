@@ -2,7 +2,7 @@
 
 `manifests/` holds the three YAML files winget needs for Shabpa (`MrPitPot.Shabpa`), in the folder layout of the
 [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs) repository. The version in them always points at an
-already **published** GitHub release; the installer's SHA-256 comes from that release's `ShabpaSetup.exe.sha256`.
+already **published** Codeberg release; the installer's SHA-256 comes from that release's `ShabpaSetup.exe.sha256`.
 
 Check them locally (needs no admin rights):
 
@@ -18,11 +18,11 @@ winget validate --manifest packaging\winget\manifests\m\MrPitPot\Shabpa\<version
 
 ## Every release after that
 
-Publish the GitHub release first, then either copy the folder to a new version number and change the version, URL, hash and
+Publish the Codeberg release first, then either copy the folder to a new version number and change the version, URL, hash and
 release date by hand, or let Microsoft's tool do it:
 
 ```
-wingetcreate update MrPitPot.Shabpa --version <new version> --urls https://github.com/MrPitPot/shabpa/releases/download/v<new version>/ShabpaSetup.exe --submit
+wingetcreate update MrPitPot.Shabpa --version <new version> --urls https://codeberg.org/MrPitPot/Shabpa_app/releases/download/v<new version>/ShabpaSetup.exe --submit
 ```
 
 ## Notes
