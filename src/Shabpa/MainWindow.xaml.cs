@@ -35,7 +35,7 @@ public partial class MainWindow : Window
     /// <summary>While the window is hidden or minimized, memory it no longer needs goes back to Windows: first after a
     /// few seconds, then now and then while it stays hidden.</summary>
     private readonly System.Windows.Threading.DispatcherTimer _release = new() { Interval = ReleaseFirst };
-    private static readonly TimeSpan ReleaseFirst = TimeSpan.FromSeconds(8), ReleaseAgain = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan ReleaseFirst = TimeSpan.FromSeconds(8);
 
     /// <summary>Every screen worth a screenshot, including the tabs inside «کنترل سیستم».</summary>
     public IEnumerable<string> CaptureKeys =>
@@ -128,7 +128,7 @@ public partial class MainWindow : Window
             _ = Task.Run(MemoryCleaner.ReleaseOwn); // off the window's thread, so a page change never stutters
             // once the first release is done the window has settled: one more a little later catches what the settling left behind
             if (Shown) { if (_releases++ == 0) _release.Interval = TimeSpan.FromSeconds(20); else _release.Stop(); }
-            else _release.Interval = ReleaseAgain;
+            else _release.Stop(); // hidden: one release is enough (OnShownChanged starts the next after the window was shown again); a trim every ten minutes of an idle app only made the first look at it slower
         };
         _release.Start(); // the window starts out hidden (and stays so when Shabpa starts in the tray)
 
@@ -324,10 +324,21 @@ public partial class MainWindow : Window
     }
 
     private bool Shown => IsVisible && WindowState != WindowState.Minimized;
+    private DateTime? _hiddenAt;
+    private TimeSpan? _lastShownAfter;
 
     private void OnShownChanged()
     {
         Hub.I.WindowShown = Shown;
+        if (!Shown) _hiddenAt ??= DateTime.UtcNow;
+        else if (_hiddenAt is { } hiddenAt)
+        {
+            _hiddenAt = null;
+            _lastShownAfter = DateTime.UtcNow - hiddenAt;
+            // a window that comes back after a long time away: what a later "it does not react" report needs to know
+            if (DateTime.UtcNow - hiddenAt > TimeSpan.FromMinutes(5))
+                Log.Write($"window shown after {(int)(DateTime.UtcNow - hiddenAt).TotalMinutes} min hidden: enabled={IsEnabled} owned-windows={OwnedWindows.Count} mouse-captured={System.Windows.Input.Mouse.Captured?.GetType().Name ?? "none"} page={_current?.GetType().Name ?? "?"} render-tier={System.Windows.Media.RenderCapability.Tier >> 16}");
+        }
         if (Shown)
         {
             _release.Stop();
@@ -362,7 +373,7 @@ public partial class MainWindow : Window
             _leftAt.Remove(key);
             dropped++;
         }
-        if (dropped > 0 || now - _lastRelease > TimeSpan.FromMinutes(2))
+        if (dropped > 0 || now - _lastRelease > TimeSpan.FromMinutes(10))
         {
             _lastRelease = now;
             _ = Task.Run(MemoryCleaner.ReleaseOwn);          // off the window's thread: nothing stutters
@@ -453,6 +464,23 @@ public partial class MainWindow : Window
             finally { PageTiming.Record("swap:" + page.GetType().Name, System.Diagnostics.Stopwatch.GetElapsedTime(swapStart).TotalMilliseconds); }
             // layout, rendering and the enter animation happen after the swap returns: the time until the window thread is idle again is what a person feels as "the tab is slow"
             Dispatcher.BeginInvoke(() => PageTiming.Record("settle:" + page.GetType().Name, System.Diagnostics.Stopwatch.GetElapsedTime(swapStart).TotalMilliseconds), System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            // a tab click that should have shown the page: if two seconds later it is not what the window shows, that is written down (the window answered, the page did not appear)
+            var check = _navTicket;
+            var frames = 0;
+            EventHandler count = (_, _) => frames++;
+            System.Windows.Media.CompositionTarget.Rendering += count;
+            var checker = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            checker.Tick += (_, _) =>
+            {
+                checker.Stop();
+                System.Windows.Media.CompositionTarget.Rendering -= count;
+                if (check != _navTicket || !Shown || !ReferenceEquals(_current, page)) return;
+                if (frames == 0 && Motion.Enabled)
+                    Log.Write($"no frame was drawn in 2 s after a page change (page={page.GetType().Name}, hidden for {(_lastShownAfter is { } m ? (int)m.TotalMinutes + " min" : "?")} before)");
+                if (!ReferenceEquals(Host.Content, page) || !page.IsVisible || page.ActualHeight <= 0 || PageStack.Opacity < 0.5)
+                    Log.Write($"page change did not settle: page={page.GetType().Name} in-host={ReferenceEquals(Host.Content, page)} visible={page.IsVisible} height={page.ActualHeight:0} stack-opacity={PageStack.Opacity:0.00} enabled={IsEnabled}");
+            };
+            checker.Start();
         }
         void SwapNow()
         {

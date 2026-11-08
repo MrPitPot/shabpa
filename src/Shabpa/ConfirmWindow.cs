@@ -139,6 +139,7 @@ public sealed class ConfirmWindow : Window
         if (hub is { Demo: true }) return true;
         var window = new ConfirmWindow(title, message, yes ?? L.T("تایید", "Confirm"), no ?? L.T("انصراف", "Cancel"), danger, detail);
         OffScreenForTests(window);
+        GiveOwner(window);
         return window.ShowDialog() == true;
     }
 
@@ -158,6 +159,23 @@ public sealed class ConfirmWindow : Window
         var hub = Hub.I;
         if (hub is null || hub.Demo || !hub.Settings.ConfirmActions) return true;
         var window = new ConfirmWindow(title, message, yes ?? L.T("تایید", "Confirm"), no ?? L.T("انصراف", "Cancel"), danger, detail);
+        GiveOwner(window);
         return window.ShowDialog() == true;
+    }
+
+    /// <summary>A dialog with no owner leaves the main window disabled but not tied to it: if the sheet ends up out of sight the window
+    /// looks frozen. With the open main window as owner the two move, minimise and close together. Not used when the window is
+    /// hidden or minimised (an owner that is not on screen would hide the dialog with it).</summary>
+    private static void GiveOwner(Window dialog)
+    {
+        try
+        {
+            if (Application.Current?.MainWindow is { IsVisible: true, WindowState: not WindowState.Minimized } main && !ReferenceEquals(main, dialog))
+                dialog.Owner = main;
+        }
+        catch (InvalidOperationException)
+        {
+            // the main window is closing: the dialog stays without an owner
+        }
     }
 }
