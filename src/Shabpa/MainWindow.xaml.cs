@@ -337,6 +337,20 @@ public partial class MainWindow : Window
             _lastShownAfter = DateTime.UtcNow - hiddenAt;
             // a window that comes back after a long time away: what a later "it does not react" report needs to know
             if (DateTime.UtcNow - hiddenAt > TimeSpan.FromMinutes(5))
+            {
+                var shownFrames = 0;
+                EventHandler countShown = (_, _) => shownFrames++;
+                System.Windows.Media.CompositionTarget.Rendering += countShown;
+                var shownCheck = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+                shownCheck.Tick += (_, _) =>
+                {
+                    shownCheck.Stop();
+                    System.Windows.Media.CompositionTarget.Rendering -= countShown;
+                    Log.Write($"drawing after {(int)(DateTime.UtcNow - hiddenAt).TotalMinutes} min hidden: {shownFrames} frames in the first 3 s (theme {Hub.I.Settings.Theme})");
+                };
+                shownCheck.Start();
+            }
+            if (DateTime.UtcNow - hiddenAt > TimeSpan.FromMinutes(5))
                 Log.Write($"window shown after {(int)(DateTime.UtcNow - hiddenAt).TotalMinutes} min hidden: enabled={IsEnabled} owned-windows={OwnedWindows.Count} mouse-captured={System.Windows.Input.Mouse.Captured?.GetType().Name ?? "none"} page={_current?.GetType().Name ?? "?"} render-tier={System.Windows.Media.RenderCapability.Tier >> 16}");
         }
         if (Shown)
@@ -475,6 +489,8 @@ public partial class MainWindow : Window
                 checker.Stop();
                 System.Windows.Media.CompositionTarget.Rendering -= count;
                 if (check != _navTicket || !Shown || !ReferenceEquals(_current, page)) return;
+                if (Motion.Enabled && frames < 40)
+                    Log.Write($"slow drawing after a page change: {frames} frames in 2 s (page {page.GetType().Name}, theme {Hub.I.Settings.Theme}, hidden {(_lastShownAfter is { } slow ? (int)slow.TotalMinutes + " min" : "?")} before)");
                 if (frames == 0 && Motion.Enabled)
                     Log.Write($"no frame was drawn in 2 s after a page change (page={page.GetType().Name}, hidden for {(_lastShownAfter is { } m ? (int)m.TotalMinutes + " min" : "?")} before)");
                 if (!ReferenceEquals(Host.Content, page) || !page.IsVisible || page.ActualHeight <= 0 || PageStack.Opacity < 0.5)
