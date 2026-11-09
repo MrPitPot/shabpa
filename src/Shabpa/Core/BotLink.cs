@@ -314,6 +314,9 @@ public sealed class BotLink : IDisposable
                     foreach (var command in commands.EnumerateArray()) await Run(http, command, ct);
                 // the bot says feathers are waiting (a code was used, a daily claim, a gift): take them now, not at the next round
                 if (root.TryGetProperty("feathers", out var waiting) && waiting.ValueKind == JsonValueKind.True) _lastFeathers = DateTimeOffset.MinValue;
+                // the server says how long to wait: a few seconds while someone is using the bot, longer when nobody is (far fewer requests)
+                _serverPace = root.TryGetProperty("pollEvery", out var pace) && pace.ValueKind == JsonValueKind.Number && pace.TryGetInt32(out var seconds)
+                    ? TimeSpan.FromSeconds(Math.Clamp(seconds, 1, 60)) : null;
                 if (Chats > 0 && _now() - _lastFeathers >= FeatherEvery)
                 {
                     _lastFeathers = _now();
@@ -343,10 +346,17 @@ public sealed class BotLink : IDisposable
                 catch (OperationCanceledException) { return; }
                 continue;
             }
-            try { await Task.Delay(PollEvery, ct); }
+            NextWait = Code.Length > 0 || _serverPace is not { } paced ? PollEvery : paced;
+            try { await Task.Delay(NextWait, ct); }
             catch (OperationCanceledException) { return; }
         }
     }
+
+    private TimeSpan? _serverPace;
+
+    /// <summary>The wait before the next poll: the server's pace when it sends one, the own rhythm while a pairing code is on screen
+    /// (the person is about to send it) or when the server says nothing.</summary>
+    internal TimeSpan NextWait { get; private set; }
 
     private async Task Pair(HttpClient http, CancellationToken ct)
     {

@@ -20,6 +20,7 @@ internal sealed class FakeBotServer : HttpMessageHandler
     public int BotBalance;                                  // what the bot holds for the one linked chat
     public bool FeathersWaiting;                            // the bot tells the app in its poll answer that feathers are waiting
     public bool LoseNextTakeAnswer;
+    public int? PollEverySeconds;                           // the pace the server asks for in its poll answer (null: it says nothing)
     public Dictionary<string, (int Status, int Feathers)> Codes = [];   // what the bot answers to a feather code                         // the bot takes the feathers, but the answer never arrives
     private readonly Dictionary<string, string> _takes = [];
 
@@ -68,7 +69,7 @@ internal sealed class FakeBotServer : HttpMessageHandler
         {
             "/api/device/pair" => """{"deviceId":"dev1","secret":"s3cret","code":"K7QM-4TXE","expiresIn":600}""",
             "/api/device/code" => $$"""{"code":"NEW{{++_codes}}-CODE","expiresIn":600}""",
-            "/api/device/poll" => $$"""{"commands":[{{string.Join(',', DrainCommands())}}],"chats":{{Chats}},"serverTime":0{{(FeathersWaiting ? ",\"feathers\":true" : "")}}}""",
+            "/api/device/poll" => $$"""{"commands":[{{string.Join(',', DrainCommands())}}],"chats":{{Chats}},"serverTime":0{{(FeathersWaiting ? ",\"feathers\":true" : "")}}{{(PollEverySeconds is { } pace ? $",\"pollEvery\":{pace}" : "")}}}""",
             "/api/device/event" => """{"ok":true,"sent":1}""",
             "/api/device/feathers" => $$"""{"chats":[{"ref":"abc123def456","balance":{{BotBalance}},"streak":0,"best":0,"owned":[]}]}""",
             _ => """{"ok":true}""",
@@ -127,6 +128,22 @@ public class BotLinkTests
             }
         },
     }, _server, outboxFile: _outbox) { PollEvery = TimeSpan.FromMilliseconds(30), FeatherEvery = every ?? TimeSpan.FromMilliseconds(60) };
+
+    [Fact]
+    public void The_app_polls_at_the_pace_the_server_asks_for_except_while_a_pairing_code_is_shown()
+    {
+        _server.PollEverySeconds = 1;
+        using var link = Link();
+        link.Enable();
+        WaitFor(() => link.State == BotState.WaitingForPair);
+        Assert.NotEqual("", link.Code);
+        WaitFor(() => link.NextWait > TimeSpan.Zero);
+        Assert.Equal(TimeSpan.FromMilliseconds(30), link.NextWait);       // a code is on screen: the person is about to send it, keep the quick rhythm
+        _server.Chats = 1;
+        WaitFor(() => link.State == BotState.Connected && link.NextWait == TimeSpan.FromSeconds(1));
+        _server.PollEverySeconds = null;                                 // a server that says nothing: the app's own rhythm
+        WaitFor(() => link.NextWait == TimeSpan.FromMilliseconds(30));
+    }
 
     [Fact]
     public void Feathers_the_bot_holds_are_taken_into_the_app_once()

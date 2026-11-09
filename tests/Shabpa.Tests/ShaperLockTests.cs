@@ -38,7 +38,7 @@ public class ShaperLockTests
         Assert.Equal(stale, Shaper.IsStaleDriverError(code));
 
     [Fact]
-    public void SlowNamingDoesNotHoldThePacketLock()
+    public async Task SlowNamingDoesNotHoldThePacketLock()
     {
         using var shaper = new Shaper();
         var inside = new ManualResetEventSlim();
@@ -50,12 +50,12 @@ public class ShaperLockTests
         Assert.True(inside.Wait(5000), "the rebuild never asked for a name");
         Assert.True(shaper.GateFree(), "the lock was held while a process name was being looked up");
         release.Set();
-        Assert.Equal(1, apply.Result);
+        Assert.Equal(1, await apply);
         Assert.Equal(1, shaper.MappedPorts);
     }
 
     [Fact]
-    public void SlowTableReadDoesNotHoldThePacketLock()
+    public async Task SlowTableReadDoesNotHoldThePacketLock()
     {
         using var shaper = new Shaper();
         var inside = new ManualResetEventSlim();
@@ -65,7 +65,7 @@ public class ShaperLockTests
         Assert.True(inside.Wait(5000));
         Assert.True(shaper.GateFree());
         release.Set();
-        apply.Wait();
+        await apply;
     }
 
     [Fact]

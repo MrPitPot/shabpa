@@ -60,10 +60,34 @@ public static class MemoryCleaner
     {
         try
         {
+            var watch = Stopwatch.StartNew();
+            var pauseBefore = GC.GetTotalPauseDuration();
+            using var self = Process.GetCurrentProcess();
+            var before = self.WorkingSet64;
             GC.Collect(2, GCCollectionMode.Aggressive, blocking: true, compacting: true);
             GC.WaitForPendingFinalizers();
-            using var self = Process.GetCurrentProcess();
             EmptyWorkingSet(self.Handle);
+            self.Refresh();
+            // the window threads stand still for the length of this collection: worth knowing when a "it froze for a moment" report comes in
+            Log.Write($"memory release (hidden): {before >> 20} -> {self.WorkingSet64 >> 20} MB, collection paused the app {(GC.GetTotalPauseDuration() - pauseBefore).TotalMilliseconds:0} ms, took {watch.ElapsedMilliseconds} ms");
+        }
+        catch
+        {
+            // best effort
+        }
+    }
+
+    /// <summary>The same while the window is open and someone may be clicking: no forced compacting collection (it stops every thread
+    /// of the app for as long as it runs) and no hand-back of the working set (every page the window touches next would be read back
+    /// in). The runtime is only told that now is a good moment; it collects if it agrees.</summary>
+    public static void ReleaseSoft()
+    {
+        try
+        {
+            var pauseBefore = GC.GetTotalPauseDuration();
+            GC.Collect(2, GCCollectionMode.Optimized, blocking: false, compacting: false);
+            var paused = (GC.GetTotalPauseDuration() - pauseBefore).TotalMilliseconds;
+            if (paused >= 100) Log.Write($"memory release (open window): collection paused the app {paused:0} ms");
         }
         catch
         {

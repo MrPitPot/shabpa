@@ -27,8 +27,15 @@ internal static class Proc
             var stderr = p.StandardError.ReadToEndAsync();
             if (!p.WaitForExit(timeoutMs))
             {
-                try { p.Kill(); } catch { /* already gone */ }
+                try { p.Kill(entireProcessTree: true); } catch { /* already gone */ }
+                Log.Write($"console tool timed out after {timeoutMs} ms: {Path.GetFileName(file)}");
                 return (-1, "timeout");
+            }
+            // the tool has ended, but a program it started can still hold its output open: never wait for that forever
+            if (!Task.WaitAll([stdout, stderr], 3000))
+            {
+                Log.Write($"console tool ended but its output stayed open: {Path.GetFileName(file)}");
+                return (p.ExitCode, stdout.IsCompletedSuccessfully ? stdout.Result : "");
             }
             return (p.ExitCode, stdout.Result + stderr.Result);
         }

@@ -36,6 +36,9 @@ public sealed record SensorSnapshot
 public sealed class SensorHub : IDisposable
 {
     public static readonly TimeSpan Interval = TimeSpan.FromSeconds(3);
+    /// <summary>A reading slower than this is written to the log.</summary>
+    private const long SlowTickMs = 1500;
+    private long _lastGpuMs = -1;
 
     private readonly Func<Settings> _settings;
     private readonly ManualResetEventSlim _stop = new(false);
@@ -83,11 +86,21 @@ public sealed class SensorHub : IDisposable
     private void Loop()
     {
         Sample(); // primes the deltas
+        var lastSlowLog = DateTime.MinValue;
         while (!_stop.Wait(Interval))
         {
             try
             {
+                var watch = System.Diagnostics.Stopwatch.StartNew();
                 Latest = Sample();
+                var took = watch.ElapsedMilliseconds;
+                // a reading that takes seconds (the graphics counters stall on some drivers, often after sleep) leaves the overlay and the
+                // side panel showing old numbers without any sign: written down, at most every ten minutes
+                if (took >= SlowTickMs && DateTime.UtcNow - lastSlowLog > TimeSpan.FromMinutes(10))
+                {
+                    lastSlowLog = DateTime.UtcNow;
+                    Log.Write($"sensor reading slow: {took} ms (graphics counters {(_lastGpuMs >= 0 ? _lastGpuMs + " ms" : "skipped")}, game running: {Latest.GameRunning})");
+                }
                 Updated?.Invoke(Latest);
             }
             catch (Exception ex)
@@ -105,7 +118,9 @@ public sealed class SensorHub : IDisposable
         var state = Native.SHQueryUserNotificationState(out var notification) == 0 ? notification : 0;
         // normal desktop use (state 5, no game alive, nothing live on screen): the GPU counters are read every third tick
         var relaxed = !Interactive && InteractiveCheck?.Invoke() != true && state is 0 or 5 or 6 or 7 && _watcher.Current is null && _tick % 3 != 0;
+        var gpuWatch = System.Diagnostics.Stopwatch.StartNew();
         var (gpuAny, gpuMain) = relaxed ? _lastGpu : _lastGpu = ReadGpu();
+        _lastGpuMs = relaxed ? -1 : gpuWatch.ElapsedMilliseconds;
         var processes = ReadProcesses();
         var game = _watcher.Update(state, gpuAny, UserGames(settings));
         var recording = RecorderNames(settings.RecorderProcesses).Any(processes.Contains);

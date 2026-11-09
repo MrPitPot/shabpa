@@ -125,7 +125,10 @@ public partial class MainWindow : Window
                 foreach (var key in _built.Keys.ToList())
                     if (!ReferenceEquals(_built[key], _current) && !KeepBuilt.Contains(key)) _built.Remove(key);
             }
-            _ = Task.Run(MemoryCleaner.ReleaseOwn); // off the window's thread, so a page change never stutters
+            // off the window's thread. Hidden: everything goes back to Windows. Open (start-up, "use less RAM" after a page change): only a
+            // gentle collection, because a forced compacting one stops the window too and the hand-back makes the next clicks read memory back in
+            if (Shown) _ = Task.Run(MemoryCleaner.ReleaseSoft);
+            else _ = Task.Run(MemoryCleaner.ReleaseOwn);
             // once the first release is done the window has settled: one more a little later catches what the settling left behind
             if (Shown) { if (_releases++ == 0) _release.Interval = TimeSpan.FromSeconds(20); else _release.Stop(); }
             else _release.Stop(); // hidden: one release is enough (OnShownChanged starts the next after the window was shown again); a trim every ten minutes of an idle app only made the first look at it slower
@@ -372,8 +375,8 @@ public partial class MainWindow : Window
     private DateTime _lastRelease = DateTime.UtcNow;
 
     /// <summary>Every half minute while the window is open: a page that was left more than 90 seconds ago is let go (it is rebuilt in a moment when its tab is clicked), except the two
-    /// most recently left, which stay in memory so going back is instant. Pages that run something of their own (KeepBuilt) stay. Every two minutes the memory is handed back to
-    /// Windows. This is why the open window costs less than before.</summary>
+    /// most recently left, which stay in memory so going back is instant. Pages that run something of their own (KeepBuilt) stay. Then the runtime is told it may collect (gently: the window is open, see ReleaseSoft); the hand-back to Windows waits until the window is hidden.
+    /// This is why the open window costs less than before.</summary>
     private void TrimPages()
     {
         var now = DateTime.UtcNow;
@@ -390,7 +393,7 @@ public partial class MainWindow : Window
         if (dropped > 0 || now - _lastRelease > TimeSpan.FromMinutes(10))
         {
             _lastRelease = now;
-            _ = Task.Run(MemoryCleaner.ReleaseOwn);          // off the window's thread: nothing stutters
+            _ = Task.Run(MemoryCleaner.ReleaseSoft);         // the window is open (this runs only then): a gentle collection, never the forced one
         }
     }
 

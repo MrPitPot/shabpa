@@ -242,21 +242,76 @@ public sealed class Store
 public static class Log
 {
     private static readonly object Gate = new();
-    public static string? File { get; set; }
+    private static readonly System.Collections.Concurrent.ConcurrentQueue<string> Pending = new();
+    private static readonly AutoResetEvent Wake = new(false);
+    private static Thread? _writer;
+    private static string? _file;
 
+    /// <summary>Where the log goes. Lines still waiting for the old file are written there first.</summary>
+    public static string? File
+    {
+        get => _file;
+        set { Flush(); _file = value; }
+    }
+
+    /// <summary>Past this size the log becomes shabpa.log.old (replacing the one before): about 4 MB of history in two files,
+    /// so the evidence of a stall a few days ago survives a night of busy logging.</summary>
+    public const long MaxBytes = 2 * 1024 * 1024;
+
+    /// <summary>Writes one line. On the window's thread the line only joins a queue that a background thread writes (a scanning
+    /// antivirus or a slow disk can hold a file write for a long time, and the window must not wait for it); on any other thread it
+    /// is written at once, after whatever was queued, so the order stays. The time is taken when the line is made either way.</summary>
     public static void Write(string message)
     {
-        if (File is null) return;
+        if (_file is null) return;
+        var line = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture) + $" {message}{Environment.NewLine}";
+        if (System.Windows.Application.Current?.Dispatcher is { } ui && ui.CheckAccess())
+        {
+            Pending.Enqueue(line);
+            StartWriter();
+            Wake.Set();
+            return;
+        }
+        lock (Gate) WriteLocked(line);
+    }
+
+    /// <summary>Writes every queued line now (at exit, before a crash ends the process, when the file changes).</summary>
+    public static void Flush()
+    {
+        lock (Gate) WriteLocked(null);
+    }
+
+    private static void StartWriter()
+    {
+        if (_writer is not null) return;
         lock (Gate)
         {
-            try
+            if (_writer is not null) return;
+            _writer = new Thread(() =>
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(File)!);
-                var info = new FileInfo(File);
-                if (info.Exists && info.Length > 512 * 1024) System.IO.File.Move(File, File + ".old", overwrite: true); // keeps the previous log too, so a stall from last week is still there
-                System.IO.File.AppendAllText(File, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture) + $" {message}{Environment.NewLine}");
-            }
-            catch { /* logging must never throw */ }
+                while (true)
+                {
+                    Wake.WaitOne();
+                    lock (Gate) WriteLocked(null);
+                }
+            }) { IsBackground = true, Name = "log-writer", Priority = ThreadPriority.BelowNormal };
+            _writer.Start();
         }
+    }
+
+    private static void WriteLocked(string? line)
+    {
+        var text = new System.Text.StringBuilder();
+        while (Pending.TryDequeue(out var queued)) text.Append(queued);
+        if (line is not null) text.Append(line);
+        if (text.Length == 0 || _file is not { } file) return;
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            var info = new FileInfo(file);
+            if (info.Exists && info.Length > MaxBytes) System.IO.File.Move(file, file + ".old", overwrite: true);
+            System.IO.File.AppendAllText(file, text.ToString());
+        }
+        catch { /* logging must never throw */ }
     }
 }

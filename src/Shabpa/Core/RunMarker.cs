@@ -221,6 +221,7 @@ public static class CrashLog
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {
             Log.Write($"unhandled (process {(e.IsTerminating ? "is ending" : "continues")}): {Describe(e.ExceptionObject)}");
+            Log.Flush(); // the process may end right after this: nothing may stay in the queue
         };
         TaskScheduler.UnobservedTaskException += (_, e) =>
         {

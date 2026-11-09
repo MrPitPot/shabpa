@@ -414,6 +414,7 @@ public partial class App : Application
             {
                 Log.Write($"start {System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3)} · Windows {Environment.OSVersion.Version} · .NET {Environment.Version} · "
                           + $"admin={Elevation.IsElevated} · render tier {System.Windows.Media.RenderCapability.Tier >> 16} · low-memory={settings.LowMemory} software-render={settings.SoftwareRender}");
+                Log.Write(MachineLine(settings));
             }
             catch { /* the log line is optional */ }
             // a breadcrumb for runs that end without a goodbye; a clean exit removes it (see OnExit)
@@ -595,9 +596,27 @@ public partial class App : Application
         _window.Topmost = false;
     }
 
+    /// <summary>The second line of every run: what a freeze report needs to be put next to a machine (Windows release and update,
+    /// memory, screens and their scaling, the look that is on). No names, paths or anything personal.</summary>
+    internal static string MachineLine(Settings settings)
+    {
+        string Try(Func<string> read) { try { return read(); } catch { return "?"; } }
+        var windows = Try(() =>
+        {
+            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion");
+            return $"{key?.GetValue("DisplayVersion") ?? key?.GetValue("ReleaseId") ?? "?"} build {key?.GetValue("CurrentBuild") ?? "?"}.{key?.GetValue("UBR") ?? "?"}";
+        });
+        var memory = Try(() => $"{GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / 1073741824.0:0.#} GB");
+        var screens = Try(() => string.Join(", ", System.Windows.Forms.Screen.AllScreens.Select(s => $"{s.Bounds.Width}x{s.Bounds.Height}{(s.Primary ? "*" : "")}")));
+        var scale = Try(() => { using var g = System.Drawing.Graphics.FromHwnd(IntPtr.Zero); return $"{g.DpiX / 96.0:0.##}x"; });
+        return $"machine: Windows {windows} · {(Environment.Is64BitOperatingSystem ? "64" : "32")}-bit · {Environment.ProcessorCount} logical cores · {memory} RAM · "
+               + $"screens {screens} (scale {scale}) · theme {settings.Theme} · glass {settings.Glass} · animations {settings.Animations} · language {settings.Language}";
+    }
+
     protected override void OnExit(ExitEventArgs e)
     {
         Core.RunMarker.End();
+        Log.Flush();
         base.OnExit(e);
     }
 
@@ -741,6 +760,7 @@ public partial class App : Application
         {
             Core.RunMarker.NoteExit(Core.RunMarker.ExitSession);
             Log.Write($"session ending ({e.ReasonSessionEnding})");
+            Log.Flush(); // Windows may end the process any moment now
         }
     }
 

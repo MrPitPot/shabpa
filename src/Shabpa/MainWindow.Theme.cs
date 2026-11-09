@@ -47,13 +47,16 @@ public partial class MainWindow
     private void Reveal(Palette next, FrameworkElement? origin)
     {
         FinishReveal();
+        var from = Ui.Theme.Key;
         var animate = Motion.Enabled && IsLoaded && Shown && Root.ActualWidth > 40 && Root.ActualHeight > 40;
+        var watch = System.Diagnostics.Stopwatch.StartNew();
         Image? picture = null;
         if (animate)
         {
             try { picture = Snapshot(); }
             catch (Exception ex) { Log.Write($"theme snapshot: {ex.Message}"); }
         }
+        var snapshotMs = watch.ElapsedMilliseconds;
         if (picture is not null)
         {
             // shown in the same dispatcher frame as the swap below, so the window never flashes the new look early
@@ -63,13 +66,23 @@ public partial class MainWindow
         }
 
         Ui.SetTheme(next);
+        var coloursMs = watch.ElapsedMilliseconds - snapshotMs;
         UpdateScene();
+        var sceneMs = watch.ElapsedMilliseconds - snapshotMs - coloursMs;
         ThemeButton.Tag = next.Light ? "sun" : "moon";
         foreach (var key2 in _built.Keys.ToList())
             if (!ReferenceEquals(_built[key2], _current) && !KeepBuilt.Contains(key2)) _built.Remove(key2); // rebuilt in the new colours when opened
 
         if (picture is not null) Play(picture, origin);
+        // all of this runs on the window thread: a theme change that "froze for a moment" shows up here with the step that took the time
+        Log.Write($"theme switch {from} -> {next.Key}: picture {snapshotMs} ms, colours {coloursMs} ms, backdrop {sceneMs} ms, animated {(picture is not null ? "yes" : "no")}, glass {Ui.Glass}");
     }
+
+    /// <summary>The longest the old-look picture may lie over the window. The circle takes 680 ms; if its end never arrives (the
+    /// animation clock stalled, an event was missed), the picture is taken away anyway. Otherwise it would stay on top of
+    /// everything, and the window would answer clicks while still showing the old screen.</summary>
+    private static readonly TimeSpan RevealLimit = TimeSpan.FromMilliseconds(1600);
+    private System.Windows.Threading.DispatcherTimer? _revealGuard;
 
     private Image Snapshot()
     {
@@ -119,6 +132,14 @@ public partial class MainWindow
         SizeChanged += CancelReveal;
         StateChanged += CancelReveal;
         IsVisibleChanged += CancelRevealV;
+        _revealGuard = new System.Windows.Threading.DispatcherTimer { Interval = RevealLimit };
+        _revealGuard.Tick += (_, _) =>
+        {
+            if (ticket != _revealTicket) return;
+            Log.Write($"theme reveal: the circle did not finish within {RevealLimit.TotalMilliseconds:0} ms (radius {RevealRadius:0} of {reach:0}); the old picture was taken away");
+            FinishReveal();
+        };
+        _revealGuard.Start();
     }
 
     private void CancelReveal(object? sender, EventArgs e) => FinishReveal();
@@ -128,6 +149,8 @@ public partial class MainWindow
     private void FinishReveal()
     {
         _revealTicket++;
+        _revealGuard?.Stop();
+        _revealGuard = null;
         SizeChanged -= CancelReveal;
         StateChanged -= CancelReveal;
         IsVisibleChanged -= CancelRevealV;

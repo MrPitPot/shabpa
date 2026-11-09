@@ -17,6 +17,7 @@ public sealed partial class ThemeScene : Canvas
     private readonly DispatcherTimer _rebuild = new() { Interval = TimeSpan.FromMilliseconds(260) };
     private readonly DispatcherTimer _idleWatch = new() { Interval = TimeSpan.FromSeconds(5) };
     private bool _still;
+    private bool _failed; // the failure is written to the log once, not at every focus change
 
     /// <summary>After a minute without a key or a mouse move anywhere the backdrop stops moving (it is drawn once, as its still picture) and starts again at the next touch.
     /// A backdrop nobody is touching is the most wasteful thing a weak graphics card can be asked to draw.</summary>
@@ -106,7 +107,17 @@ public sealed partial class ThemeScene : Canvas
         _rng = new Random(7);
         SceneFps = FpsFor(_scene);
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
-        var built = Art(w, h);
+        bool built;
+        try { built = Art(w, h); }
+        catch (Exception ex)
+        {
+            // a damaged entry in scenes.json or a picture that does not decode: this runs from window events and timers, where an
+            // exception would end the app. The window keeps its plain background instead.
+            Clear();
+            if (!_failed) Log.Write($"theme backdrop {_scene} could not be drawn: {ex.GetType().Name}: {ex.Message}");
+            _failed = true;
+            return;
+        }
         var took = System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         PageTiming.Record("scene:" + _scene, took);          // decoding the painting and laying out its sprites runs on the window thread: a slow one is written to the log
         if (Environment.GetEnvironmentVariable("SHABPA_SCENE_LOG") is { Length: > 0 } sceneLog) System.IO.File.AppendAllText(sceneLog, $"{_scene} {took:F0} ms, {Children.Count} elements{Environment.NewLine}");   // test aid
