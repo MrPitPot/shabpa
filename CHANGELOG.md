@@ -4,6 +4,17 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [3.19.0] - 2026-11-10
+
+### Changed
+- Shabpa no longer uses GitHub anywhere. Updates come from signed manifests on Codeberg and GitLab (a branch named `updates`), then shabpa.ir and ArvanCloud; the support page, the star buttons and the installer's links point to Codeberg and GitLab. The legacy GitHub release reader is gone.
+- The game overlay asks Windows to keep it on top only when another program's window is above it, and the warm night-light curve is only written again when the screen's differs (both were done every second or twenty seconds and made some screens flicker).
+- Memory is handed back to Windows once after the window is hidden, not every ten minutes; every ten minutes (not two) while it is open.
+- The confirmation dialog belongs to the open main window.
+
+### Added
+- Diagnostics for a window that does not react after a long time hidden: the log says what state the window was in, how many frames were drawn after a page change and after the window came back, and when the overlay was shown or hidden.
+
 ## [3.18.0] - 2026-11-07
 
 ### Added

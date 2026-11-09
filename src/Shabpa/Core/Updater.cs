@@ -17,11 +17,11 @@ public sealed record UpdateInfo(Version Version, string Notes, string DownloadUr
 
 public enum UpdateState { NotConfigured, Idle, Checking, UpToDate, Available, Downloading, Installing, Error }
 
-/// <summary>Checks a GitHub repository's latest release (or a plain JSON manifest), downloads the
+/// <summary>Checks the signed update manifest of the mirrors (Codeberg, GitLab, shabpa.ir, ArvanCloud), downloads the
 /// installer, verifies it and runs it silently. The installer closes this app, replaces it and starts it again.</summary>
 public sealed class Updater
 {
-    /// <summary>Where releases are published: "owner/repo" on GitHub, or an https:// URL to a manifest
+    /// <summary>Where releases are published: "owner/repo" on Codeberg, or an https:// URL to a manifest
     /// like {"version":"2.1.0","url":"https://…/ShabpaSetup.exe","sha256":"…","notes":"…"}.</summary>
     public const string DefaultFeed = "MrPitPot/Shabpa_app";
 
@@ -30,7 +30,7 @@ public sealed class Updater
 
     public const string SetupName = "ShabpaSetup.exe";
 
-    /// <summary>The project site; reachable from inside Iran even when GitHub is not.</summary>
+    /// <summary>The project site; reachable from inside Iran even when the foreign code sites are not.</summary>
     public const string DownloadPage = "https://shabpa.ir/";
 
     private readonly Func<Settings> _settings;
@@ -79,33 +79,6 @@ public sealed class Updater
         if (!match.Success) return null;
         return new Version(int.Parse(match.Groups[1].Value), int.Parse(match.Groups[2].Value),
             match.Groups[3].Success ? int.Parse(match.Groups[3].Value) : 0);
-    }
-
-    /// <summary>Reads a GitHub "latest release" response. Null if it has no installer attached.</summary>
-    public static UpdateInfo? ParseRelease(string json)
-    {
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-        if (root.TryGetProperty("draft", out var draft) && draft.GetBoolean()) return null;
-        if (root.TryGetProperty("prerelease", out var pre) && pre.GetBoolean()) return null;
-        var version = ParseVersion(root.GetProperty("tag_name").GetString() ?? "");
-        if (version is null || !root.TryGetProperty("assets", out var assets)) return null;
-
-        foreach (var asset in assets.EnumerateArray())
-        {
-            if (!string.Equals(asset.GetProperty("name").GetString(), SetupName, StringComparison.OrdinalIgnoreCase)) continue;
-            string? sha = null;
-            // GitHub publishes a SHA-256 for every release asset.
-            if (asset.TryGetProperty("digest", out var digest) && digest.GetString() is { } d && d.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
-                sha = d[7..].ToLowerInvariant();
-            return new UpdateInfo(version,
-                root.TryGetProperty("body", out var body) ? body.GetString() ?? "" : "",
-                asset.GetProperty("browser_download_url").GetString() ?? "",
-                sha,
-                asset.TryGetProperty("size", out var size) ? size.GetInt64() : 0,
-                root.TryGetProperty("published_at", out var published) && published.TryGetDateTime(out var at) ? at.ToLocalTime() : DateTime.Now);
-        }
-        return null;
     }
 
     public static UpdateInfo? ParseManifest(string json)
@@ -170,7 +143,7 @@ public sealed class Updater
                 return null;
             }
             LastCheck = DateTime.Now;
-            if (result.Source is { Legacy: false } ok && s.LastUpdateSource != ok.Id)
+            if (result.Source is { } ok && s.LastUpdateSource != ok.Id)
             {
                 s.LastUpdateSource = ok.Id;
                 Persist?.Invoke();

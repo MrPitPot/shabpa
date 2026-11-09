@@ -129,7 +129,7 @@ public sealed class SupportPage : PageBase
         var forget = new Button { Style = St("Btn"), Content = L.T("خروج مدیر", "Sign out"), Margin = new Thickness(0, 0, 8, 0) };
         forget.Click += (_, _) => ForgetAdmin();
         var issues = new Button { Style = St("Btn"), Content = L.T("باز کردن ایشوهای کدبرگ", "Open Codeberg issues") };
-        issues.Click += (_, _) => OpenUrl(GitHubIssue.IssuesUrl);
+        issues.Click += (_, _) => OpenUrl(RepoIssue.IssuesUrl);
         row.Children.Add(save);
         row.Children.Add(forget);
         row.Children.Add(issues);
@@ -276,7 +276,7 @@ public sealed class SupportPage : PageBase
         if (_via == "github")
         {
             var text = body + (contact.Length > 0 ? $"\n\n{L.T("تماس", "Contact")}: {contact}" : "") + (diag.Length > 0 ? $"\n\n---\n{diag}" : "");
-            OpenUrl(GitHubIssue.NewIssueUrl(title, text, _category));
+            OpenUrl(RepoIssue.NewIssueUrl(title, text, _category));
             Remember($"gh-{DateTime.Now:yyyyMMddHHmmss}", title, "github");
             _sendNote.Text = L.T("صفحه‌ی کدبرگ باز شد؛ اون‌جا «Create Issue» رو بزن.", "The Codeberg page opened; press “Create Issue” there.");
             return;
@@ -341,7 +341,7 @@ public sealed class SupportPage : PageBase
             });
             line.Children.Add(texts);
             var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            if (github) actions.Children.Add(IconButton("globe", L.T("باز کردن ایشوها", "Open issues"), () => OpenUrl(GitHubIssue.IssuesUrl)));
+            if (github) actions.Children.Add(IconButton("globe", L.T("باز کردن ایشوها", "Open issues"), () => OpenUrl(RepoIssue.IssuesUrl)));
             actions.Children.Add(IconButton("trash", L.T("حذف از این فهرست", "Remove from this list"), () =>
             {
                 if (!Ask(L.T("حذف از فهرست؟", "Remove from the list?"),

@@ -114,7 +114,7 @@ public sealed class UpdatePage : PageBase
         openRow.Children.Add(new TextBlock { Text = L.T("صفحه‌ی نسخه‌ها در کدبرگ", "Releases on Codeberg"), VerticalAlignment = VerticalAlignment.Center });
         open.Content = openRow;
         open.Click += OnOpenReleases;
-        body.Children.Add(K.SettingRow(L.T("نسخه‌های جدید مستقیم از صفحه‌ی رسمی شب‌پا در کدبرگ گرفته می‌شن؛ لازم نیست لینکی وارد کنی.", "New versions come straight from Shabpa’s official Codeberg page; there is no link to enter."), open));
+        body.Children.Add(K.SettingRow(L.T("نسخه‌های جدید مستقیم از صفحه‌ی رسمی شب‌پا در کدبرگ و گیت‌لب گرفته می‌شن؛ لازم نیست لینکی وارد کنی.", "New versions come straight from Shabpa’s official Codeberg and GitLab pages; there is no link to enter."), open));
         settings.Padding = new Thickness(24, 20, 24, 12);
         root.Children.Add(settings);
 
@@ -182,8 +182,8 @@ public sealed class UpdatePage : PageBase
         if (failed) _offlineHint.Foreground = Res("Red"); else _offlineHint.ClearValue(TextBlock.ForegroundProperty);
         _offlineHint.Text = failed
             ? u.Error
-            : L.T("اگه کدبرگ و سایت‌های خارجی باز نمی‌شن، شب‌پا خودش از آینه‌های داخلی هم می‌گیره. دستی هم می‌تونی فایل نصب یا بستهٔ به‌روزرسانی رو از فلش یا تلگرام بیاری؛ امضا و چک‌سامش قبل از نصب بررسی می‌شه.",
-                "If Codeberg and foreign sites are blocked, Shabpa also tries domestic mirrors. You can also bring an installer or update bundle from a USB stick or Telegram; its signature and checksum are verified before installing.");
+            : L.T("اگه کدبرگ، گیت‌لب و سایت‌های خارجی باز نمی‌شن، شب‌پا خودش از آینه‌های داخلی هم می‌گیره. دستی هم می‌تونی فایل نصب یا بستهٔ به‌روزرسانی رو از فلش یا تلگرام بیاری؛ امضا و چک‌سامش قبل از نصب بررسی می‌شه.",
+                "If Codeberg, GitLab and foreign sites are blocked, Shabpa also tries domestic mirrors. You can also bring an installer or update bundle from a USB stick or Telegram; its signature and checksum are verified before installing.");
 
         var showNotes = available is not null && available.Notes.Trim().Length > 0;
         _notesCard.Visibility = showNotes ? Visibility.Visible : Visibility.Collapsed;

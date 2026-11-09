@@ -113,7 +113,7 @@ public sealed class UpdateMirrorTests : IDisposable
         return net;
     }
 
-    private const string Gh = "https://codeberg.org/MrPitPot/Shabpa_app/releases/latest/download/latest.json";
+    private const string Gh = UpdateSources.CodebergManifest;
     private const string Site = "https://shabpa.ir/update/latest.json";
     private const string Dl = "https://dl.shabpa.ir/update/latest.json";
 
@@ -231,12 +231,12 @@ public sealed class UpdateMirrorTests : IDisposable
     // ---- the source list ---------------------------------------------------------------------
 
     [Fact]
-    public void Sources_are_ordered_codeberg_site_arvan_domestic_then_custom_and_github_is_gone()
+    public void Sources_are_ordered_codeberg_gitlab_site_arvan_domestic_then_custom()
     {
         var list = UpdateSources.Build("https://mirror.example.ir/shabpa", "");
-        Assert.Equal(["codeberg", "shabpa.ir", "arvan", "dl.shabpa.ir", "custom"], list.Select(s => s.Id));
-        Assert.Equal("https://mirror.example.ir/shabpa/latest.json", list[4].ManifestUrl);
-        Assert.DoesNotContain(list, s => s.Legacy || s.ManifestUrl.Contains("github"));
+        Assert.Equal(["codeberg", "gitlab", "shabpa.ir", "arvan", "dl.shabpa.ir", "custom"], list.Select(s => s.Id));
+        Assert.Equal("https://mirror.example.ir/shabpa/latest.json", list[5].ManifestUrl);
+        Assert.DoesNotContain(list, s => s.ManifestUrl.Contains("github"));
     }
 
     [Fact]
@@ -295,7 +295,9 @@ public sealed class UpdateMirrorTests : IDisposable
         var net = Mirror(new FakeNet().Status(Gh, HttpStatusCode.NotFound).Status(Gh + ".sig", HttpStatusCode.NotFound), Site, Json());
         var r = await Sources(net).CheckAsync(UpdateSources.Build("", ""), Now);
         Assert.Equal("shabpa.ir", r.Source!.Id);
-        Assert.Equal([new SourceFailure("codeberg", "404")], r.Failures);
+        Assert.Equal("codeberg", r.Failures[0].SourceId);
+        Assert.Equal("404", r.Failures[0].Reason);
+        Assert.Equal("gitlab", r.Failures[1].SourceId);       // not served by the fake network: one more dead source before the site
     }
 
     [Fact]
@@ -364,7 +366,7 @@ public sealed class UpdateMirrorTests : IDisposable
     {
         var r = await Sources(new FakeNet(), 100).CheckAsync(UpdateSources.Build("", ""), Now);
         Assert.True(r.AllFailed);
-        Assert.Equal(4, r.Failures.Count);
+        Assert.Equal(5, r.Failures.Count);
     }
 
     [Fact]
@@ -382,26 +384,6 @@ public sealed class UpdateMirrorTests : IDisposable
         var net = new FakeNet().Serve(Gh, new byte[UpdateManifestReader.MaxManifestBytes + 10]).Serve(Gh + ".sig", [1, 2]);
         var r = await Sources(net).CheckAsync([UpdateSources.Build("", "")[0]], Now);
         Assert.Equal("size", r.Failures[0].Reason);
-    }
-
-    [Fact]
-    public async Task The_legacy_github_api_path_still_parses_when_asked_directly_it_is_no_longer_in_the_list()
-    {
-        var release = $$"""{"tag_name":"v3.11.0","draft":false,"prerelease":false,"published_at":"2026-11-01T10:00:00Z","body":"notes","assets":[{"name":"ShabpaSetup.exe","browser_download_url":"https://github.com/MrPitPot/shabpa/releases/download/v3.11.0/ShabpaSetup.exe","size":5000,"digest":"sha256:{{Hex(Installer)}}"}]}""";
-        var net = new FakeNet().Serve(UpdateSources.LegacyApi, Encoding.UTF8.GetBytes(release));
-        var r = await Sources(net).CheckAsync([new UpdateSource("github-api", "x", UpdateSources.LegacyApi, true)], Now);
-        Assert.Equal("github-api", r.Source!.Id);
-        Assert.Equal(Hex(Installer), r.Manifest!.Sha256);
-    }
-
-    [Fact]
-    public async Task The_legacy_path_refuses_installers_hosted_outside_github()
-    {
-        var release = $$"""{"tag_name":"v3.11.0","assets":[{"name":"ShabpaSetup.exe","browser_download_url":"https://evil.example/ShabpaSetup.exe","size":5,"digest":"sha256:{{Hex(Installer)}}"}]}""";
-        var net = new FakeNet().Serve(UpdateSources.LegacyApi, Encoding.UTF8.GetBytes(release));
-        var r = await Sources(net).CheckAsync([new UpdateSource("github-api", "x", UpdateSources.LegacyApi, true)], Now);
-        Assert.True(r.AllFailed);
-        Assert.Equal("scheme", r.Failures[0].Reason);
     }
 
     [Fact]

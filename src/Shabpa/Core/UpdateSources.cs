@@ -5,8 +5,7 @@ using System.Net.Http;
 namespace Shabpa.Core;
 
 /// <summary>One place that can serve latest.json (+ latest.json.sig) and the installer.</summary>
-/// <param name="Legacy">GitHub's release API (no signed manifest); only accepted for api.github.com over HTTPS.</param>
-public sealed record UpdateSource(string Id, string Name, string ManifestUrl, bool Legacy = false);
+public sealed record UpdateSource(string Id, string Name, string ManifestUrl);
 
 public sealed record SourceFailure(string SourceId, string Reason);
 
@@ -20,10 +19,12 @@ public sealed record UpdateCheckResult(UpdateManifest? Manifest, UpdateSource? S
 /// (tests pass a fake handler), nothing here touches the UI thread.</summary>
 public sealed class UpdateSources(HttpClient http, string publicKey, bool allowLocal = false)
 {
-    public const string GitHubId = "codeberg", SiteId = "shabpa.ir", DomesticId = "dl.shabpa.ir", ArvanId = "arvan", CustomId = "custom", LegacyId = "github-api";
+    public const string CodebergId = "codeberg", GitLabId = "gitlab", SiteId = "shabpa.ir", DomesticId = "dl.shabpa.ir", ArvanId = "arvan", CustomId = "custom";
     /// <summary>The public ArvanCloud storage box (Iran, Tehran) that serves /update/ when the international internet is cut.</summary>
     public const string ArvanBase = "https://shabpa-dl.s3.ir-central1.arvanstorage.ir/update/";
-    public const string LegacyApi = "https://api.github.com/repos/" + Updater.DefaultFeed + "/releases/latest";
+    /// <summary>The signed manifest sits on a branch of its own ("updates") of both code homes, so its address never changes with a release.</summary>
+    public const string CodebergManifest = "https://codeberg.org/" + Updater.DefaultFeed + "/raw/branch/updates/latest.json";
+    public const string GitLabManifest = "https://gitlab.com/MrPitPot/shabpa_app/-/raw/updates/latest.json";
 
     /// <summary>Short timeout for the manifest of each source (so a dead one costs seconds, not minutes).</summary>
     public TimeSpan ManifestTimeout { get; init; } = TimeSpan.FromSeconds(6);
@@ -33,7 +34,8 @@ public sealed class UpdateSources(HttpClient http, string publicKey, bool allowL
     {
         var list = new List<UpdateSource>
         {
-            new(GitHubId, "Codeberg", "https://codeberg.org/" + Updater.DefaultFeed + "/releases/latest/download/latest.json"),
+            new(CodebergId, "Codeberg", CodebergManifest),
+            new(GitLabId, "GitLab", GitLabManifest),
             new(SiteId, "shabpa.ir", "https://shabpa.ir/update/latest.json"),
             new(ArvanId, "ArvanCloud", ArvanBase + "latest.json"),
             new(DomesticId, "dl.shabpa.ir", "https://dl.shabpa.ir/update/latest.json"),
@@ -68,7 +70,7 @@ public sealed class UpdateSources(HttpClient http, string publicKey, bool allowL
             {
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 timeout.CancelAfter(ManifestTimeout);
-                var manifest = source.Legacy ? await FetchLegacy(source, timeout.Token) : await FetchSigned(source, timeout.Token);
+                var manifest = await FetchSigned(source, timeout.Token);
                 if (manifest.Version < current) { failures.Add(new(source.Id, "stale")); continue; }
                 if (manifest.Version == current) { same ??= source; continue; }       // keep asking: another source may already have the next version (a mirror that is behind must not hide it)
                 if (manifest.MinApp > current) { failures.Add(new(source.Id, "min-app")); continue; }
@@ -109,25 +111,6 @@ public sealed class UpdateSources(HttpClient http, string publicKey, bool allowL
         return UpdateManifestReader.ReadSigned(body.Result, System.Text.Encoding.ASCII.GetString(sig.Result), publicKey, baseUri, allowLocal);
     }
 
-    private async Task<UpdateManifest> FetchLegacy(UpdateSource source, CancellationToken ct)
-    {
-        var uri = new Uri(source.ManifestUrl);
-        if (uri.Scheme != Uri.UriSchemeHttps || !uri.Host.Equals("api.github.com", StringComparison.OrdinalIgnoreCase))
-            throw new UpdateRejectedException("scheme", "Only GitHub's own API is accepted without a signature.");
-        var bytes = await GetBytes(uri, 1 << 20, ct);
-        UpdateInfo? info;
-        try { info = Updater.ParseRelease(System.Text.Encoding.UTF8.GetString(bytes)); }
-        catch (Exception ex) when (ex is System.Text.Json.JsonException or KeyNotFoundException or InvalidOperationException)
-        {
-            throw new UpdateRejectedException("parse", "The GitHub response is malformed.");
-        }
-        if (info is null || info.Sha256 is not { Length: 64 }) throw new UpdateRejectedException("parse", "GitHub has no installer with a checksum.");
-        if (!Uri.TryCreate(info.DownloadUrl, UriKind.Absolute, out var dl) || dl.Scheme != Uri.UriSchemeHttps
-            || !(dl.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase) || dl.Host.EndsWith(".githubusercontent.com", StringComparison.OrdinalIgnoreCase)))
-            throw new UpdateRejectedException("scheme", "The GitHub installer address is not a GitHub address.");
-        return new UpdateManifest(info.Version, new Version(0, 0, 0), info.Published, info.Sha256, info.Size, [info.DownloadUrl], info.Notes, info.Notes);
-    }
-
     /// <summary>Reads at most <paramref name="max"/> bytes; HTTP errors throw, redirects must stay on HTTPS.</summary>
     private async Task<byte[]> GetBytes(Uri uri, int max, CancellationToken ct)
     {
@@ -141,7 +124,7 @@ public sealed class UpdateSources(HttpClient http, string publicKey, bool allowL
         }
         if (uri.Scheme != Uri.UriSchemeHttps) throw new UpdateRejectedException("scheme", "The mirror address must be HTTPS.");
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
-        request.Headers.Accept.ParseAdd(uri.Host == "api.github.com" ? "application/vnd.github+json" : "application/json, */*");
+        request.Headers.Accept.ParseAdd("application/json, */*");
         using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
         response.EnsureSuccessStatusCode();
         if (response.RequestMessage?.RequestUri is { } final && final.Scheme != Uri.UriSchemeHttps)

@@ -23,14 +23,7 @@ public static class OpenRgbHost
     /// <summary>OpenRGB 1.1 for Windows 64-bit, from the project's official release page. The hash was computed from that file; a different file is refused.</summary>
     public static readonly OpenRgbRelease Release = new("1.1",
         "https://codeberg.org/OpenRGB/OpenRGB/releases/download/release_1.1/OpenRGB_1.1_Windows_64_8e16de2.zip",
-        "63291726c6fc84eb479ef2ee752e97e1187f6ce9c49fd27eee40ded588a8172a")
-    {
-        Mirrors =
-        [
-            // the project's own GitHub mirror of the same release (codeberg.org is blocked on some networks); the same file, same SHA-256
-            "https://github.com/CalcProgrammer1/OpenRGB/releases/download/release_1.1/OpenRGB_1.1_Windows_64_8e16de2.zip",
-        ],
-    };
+        "63291726c6fc84eb479ef2ee752e97e1187f6ce9c49fd27eee40ded588a8172a");
 
     /// <summary>Where it lives (a folder of Shabpa's own; tests point it elsewhere).</summary>
     public static string Folder { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Shabpa", "openrgb");

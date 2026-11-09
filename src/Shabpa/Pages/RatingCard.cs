@@ -12,7 +12,7 @@ namespace Shabpa.Pages;
 /// the app version and the language sent (see <see cref="PublicRating"/>). The card can also open the project's Codeberg page (Codeberg or GitLab, to leave a real star) or its issue page (for a written opinion).</summary>
 public sealed class RatingCard : GlassCard
 {
-    private const string RepoUrl = "https://codeberg.org/" + GitHubIssue.Repo;
+    private const string RepoUrl = "https://codeberg.org/" + RepoIssue.Repo;
 
     private readonly List<System.Windows.Shapes.Path> _stars = [];
     private readonly TextBlock _state = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
@@ -80,9 +80,9 @@ public sealed class RatingCard : GlassCard
         var github = new Button { Style = (Style)Application.Current.Resources["Btn"], Content = L.T("ستاره در کدبرگ ⭐", "Star on Codeberg ⭐"), Margin = new Thickness(0, 0, 8, 6) };
         github.Click += (_, _) => Open(RepoUrl);
         var gitlab = new Button { Style = (Style)Application.Current.Resources["Btn"], Content = L.T("ستاره در گیت‌لب ⭐", "Star on GitLab ⭐"), Margin = new Thickness(0, 0, 8, 6) };
-        gitlab.Click += (_, _) => Open(GitHubIssue.GitLabUrl);
+        gitlab.Click += (_, _) => Open(RepoIssue.GitLabUrl);
         var feedback = new Button { Style = (Style)Application.Current.Resources["Btn"], Content = L.T("نظر یا پیشنهاد بنویس", "Write feedback"), Margin = new Thickness(0, 0, 8, 6) };
-        feedback.Click += (_, _) => Open(GitHubIssue.NewIssueUrl(L.T("نظر درباره‌ی شب‌پا", "Feedback about Shabpa"), Hub.I.Settings.Rating > 0 ? $"{Hub.I.Settings.Rating}/5\n\n" : "", "idea"));
+        feedback.Click += (_, _) => Open(RepoIssue.NewIssueUrl(L.T("نظر درباره‌ی شب‌پا", "Feedback about Shabpa"), Hub.I.Settings.Rating > 0 ? $"{Hub.I.Settings.Rating}/5\n\n" : "", "idea"));
         _actions.Children.Add(github);
         _actions.Children.Add(gitlab);
         _actions.Children.Add(feedback);

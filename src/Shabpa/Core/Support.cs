@@ -106,7 +106,7 @@ public static class SupportInfo
 
 /// <summary>Opens a pre-filled new-issue page on the project's Codeberg repository. Nothing is sent by Shabpa itself; the person
 /// reads the page in the browser and presses the button there.</summary>
-public static class GitHubIssue
+public static class RepoIssue
 {
     public const string Repo = "MrPitPot/Shabpa_app";
     public const string IssuesUrl = "https://codeberg.org/" + Repo + "/issues";
