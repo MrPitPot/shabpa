@@ -16,8 +16,9 @@ api="https://codeberg.org/api/v1/repos/$repo"
 here="$(cd "$(dirname "$0")/../.." && pwd)"
 out="${SHABPA_OUT:-$here/installer}"
 tag="v$version"
-notes="$here/patch-note-$version.fa.md"
-notes_en="$here/patch-note-$version.en.md"
+notes_dir="$here/release-notes"; [ -f "$notes_dir/patch-note-$version.fa.md" ] || notes_dir="$here"   # older notes lived in the root
+notes="$notes_dir/patch-note-$version.fa.md"
+notes_en="$notes_dir/patch-note-$version.en.md"
 
 files=("$out/ShabpaSetup.exe" "$out/ShabpaSetup.exe.sha256" "$out/latest.json" "$out/latest.json.sig")
 for f in "${files[@]}"; do [ -f "$f" ] || { echo "missing: $f (run build-installer.sh and make-manifest.sh first)"; exit 1; }; done

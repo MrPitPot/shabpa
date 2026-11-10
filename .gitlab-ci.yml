@@ -1,5 +1,15 @@
 # Mirrors .github/workflows/ci.yml for GitLab. Uses GitLab's shared Windows runners.
+#
+# Off by default: every push made a red "failed" pipeline with no jobs (GitLab.com only gives shared runners to
+# verified accounts, and Windows runners need a paid plan).
+# To turn it on (after verifying, or with your own runner tagged saas-windows-medium-amd64):
+#   GitLab > Settings > CI/CD > Variables: SHABPA_CI = 1
 stages: [build, test]
+
+workflow:
+  rules:
+    - if: $SHABPA_CI == "1"
+    - when: never
 
 default:
   tags: [saas-windows-medium-amd64]

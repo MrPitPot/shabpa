@@ -24,3 +24,6 @@ state.json.*
 backups/
 *.bak
 Shabpa-Keys/
+
+# local screenshot checks (regenerate with --screenshots; not kept in the repo)
+design-check/
