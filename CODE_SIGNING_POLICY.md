@@ -15,19 +15,19 @@ SignPath Foundation was not accepted (2026-10-17); signing may be revisited late
 
 | Role | Who |
 |---|---|
-| Author / committer | [MrPitPot](https://github.com/MrPitPot) |
-| Reviewer of changes | [MrPitPot](https://github.com/MrPitPot) (pull requests from others are reviewed before merging) |
-| Approver of a signing request | [MrPitPot](https://github.com/MrPitPot) |
+| Author / committer | [MrPitPot](https://codeberg.org/MrPitPot) |
+| Reviewer of changes | [MrPitPot](https://codeberg.org/MrPitPot) (pull requests from others are reviewed before merging) |
+| Approver of a signing request | [MrPitPot](https://codeberg.org/MrPitPot) |
 
-Everyone with a role uses two-factor authentication on GitHub.
+Everyone with a role uses two-factor authentication on Codeberg and GitLab.
 
 ## Privacy
 
 Shabpa works on your PC and sends nothing anywhere on its own. Only features you switch on use the internet: the update
-check (GitHub), the weather page (Open-Meteo), the Telegram link and support tickets. Microphone sound, taught clicks,
+check (Codeberg, GitLab, shabpa.ir), the weather page (Open-Meteo), the Telegram link and support tickets. Microphone sound, taught clicks,
 tasks and settings stay on the PC. The full statement is in the app under *Settings* and in [SECURITY.md](SECURITY.md).
 
 ## Reporting a problem
 
-If you think a signed file is not what it should be, open an issue at https://github.com/MrPitPot/shabpa/issues or follow
+If you think a signed file is not what it should be, open an issue at https://codeberg.org/MrPitPot/Shabpa_app/issues or follow
 [SECURITY.md](SECURITY.md).

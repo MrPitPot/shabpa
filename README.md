@@ -1,18 +1,19 @@
 <div align="center">
 
-<img src="src/Shabpa/Assets/shabpa.ico" width="88" alt="Shabpa logo">
+<img src="src/Shabpa/Assets/logo.png" width="96" alt="Shabpa logo">
 
 # Shabpa
 
 **A night watch for your Windows PC** - scheduled power control, gaming overlay, network tools, daily tasks, backups and system health in one light app.
 
-[![Release](https://img.shields.io/github/v/release/MrPitPot/shabpa?color=7B6BF5&label=release)](https://codeberg.org/MrPitPot/Shabpa_app/releases/latest)
-[![CI](https://github.com/MrPitPot/shabpa/actions/workflows/ci.yml/badge.svg)](https://github.com/MrPitPot/shabpa/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/gitea/v/release/MrPitPot/Shabpa_app?gitea_url=https%3A%2F%2Fcodeberg.org&color=7B6BF5&label=release)](https://codeberg.org/MrPitPot/Shabpa_app/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4)
 
-[**Download**](https://codeberg.org/MrPitPot/Shabpa_app/releases/latest) &nbsp;·&nbsp; [Website](https://shabpa.ir) &nbsp;·&nbsp; [فارسی](README.fa.md) &nbsp;·&nbsp; [Changelog](CHANGELOG.md)
+[**Download**](https://codeberg.org/MrPitPot/Shabpa_app/releases/latest) &nbsp;·&nbsp; [Website](https://shabpa.ir) &nbsp;·&nbsp; [فارسی](README.fa.md) &nbsp;·&nbsp; [Changelog](CHANGELOG.md) &nbsp;·&nbsp; [Telegram](https://t.me/ShabPa_App)
+
+Code: [Codeberg](https://codeberg.org/MrPitPot/Shabpa_app) (main home, releases and issues) &nbsp;·&nbsp; [GitLab](https://gitlab.com/MrPitPot/shabpa_app) (mirror)
 
 <img src="docs/screenshots/home.png" width="780" alt="Shabpa home screen">
 
@@ -61,16 +62,20 @@ Download `ShabpaSetup.exe` from the [latest release](https://codeberg.org/MrPitP
 (Windows 10 or 11, 64-bit). If .NET 10 is missing, the installer fetches Microsoft's official runtime. The SHA-256 of
 every installer is published next to it.
 
-Code signing: the binaries are currently not signed (a free SignPath Foundation application was not accepted), so SmartScreen may warn; see the [code signing policy](CODE_SIGNING_POLICY.md). Verify the SHA-256 published next to each release. If SmartScreen warns: choose **More info -> Run anyway**. Some antivirus
+**Is it safe?** The installer is built from this public source with [`build-installer.sh`](build-installer.sh), its SHA-256
+is published with every release, and the 3.11.4 installer scanned clean on
+[VirusTotal (0/70)](https://www.virustotal.com/gui/file/b2a2da198cda8464232a4dcfd2b0a9947934740b8ee6f73a27854b77793c6f3c).
+To check a download yourself, run `Get-FileHash ShabpaSetup.exe` in PowerShell and compare it with the `.sha256` file.
 
-**Is it safe?** The installer is built from this public source by [GitHub Actions](.github/workflows/release-build.yml), its SHA-256 is published with every release, and the 3.11.4 installer scanned clean on [VirusTotal (0/70)](https://www.virustotal.com/gui/file/b2a2da198cda8464232a4dcfd2b0a9947934740b8ee6f73a27854b77793c6f3c). To check a download yourself: `Get-FileHash ShabpaSetup.exe` in PowerShell and compare it with the `.sha256` file.
-products flag the bundled [WinDivert](https://github.com/basil00/WinDivert) driver (used for per-app speed limits)
-as a network tool. All source is here to read and build.
+The binaries are not code-signed yet (a free SignPath Foundation application was not accepted), so SmartScreen may warn:
+choose **More info -> Run anyway**. See the [code signing policy](CODE_SIGNING_POLICY.md). Some antivirus products flag the
+bundled [WinDivert](https://github.com/basil00/WinDivert) driver (used for per-app speed limits) as a network tool.
+All source is here to read and build.
 
 ## Privacy and safety
 
 - Everything is stored locally in `%AppData%\Shabpa`. There is no telemetry and no account is needed. If you choose the optional cloud save, only your feathers, medals and counters are sent (no name, no file paths, no usage details); you can log out or delete it from the server at any time. See `server/account-worker`.
-- Only things you switch on use the internet: the update check (GitHub), weather (Open-Meteo), the Telegram link,
+- Only things you switch on use the internet: the update check (Codeberg, GitLab, shabpa.ir; every update is signature-checked, see [docs/UPDATES.md](docs/UPDATES.md)), weather (Open-Meteo), the Telegram link,
   support tickets, a gift code typed to Boofi (only a hash of the code is sent) and sending a star rating. The rating is a separate yes/no question that defaults to no; if you say yes, only the number of stars, the app version, the language and a random install id are sent to shabpa.ir (the site keeps a hash of that id, never an address), and you can change your vote later.
 - Telegram control is opt-in. The app asks for a one-time code; it never sees a Telegram token.
 - Every schedule, deletion, lock or clean-up shows its exact effect and asks first. Your files are removed only
@@ -95,8 +100,9 @@ bash build-installer.sh        # produce installer/ShabpaSetup.exe
 | `src/Setup` | The installer |
 | `tools/Packer` | Packs the app files for the installer |
 | `tests` | Automated tests |
-| `server` | Optional Cloudflare Worker for support tickets |
-| `docs` | Screenshots |
+| `server` | Optional Cloudflare Workers (support tickets, cloud save) |
+| `docs` | Screenshots, update mirrors, developer notes |
+| `release-notes` | Patch notes of each version (fa + en) |
 
 Useful switches: `--dry-run` simulates power commands, `--demo` uses sample data, `--screenshots <folder>` captures every screen.
 

@@ -1,11 +1,12 @@
 # Security
 
 ## Reporting a problem
-Please report security issues privately through GitHub: **Security → Report a vulnerability** on this repository.
-Do not open a public issue for something that could be abused.
+Please report security issues privately through the in-app support ticket and say it is a security report.
+Do not open a public issue on [Codeberg](https://codeberg.org/MrPitPot/Shabpa_app/issues) or GitLab for something that could be abused.
 
 ## What Shabpa does and does not do
-- Update downloads are only run when they match the SHA-256 that GitHub publishes for the release asset; the
+- Updates come from mirrors (Codeberg, GitLab, shabpa.ir; see [docs/UPDATES.md](docs/UPDATES.md)). A download only runs when its
+  manifest carries a valid signature from the release key and the file matches the signed SHA-256 and size; the
   file is re-checked while locked right before it starts. Installers are not code-signed yet.
 - Telegram control goes through the project's bot, @ShabPa_Bot. The app never asks for or holds a bot token; it only
   makes outgoing HTTPS calls to the bot's server, and nothing is sent until you press "Connect to the bot".
