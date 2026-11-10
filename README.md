@@ -6,12 +6,12 @@
 
 **A night watch for your Windows PC** - scheduled power control, gaming overlay, network tools, daily tasks, backups and system health in one light app.
 
-[![Release](https://gitlab.com/MrPitPot/shabpa_app/-/badges/release.svg)](https://codeberg.org/MrPitPot/Shabpa_app/releases/latest)
+[![Release](https://gitlab.com/MrPitPot/shabpa_app/-/badges/release.svg)](https://gitlab.com/MrPitPot/shabpa_app/-/releases/permalink/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4)
 
-[**Download**](https://codeberg.org/MrPitPot/Shabpa_app/releases/latest) &nbsp;·&nbsp; [Website](https://shabpa.ir) &nbsp;·&nbsp; [فارسی](README.fa.md) &nbsp;·&nbsp; [Changelog](CHANGELOG.md) &nbsp;·&nbsp; [Telegram](https://t.me/ShabPa_App)
+[**Download**](https://gitlab.com/MrPitPot/shabpa_app/-/releases/permalink/latest) &nbsp;·&nbsp; [Website](https://shabpa.ir) &nbsp;·&nbsp; [فارسی](README.fa.md) &nbsp;·&nbsp; [Changelog](CHANGELOG.md) &nbsp;·&nbsp; [Telegram](https://t.me/ShabPa_App)
 
 Code: [Codeberg](https://codeberg.org/MrPitPot/Shabpa_app) (main home, releases and issues) &nbsp;·&nbsp; [GitLab](https://gitlab.com/MrPitPot/shabpa_app) (mirror)
 
@@ -58,7 +58,8 @@ your data on your PC, and speaks Persian and English with 21 colour themes.
 
 ## Install
 
-Download `ShabpaSetup.exe` from the [latest release](https://codeberg.org/MrPitPot/Shabpa_app/releases/latest) and run it
+Download `ShabpaSetup.exe` from the [latest release](https://gitlab.com/MrPitPot/shabpa_app/-/releases/permalink/latest)
+(also on [Codeberg](https://codeberg.org/MrPitPot/Shabpa_app/releases/latest)) and run it
 (Windows 10 or 11, 64-bit). If .NET 10 is missing, the installer fetches Microsoft's official runtime. The SHA-256 of
 every installer is published next to it.
 

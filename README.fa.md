@@ -6,7 +6,7 @@
 
 **نگهبان شبانه‌ی ویندوز** - کنترل برق زمان‌بندی‌شده، اورلی بازی، ابزارهای شبکه، کارهای روزانه، پشتیبان‌گیری و سلامت سیستم، توی یه برنامه‌ی سبک.
 
-[**دانلود**](https://codeberg.org/MrPitPot/Shabpa_app/releases/latest) &nbsp;·&nbsp; [وب‌سایت](https://shabpa.ir) &nbsp;·&nbsp; [English](README.md) &nbsp;·&nbsp; [تاریخچه‌ی تغییرات](CHANGELOG.md) &nbsp;·&nbsp; [کانال تلگرام](https://t.me/ShabPa_App)
+[**دانلود**](https://gitlab.com/MrPitPot/shabpa_app/-/releases/permalink/latest) &nbsp;·&nbsp; [وب‌سایت](https://shabpa.ir) &nbsp;·&nbsp; [English](README.md) &nbsp;·&nbsp; [تاریخچه‌ی تغییرات](CHANGELOG.md) &nbsp;·&nbsp; [کانال تلگرام](https://t.me/ShabPa_App)
 
 کد: [کدبرگ](https://codeberg.org/MrPitPot/Shabpa_app) (خونه‌ی اصلی، نسخه‌ها و گزارش مشکل) &nbsp;·&nbsp; [گیت‌لب](https://gitlab.com/MrPitPot/shabpa_app) (آینه)
 
@@ -46,7 +46,7 @@
 
 ## نصب
 
-فایل `ShabpaSetup.exe` رو از [آخرین نسخه](https://codeberg.org/MrPitPot/Shabpa_app/releases/latest) بگیر و اجرا کن (ویندوز ۱۰ یا ۱۱، ۶۴ بیتی). اگه ‎.NET 10 نداشتی، نصب‌کننده نسخه‌ی رسمی مایکروسافت رو می‌گیره.
+فایل `ShabpaSetup.exe` رو از [آخرین نسخه](https://gitlab.com/MrPitPot/shabpa_app/-/releases/permalink/latest) (یا [کدبرگ](https://codeberg.org/MrPitPot/Shabpa_app/releases/latest)) بگیر و اجرا کن (ویندوز ۱۰ یا ۱۱، ۶۴ بیتی). اگه ‎.NET 10 نداشتی، نصب‌کننده نسخه‌ی رسمی مایکروسافت رو می‌گیره.
 
 برنامه امضای دیجیتال پولی نداره، پس ویندوز ممکنه هشدار SmartScreen بده: **More info ← Run anyway**. کد کامل همین‌جاست و هر کسی می‌تونه خودش بسازدش.
 
