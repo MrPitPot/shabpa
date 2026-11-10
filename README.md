@@ -6,7 +6,7 @@
 
 **A night watch for your Windows PC** - scheduled power control, gaming overlay, network tools, daily tasks, backups and system health in one light app.
 
-[![Release](https://img.shields.io/gitea/v/release/MrPitPot/Shabpa_app?gitea_url=https%3A%2F%2Fcodeberg.org&color=7B6BF5&label=release)](https://codeberg.org/MrPitPot/Shabpa_app/releases/latest)
+[![Release](https://gitlab.com/MrPitPot/shabpa_app/-/badges/release.svg)](https://codeberg.org/MrPitPot/Shabpa_app/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4)
