@@ -113,7 +113,7 @@ public sealed class UpdateMirrorTests : IDisposable
         return net;
     }
 
-    private const string Gh = UpdateSources.CodebergManifest;
+    private const string Gh = UpdateSources.GitHubManifest;
     private const string Site = "https://shabpa.ir/update/latest.json";
     private const string Dl = "https://dl.shabpa.ir/update/latest.json";
 
@@ -231,19 +231,20 @@ public sealed class UpdateMirrorTests : IDisposable
     // ---- the source list ---------------------------------------------------------------------
 
     [Fact]
-    public void Sources_are_ordered_codeberg_gitlab_site_arvan_domestic_then_custom()
+    public void Sources_are_ordered_github_codeberg_gitlab_site_arvan_domestic_then_custom()
     {
         var list = UpdateSources.Build("https://mirror.example.ir/shabpa", "");
-        Assert.Equal(["codeberg", "gitlab", "shabpa.ir", "arvan", "dl.shabpa.ir", "custom"], list.Select(s => s.Id));
-        Assert.Equal("https://mirror.example.ir/shabpa/latest.json", list[5].ManifestUrl);
-        Assert.DoesNotContain(list, s => s.ManifestUrl.Contains("github"));
+        Assert.Equal(["github", "codeberg", "gitlab", "shabpa.ir", "arvan", "dl.shabpa.ir", "custom"], list.Select(s => s.Id));
+        Assert.Equal("https://mirror.example.ir/shabpa/latest.json", list[6].ManifestUrl);
+        Assert.Equal("https://raw.githubusercontent.com/MrPitPot/shabpa/updates/latest.json", list[0].ManifestUrl);
     }
 
     [Fact]
     public void The_last_working_source_is_tried_first()
     {
         Assert.Equal("dl.shabpa.ir", UpdateSources.Build("", "dl.shabpa.ir")[0].Id);
-        Assert.Equal("codeberg", UpdateSources.Build("", "github")[0].Id);   // an old saved "github" choice falls back to the first source
+        Assert.Equal("gitlab", UpdateSources.Build("", "gitlab")[0].Id);
+        Assert.Equal("github", UpdateSources.Build("", "no-such-source")[0].Id);   // an unknown saved choice falls back to the first source
     }
 
     [Theory]
@@ -263,7 +264,7 @@ public sealed class UpdateMirrorTests : IDisposable
     {
         var net = Mirror(new FakeNet(), Gh, Json());
         var r = await Sources(net).CheckAsync(UpdateSources.Build("", ""), Now);
-        Assert.Equal("codeberg", r.Source!.Id);
+        Assert.Equal("github", r.Source!.Id);
         Assert.Equal(new Version(3, 11, 0), r.Manifest!.Version);
         Assert.Empty(r.Failures);
         Assert.DoesNotContain(net.Requests, q => q.RequestUri!.Host == "shabpa.ir");
@@ -295,9 +296,10 @@ public sealed class UpdateMirrorTests : IDisposable
         var net = Mirror(new FakeNet().Status(Gh, HttpStatusCode.NotFound).Status(Gh + ".sig", HttpStatusCode.NotFound), Site, Json());
         var r = await Sources(net).CheckAsync(UpdateSources.Build("", ""), Now);
         Assert.Equal("shabpa.ir", r.Source!.Id);
-        Assert.Equal("codeberg", r.Failures[0].SourceId);
+        Assert.Equal("github", r.Failures[0].SourceId);
         Assert.Equal("404", r.Failures[0].Reason);
-        Assert.Equal("gitlab", r.Failures[1].SourceId);       // not served by the fake network: one more dead source before the site
+        Assert.Equal("codeberg", r.Failures[1].SourceId);     // codeberg and gitlab are not served by the fake network: two more dead sources before the site
+        Assert.Equal("gitlab", r.Failures[2].SourceId);
     }
 
     [Fact]
@@ -366,7 +368,7 @@ public sealed class UpdateMirrorTests : IDisposable
     {
         var r = await Sources(new FakeNet(), 100).CheckAsync(UpdateSources.Build("", ""), Now);
         Assert.True(r.AllFailed);
-        Assert.Equal(5, r.Failures.Count);
+        Assert.Equal(6, r.Failures.Count);
     }
 
     [Fact]

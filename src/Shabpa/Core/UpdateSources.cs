@@ -19,10 +19,11 @@ public sealed record UpdateCheckResult(UpdateManifest? Manifest, UpdateSource? S
 /// (tests pass a fake handler), nothing here touches the UI thread.</summary>
 public sealed class UpdateSources(HttpClient http, string publicKey, bool allowLocal = false)
 {
-    public const string CodebergId = "codeberg", GitLabId = "gitlab", SiteId = "shabpa.ir", DomesticId = "dl.shabpa.ir", ArvanId = "arvan", CustomId = "custom";
+    public const string GitHubId = "github", CodebergId = "codeberg", GitLabId = "gitlab", SiteId = "shabpa.ir", DomesticId = "dl.shabpa.ir", ArvanId = "arvan", CustomId = "custom";
     /// <summary>The public ArvanCloud storage box (Iran, Tehran) that serves /update/ when the international internet is cut.</summary>
     public const string ArvanBase = "https://shabpa-dl.s3.ir-central1.arvanstorage.ir/update/";
-    /// <summary>The signed manifest sits on a branch of its own ("updates") of both code homes, so its address never changes with a release.</summary>
+    /// <summary>The signed manifest sits on a branch of its own ("updates") of all three code homes, so its address never changes with a release.</summary>
+    public const string GitHubManifest = "https://raw.githubusercontent.com/MrPitPot/shabpa/updates/latest.json";
     public const string CodebergManifest = "https://codeberg.org/" + Updater.DefaultFeed + "/raw/branch/updates/latest.json";
     public const string GitLabManifest = "https://gitlab.com/MrPitPot/shabpa_app/-/raw/updates/latest.json";
 
@@ -34,6 +35,7 @@ public sealed class UpdateSources(HttpClient http, string publicKey, bool allowL
     {
         var list = new List<UpdateSource>
         {
+            new(GitHubId, "GitHub", GitHubManifest),
             new(CodebergId, "Codeberg", CodebergManifest),
             new(GitLabId, "GitLab", GitLabManifest),
             new(SiteId, "shabpa.ir", "https://shabpa.ir/update/latest.json"),
