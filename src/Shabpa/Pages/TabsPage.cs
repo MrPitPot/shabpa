@@ -113,8 +113,13 @@ public abstract class TabsPage : PageBase
         }
     }
 
+    /// <summary>Old tab keys that now live inside another tab (two tabs were merged into one page): the old key still opens the right place
+    /// (commands, the tour, saved links).</summary>
+    protected Dictionary<string, string> Aliases { get; } = [];
+
     public void Select(string key)
     {
+        if (Aliases.TryGetValue(key, out var now)) key = now;
         if (_entries.TryGetValue(key, out var entry)) entry.tab.IsChecked = true;
     }
 
