@@ -582,6 +582,7 @@ public partial class MainWindow : Window
     {
         var s = Hub.I.Snapshot;
         SideWatts.Text = s.TotalWatts > 0 ? $"{s.TotalWatts:0} W" : "— W";
+        SideWattRow.Visibility = Hub.I.Settings.ShowSideWatts ? Visibility.Visible : Visibility.Collapsed;
         SideNext.Text = Hub.I.NextText();
         // the game that is running, and for how long
         if (s.GameName.Length > 0 && s.GameSince is { } since)

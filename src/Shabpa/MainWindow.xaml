@@ -150,7 +150,7 @@
                     </Border>
                     <kit:GlassCard CornerRadius="14" Padding="14,12">
                         <StackPanel>
-                            <DockPanel>
+                            <DockPanel x:Name="SideWattRow">
                                 <Ellipse x:Name="LiveDot" Width="7" Height="7" Fill="{DynamicResource Green}" DockPanel.Dock="Left" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="SideWatts" FontFamily="{StaticResource Num}" Text="— W" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource Text}"
                                            FlowDirection="LeftToRight" HorizontalAlignment="Right"/>
