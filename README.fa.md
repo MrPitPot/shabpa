@@ -6,7 +6,7 @@
 
 **نگهبان شبانه‌ی ویندوز** - کنترل برق زمان‌بندی‌شده، اورلی بازی، ابزارهای شبکه، کارهای روزانه، پشتیبان‌گیری و سلامت سیستم، توی یه برنامه‌ی سبک.
 
-[**دانلود**](https://github.com/MrPitPot/shabpa/releases/latest) &nbsp;·&nbsp; [وب‌سایت](https://shabpa.ir) &nbsp;·&nbsp; [English](README.md) &nbsp;·&nbsp; [تاریخچه‌ی تغییرات](CHANGELOG.md) &nbsp;·&nbsp; [کانال تلگرام](https://t.me/ShabPa_App)
+[**دانلود**](https://github.com/MrPitPot/shabpa/releases/latest/download/ShabpaSetup.exe) &nbsp;·&nbsp; [وب‌سایت](https://shabpa.ir) &nbsp;·&nbsp; [English](README.md) &nbsp;·&nbsp; [تاریخچه‌ی تغییرات](CHANGELOG.md) &nbsp;·&nbsp; [کانال تلگرام](https://t.me/ShabPa_App)
 
 کد: [گیت‌هاب](https://github.com/MrPitPot/shabpa) ([نسخه‌ها](https://github.com/MrPitPot/shabpa/releases) و [گزارش مشکل](https://github.com/MrPitPot/shabpa/issues))
 

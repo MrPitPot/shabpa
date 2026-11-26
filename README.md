@@ -6,12 +6,12 @@
 
 **A night watch for your Windows PC** - scheduled power control, gaming overlay, network tools, daily tasks, backups and system health in one light app.
 
-[![Release](https://img.shields.io/github/v/release/MrPitPot/shabpa)](https://github.com/MrPitPot/shabpa/releases/latest)
+[![Latest Release](https://img.shields.io/github/v/release/MrPitPot/shabpa?label=Latest%20Release)](https://github.com/MrPitPot/shabpa/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D4)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4)
 
-[**Download**](https://github.com/MrPitPot/shabpa/releases/latest) &nbsp;·&nbsp; [Website](https://shabpa.ir) &nbsp;·&nbsp; [فارسی](README.fa.md) &nbsp;·&nbsp; [Changelog](CHANGELOG.md) &nbsp;·&nbsp; [Telegram](https://t.me/ShabPa_App)
+[**Download**](https://github.com/MrPitPot/shabpa/releases/latest/download/ShabpaSetup.exe) &nbsp;·&nbsp; [Website](https://shabpa.ir) &nbsp;·&nbsp; [فارسی](README.fa.md) &nbsp;·&nbsp; [Changelog](CHANGELOG.md) &nbsp;·&nbsp; [Telegram](https://t.me/ShabPa_App)
 
 Code: [GitHub](https://github.com/MrPitPot/shabpa) ([releases](https://github.com/MrPitPot/shabpa/releases) and [issues](https://github.com/MrPitPot/shabpa/issues))
 
