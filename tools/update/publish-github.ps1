@@ -114,14 +114,21 @@ try {
     if ($download.StatusCode -ne 200) { throw 'Public installer is unavailable.' }
 
     for ($attempt = 0; $attempt -lt 36; $attempt++) {
-        $public = Invoke-RestMethod ($feed + 'latest.json') -TimeoutSec 10
-        if ($public.version -eq $Version) {
-            Write-Output "https://github.com/$repo/releases/tag/$tag"
-            return
+        try {
+            $public = Invoke-RestMethod ($feed + 'latest.json') -TimeoutSec 10
+            if ($public.version -eq $Version) {
+                $website = Invoke-RestMethod "https://shabpa.ir/api/latest?release=$Version" -TimeoutSec 10
+                if ($website.version -eq $Version -and $website.sha256 -eq $public.sha256) {
+                    Write-Output "https://github.com/$repo/releases/tag/$tag"
+                    return
+                }
+            }
+        } catch {
+            Write-Verbose "Waiting for GitHub and shabpa.ir to agree: $($_.Exception.Message)"
         }
         Start-Sleep -Seconds 5
     }
-    throw 'Release is public, but the GitHub update feed has not refreshed yet.'
+    throw 'Release is public, but GitHub and shabpa.ir have not both confirmed the new version yet.'
 } finally {
     $env:GH_TOKEN = $priorGithubToken
     $env:SHABPA_SIGN_KEY = $priorSigningKey
