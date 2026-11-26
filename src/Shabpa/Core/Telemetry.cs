@@ -257,7 +257,7 @@ public sealed class Telemetry : IDisposable
             _board = null;
         }
 
-        var (fps, low, frameMs, fpsProcess) = _background ? (0, 0, 0, "") : ReadFrames();
+        var (fps, low, frameMs, fpsProcess) = _background ? (0, 0, 0, "") : ReadFrames(sensors.GameProcess);
         return new TelemetrySample
         {
             Time = now,
@@ -353,7 +353,7 @@ public sealed class Telemetry : IDisposable
     /// <summary>The frame rate to show. A game (or any program drawing in front): its own presents, from the graphics trace.
     /// With only the desktop in front: how many frames Windows' compositor (DWM) really produced per second.
     /// The monitor's refresh rate is kept apart in <see cref="_refreshHz"/>.</summary>
-    private (double fps, double low, double frameMs, string process) ReadFrames()
+    private (double fps, double low, double frameMs, string process) ReadFrames(string gameProcess)
     {
         var window = Native.GetForegroundWindow();
         _refreshHz = DisplayRate.MonitorHz(window);
@@ -370,6 +370,18 @@ public sealed class Telemetry : IDisposable
         {
             Native.GetWindowThreadProcessId(window, out var foreground);
             var pid = (int)foreground;
+            if (gameProcess.Length > 0)
+            {
+                bool MatchesGame(int candidate) => string.Equals(NameOf(candidate), gameProcess, StringComparison.OrdinalIgnoreCase);
+                var gameStats = pid > 0 && MatchesGame(pid) ? _fps.Stats(pid) : FrameStats.None;
+                if (gameStats.Frames < 5)
+                {
+                    if (_fps.Busiest(MatchesGame) is not { } game) return (0, 0, 0, "");
+                    (pid, gameStats) = game;
+                }
+                return (gameStats.Fps, gameStats.OnePercentLowFps, gameStats.AverageFrameMs, NameOf(pid));
+            }
+
             // the desktop, taskbar or Shabpa itself in front: their few presents are not "the frame rate" of anything
             var stats = pid == 0 || IsShell(pid) ? FrameStats.None : _fps.Stats(pid);
             if (stats.Frames < 5)

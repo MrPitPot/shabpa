@@ -40,6 +40,58 @@ public class FrameStatsTests
     }
 }
 
+public class PresentTrackTests
+{
+    [Fact]
+    public void Interleaved_swap_chains_do_not_double_a_games_frame_rate()
+    {
+        var tracks = new PresentTracks();
+        const int game = 42;
+        const double frameMs = 1000.0 / 60;
+        for (var i = 0; i < 120; i++)
+        {
+            tracks.Record(game, true, new IntPtr(100), 0U, i * frameMs);
+            tracks.Record(game, true, 200UL, 0U, (i + 0.5) * frameMs);
+        }
+
+        var stats = tracks.Stats(game);
+        Assert.Equal(120, stats.Frames);
+        Assert.Equal(60, stats.Fps, 1);
+        Assert.Equal(frameMs, stats.AverageFrameMs, 2);
+    }
+
+    [Fact]
+    public void Dxgi_probes_and_unidentified_presents_are_excluded()
+    {
+        var tracks = new PresentTracks();
+        const int game = 42;
+        const double frameMs = 1000.0 / 60;
+        for (var i = 0; i < 120; i++)
+        {
+            tracks.Record(game, true, 100UL, 0U, i * frameMs);
+            tracks.Record(game, true, 100UL, 1U, (i + 0.25) * frameMs);
+            tracks.Record(game, true, null, 0U, (i + 0.5) * frameMs);
+            tracks.Record(game, true, 100UL, null, (i + 0.75) * frameMs);
+        }
+
+        Assert.Equal(120, tracks.Stats(game).Frames);
+        Assert.Equal(60, tracks.Stats(game).Fps, 1);
+    }
+
+    [Fact]
+    public void Another_process_cannot_supply_fps_when_the_game_has_no_samples()
+    {
+        var tracks = new PresentTracks();
+        const int game = 42;
+        const int other = 43;
+        for (var i = 0; i < 120; i++)
+            tracks.Record(other, true, 100UL, 0U, i * (1000.0 / 120));
+
+        Assert.Equal(120, tracks.Busiest()!.Value.stats.Fps, 1);
+        Assert.Null(tracks.Busiest(pid => pid == game));
+    }
+}
+
 public class GpuProbeTests
 {
     [Fact]

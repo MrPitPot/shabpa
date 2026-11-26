@@ -19,30 +19,28 @@ public sealed record UpdateCheckResult(UpdateManifest? Manifest, UpdateSource? S
 /// (tests pass a fake handler), nothing here touches the UI thread.</summary>
 public sealed class UpdateSources(HttpClient http, string publicKey, bool allowLocal = false)
 {
-    public const string CodebergId = "codeberg", GitLabId = "gitlab", SiteId = "shabpa.ir", DomesticId = "dl.shabpa.ir", ArvanId = "arvan", CustomId = "custom";
+    public const string GitHubId = "github", SiteId = "shabpa.ir", DomesticId = "dl.shabpa.ir", ArvanId = "arvan", CustomId = "custom";
     /// <summary>The public ArvanCloud storage box (Iran, Tehran) that serves /update/ when the international internet is cut.</summary>
     public const string ArvanBase = "https://shabpa-dl.s3.ir-central1.arvanstorage.ir/update/";
-    /// <summary>The signed manifest sits on a branch of its own ("updates") of both code homes, so its address never changes with a release.</summary>
-    public const string CodebergManifest = "https://codeberg.org/" + Updater.DefaultFeed + "/raw/branch/updates/latest.json";
-    public const string GitLabManifest = "https://gitlab.com/MrPitPot/shabpa_app/-/raw/updates/latest.json";
+    /// <summary>The GitHub updates branch serves the current signed manifest.</summary>
+    public const string GitHubManifest = "https://raw.githubusercontent.com/" + Updater.DefaultFeed + "/updates/latest.json";
 
     /// <summary>Short timeout for the manifest of each source (so a dead one costs seconds, not minutes).</summary>
     public TimeSpan ManifestTimeout { get; init; } = TimeSpan.FromSeconds(6);
 
-    /// <summary>The built-in sources in order, then the user's extra mirror; the last one that worked goes first.</summary>
+    /// <summary>GitHub first, then the built-in mirrors and the user's extra mirror.</summary>
     public static IReadOnlyList<UpdateSource> Build(string extraMirror, string lastWorkingId, bool allowLocal = false)
     {
         var list = new List<UpdateSource>
         {
-            new(CodebergId, "Codeberg", CodebergManifest),
-            new(GitLabId, "GitLab", GitLabManifest),
+            new(GitHubId, "GitHub", GitHubManifest),
             new(SiteId, "shabpa.ir", "https://shabpa.ir/update/latest.json"),
             new(ArvanId, "ArvanCloud", ArvanBase + "latest.json"),
             new(DomesticId, "dl.shabpa.ir", "https://dl.shabpa.ir/update/latest.json"),
         };
         if (NormalizeMirror(extraMirror, allowLocal) is { } custom) list.Add(new UpdateSource(CustomId, custom, custom));
         var last = list.FirstOrDefault(s => s.Id == lastWorkingId);
-        if (last is not null) { list.Remove(last); list.Insert(0, last); }
+        if (last is not null && last.Id != GitHubId) { list.Remove(last); list.Insert(1, last); }
         return list;
     }
 

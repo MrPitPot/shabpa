@@ -1,14 +1,15 @@
 # Updates that survive a cut-off internet
 
 Shabpa checks an ordered list of **sources**. Each one serves a tiny signed manifest (`latest.json` + `latest.json.sig`)
-and the installer. The first source that answers wins (6 s timeout each); the one that worked last time is tried first.
+and the installer. GitHub is checked first (6 s timeout per source), followed by the last successful mirror and the remaining mirrors.
 
 | # | Source | Manifest | Notes |
 |---|--------|----------|-------|
-| 1 | Codeberg release | `https://codeberg.org/MrPitPot/Shabpa_app/releases/latest/download/latest.json` | attach `latest.json` and `latest.json.sig` to every release |
+| 1 | GitHub | `https://raw.githubusercontent.com/MrPitPot/shabpa/updates/latest.json` | publish the signed pair to the `updates` branch after uploading the release assets |
 | 2 | shabpa.ir | `https://shabpa.ir/update/latest.json` | static files in the site repo (`public/update/`) |
-| 3 | dl.shabpa.ir | `https://dl.shabpa.ir/update/latest.json` | domestic host (placeholder until provisioned) |
-| 4 | Extra mirror | whatever the person types in Updates, Update settings | HTTPS only |
+| 3 | ArvanCloud | `https://shabpa-dl.s3.ir-central1.arvanstorage.ir/update/latest.json` | public fallback |
+| 4 | dl.shabpa.ir | `https://dl.shabpa.ir/update/latest.json` | domestic host (placeholder until provisioned) |
+| 5 | Extra mirror | whatever the person types in Updates, Update settings | HTTPS only |
 
 ## Trust model
 
@@ -18,7 +19,7 @@ and the installer. The first source that answers wins (6 s timeout each); the on
   A mismatch deletes the download and the next address is tried.
 * Refused: bad/missing signature, wrong key, older version than installed (downgrade), `minAppVersion` above the installed version,
   non-HTTPS addresses (also HTTPS to HTTP redirects), oversize manifest (128 KB) or installer (200 MB or more than the signed size).
-* Until `PublicKeyBase64` is filled in, every signed source is rejected (fails closed) and only the legacy GitHub path works.
+* Until `PublicKeyBase64` is filled in, every signed source is rejected (fails closed).
 * Authenticode / installer behaviour is unchanged: the installer still runs with `--quiet --update --launch`.
 
 ## One-time setup (owner)

@@ -47,7 +47,9 @@ public partial class MainWindow
     private void Reveal(Palette next, FrameworkElement? origin)
     {
         FinishReveal();
-        var animate = Motion.Enabled && IsLoaded && Shown && Root.ActualWidth > 40 && Root.ActualHeight > 40;
+        // A scene already fades in. Taking a full-window bitmap here makes WPF render the animated tree synchronously.
+        var hasScene = _scene is not null || PremiumTheme.Find(next.BaseKey ?? next.Key) is not null;
+        var animate = !hasScene && Motion.Enabled && IsLoaded && Shown && Root.ActualWidth > 40 && Root.ActualHeight > 40;
         Image? picture = null;
         if (animate)
         {

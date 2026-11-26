@@ -17,16 +17,15 @@ public sealed record UpdateInfo(Version Version, string Notes, string DownloadUr
 
 public enum UpdateState { NotConfigured, Idle, Checking, UpToDate, Available, Downloading, Installing, Error }
 
-/// <summary>Checks the signed update manifest of the mirrors (Codeberg, GitLab, shabpa.ir, ArvanCloud), downloads the
+/// <summary>Checks the signed update manifest of the GitHub and the mirrors, downloads the
 /// installer, verifies it and runs it silently. The installer closes this app, replaces it and starts it again.</summary>
 public sealed class Updater
 {
-    /// <summary>Where releases are published: "owner/repo" on Codeberg, or an https:// URL to a manifest
-    /// like {"version":"2.1.0","url":"https://…/ShabpaSetup.exe","sha256":"…","notes":"…"}.</summary>
-    public const string DefaultFeed = "MrPitPot/Shabpa_app";
+    /// <summary>The official GitHub repository in owner/name form.</summary>
+    public const string DefaultFeed = "MrPitPot/shabpa";
 
     /// <summary>The page people can open to see every release.</summary>
-    public const string ReleasesPage = "https://codeberg.org/" + DefaultFeed + "/releases";
+    public const string ReleasesPage = "https://github.com/" + DefaultFeed + "/releases";
 
     public const string SetupName = "ShabpaSetup.exe";
 

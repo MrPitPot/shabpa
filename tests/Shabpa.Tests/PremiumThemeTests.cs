@@ -3,9 +3,38 @@ using Shabpa.Core;
 
 namespace Shabpa.Tests;
 
+[Collection("Wpf")]
 public class PremiumThemeTests
 {
     public static IEnumerable<object[]> Keys() => PremiumTheme.All.Select(t => new object[] { t.Key });
+
+    [Fact]
+    public void Removing_a_premium_scene_releases_its_children_and_fade()
+    {
+        StaRunner.Run(() =>
+        {
+            var scene = new Shabpa.Kit.ThemeScene(Scene.Rain);
+            var window = new System.Windows.Window { Content = scene, ShowActivated = false, Width = 400, Height = 200 };
+            try
+            {
+                window.Show();
+                StaRunner.Pump(30);
+                Assert.True(scene.IsLoaded);
+                scene.Children.Add(new System.Windows.Controls.Border());
+                scene.BeginAnimation(System.Windows.UIElement.OpacityProperty,
+                    new System.Windows.Media.Animation.DoubleAnimation(0.5, 0.5, TimeSpan.FromSeconds(10)));
+
+                window.Content = null;
+                StaRunner.Pump(30);
+
+                Assert.False(scene.IsLoaded);
+                Assert.Empty(scene.Children);
+                Assert.False(scene.HasAnimatedProperties);
+                Assert.Equal(1, scene.Opacity);
+            }
+            finally { window.Close(); }
+        });
+    }
 
     [Fact]
     public void There_are_ten_with_their_own_keys_scenes_and_prices_and_none_repeats_a_free_theme()

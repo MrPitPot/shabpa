@@ -486,6 +486,18 @@ public partial class App : Application
         if (Value(e.Args, "--page") is { } page) _window.Navigate(page);
         if (shots is not null)
         {
+#if DEBUG || SHABPA_TESTHOOKS
+            if (demo && Value(e.Args, "--restore-test") is { } restoreReport)
+            {
+                _window.Title = "Shabpa restore test";
+                ShowWindow();
+                _ = Pages.WindowRestoreProbe.Run(this, _window, restoreReport,
+                    int.TryParse(Value(e.Args, "--rounds"), out var rounds) ? Math.Clamp(rounds, 1, 100) : 6,
+                    int.TryParse(Value(e.Args, "--hidden-ms"), out var hiddenMs) ? Math.Clamp(hiddenMs, 200, 600_000) : 500,
+                    int.TryParse(Value(e.Args, "--inspect-ms"), out var inspectMs) ? Math.Clamp(inspectMs, 0, 120_000) : 0);
+                return;
+            }
+#endif
             // screenshot runs render the window's own visual tree; the window itself sits far off-screen and never takes focus
             _window.WindowStartupLocation = WindowStartupLocation.Manual;
             _window.Left = -30000;
