@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 namespace Shabpa.Core;
 
 /// <summary>A game Shabpa recognised: the program, a readable name, and when the program started.</summary>
-public sealed record GameInfo(int Pid, string Process, string Name, DateTime Start);
+public sealed record GameInfo(int Pid, string Process, string Name, DateTime Start, string? Path = null);
 
 /// <summary>The decision rules for "is this a game", kept apart from Windows so they can be tested.</summary>
 public static class GameRules
@@ -37,8 +37,9 @@ public static class GameRules
 
     /// <param name="notificationState">Windows' "is a full-screen app up" answer: 2 = full screen, 3 = exclusive Direct3D.</param>
     /// <param name="coversScreen">The foreground window fills its whole monitor (borderless or full screen).</param>
-    /// <param name="usesGraphics">The program has loaded a game graphics library (Direct3D 9/11/12, Vulkan, OpenGL).</param>
-    public static bool Decide(int notificationState, double gpuLoad, bool coversScreen, bool usesGraphics, string? path, string process, IEnumerable<string> userGames)
+    /// <param name="usesGraphics">The program has loaded a game graphics library (Direct3D 9/11/12, Vulkan, OpenGL); null when
+    /// its library list could not be read (an anti-cheat such as Vanguard or FACEIT guards the game, or it runs as administrator).</param>
+    public static bool Decide(int notificationState, double gpuLoad, bool coversScreen, bool? usesGraphics, string? path, string process, IEnumerable<string> userGames)
     {
         if (process.Length == 0 || process.Equals("shabpa", StringComparison.OrdinalIgnoreCase)) return false;
         var listed = userGames.Any(g => string.Equals(RuleEngine.NormalizeProcess(g), process, StringComparison.OrdinalIgnoreCase));
@@ -46,10 +47,13 @@ public static class GameRules
         if (IsNotAGame(process)) return false;
         if (notificationState == 3) return true;
         if (notificationState == 2 && gpuLoad >= 35) return true;
-        // a program from a game folder with a window on top and the graphics card working
-        if (IsGamePath(path) && usesGraphics && gpuLoad >= 5) return true;
+        // a program from a game folder with a window on top and the graphics card working (a guarded game whose libraries
+        // cannot be read counts too: a light game such as Valorant on a strong card keeps it well under the full-screen bar)
+        if (IsGamePath(path) && usesGraphics != false && gpuLoad >= 5) return true;
         // a borderless game: fills the screen, uses a game graphics library and keeps the card busy
-        return coversScreen && usesGraphics && gpuLoad >= 15;
+        if (coversScreen && usesGraphics == true && gpuLoad >= 15) return true;
+        // fills the screen but its libraries are hidden: only a card that is clearly working says game
+        return coversScreen && usesGraphics is null && gpuLoad >= 35;
     }
 
     /// <summary>"3:07:12" or "12:05".</summary>
@@ -70,8 +74,14 @@ public sealed class GameWatcher
     [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr hwnd, out Rect rect);
     [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
     [DllImport("user32.dll")] private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
+    [DllImport("kernel32.dll", SetLastError = true)] private static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
+    [DllImport("kernel32.dll")] private static extern bool CloseHandle(IntPtr handle);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool QueryFullProcessImageNameW(IntPtr process, uint flags, System.Text.StringBuilder name, ref uint size);
 
-    private sealed record Facts(int Pid, string Process, string? Path, bool UsesGraphics, string Name, DateTime Start);
+    private const uint QueryLimitedInformation = 0x1000;
+
+    private sealed record Facts(int Pid, string Process, string? Path, bool? UsesGraphics, string Name, DateTime Start);
 
     private Facts? _facts;
     private GameInfo? _last;
@@ -97,7 +107,7 @@ public sealed class GameWatcher
             var covers = Covers(hwnd);
             var game = GameRules.Decide(notificationState, gpuLoad, covers, _facts.UsesGraphics, _facts.Path, _facts.Process, userGames);
             if (game && (_last is null || _last.Pid != _facts.Pid))
-                _last = new GameInfo(_facts.Pid, _facts.Process, _facts.Name, _facts.Start);
+                _last = new GameInfo(_facts.Pid, _facts.Process, _facts.Name, _facts.Start, _facts.Path);
             return game;
         }
         catch
@@ -128,6 +138,37 @@ public sealed class GameWatcher
         return r.Left <= info.Monitor.Left + 2 && r.Top <= info.Monitor.Top + 2 && r.Right >= info.Monitor.Right - 2 && r.Bottom >= info.Monitor.Bottom - 2;
     }
 
+    /// <summary>The program's file through a "limited information" handle, which guarded and elevated games still hand out.</summary>
+    private static string? ImagePath(int pid)
+    {
+        var handle = OpenProcess(QueryLimitedInformation, false, pid);
+        if (handle == IntPtr.Zero) return null;
+        try
+        {
+            var size = 1024u;
+            var buffer = new System.Text.StringBuilder((int)size);
+            return QueryFullProcessImageNameW(handle, 0, buffer, ref size) ? buffer.ToString(0, (int)size) : null;
+        }
+        finally
+        {
+            CloseHandle(handle);
+        }
+    }
+
+    private static string? ProductName(string path)
+    {
+        try
+        {
+            var info = FileVersionInfo.GetVersionInfo(path);
+            return info.ProductName is { Length: > 1 } product && !product.Equals("Unreal Engine", StringComparison.OrdinalIgnoreCase) ? product
+                : info.FileDescription is { Length: > 1 } description ? description : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private static Facts? Look(int pid)
     {
         try
@@ -135,25 +176,28 @@ public sealed class GameWatcher
             using var p = Process.GetProcessById(pid);
             var name = p.ProcessName.ToLowerInvariant();
             string? path = null;
-            var graphics = false;
+            bool? graphics = null;
             var title = name;
             var start = DateTime.Now;
             try
             {
                 path = p.MainModule?.FileName;
                 start = p.StartTime;
-                var info = path is null ? null : FileVersionInfo.GetVersionInfo(path);
-                title = info?.ProductName is { Length: > 1 } product && !product.Equals("Unreal Engine", StringComparison.OrdinalIgnoreCase) ? product
-                    : info?.FileDescription is { Length: > 1 } description ? description : name;
+                title = (path is null ? null : ProductName(path)) ?? name;
+                var found = false;
                 foreach (ProcessModule module in p.Modules)
                 {
                     var m = module.ModuleName.ToLowerInvariant();
-                    if (m is "d3d9.dll" or "d3d11.dll" or "d3d12.dll" or "vulkan-1.dll" or "opengl32.dll") { graphics = true; break; }
+                    if (m is "d3d9.dll" or "d3d11.dll" or "d3d12.dll" or "vulkan-1.dll" or "opengl32.dll") { found = true; break; }
                 }
+                graphics = found;
             }
             catch
             {
-                // another program's details need rights Shabpa may not have; the name alone still works
+                // another program's details need rights Shabpa may not have (an anti-cheat guards the game, or it runs as
+                // administrator): its libraries stay unknown, and its file is still asked for with the smallest right there is
+                path ??= ImagePath(pid);
+                if (title == name && path is not null) title = ProductName(path) ?? name;
             }
             return new Facts(pid, name, path, graphics, title.Trim(), start);
         }
