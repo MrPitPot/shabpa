@@ -9,8 +9,8 @@ installer="$1"; version="$2"; out="${3:-$(dirname "$installer")}"
 [ -f "$installer" ] || { echo "missing $installer" >&2; exit 1; }
 
 json_escape() { # stdin -> JSON string body
-  python3 -c 'import json,sys; print(json.dumps(sys.stdin.read().strip())[1:-1])' 2>/dev/null \
-    || python -c 'import json,sys; print(json.dumps(sys.stdin.read().strip())[1:-1])'
+  python3 -X utf8 -c 'import json,sys; print(json.dumps(sys.stdin.read().strip())[1:-1])' 2>/dev/null \
+    || python -X utf8 -c 'import json,sys; print(json.dumps(sys.stdin.read().strip())[1:-1])'
 }
 note() { if [ -n "${1:-}" ] && [ -f "$1" ]; then json_escape < "$1"; fi; }
 
