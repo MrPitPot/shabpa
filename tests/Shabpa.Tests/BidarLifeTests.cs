@@ -125,6 +125,7 @@ public class BidarBrainTests
     [InlineData(BidarCue.BadPing, BidarAct.Worry)]
     [InlineData(BidarCue.ShutdownSoon, BidarAct.Alert)]
     [InlineData(BidarCue.Error, BidarAct.Dizzy)]
+    [InlineData(BidarCue.Welcome, BidarAct.Hello)]
     public void App_events_get_their_own_reaction(BidarCue cue, BidarAct expected)
     {
         var brain = new BidarBrain(1);
@@ -655,6 +656,7 @@ public class BidarLifeWpfTests
             r.Life.Start();
             var acts = new HashSet<BidarAct>();
             var flights = 0;
+            var walks = 0;
             r.Life.Landed += () => flights++;
             for (var i = 0; i < 400; i++)
             {
@@ -662,10 +664,12 @@ public class BidarLifeWpfTests
                 r.Life.Tick();
                 if (r.Life.CurrentAct is { } a) acts.Add(a);
                 if (r.Life.Flying) r.Life.LandNow();
+                if (r.Life.Walking) { walks++; r.Life.StepWalk(r.Life.Route!.Seconds + 0.01); }
                 r.Host = r.Host with { Now = r.Clock };
             }
             Assert.True(acts.Count >= 8, string.Join(",", acts));
             Assert.True(flights >= 2, $"flights {flights}");
+            Assert.True(walks >= 2, $"walks {walks}");
             Assert.Contains(BidarAct.Doze, acts);
             Assert.False(r.Life.RenderingHooked);
             r.Life.Stop();

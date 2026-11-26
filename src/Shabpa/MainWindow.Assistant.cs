@@ -20,6 +20,7 @@ public partial class MainWindow
     private Canvas? _stage;
     private BidarLife? _life;
     private DateTime _lastInput = DateTime.MinValue;
+    private static readonly TimeSpan WelcomeAfter = TimeSpan.FromMinutes(10);
 
     private void InitAssistantDock()
     {
@@ -51,6 +52,11 @@ public partial class MainWindow
         PreviewMouseDown += (_, _) => TouchInput();
         PreviewMouseWheel += (_, _) => TouchInput();
         PreviewMouseMove += (_, e) => _life?.OnCursor(e.GetPosition(_stage));
+        // back after a long break (ten quiet minutes or more): he waves hello, at most once every ten minutes
+        Activated += (_, _) =>
+        {
+            if (_lastInput != DateTime.MinValue && DateTime.Now - _lastInput >= WelcomeAfter) _life?.Cue(BidarCue.Welcome);
+        };
         Scroller.ScrollChanged += (_, e) => { if (e.VerticalChange != 0) _life?.PageChanged(); };
         Hub.I.AssistantDockChanged += OnDockSetting;
         Closed += (_, _) =>

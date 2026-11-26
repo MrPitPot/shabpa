@@ -10,7 +10,7 @@ namespace Shabpa.Kit;
 /// <summary>Gives the corner owl a life of his own. The brain (Core/BidarBrain.cs) decides, the path maker (Core/BidarFlight.cs) plans,
 /// the rig (BidarOwl) draws; this class only joins them.
 /// Cost model: ONE <see cref="DispatcherTimer"/> that fires every 4 to 15 seconds (and once more for each pose that is held), and
-/// <see cref="CompositionTarget.Rendering"/> hooked only while a flight is in the air. A settled owl costs nothing.
+/// <see cref="CompositionTarget.Rendering"/> hooked only while a flight is in the air or a walk is under way. A settled owl costs nothing.
 /// The timer stops when the owl is hidden or unloaded and everything is unsubscribed then.</summary>
 public sealed class BidarLife : IDisposable
 {
@@ -53,11 +53,16 @@ public sealed class BidarLife : IDisposable
     // ---- state the tests and the host can read ----------------------------------------------------------------------------
     public bool Running => _running;
     public bool Flying { get; private set; }
+    /// <summary>Waddling along the bottom of the page to another free spot on the same row.</summary>
+    public bool Walking { get; private set; }
+    /// <summary>A flight or a walk is under way (the render clock is driving him).</summary>
+    public bool Moving => Flying || Walking;
     public bool Asleep => _asleep;
     public BidarAct? CurrentAct { get; private set; }
     public bool RenderingHooked => _hooked;
     public bool TimerEnabled => _timer.IsEnabled;
     public FlightPlan? Plan { get; private set; }
+    public WalkPlan? Route { get; private set; }
     public Pt Rest { get; private set; }
     /// <summary>Where the owl is drawn right now (resting place plus the flight offset).</summary>
     public Pt Position => new(Rest.X + _move.X, Rest.Y + _move.Y);
@@ -94,6 +99,7 @@ public sealed class BidarLife : IDisposable
         _owl.MouseEnter -= OnEnter;
         _owl.IsVisibleChanged -= OnVisible;
         if (Flying) { Flying = false; Plan = null; SetRest(Rest); }
+        if (Walking) HaltWalk();
         _asleep = false;
         _restoreAt = DateTime.MinValue;
     }
@@ -107,6 +113,7 @@ public sealed class BidarLife : IDisposable
         {
             _timer.Stop();
             if (Flying) LandNow();
+            if (Walking) HaltWalk();
         }
     }
 
@@ -142,6 +149,7 @@ public sealed class BidarLife : IDisposable
     public void Resized()
     {
         if (Flying) LandNow();
+        if (Walking) HaltWalk();
         var area = Area;
         if (_atHome) { PlaceHome(); PageChanged(); return; }
         SetRest(Perches.Clamp(Rest, area, W, H));
@@ -151,7 +159,7 @@ public sealed class BidarLife : IDisposable
     /// <summary>The page behind changed (a tab switch, a scroll): check at the next quiet moment that the owl still sits on free space.</summary>
     public void PageChanged()
     {
-        if (_running && _owl.IsVisible && !Flying && _restoreAt == DateTime.MinValue && _clock() >= _busyUntil) { _maintenance = true; Arm(TimeSpan.FromMilliseconds(700)); }
+        if (_running && _owl.IsVisible && !Moving && _restoreAt == DateTime.MinValue && _clock() >= _busyUntil) { _maintenance = true; Arm(TimeSpan.FromMilliseconds(700)); }
     }
 
     // ---- the scheduler -----------------------------------------------------------------------------------------------------
@@ -159,7 +167,7 @@ public sealed class BidarLife : IDisposable
     private BrainContext Context(DateTime now) => _host() with
     {
         Now = now,
-        Busy = Flying || now < _busyUntil,
+        Busy = Moving || now < _busyUntil,
         Asleep = _asleep,
         IdleFor = now - _lastActivity,
     };
@@ -170,7 +178,7 @@ public sealed class BidarLife : IDisposable
         _timer.Stop();
         if (!_running) return;
         var now = _clock();
-        if (Flying) return; // the render clock ends the flight and re-arms
+        if (Moving) return; // the render clock ends the flight or the walk and re-arms
         if (_restoreAt != DateTime.MinValue)
         {
             if (now < _restoreAt) { Arm(_restoreAt - now); return; }
@@ -192,10 +200,10 @@ public sealed class BidarLife : IDisposable
         if (pause != PauseReason.None && !(maintenance && pause is PauseReason.UserBusy or PauseReason.Inactive or PauseReason.Busy)) { Arm(_brain.NextGap()); return; }
         _noGo = _scan();
         var moved = Revalidate();
-        if (moved || maintenance || pause != PauseReason.None) { if (!_timer.IsEnabled && !Flying) Arm(_brain.NextGap()); return; }
-        var act = _brain.Pick(ctx with { CanFly = CanFly() });
+        if (moved || maintenance || pause != PauseReason.None) { if (!_timer.IsEnabled && !Moving) Arm(_brain.NextGap()); return; }
+        var act = _brain.Pick(ctx with { CanFly = CanFly(), CanWalk = CanWalk() });
         if (act is { } a) Play(a);
-        if (!_timer.IsEnabled && !Flying) Arm(_brain.NextGap());
+        if (!_timer.IsEnabled && !Moving) Arm(_brain.NextGap());
     }
 
     // ---- acts --------------------------------------------------------------------------------------------------------------------
@@ -248,6 +256,9 @@ public sealed class BidarLife : IDisposable
             case BidarAct.Fly:
                 if (!StartFlight()) { _owl.Bounce(); Busy(650); CurrentAct = BidarAct.Hop; }
                 break;
+            case BidarAct.Walk:
+                if (!StartWalk()) { _owl.LookAround(); Busy(2600); CurrentAct = BidarAct.LookAround; }
+                break;
             case BidarAct.Curious: _owl.Curious(dx, dy); Busy(1800); break;
             case BidarAct.Startle: _owl.SetMood(BidarMood.Surprised); _owl.Bounce(true); HoldFor(1400); break;
             case BidarAct.Celebrate: _owl.SetMood(BidarMood.Celebrate); _owl.Bounce(true); HoldFor(3400); break;
@@ -274,6 +285,7 @@ public sealed class BidarLife : IDisposable
     public void Interrupt()
     {
         if (Flying) LandNow();
+        if (Walking) HaltWalk();
         _restoreAt = DateTime.MinValue;
         _busyUntil = DateTime.MinValue;
         _asleep = false;
@@ -328,7 +340,7 @@ public sealed class BidarLife : IDisposable
     /// <summary>The pointer moved (stage coordinates). He follows it with his eyes when near, and may lean over for a closer look.</summary>
     public void OnCursor(Point p)
     {
-        if (!_running || Flying || _asleep) return;
+        if (!_running || Moving || _asleep) return;
         var tick = Environment.TickCount64;
         if (tick - _lastCursorTick < 40) return;
         _lastCursorTick = tick;
@@ -361,7 +373,7 @@ public sealed class BidarLife : IDisposable
     /// Returns true when he moved or started to.</summary>
     private bool Revalidate()
     {
-        if (Flying) return false;
+        if (Moving) return false;
         var area = Area;
         if (area.W < 3 * W || area.H < 2 * H) return false;
         var rtl = _rtl();
@@ -382,7 +394,7 @@ public sealed class BidarLife : IDisposable
     /// <summary>Takes off now toward a random free resting place; false when there is none (or the path is blocked).</summary>
     public bool FlyNow()
     {
-        if (!_running || Flying) return false;
+        if (!_running || Moving) return false;
         _noGo = _scan();
         _ready = null;
         return StartFlight();
@@ -443,14 +455,21 @@ public sealed class BidarLife : IDisposable
 
     private double _seek;
 
-    private void OnRender(object? sender, EventArgs e) => StepFlight(_seek + _sw.Elapsed.TotalSeconds);
+    private void OnRender(object? sender, EventArgs e)
+    {
+        var elapsed = _seek + _sw.Elapsed.TotalSeconds;
+        if (Flying) StepFlight(elapsed);
+        else if (Walking) StepWalk(elapsed);
+        else Unhook();
+    }
 
     /// <summary>Jumps the running flight clock to <paramref name="elapsed"/> seconds (the screenshot probe holds a mid-air frame this way).</summary>
     public void Seek(double elapsed)
     {
         _seek = elapsed;
         _sw.Restart();
-        StepFlight(elapsed);
+        if (Walking) StepWalk(elapsed);
+        else StepFlight(elapsed);
     }
 
     /// <summary>Moves the owl to where the flight is <paramref name="elapsed"/> seconds in. Public so a test can step it by hand.</summary>
@@ -483,5 +502,82 @@ public sealed class BidarLife : IDisposable
         _owl.Settle();
         Landed?.Invoke();
         if (_running && _owl.IsVisible) Arm(_brain.NextGap());
+    }
+
+    // ---- walking -----------------------------------------------------------------------------------------------------------------
+
+    private WalkPlan? _readyWalk;
+
+    private bool CanWalk()
+    {
+        _readyWalk = FindWalk();
+        return _readyWalk is not null;
+    }
+
+    /// <summary>A walk to a random free spot on the same row whose whole strip is clear, or null. Unlike a flight there is no
+    /// fallback over content: if anything lies in the way he stays put (or flies, if the brain picks that).</summary>
+    private WalkPlan? FindWalk()
+    {
+        var area = Area;
+        if (area.W < 3 * W || area.H < 2 * H) return null;
+        var valid = Perches.Valid(area, W, H, _rtl(), _noGo);
+        return WalkPlanner.Options(Rest, valid, W, H, area, _noGo).OrderBy(_ => _rng.Next()).FirstOrDefault();
+    }
+
+    /// <summary>Starts walking now toward a random free spot on his row; false when there is none.</summary>
+    public bool WalkNow()
+    {
+        if (!_running || Moving) return false;
+        _noGo = _scan();
+        _readyWalk = null;
+        return StartWalk();
+    }
+
+    private bool StartWalk()
+    {
+        var plan = _readyWalk ?? FindWalk();
+        _readyWalk = null;
+        if (plan is null || !Motion.Enabled) return false;
+        _owl.Settle();
+        Route = plan;
+        Walking = true;
+        CurrentAct = BidarAct.Walk;
+        _seek = 0;
+        _sw.Restart();
+        Hook();
+        return true;
+    }
+
+    /// <summary>Moves the owl to where the walk is <paramref name="elapsed"/> seconds in. Public so a test can step it by hand.</summary>
+    public void StepWalk(double elapsed)
+    {
+        if (!Walking || Route is not { } plan) return;
+        var frame = WalkMotion.Frame(plan, elapsed);
+        _move.X = frame.Pos.X - Rest.X;
+        _move.Y = frame.Pos.Y - Rest.Y;
+        _owl.ApplyWalk(frame);
+        if (frame.Done) EndWalk(plan.To);
+    }
+
+    /// <summary>Stops the walk where he is (a click, a resize, hiding). Every point of the strip was free when the walk was
+    /// planned, so the spot under him is a fair resting place; the next quiet moment re-checks it anyway.</summary>
+    public void HaltWalk()
+    {
+        if (!Walking) return;
+        var here = Perches.Clamp(Position, Area, W, H);
+        EndWalk(here);
+        PageChanged();
+    }
+
+    private void EndWalk(Pt at)
+    {
+        Unhook();
+        Walking = false;
+        Route = null;
+        SetRest(at);
+        _atHome = at == Perches.Home(Area, W, H, _rtl());
+        CurrentAct = null;
+        _owl.Settle();
+        if (_running && _owl.IsVisible && !_timer.IsEnabled) Arm(_brain.NextGap());
     }
 }
