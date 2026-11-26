@@ -1,8 +1,8 @@
-📣 Shabpa 3.19.1
+📣 Shabpa 3.19.2
 
 🔄 Updates are back on GitHub
 • Check for updates tries GitHub first.
-• If you are on 3.19.0, download ShabpaSetup.exe from this release, or enter the URL below once under Extra mirror.
+• If you are on 3.19.0 or the 3.19.1 test build, download ShabpaSetup.exe from this release, or enter the URL below once under Extra mirror.
 
 https://raw.githubusercontent.com/MrPitPot/shabpa/updates/latest.json
 

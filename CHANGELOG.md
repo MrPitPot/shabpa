@@ -4,7 +4,7 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
-## [3.19.1] - 2026-11-27
+## [3.19.2] - 2026-11-27
 
 ### Fixed
 - The updater checks the signed GitHub feed first. The existing website and storage mirrors remain available as fallbacks.
