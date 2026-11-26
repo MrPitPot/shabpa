@@ -211,7 +211,7 @@ public sealed partial class ThemeScene
                 SetLeft(holder, ox + px * s - ew * s / 2);
                 SetTop(holder, oy + py * s - eh * s / 2);
                 Children.Add(holder);
-                var anim = Animated;
+                var anim = _animateArt;
 
                 if (move.ValueKind == JsonValueKind.Object)
                 {
@@ -231,13 +231,13 @@ public sealed partial class ThemeScene
                             var k = new EasingDoubleKeyFrame(d, KeyTime.FromPercent(travel)) { EasingFunction = ease == "in" ? new QuadraticEase { EasingMode = EasingMode.EaseIn } : ease == "out" ? new QuadraticEase { EasingMode = EasingMode.EaseOut } : null };
                             a.KeyFrames.Add(k);
                             if (travel < 1) a.KeyFrames.Add(new LinearDoubleKeyFrame(d, KeyTime.FromPercent(1)));
-                            moveT.BeginAnimation(dp, a);
+                            Animate(moveT, dp, a);
                         }
                         if (fade.ValueKind == JsonValueKind.Array)
                         {
                             var a = Frames(dur, mph, fps);
                             foreach (var kf in fade.EnumerateArray()) a.KeyFrames.Add(new LinearDoubleKeyFrame(kf[1].GetDouble() * op, KeyTime.FromPercent(kf[0].GetDouble())));
-                            holder.BeginAnimation(OpacityProperty, a);
+                            Animate(holder, OpacityProperty, a);
                         }
                         if (grow.ValueKind == JsonValueKind.Array)
                             foreach (var dp in new[] { ScaleTransform.ScaleXProperty, ScaleTransform.ScaleYProperty })
@@ -245,7 +245,7 @@ public sealed partial class ThemeScene
                                 var a = Frames(dur, mph, fps);
                                 a.KeyFrames.Add(new LinearDoubleKeyFrame(grow[0].GetDouble(), KeyTime.FromPercent(0)));
                                 a.KeyFrames.Add(new LinearDoubleKeyFrame(grow[1].GetDouble(), KeyTime.FromPercent(1)));
-                                growT.BeginAnimation(dp, a);
+                                Animate(growT, dp, a);
                             }
                     }
                     else
@@ -264,7 +264,7 @@ public sealed partial class ThemeScene
                     {
                         var a = Frames(fdur, fph, fps);
                         foreach (var kf in fade.EnumerateArray()) a.KeyFrames.Add(new LinearDoubleKeyFrame(kf[1].GetDouble() * op, KeyTime.FromPercent(kf[0].GetDouble())));
-                        holder.BeginAnimation(OpacityProperty, a);
+                        Animate(holder, OpacityProperty, a);
                     }
                     else holder.Opacity = op * KeysAt(fade, fph);
                 }
@@ -342,7 +342,7 @@ public sealed partial class ThemeScene
                             a.KeyFrames.Add(new DiscreteDoubleKeyFrame(k == 0 ? 1 : 0, KeyTime.FromPercent(0)));
                             if (k > 0) a.KeyFrames.Add(new DiscreteDoubleKeyFrame(1, KeyTime.FromPercent(k / (double)inner.Count)));
                             if (k < inner.Count - 1) a.KeyFrames.Add(new DiscreteDoubleKeyFrame(0, KeyTime.FromPercent((k + 1) / (double)inner.Count)));
-                            inner[k].BeginAnimation(OpacityProperty, a);
+                            Animate(inner[k], OpacityProperty, a);
                         }
                         else inner[k].Opacity = (int)(fph * inner.Count) % inner.Count == k ? 1 : 0;
                     }
@@ -425,9 +425,9 @@ public sealed partial class ThemeScene
         }
         if (anim)
         {
-            moveT.BeginAnimation(TranslateTransform.XProperty, xs);
-            moveT.BeginAnimation(TranslateTransform.YProperty, ys);
-            if (face) faceT.BeginAnimation(RotateTransform.AngleProperty, angs);
+            Animate(moveT, TranslateTransform.XProperty, xs);
+            Animate(moveT, TranslateTransform.YProperty, ys);
+            if (face) Animate(faceT, RotateTransform.AngleProperty, angs);
         }
         else { moveT.X = sx; moveT.Y = sy; if (face) faceT.Angle = sa; }
     }

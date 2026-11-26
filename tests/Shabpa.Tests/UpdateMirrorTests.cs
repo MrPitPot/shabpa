@@ -231,20 +231,22 @@ public sealed class UpdateMirrorTests : IDisposable
     // ---- the source list ---------------------------------------------------------------------
 
     [Fact]
-    public void Sources_are_ordered_github_codeberg_gitlab_site_arvan_domestic_then_custom()
+    public void Sources_are_ordered_github_site_arvan_domestic_then_custom()
     {
         var list = UpdateSources.Build("https://mirror.example.ir/shabpa", "");
-        Assert.Equal(["github", "codeberg", "gitlab", "shabpa.ir", "arvan", "dl.shabpa.ir", "custom"], list.Select(s => s.Id));
-        Assert.Equal("https://mirror.example.ir/shabpa/latest.json", list[6].ManifestUrl);
+        Assert.Equal(["github", "shabpa.ir", "arvan", "dl.shabpa.ir", "custom"], list.Select(s => s.Id));
+        Assert.Equal("https://mirror.example.ir/shabpa/latest.json", list[4].ManifestUrl);
         Assert.Equal("https://raw.githubusercontent.com/MrPitPot/shabpa/updates/latest.json", list[0].ManifestUrl);
     }
 
     [Fact]
-    public void The_last_working_source_is_tried_first()
+    public void GitHub_stays_first_and_the_last_working_mirror_comes_next()
     {
-        Assert.Equal("dl.shabpa.ir", UpdateSources.Build("", "dl.shabpa.ir")[0].Id);
-        Assert.Equal("gitlab", UpdateSources.Build("", "gitlab")[0].Id);
-        Assert.Equal("github", UpdateSources.Build("", "no-such-source")[0].Id);   // an unknown saved choice falls back to the first source
+        var list = UpdateSources.Build("", "dl.shabpa.ir");
+        Assert.Equal("github", list[0].Id);
+        Assert.Equal("dl.shabpa.ir", list[1].Id);
+        Assert.Equal("github", UpdateSources.Build("", "gitlab")[0].Id);
+        Assert.Equal("github", UpdateSources.Build("", "codeberg")[0].Id);
     }
 
     [Theory]
@@ -298,8 +300,7 @@ public sealed class UpdateMirrorTests : IDisposable
         Assert.Equal("shabpa.ir", r.Source!.Id);
         Assert.Equal("github", r.Failures[0].SourceId);
         Assert.Equal("404", r.Failures[0].Reason);
-        Assert.Equal("codeberg", r.Failures[1].SourceId);     // codeberg and gitlab are not served by the fake network: two more dead sources before the site
-        Assert.Equal("gitlab", r.Failures[2].SourceId);
+        Assert.Single(r.Failures);
     }
 
     [Fact]
@@ -368,7 +369,7 @@ public sealed class UpdateMirrorTests : IDisposable
     {
         var r = await Sources(new FakeNet(), 100).CheckAsync(UpdateSources.Build("", ""), Now);
         Assert.True(r.AllFailed);
-        Assert.Equal(6, r.Failures.Count);
+        Assert.Equal(["github", "shabpa.ir", "arvan", "dl.shabpa.ir"], r.Failures.Select(failure => failure.SourceId));
     }
 
     [Fact]

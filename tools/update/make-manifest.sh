@@ -9,14 +9,14 @@ installer="$1"; version="$2"; out="${3:-$(dirname "$installer")}"
 [ -f "$installer" ] || { echo "missing $installer" >&2; exit 1; }
 
 json_escape() { # stdin -> JSON string body
-  python3 -c 'import json,sys; print(json.dumps(sys.stdin.read().strip())[1:-1])' 2>/dev/null \
-    || python -c 'import json,sys; print(json.dumps(sys.stdin.read().strip())[1:-1])'
+  python3 -X utf8 -c 'import json,sys; print(json.dumps(sys.stdin.read().strip())[1:-1])' 2>/dev/null \
+    || python -X utf8 -c 'import json,sys; print(json.dumps(sys.stdin.read().strip())[1:-1])'
 }
 note() { if [ -n "${1:-}" ] && [ -f "$1" ]; then json_escape < "$1"; fi; }
 
 sha=$(sha256sum "$installer" | cut -d' ' -f1)
 size=$(stat -c %s "$installer")
-urls="${SHABPA_URLS:-https://codeberg.org/MrPitPot/Shabpa_app/releases/download/v$version/ShabpaSetup.exe https://shabpa.ir/update/ShabpaSetup.exe https://shabpa-dl.s3.ir-central1.arvanstorage.ir/update/ShabpaSetup.exe https://dl.shabpa.ir/update/ShabpaSetup.exe}"
+urls="${SHABPA_URLS:-https://github.com/MrPitPot/shabpa/releases/download/v$version/ShabpaSetup.exe}"
 url_json=""
 for u in $urls; do url_json="$url_json${url_json:+, }\"$u\""; done
 

@@ -40,6 +40,74 @@ public sealed class FpsMeter : IDisposable
     /// <summary>Present::Start of the DXGI provider.</summary>
     private const int DxgiPresentStart = 42;
     private const int D3D9Present = 1;
+    private readonly TraceEventSession _session;
+    private readonly PresentTracks _tracks = new();
+
+    private FpsMeter(TraceEventSession session) => _session = session;
+
+    public static FpsMeter? TryStart(out string? error)
+    {
+        error = null;
+        if (!Elevation.IsElevated)
+        {
+            error = "needs-admin";
+            return null;
+        }
+        TraceEventSession? session = null;
+        try
+        {
+            session = new TraceEventSession(SessionName) { StopOnDispose = true };
+            session.EnableProvider(Dxgi, TraceEventLevel.Verbose, ulong.MaxValue);
+            session.EnableProvider(D3D9, TraceEventLevel.Verbose, ulong.MaxValue);
+            var meter = new FpsMeter(session);
+            var source = session.Source;
+            // AllEvents can deliver an undecoded event. Ask TraceEvent to resolve the installed provider manifests.
+            source.Dynamic.AddCallbackForProviderEvents(
+                (provider, _) => provider is "Microsoft-Windows-DXGI" or "Microsoft-Windows-D3D9"
+                    ? EventFilterResponse.AcceptEvent : EventFilterResponse.RejectProvider,
+                meter.OnEvent);
+            new Thread(() =>
+            {
+                try { source.Process(); }
+                catch (Exception ex) { Log.Write($"fps trace stopped: {ex.Message}"); }
+            }) { IsBackground = true, Name = "fps-trace", Priority = ThreadPriority.BelowNormal }.Start();
+            return meter;
+        }
+        catch (Exception ex)
+        {
+            try { session?.Dispose(); }
+            catch (Exception cleanup) { Log.Write($"fps trace cleanup: {cleanup.Message}"); }
+            Log.Write($"fps trace failed: {ex.Message}");
+            error = ex.Message;
+            return null;
+        }
+    }
+
+    private void OnEvent(TraceEvent e)
+    {
+        var dxgi = e.ProviderGuid == Dxgi;
+        var isPresent = dxgi ? (int)e.ID == DxgiPresentStart
+            : e.ProviderGuid == D3D9 && (int)e.ID == D3D9Present;
+        if (!isPresent || e.ProcessID == Environment.ProcessId) return;
+
+        _tracks.Record(e.ProcessID, dxgi, e.PayloadByName(dxgi ? "pIDXGISwapChain" : "pSwapchain"),
+            e.PayloadByName("Flags"), e.TimeStampRelativeMSec);
+    }
+
+    public FrameStats Stats(int pid, double windowSeconds = 4) => _tracks.Stats(pid, windowSeconds);
+
+    public (int pid, FrameStats stats)? Busiest(Func<int, bool>? allow = null) => _tracks.Busiest(allow);
+
+    public void Dispose()
+    {
+        try { _session.Dispose(); }
+        catch { /* already stopped */ }
+    }
+}
+
+/// <summary>Recent application presents grouped by process, runtime and swap chain.</summary>
+internal sealed class PresentTracks
+{
     private const int KeepFrames = 400;
     private static readonly TimeSpan Stale = TimeSpan.FromSeconds(3);
 
@@ -52,69 +120,42 @@ public sealed class FpsMeter : IDisposable
     private readonly object _gate = new();
     // One track per (process, swap chain): a game also has overlay swap chains (chat, store, capture) that present on their own
     // schedule and would otherwise be added on top of the game's own frames.
-    private readonly Dictionary<(int pid, long chain), Track> _tracks = [];
-    private readonly TraceEventSession _session;
+    private readonly Dictionary<(int pid, bool dxgi, ulong chain), Track> _tracks = [];
 
-    private FpsMeter(TraceEventSession session) => _session = session;
-
-    public static FpsMeter? TryStart(out string? error)
+    public void Record(int pid, bool dxgi, object? swapChain, object? flags, double timeMs)
     {
-        error = null;
-        if (!Elevation.IsElevated)
+        // TraceEvent can expose an ETW pointer as IntPtr or an unsigned address, depending on the manifest.
+        var chain = swapChain switch
         {
-            error = "needs-admin";
-            return null;
-        }
-        try
+            IntPtr address => unchecked((ulong)address.ToInt64()),
+            UIntPtr address => address.ToUInt64(),
+            ulong address => address,
+            long address => unchecked((ulong)address),
+            uint address => address,
+            int address => unchecked((uint)address),
+            _ => 0UL,
+        };
+        if (chain == 0) return;
+        if (dxgi)
         {
-            var session = new TraceEventSession(SessionName) { StopOnDispose = true };
-            session.EnableProvider(Dxgi, TraceEventLevel.Verbose, ulong.MaxValue);
-            session.EnableProvider(D3D9, TraceEventLevel.Verbose, ulong.MaxValue);
-            var meter = new FpsMeter(session);
-            session.Source.AllEvents += meter.OnEvent;
-            new Thread(() =>
-            {
-                try { session.Source.Process(); }
-                catch (Exception ex) { Log.Write($"fps trace stopped: {ex.Message}"); }
-            }) { IsBackground = true, Name = "fps-trace", Priority = ThreadPriority.BelowNormal }.Start();
-            return meter;
+            // DXGI_PRESENT_TEST only probes whether a present would succeed.
+            if (flags is not (uint or int)) return;
+            if ((Convert.ToInt64(flags) & 0x1) != 0) return;
         }
-        catch (Exception ex)
-        {
-            Log.Write($"fps trace failed: {ex.Message}");
-            error = ex.Message;
-            return null;
-        }
-    }
-
-    private void OnEvent(TraceEvent e)
-    {
-        var isPresent = e.ProviderGuid == Dxgi ? (int)e.ID == DxgiPresentStart
-            : e.ProviderGuid == D3D9 && (int)e.ID == D3D9Present;
-        if (!isPresent) return;
-
-        if (e.ProcessID == Environment.ProcessId) return;
-        long chain = 0;
-        try
-        {
-            // DXGI_PRESENT_TEST (0x1) only asks "could I present?"; it never produces a frame.
-            if (e.PayloadByName("Flags") is { } flags && (Convert.ToInt64(flags) & 0x1) != 0) return;
-            var swap = e.PayloadByName("pIDXGISwapChain") ?? e.PayloadByName("pSwapchain");
-            if (swap is not null) chain = Convert.ToInt64(swap);
-        }
-        catch { /* payload not available: all frames of the process share one track */ }
 
         lock (_gate)
         {
-            if (!_tracks.TryGetValue((e.ProcessID, chain), out var track)) _tracks[(e.ProcessID, chain)] = track = new Track();
-            track.Times.Enqueue(e.TimeStampRelativeMSec);
+            var key = (pid, dxgi, chain);
+            if (!_tracks.TryGetValue(key, out var track)) _tracks[key] = track = new Track();
+            var now = Environment.TickCount64;
+            if (now - track.LastSeen > Stale.TotalMilliseconds) track.Times.Clear();
+            track.Times.Enqueue(timeMs);
             while (track.Times.Count > KeepFrames) track.Times.Dequeue();
-            track.LastSeen = Environment.TickCount64;
+            track.LastSeen = now;
         }
     }
 
-    /// <summary>Frame figures for one process over its most recent frames: the swap chain presenting fastest wins
-    /// (the game's own), so overlays in the same process are not added on top. <see cref="FrameStats.None"/> when idle.</summary>
+    /// <summary>Frame figures from the swap chain with the largest sample count in the recent window.</summary>
     public FrameStats Stats(int pid, double windowSeconds = 4)
     {
         lock (_gate)
@@ -131,7 +172,7 @@ public sealed class FpsMeter : IDisposable
         }
     }
 
-    /// <summary>The process presenting the most frames right now, ignoring the desktop compositor.</summary>
+    /// <summary>The highest-rate process that passes the caller's filter.</summary>
     public (int pid, FrameStats stats)? Busiest(Func<int, bool>? allow = null)
     {
         List<int> pids;
@@ -150,11 +191,5 @@ public sealed class FpsMeter : IDisposable
             if (best is null || stats.Fps > best.Value.Item2.Fps) best = (pid, stats);
         }
         return best;
-    }
-
-    public void Dispose()
-    {
-        try { _session.Dispose(); }
-        catch { /* already stopped */ }
     }
 }

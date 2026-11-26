@@ -32,8 +32,7 @@ public partial class MainWindow : Window
     private readonly Dictionary<string, PageBase> _built = [];
     private PageBase? _current;
 
-    /// <summary>While the window is hidden or minimized, memory it no longer needs goes back to Windows: first after a
-    /// few seconds, then now and then while it stays hidden.</summary>
+    /// <summary>In low-memory mode, free unused pages once after the window has stayed hidden.</summary>
     private readonly System.Windows.Threading.DispatcherTimer _release = new() { Interval = ReleaseFirst };
     private static readonly TimeSpan ReleaseFirst = TimeSpan.FromSeconds(8);
 
@@ -118,19 +117,13 @@ public partial class MainWindow : Window
         StateChanged += (_, _) => OnShownChanged();
         _release.Tick += (_, _) =>
         {
-            if (Hub.I.Settings.LowMemory)
-            {
-                // "Use less RAM": pages that were left are thrown away (rebuilt on the next visit). Pages that run their own
-                // clock or a live operation stay.
-                foreach (var key in _built.Keys.ToList())
-                    if (!ReferenceEquals(_built[key], _current) && !KeepBuilt.Contains(key)) _built.Remove(key);
-            }
-            _ = Task.Run(MemoryCleaner.ReleaseOwn); // off the window's thread, so a page change never stutters
-            // once the first release is done the window has settled: one more a little later catches what the settling left behind
-            if (Shown) { if (_releases++ == 0) _release.Interval = TimeSpan.FromSeconds(20); else _release.Stop(); }
-            else _release.Stop(); // hidden: one release is enough (OnShownChanged starts the next after the window was shown again); a trim every ten minutes of an idle app only made the first look at it slower
+            _release.Stop();
+            if (Shown || !hub.Settings.LowMemory) return;
+            foreach (var key in _built.Keys.ToList())
+                if (!ReferenceEquals(_built[key], _current) && !KeepBuilt.Contains(key)) _built.Remove(key);
+            _ = Task.Run(MemoryCleaner.ReleaseOwn);
         };
-        _release.Start(); // the window starts out hidden (and stays so when Shabpa starts in the tray)
+        if (hub.Settings.LowMemory) _release.Start(); // can start hidden in the tray
 
         var version = Updater.Current;
         var shown = version.Build == 0 ? $"{version.Major}.{version.Minor}" : version.ToString(3);
@@ -356,41 +349,29 @@ public partial class MainWindow : Window
         if (Shown)
         {
             _release.Stop();
-            _releases = 0;
-            _release.Interval = ReleaseFirst;
             PageBase.SafeRefresh(_current);
             PageBase.SafeTick(_current, Hub.I.Snapshot);
             UpdateSide();
         }
-        else if (!_release.IsEnabled) _release.Start();
+        else if (Hub.I.Settings.LowMemory) _release.Start();
     }
 
     private static readonly HashSet<string> KeepBuilt = ["mic", "gaming", "settings", "weather", "ping", "dns", "download"];
 
-    private int _releases, _trimTick;
+    private int _trimTick;
     private readonly Dictionary<string, DateTime> _leftAt = [];
-    private DateTime _lastRelease = DateTime.UtcNow;
 
-    /// <summary>Every half minute while the window is open: a page that was left more than 90 seconds ago is let go (it is rebuilt in a moment when its tab is clicked), except the two
-    /// most recently left, which stay in memory so going back is instant. Pages that run something of their own (KeepBuilt) stay. Every two minutes the memory is handed back to
-    /// Windows. This is why the open window costs less than before.</summary>
+    /// <summary>Drop inactive page references so the runtime can collect them. Keep the two most recent pages and pages with live operations.</summary>
     private void TrimPages()
     {
         var now = DateTime.UtcNow;
         var recent = _leftAt.OrderByDescending(x => x.Value).Take(2).Select(x => x.Key).ToHashSet();
-        var dropped = 0;
         foreach (var (key, page) in _built.ToList())
         {
             if (ReferenceEquals(page, _current) || KeepBuilt.Contains(key) || recent.Contains(key)) continue;
             if (_leftAt.TryGetValue(key, out var at) && now - at < TimeSpan.FromSeconds(90)) continue;
             _built.Remove(key);
             _leftAt.Remove(key);
-            dropped++;
-        }
-        if (dropped > 0 || now - _lastRelease > TimeSpan.FromMinutes(10))
-        {
-            _lastRelease = now;
-            _ = Task.Run(MemoryCleaner.ReleaseOwn);          // off the window's thread: nothing stutters
         }
     }
 
@@ -511,13 +492,6 @@ public partial class MainWindow : Window
             Motion.Enter(key, page, 1);
             _life?.PageChanged();
             MeasureTree();
-            if (Hub.I.Settings.LowMemory)
-            {
-                _release.Stop();
-                _releases = 1;
-                _release.Interval = TimeSpan.FromSeconds(3);
-                _release.Start();
-            }
         }
         // the old page leaves in 170 ms, then the new one rises in (the page transition of the design)
         if (previous is null || ReferenceEquals(previous, page) || !Motion.Enabled || !IsLoaded || !IsVisible) { _navTicket++; Swap(); return; }
