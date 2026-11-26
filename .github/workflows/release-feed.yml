@@ -1,0 +1,68 @@
+name: Sync signed release feed
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: signed-release-feed
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: github.repository == 'MrPitPot/shabpa'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: updates
+      - name: Verify and sync the latest public release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo=MrPitPot/shabpa
+          tag=$(gh api "repos/$repo/releases/latest" --jq '.tag_name')
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          dir=$(mktemp -d)
+          gh release download "$tag" --repo "$repo" --dir "$dir" \
+            --pattern latest.json --pattern latest.json.sig --pattern ShabpaSetup.exe \
+            --pattern "patch-note-${tag#v}.fa.md" --pattern "patch-note-${tag#v}.en.md"
+          printf '%s\n' '-----BEGIN PUBLIC KEY-----' \
+            'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEX7komdlZluBsvNByFfETYIEDu7oIw+m8Rb7fW3MKAdYogM9uFBRak2ThzXIPfZ0Lq0yghItAAz62y/IzGxlexw==' \
+            '-----END PUBLIC KEY-----' > "$dir/public.pem"
+          base64 -d "$dir/latest.json.sig" > "$dir/signature.der"
+          openssl dgst -sha256 -verify "$dir/public.pem" -signature "$dir/signature.der" "$dir/latest.json"
+          sha=$(sha256sum "$dir/ShabpaSetup.exe" | cut -d' ' -f1)
+          size=$(wc -c < "$dir/ShabpaSetup.exe")
+          jq -e --arg version "${tag#v}" --arg sha "$sha" --argjson size "$size" \
+            --arg url "https://github.com/$repo/releases/download/$tag/ShabpaSetup.exe" \
+            '.version == $version and .sha256 == $sha and .size == $size and .urls[0] == $url and
+              (.notes.fa | length > 0) and (.notes.en | length > 0)' "$dir/latest.json" >/dev/null
+          for lang in fa en; do
+            diff -u <(jq -r --arg lang "$lang" '.notes[$lang]' "$dir/latest.json") \
+              <(sed 's/\r$//' "$dir/patch-note-${tag#v}.$lang.md")
+          done
+          previous=$(jq -r '.version' latest.json)
+          if [[ "$previous" != "${tag#v}" && "$(printf '%s\n' "$previous" "${tag#v}" | sort -V | tail -1)" != "${tag#v}" ]]; then
+            echo "The update feed already points to a newer version."
+            exit 1
+          fi
+          if [[ "$(gh api "repos/$repo/releases/latest" --jq '.tag_name')" != "$tag" ]]; then
+            echo "A newer release is already live."
+            exit 0
+          fi
+          cp "$dir/latest.json" "$dir/latest.json.sig" .
+          git add -- latest.json latest.json.sig
+          if git diff --cached --quiet; then
+            echo "The update feed already matches $tag."
+            exit 0
+          fi
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -m "Sync signed update feed for $tag"
+          git push origin HEAD:refs/heads/updates
