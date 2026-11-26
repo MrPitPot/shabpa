@@ -4,6 +4,13 @@ All notable changes to Shabpa are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/):
 a patch release only fixes bugs, a minor release adds a tested batch of features, a major release is for breaking changes.
 
+## [3.20.0] - 2026-11-27
+
+### Changed
+- Combine related tabs in System control and Health & security. Existing navigation shortcuts still select their corresponding tab.
+- Add a Settings option to hide the estimated-wattage row beside the menu.
+- Carry forward the animated-theme, FPS overlay and signed GitHub update fixes from 3.19.2.
+
 ## [3.19.2] - 2026-11-27
 
 ### Fixed

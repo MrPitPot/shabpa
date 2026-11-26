@@ -43,6 +43,36 @@ public class PageRebuildTests
     }
 
     [Fact]
+    public void Legacy_navigation_keys_open_the_combined_system_and_update_tabs()
+    {
+        StaRunner.Run(() =>
+        {
+            Prepare();
+            var system = new SystemPage();
+            Check(system, "rules", typeof(PowerPage), typeof(RulesPage));
+            Check(system, "wake", typeof(HistoryPage), typeof(WakePage));
+            Check(system, "memory", typeof(MemoryPage), typeof(GameTunePage));
+            Check(system, "tune", typeof(MemoryPage), typeof(GameTunePage));
+
+            var health = new HealthPage();
+            Check(health, "apps", typeof(AppUpdatesPage), typeof(DriversPage));
+            Check(health, "drivers", typeof(AppUpdatesPage), typeof(DriversPage));
+        });
+
+        static void Check(TabsPage page, string key, Type first, Type second)
+        {
+            // Start on another tab so the legacy path has to select its target.
+            page.Select(page is SystemPage ? "energy" : "overview");
+            page.Select(key);
+            var layout = Assert.IsType<StackPanel>(page.Content);
+            var host = Assert.Single(layout.Children.OfType<ContentControl>());
+            var combined = Assert.IsType<StackedPage>(host.Content);
+            var parts = Assert.IsType<StackPanel>(combined.Content).Children.OfType<PageBase>();
+            Assert.Equal([first, second], parts.Select(part => part.GetType()));
+        }
+    }
+
+    [Fact]
     public void Every_page_class_is_in_the_list_above()
     {
         StaRunner.Run(() =>
