@@ -369,7 +369,7 @@ public sealed class UpdateMirrorTests : IDisposable
     {
         var r = await Sources(new FakeNet(), 100).CheckAsync(UpdateSources.Build("", ""), Now);
         Assert.True(r.AllFailed);
-        Assert.Equal(5, r.Failures.Count);
+        Assert.Equal(["github", "shabpa.ir", "arvan", "dl.shabpa.ir"], r.Failures.Select(failure => failure.SourceId));
     }
 
     [Fact]
