@@ -85,3 +85,13 @@ and keep it only in your user environment, never in the repo or in chat:
 (open a new terminal afterwards). Then `tools/update/publish-mirrors.sh --go` also uploads the installer and the signed
 manifest to the bucket; each file is read back over public HTTPS and compared before the next one is sent.
 `python tools/update/s3put.py --selftest` checks the signing code against the AWS documentation example.
+
+
+### GitHub publication on Windows
+
+Prepare the new version and commit the Persian and English patch notes. Run
+`pwsh -File tools/update/publish-github.ps1 -Version X.Y.Z -SigningKey <local-key-path>`.
+The command tests, builds, signs locally, uploads the installer, checksum, offline bundle and notes,
+and publishes the GitHub release. The GitHub release workflow verifies the public assets and syncs
+the signed update feed. The website reads that feed and picks up new releases without another deploy.
+The private signing key stays on the release machine.
