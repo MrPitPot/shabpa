@@ -106,6 +106,35 @@ public sealed class InstallerTests : IDisposable
     }
 
     [Fact]
+    public void A_driver_windows_still_has_loaded_does_not_stop_an_update_when_it_is_unchanged()
+    {
+        Installer.Install(_target, Build("1.0.0", ("Shabpa.exe", "v1"), ("WinDivert64.sys", "driver")), new InstallOptions(false, false), null);
+        var sys = Path.Combine(_target.Dir, "WinDivert64.sys");
+        // A loaded kernel driver: readable, but nobody may write it.
+        using (new FileStream(sys, FileMode.Open, FileAccess.Read, FileShare.Read))
+            Installer.Install(_target, Build("2.0.0", ("Shabpa.exe", "v2"), ("WinDivert64.sys", "driver")), new InstallOptions(false, false), null);
+
+        Assert.Equal("v2", File.ReadAllText(_target.Exe));
+        Assert.Equal("driver", File.ReadAllText(sys));
+    }
+
+    [Fact]
+    public void A_locked_file_that_changed_is_moved_aside_and_cleaned_up_by_the_next_install()
+    {
+        Installer.Install(_target, Build("1.0.0", ("Shabpa.exe", "v1"), ("WinDivert64.sys", "old driver")), new InstallOptions(false, false), null);
+        var sys = Path.Combine(_target.Dir, "WinDivert64.sys");
+        using (new FileStream(sys, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete))
+        {
+            Installer.Install(_target, Build("2.0.0", ("Shabpa.exe", "v2"), ("WinDivert64.sys", "new driver")), new InstallOptions(false, false), null);
+            Assert.Equal("new driver", File.ReadAllText(sys));
+            Assert.Single(Directory.GetFiles(_target.Dir, "WinDivert64.sys.shabpa-old-*"));
+        }
+
+        Installer.Install(_target, Build("3.0.0", ("Shabpa.exe", "v3"), ("WinDivert64.sys", "new driver")), new InstallOptions(false, false), null);
+        Assert.Empty(Directory.GetFiles(_target.Dir, "*.shabpa-old-*"));
+    }
+
+    [Fact]
     public void Installer_copies_itself_as_the_uninstaller()
     {
         var source = Path.Combine(_root, "ShabpaSetup.exe");
