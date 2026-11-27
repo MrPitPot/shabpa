@@ -43,7 +43,7 @@ internal static class ListUi
     }
 
     /// <summary>Same as <see cref="Item"/> but with a check box in front instead of the badge (selectable lists).</summary>
-    public static Grid CheckItem(CheckBox check, string title, string? sub, UIElement? trailing, bool first, bool trimSub = true)
+    public static Grid CheckItem(CheckBox check, string title, string? sub, UIElement? trailing, bool first, bool trimSub = true, string? note = null)
     {
         var grid = new Grid { MinHeight = 56 };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -57,7 +57,7 @@ internal static class ListUi
         }
         check.VerticalAlignment = VerticalAlignment.Center;
         grid.Children.Add(check);
-        grid.Children.Add(Texts(title, sub, trimSub, false, null, 1));
+        grid.Children.Add(Texts(title, sub, trimSub, false, null, 1, note));
         if (trailing is not null) Place(grid, trailing, 2);
         return grid;
     }

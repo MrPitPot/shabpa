@@ -116,6 +116,24 @@ public class RecyclerSafetyTests
     public void System_and_program_locations_are_protected(string path) => Assert.True(FileTools.IsProtectedPath(path));
 
     [Fact]
+    public void Distinguishes_program_files_from_a_downloaded_installer()
+    {
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        var gapApp = Path.Combine(local, "Programs", "GapGPT", "resources", "bin", "gapcode.exe");
+        var gapTool = Path.Combine(home, ".gapcode", "packages", "standalone", "releases", "version", "codex.exe");
+        Assert.Equal(FileProtection.InstalledProgram, FileTools.GetProtection(gapApp));
+        Assert.Equal(FileProtection.InstalledProgram, FileTools.GetProtection(gapTool));
+        Assert.Equal("protected location", Recycler.Refusal(gapTool));
+        Assert.Equal(FileProtection.System, FileTools.GetProtection(Path.Combine(windows, "System32", "kernel32.dll")));
+        Assert.Equal(FileProtection.AppData, FileTools.GetProtection(Path.Combine(local, "GapGPT", "settings.json")));
+        Assert.Equal(FileProtection.None, FileTools.GetProtection(Path.Combine(home, "Downloads", "GapGPT-Setup.exe")));
+        Assert.Equal(FileProtection.None, FileTools.GetProtection(Path.Combine(home, ".gapcode", "packages", "standalone", "releases-backup", "codex.exe")));
+        Assert.Equal(FileProtection.None, FileTools.GetProtection(Path.Combine(Path.GetTempPath(), "GapGPT-Setup.exe")));
+    }
+
+    [Fact]
     public void Refuses_paths_outside_the_scanned_folders_wildcards_and_directories()
     {
         using var t = new TempTree();

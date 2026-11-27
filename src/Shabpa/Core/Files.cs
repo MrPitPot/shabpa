@@ -16,34 +16,52 @@ public sealed record DuplicateGroup(long Size, IReadOnlyList<FileEntry> Files)
     public long Reclaimable => Size * (Files.Count - 1);
 }
 
+public enum FileProtection
+{
+    None, System, InstalledProgram, AppData,
+}
+
 public static class FileTools
 {
-    /// <summary>Folders that are never offered for scanning results to be deleted from: parts of Windows and programs.</summary>
-    public static bool IsProtectedPath(string path)
+    public static bool IsProtectedPath(string path) => GetProtection(path) != FileProtection.None;
+
+    /// <summary>Why a path can be shown for disk accounting but cannot be removed as an individual file.</summary>
+    public static FileProtection GetProtection(string path)
     {
         string full;
         try { full = Path.GetFullPath(path).TrimEnd('\\', '/'); }
-        catch { return true; }
-        if (full.Length <= 3) return true; // a drive root
-        var protectedRoots = new[]
-        {
-            Environment.GetFolderPath(Environment.SpecialFolder.Windows),
-            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
-            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-            Environment.GetFolderPath(Environment.SpecialFolder.System),
-        }.Where(p => p.Length > 0).Select(p => p.TrimEnd('\\'));
-        foreach (var root in protectedRoots)
-            if (full.Equals(root, StringComparison.OrdinalIgnoreCase) || full.StartsWith(root + "\\", StringComparison.OrdinalIgnoreCase)) return true;
-        // the user's own AppData holds programs' settings; offering those for deletion is never a good idea.
-        // The temp folder inside it is the one place where clearing big leftovers makes sense.
+        catch { return FileProtection.System; }
+        if (full.Length <= 3 || IsIn(full, Environment.GetFolderPath(Environment.SpecialFolder.Windows)) ||
+            IsIn(full, Environment.GetFolderPath(Environment.SpecialFolder.System)))
+            return FileProtection.System;
+
+        if (IsIn(full, Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles)) ||
+            IsIn(full, Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86)))
+            return FileProtection.InstalledProgram;
+
+        var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        // GapCode installs its managed tools in a versioned directory outside AppData.
+        if ((local.Length > 0 && IsIn(full, Path.Combine(local, "Programs"))) ||
+            (home.Length > 0 && IsIn(full, Path.Combine(home, ".gapcode", "packages", "standalone", "releases"))))
+            return FileProtection.InstalledProgram;
+
+        if (IsIn(full, Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData)))
+            return FileProtection.AppData;
+
+        // AppData holds program settings and data. Keep the existing exception for the user's temp directory.
         var appData = Path.GetDirectoryName(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData));
-        if (appData is not null && (full.Equals(appData, StringComparison.OrdinalIgnoreCase) || full.StartsWith(appData.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase)))
-        {
-            var temp = Path.GetFullPath(Path.GetTempPath()).TrimEnd('\\') + "\\";
-            return !(full + "\\").StartsWith(temp, StringComparison.OrdinalIgnoreCase);
-        }
-        return false;
+        if (IsIn(full, appData) && !IsIn(full, Path.GetFullPath(Path.GetTempPath())))
+            return FileProtection.AppData;
+        return FileProtection.None;
+    }
+
+    private static bool IsIn(string full, string? folder)
+    {
+        if (string.IsNullOrEmpty(folder)) return false;
+        var root = folder.TrimEnd('\\', '/');
+        return full.Equals(root, StringComparison.OrdinalIgnoreCase) ||
+            full.StartsWith(root + "\\", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsReparse(FileSystemInfo info) => (info.Attributes & FileAttributes.ReparsePoint) != 0;

@@ -76,11 +76,38 @@ internal static class RecycleFeedback
         status.Visibility = Visibility.Visible;
     }
 
-    public static void SetFileTooltip(FrameworkElement row, CheckBox check, string path)
+    public static Grid FileRow(CheckBox check, string path, string sub, bool first, out bool installedProgram)
     {
-        bool isProtected = FileTools.IsProtectedPath(path);
-        check.IsEnabled = !isProtected;
-        row.ToolTip = isProtected ? $"{path}\n{Reason("protected location")}" : path;
+        var protection = FileTools.GetProtection(path);
+        installedProgram = protection == FileProtection.InstalledProgram;
+        var note = protection switch
+        {
+            FileProtection.System => L.T("فایل محافظت‌شدهٔ ویندوز", "Protected Windows file"),
+            FileProtection.InstalledProgram => L.T("بخشی از برنامهٔ نصب‌شده", "Part of an installed app"),
+            FileProtection.AppData => L.T("دادهٔ محافظت‌شدهٔ برنامه", "Protected app data"),
+            _ => null,
+        };
+        check.IsEnabled = note is null;
+        var row = ListUi.CheckItem(check, Path.GetFileName(path), sub, FolderPick.ExplorerButton(path), first, note: note);
+        row.ToolTip = note is null ? path : $"{path}\n{note}";
+        return row;
+    }
+
+    public static Button InstalledAppsButton()
+    {
+        var button = ListUi.Btn(null, L.T("برنامه‌های نصب‌شدهٔ ویندوز", "Windows installed apps"), click: () =>
+        {
+            try { Process.Start(new ProcessStartInfo("ms-settings:appsfeatures") { UseShellExecute = true }); }
+            catch (Exception ex)
+            {
+                Log.Write($"installed apps: {ex.GetType().Name}: {ex.Message}");
+                Hub.I.Notify(L.T("برنامه‌های نصب‌شده", "Installed apps"),
+                    L.T("تنظیمات ویندوز باز نشد.", "Windows settings could not be opened."));
+            }
+        });
+        button.Visibility = Visibility.Collapsed;
+        button.HorizontalAlignment = HorizontalAlignment.Left;
+        return button;
     }
 
     public static string Report(TextBlock? status, List<(string path, bool ok, string? error)> results)
@@ -126,6 +153,7 @@ public sealed class SpacePage : PageBase
     private readonly StackPanel _files = new();
     private readonly Button _cancel = new() { Style = St("Btn"), Content = L.T("توقف", "Stop"), Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 8, 8) };
     private readonly TextBlock _recycleStatus = RecycleFeedback.Status();
+    private readonly Button _installedApps = RecycleFeedback.InstalledAppsButton();
     private bool _recycling;
     private readonly Button _delete = new() { Style = St("BtnDanger"), Visibility = Visibility.Collapsed, Margin = new Thickness(0, 14, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
     private readonly Dictionary<string, CheckBox> _checks = new(StringComparer.OrdinalIgnoreCase);
@@ -182,6 +210,7 @@ public sealed class SpacePage : PageBase
         f.Children.Add(_folders);
         _foldersCard = fCard;
         var (bCard, b2) = Ui2.Card(L.T("بزرگ‌ترین فایل‌ها", "Biggest files"), L.T("تیک بزن و به سطل بازیافت بفرست؛ از اونجا برمی‌گردن.", "Tick files and send them to the Recycle Bin; they can be restored from there."));
+        b2.Children.Add(_installedApps);
         b2.Children.Add(_files);
         _files.Margin = new Thickness(0, 6, 0, 0);
         _delete.Click += async (_, _) => await DeleteSelected();
@@ -252,6 +281,7 @@ public sealed class SpacePage : PageBase
     private void Scan(string path, bool keepRecycleStatus = false)
     {
         if (!keepRecycleStatus) _recycleStatus.Visibility = Visibility.Collapsed;
+        _installedApps.Visibility = Visibility.Collapsed;
         _cts?.Cancel();
         _cts = new CancellationTokenSource();
         var scan = _cts;
@@ -342,9 +372,9 @@ public sealed class SpacePage : PageBase
             var check = new CheckBox { Style = St("Check") };
             check.Click += (_, _) => UpdateDelete();
             _checks[file.Path] = check;
-            var item = ListUi.CheckItem(check, Path.GetFileName(file.Path),
-                $"{Fa.Bytes(file.Size)}{ListUi.Sep}{Fa.Date(file.Modified)}{ListUi.Sep}\u200E{Path.GetDirectoryName(file.Path)}\u200E", FolderPick.ExplorerButton(file.Path), firstFile);
-            RecycleFeedback.SetFileTooltip(item, check, file.Path);
+            var item = RecycleFeedback.FileRow(check, file.Path,
+                $"{Fa.Bytes(file.Size)}{ListUi.Sep}{Fa.Date(file.Modified)}{ListUi.Sep}\u200E{Path.GetDirectoryName(file.Path)}\u200E", firstFile, out var installed);
+            if (installed) _installedApps.Visibility = Visibility.Visible;
             _files.Children.Add(fileMemo.Item(file.Path, item));
             firstFile = false;
         }
@@ -407,6 +437,7 @@ public sealed class DuplicatesPage : PageBase
     private readonly TextBlock _status = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
     private readonly StackPanel _groups = new();
     private readonly TextBlock _recycleStatus = RecycleFeedback.Status();
+    private readonly Button _installedApps = RecycleFeedback.InstalledAppsButton();
     private bool _recycling;
     private readonly Button _delete = new() { Style = St("BtnDanger"), Visibility = Visibility.Collapsed, Margin = new Thickness(0, 14, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
     private readonly Button _pickOld = new() { Style = St("Btn"), Content = L.T("همه رو جز قدیمی‌ترین نسخه‌ی هر گروه علامت بزن", "Tick all but the oldest copy of each group"), Visibility = Visibility.Collapsed, Margin = new Thickness(0, 14, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
@@ -455,6 +486,7 @@ public sealed class DuplicatesPage : PageBase
 
         var (gCard, g) = Ui2.Card(L.T("گروه‌های تکراری", "Duplicate groups"));
         _groups.Margin = new Thickness(0, 4, 0, 0);
+        g.Children.Add(_installedApps);
         g.Children.Add(_groups);
         _pickOld.Click += (_, _) =>
         {
@@ -486,6 +518,7 @@ public sealed class DuplicatesPage : PageBase
     private void Scan(string path, bool keepRecycleStatus = false)
     {
         if (!keepRecycleStatus) _recycleStatus.Visibility = Visibility.Collapsed;
+        _installedApps.Visibility = Visibility.Collapsed;
         _cts?.Cancel();
         _cts = new CancellationTokenSource();
         var scan = _cts;
@@ -561,8 +594,9 @@ public sealed class DuplicatesPage : PageBase
             {
                 var check = new CheckBox { Style = St("Check") };
                 check.Click += (_, _) => UpdateDelete();
-                var row = ListUi.CheckItem(check, Path.GetFileName(file.Path), $"\u200E{Path.GetDirectoryName(file.Path)}\u200E{ListUi.Sep}{Fa.Date(file.Modified)}", FolderPick.ExplorerButton(file.Path), first);
-                RecycleFeedback.SetFileTooltip(row, check, file.Path);
+                var row = RecycleFeedback.FileRow(check, file.Path,
+                    $"\u200E{Path.GetDirectoryName(file.Path)}\u200E{ListUi.Sep}{Fa.Date(file.Modified)}", first, out var installed);
+                if (installed) _installedApps.Visibility = Visibility.Visible;
                 content.Children.Add(row);
                 items.Add((file, check));
                 first = false;

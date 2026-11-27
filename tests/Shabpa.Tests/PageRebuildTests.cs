@@ -43,6 +43,30 @@ public class PageRebuildTests
     }
 
     [Fact]
+    public void File_rows_explain_why_an_installed_app_is_protected()
+    {
+        StaRunner.Run(() =>
+        {
+            Prepare();
+            var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var app = new CheckBox();
+            var download = new CheckBox();
+            var installedRow = RecycleFeedback.FileRow(app, Path.Combine(local, "Programs", "GapGPT", "resources", "bin", "gapcode.exe"),
+                "", true, out var installed);
+            RecycleFeedback.FileRow(download, Path.Combine(home, "Downloads", "GapGPT-Setup.exe"), "", false, out var installer);
+
+            Assert.True(installed);
+            Assert.False(app.IsEnabled);
+            var texts = Assert.Single(installedRow.Children.OfType<StackPanel>());
+            Assert.Contains(texts.Children.OfType<TextBlock>(),
+                text => text.Text is "Part of an installed app" or "بخشی از برنامهٔ نصب‌شده");
+            Assert.False(installer);
+            Assert.True(download.IsEnabled);
+        });
+    }
+
+    [Fact]
     public void Legacy_navigation_keys_open_the_combined_system_and_update_tabs()
     {
         StaRunner.Run(() =>
