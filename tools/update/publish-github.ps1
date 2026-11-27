@@ -8,7 +8,7 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 $repo = 'MrPitPot/shabpa'
 $tag = "v$Version"
-$feed = "https://raw.githubusercontent.com/$repo/updates/"
+$feed = "https://raw.githubusercontent.com/$repo/"
 $root = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $bash = Join-Path $env:ProgramFiles 'Git/bin/bash.exe'
 $openssl = Join-Path $env:ProgramFiles 'Git/usr/bin/openssl.exe'
@@ -115,7 +115,9 @@ try {
 
     for ($attempt = 0; $attempt -lt 36; $attempt++) {
         try {
-            $public = Invoke-RestMethod ($feed + 'latest.json') -TimeoutSec 10
+            $feedRevision = (gh api "repos/$repo/git/ref/heads/updates" --jq .object.sha).Trim()
+            if ($feedRevision -notmatch '^[a-f0-9]{40}$') { throw 'Invalid update feed revision.' }
+            $public = Invoke-RestMethod "$feed$feedRevision/latest.json" -TimeoutSec 10
             if ($public.version -eq $Version) {
                 $website = Invoke-RestMethod "https://shabpa.ir/api/latest?release=$Version" -TimeoutSec 10
                 if ($website.version -eq $Version -and $website.sha256 -eq $public.sha256) {
