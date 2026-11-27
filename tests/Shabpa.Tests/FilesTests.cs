@@ -143,15 +143,32 @@ public class RecyclerSafetyTests
     }
 
     [Fact]
-    public void Send_moves_a_file_to_the_recycle_bin_and_reports_refusals()
+    public async Task Send_moves_a_file_to_the_recycle_bin_and_reports_refusals()
     {
         using var t = new TempTree();
         var file = t.Write("gone.txt", "bye");
-        var results = Recycler.Send([file, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "notepad.exe")], [t.Root]);
+        var results = await Recycler.SendAsync([file, Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "notepad.exe")], [t.Root]);
         Assert.True(results[0].ok, results[0].error);
         Assert.False(File.Exists(file));
         Assert.False(results[1].ok);
         Assert.True(File.Exists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "notepad.exe")));
+    }
+
+    [Fact]
+    public async Task Send_reports_a_locked_file_and_still_moves_the_other_file()
+    {
+        using var t = new TempTree();
+        var locked = t.Write("locked.txt", "keep this");
+        var removable = t.Write("removable.txt", "recycle this");
+        using var handle = File.Open(locked, FileMode.Open, FileAccess.Read, FileShare.None);
+
+        var results = await Recycler.SendAsync([locked, removable], [t.Root]);
+
+        Assert.False(results[0].ok);
+        Assert.Equal("file in use", results[0].error);
+        Assert.True(File.Exists(locked));
+        Assert.True(results[1].ok, results[1].error);
+        Assert.False(File.Exists(removable));
     }
 }
 

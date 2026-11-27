@@ -1,5 +1,4 @@
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 
 namespace Shabpa.Core;
@@ -214,25 +213,6 @@ public static class FileTools
 /// <summary>The only way Shabpa removes a file the person picked: into the Recycle Bin, so it can be put back.</summary>
 public static class Recycler
 {
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct ShFileOp
-    {
-        public IntPtr hwnd;
-        public uint wFunc;
-        [MarshalAs(UnmanagedType.LPWStr)] public string pFrom;
-        [MarshalAs(UnmanagedType.LPWStr)] public string? pTo;
-        public ushort fFlags;
-        [MarshalAs(UnmanagedType.Bool)] public bool fAnyOperationsAborted;
-        public IntPtr hNameMappings;
-        [MarshalAs(UnmanagedType.LPWStr)] public string? lpszProgressTitle;
-    }
-
-    [DllImport("shell32.dll", CharSet = CharSet.Unicode, EntryPoint = "SHFileOperationW")]
-    private static extern int SHFileOperation(ref ShFileOp op);
-
-    private const uint FoDelete = 3;
-    private const ushort FofAllowUndo = 0x40, FofNoErrorUi = 0x400, FofWantNukeWarning = 0x4000;
-
     /// <summary>Why this path must not be deleted, or null if it may be. Only existing regular files outside protected
     /// folders, and (when given) only inside the folders that were scanned.</summary>
     public static string? Refusal(string path, IEnumerable<string>? allowedRoots = null)
@@ -240,13 +220,16 @@ public static class Recycler
         string full;
         try { full = Path.GetFullPath(path); }
         catch { return "invalid path"; }
-        if (full.Contains('*') || full.Contains('?')) return "wildcards are not allowed"; // SHFileOperation would expand them
+        if (full.Contains('*') || full.Contains('?')) return "wildcards are not allowed";
         if (FileTools.IsProtectedPath(full)) return "protected location";
-        FileInfo info;
-        try { info = new FileInfo(full); }
-        catch { return "invalid path"; }
-        if (!info.Exists) return "no longer exists";
-        if ((info.Attributes & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != 0) return "not a regular file";
+        FileAttributes attributes;
+        try { attributes = File.GetAttributes(full); }
+        catch (FileNotFoundException) { return "no longer exists"; }
+        catch (DirectoryNotFoundException) { return "no longer exists"; }
+        catch (UnauthorizedAccessException) { return "access denied"; }
+        catch (PathTooLongException) { return "path too long"; }
+        catch (IOException ex) { return WindowsRecycleBin.Error(ex.HResult); }
+        if ((attributes & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != 0) return "not a regular file";
         if (allowedRoots is not null)
         {
             var inside = allowedRoots.Any(r =>
@@ -259,23 +242,33 @@ public static class Recycler
         return null;
     }
 
-    /// <summary>Moves each file to the Recycle Bin. Returns what was done per path; never throws for a single file.</summary>
-    public static List<(string path, bool ok, string? error)> Send(IEnumerable<string> paths, IEnumerable<string>? allowedRoots = null)
+    /// <summary>Moves files on a Windows shell STA without blocking the interface.</summary>
+    public static Task<List<(string path, bool ok, string? error)>> SendAsync(
+        IEnumerable<string> paths, IEnumerable<string>? allowedRoots = null)
     {
-        var roots = allowedRoots?.ToList();
-        var results = new List<(string, bool, string?)>();
-        foreach (var path in paths)
+        var selected = paths.ToArray();
+        var roots = allowedRoots?.ToArray();
+        var completion = new TaskCompletionSource<List<(string, bool, string?)>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var worker = new Thread(() =>
         {
-            var refusal = Refusal(path, roots);
-            if (refusal is not null)
+            var results = new List<(string, bool, string?)>(selected.Length);
+            foreach (var path in selected)
             {
-                results.Add((path, false, refusal));
-                continue;
+                string? error;
+                try
+                {
+                    error = Refusal(path, roots) ?? WindowsRecycleBin.Move(Path.GetFullPath(path));
+                }
+                catch (Exception ex)
+                {
+                    error = $"0x{ex.HResult:X8}";
+                }
+                results.Add((path, error is null, error));
             }
-            var op = new ShFileOp { wFunc = FoDelete, pFrom = Path.GetFullPath(path) + "\0\0", fFlags = FofAllowUndo | FofWantNukeWarning | FofNoErrorUi }; // Windows asks if a file is too big for the bin and would be deleted for good
-            var code = SHFileOperation(ref op);
-            results.Add((path, code == 0 && !op.fAnyOperationsAborted, code == 0 && !op.fAnyOperationsAborted ? null : $"error {code}"));
-        }
-        return results;
+            completion.SetResult(results);
+        }) { IsBackground = true, Name = "Recycle Bin" };
+        worker.SetApartmentState(ApartmentState.STA);
+        worker.Start();
+        return completion.Task;
     }
 }

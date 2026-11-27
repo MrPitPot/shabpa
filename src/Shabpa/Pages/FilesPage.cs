@@ -62,6 +62,61 @@ internal static class FolderPick
         ListUi.IconBtn("folder", L.T("نمایش توی اکسپلورر", "Show in Explorer"), () => ShowInExplorer(path));
 }
 
+internal static class RecycleFeedback
+{
+    public static TextBlock Status() => new()
+    {
+        TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0),
+        Visibility = Visibility.Collapsed,
+    };
+
+    public static void Show(TextBlock status, string message)
+    {
+        status.Text = message;
+        status.Visibility = Visibility.Visible;
+    }
+
+    public static void SetFileTooltip(FrameworkElement row, CheckBox check, string path)
+    {
+        bool isProtected = FileTools.IsProtectedPath(path);
+        check.IsEnabled = !isProtected;
+        row.ToolTip = isProtected ? $"{path}\n{Reason("protected location")}" : path;
+    }
+
+    public static string Report(TextBlock? status, List<(string path, bool ok, string? error)> results)
+    {
+        int moved = results.Count(result => result.ok);
+        var failures = results.Where(result => !result.ok).ToList();
+        var summary = L.T($"{Fa.Digits(moved.ToString())} فایل به سطل بازیافت منتقل شد.",
+            $"{moved} file(s) moved to the Recycle Bin.");
+        if (failures.Count > 0)
+        {
+            summary += L.T($" {Fa.Digits(failures.Count.ToString())} فایل منتقل نشد.",
+                $" {failures.Count} file(s) could not be moved.");
+        }
+        var details = failures.GroupBy(result => result.error).Select(group => L.T(
+            $"{Fa.Digits(group.Count().ToString())} فایل · {Reason(group.Key)}",
+            $"{group.Count()} file(s) · {Reason(group.Key)}"));
+        if (status is not null) Show(status, string.Join("\n", new[] { summary }.Concat(details)));
+        return summary;
+    }
+
+    private static string Reason(string? error) => error switch
+    {
+        "protected location" => L.T("این فایل در پوشهٔ محافظت‌شدهٔ ویندوز یا برنامه‌هاست.", "This file is in a protected Windows or application folder."),
+        "no longer exists" => L.T("فایل در مسیر قبلی پیدا نشد.", "The file was not found at its original location."),
+        "access denied" => L.T("ویندوز اجازهٔ جابه‌جایی فایل را نداد.", "Windows denied access to move the file."),
+        "file in use" => L.T("فایل در حال استفاده است. برنامه‌ای را که فایل را باز کرده ببند و دوباره امتحان کن.", "The file is in use. Close the app that has it open and try again."),
+        "path too long" => L.T("مسیر فایل برای سطل بازیافت بیش از حد طولانی است.", "The file path is too long for the Recycle Bin."),
+        "too large for recycle bin" => L.T("فایل برای سطل بازیافت بیش از حد بزرگ است.", "The file is too large for the Recycle Bin."),
+        "recycle bin unavailable" => L.T("سطل بازیافت این فایل را نمی‌پذیرد.", "The Recycle Bin cannot accept this file."),
+        "outside the scanned folders" => L.T("فایل خارج از پوشهٔ بررسی‌شده است.", "The file is outside the scanned folder."),
+        "not a regular file" => L.T("مسیر یک فایل معمولی نیست.", "The path is not a regular file."),
+        "invalid path" or "wildcards are not allowed" => L.T("مسیر فایل معتبر نیست.", "The file path is invalid."),
+        _ => L.T($"ویندوز نتوانست فایل را منتقل کند ({error}).", $"Windows could not move the file ({error})."),
+    };
+}
+
 /// <summary>Where the space went in a folder: the biggest sub-folders and files.</summary>
 public sealed class SpacePage : PageBase
 {
@@ -70,6 +125,8 @@ public sealed class SpacePage : PageBase
     private readonly StackPanel _folders = new();
     private readonly StackPanel _files = new();
     private readonly Button _cancel = new() { Style = St("Btn"), Content = L.T("توقف", "Stop"), Visibility = Visibility.Collapsed, Margin = new Thickness(0, 0, 8, 8) };
+    private readonly TextBlock _recycleStatus = RecycleFeedback.Status();
+    private bool _recycling;
     private readonly Button _delete = new() { Style = St("BtnDanger"), Visibility = Visibility.Collapsed, Margin = new Thickness(0, 14, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
     private readonly Dictionary<string, CheckBox> _checks = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, long> _sizes = new(StringComparer.OrdinalIgnoreCase);
@@ -127,8 +184,9 @@ public sealed class SpacePage : PageBase
         var (bCard, b2) = Ui2.Card(L.T("بزرگ‌ترین فایل‌ها", "Biggest files"), L.T("تیک بزن و به سطل بازیافت بفرست؛ از اونجا برمی‌گردن.", "Tick files and send them to the Recycle Bin; they can be restored from there."));
         b2.Children.Add(_files);
         _files.Margin = new Thickness(0, 6, 0, 0);
-        _delete.Click += (_, _) => DeleteSelected();
+        _delete.Click += async (_, _) => await DeleteSelected();
         b2.Children.Add(_delete);
+        b2.Children.Add(_recycleStatus);
         _filesCard = bCard;
 
         foreach (var c in new[] { _pickCard, _foldersCard, _filesCard })
@@ -191,11 +249,13 @@ public sealed class SpacePage : PageBase
         }
     }
 
-    private void Scan(string path)
+    private void Scan(string path, bool keepRecycleStatus = false)
     {
+        if (!keepRecycleStatus) _recycleStatus.Visibility = Visibility.Collapsed;
         _cts?.Cancel();
         _cts = new CancellationTokenSource();
-        var token = _cts.Token;
+        var scan = _cts;
+        var token = scan.Token;
         _root = path;
         _folders.Children.Clear();
         _files.Children.Clear();
@@ -209,13 +269,21 @@ public sealed class SpacePage : PageBase
         {
             try
             {
-                var report = FileTools.Analyze(path, ct: token, progress: n => Dispatcher.BeginInvoke(() => _status.Text = L.T($"در حال بررسی… {Fa.Digits(n.ToString())} فایل", $"Scanning… {n} files")));
-                Dispatcher.BeginInvoke(() => Show(report));
+                var report = FileTools.Analyze(path, ct: token, progress: n => Dispatcher.BeginInvoke(() =>
+                {
+                    if (scan == _cts && !token.IsCancellationRequested)
+                        _status.Text = L.T($"در حال بررسی… {Fa.Digits(n.ToString())} فایل", $"Scanning… {n} files");
+                }));
+                Dispatcher.BeginInvoke(() =>
+                {
+                    if (scan == _cts && !token.IsCancellationRequested) Show(report);
+                });
             }
             catch (OperationCanceledException)
             {
                 Dispatcher.BeginInvoke(() =>
                 {
+                    if (scan != _cts) return;
                     Mo.Say(_status, L.T("متوقف شد.", "Stopped."));
                     _cancel.Visibility = Visibility.Collapsed;
                 });
@@ -225,6 +293,7 @@ public sealed class SpacePage : PageBase
                 Log.Write($"space scan: {ex.GetType().Name}: {ex.Message}");
                 Dispatcher.BeginInvoke(() =>
                 {
+                    if (scan != _cts) return;
                     Mo.Say(_status, L.T("بررسی انجام نشد.", "The scan failed."));
                     _cancel.Visibility = Visibility.Collapsed;
                 });
@@ -275,7 +344,7 @@ public sealed class SpacePage : PageBase
             _checks[file.Path] = check;
             var item = ListUi.CheckItem(check, Path.GetFileName(file.Path),
                 $"{Fa.Bytes(file.Size)}{ListUi.Sep}{Fa.Date(file.Modified)}{ListUi.Sep}\u200E{Path.GetDirectoryName(file.Path)}\u200E", FolderPick.ExplorerButton(file.Path), firstFile);
-            item.ToolTip = file.Path;
+            RecycleFeedback.SetFileTooltip(item, check, file.Path);
             _files.Children.Add(fileMemo.Item(file.Path, item));
             firstFile = false;
         }
@@ -288,12 +357,16 @@ public sealed class SpacePage : PageBase
     {
         var chosen = Selected();
         Mo.Show(_delete, chosen.Count > 0, 8, 0.4);
+        _delete.IsEnabled = !_recycling;
         ListUi.SetContent(_delete, "trash", L.T($"فرستادن {Fa.Digits(chosen.Count.ToString())} فایل ({Fa.Bytes(chosen.Sum(p => _sizes[p]))}) به سطل بازیافت",
             $"Send {chosen.Count} file(s) ({Fa.Bytes(chosen.Sum(p => _sizes[p]))}) to the Recycle Bin"));
     }
 
-    private void DeleteSelected()
+    private async Task DeleteSelected()
     {
+        if (_recycling) return;
+        var root = _root;
+        var scan = _cts;
         var chosen = Selected();
         if (chosen.Count == 0) return;
         var preview = string.Join("\n", chosen.Take(12).Select(p => "• " + p)) + (chosen.Count > 12 ? L.T($"\n… و {Fa.Digits((chosen.Count - 12).ToString())} فایل دیگه", $"\n… and {chosen.Count - 12} more") : "");
@@ -301,13 +374,29 @@ public sealed class SpacePage : PageBase
                 L.T($"{Fa.Digits(chosen.Count.ToString())} فایل با حجم {Fa.Bytes(chosen.Sum(p => _sizes[p]))} به سطل بازیافت می‌ره و از اونجا قابل برگردوندنه.",
                     $"{chosen.Count} file(s), {Fa.Bytes(chosen.Sum(p => _sizes[p]))}, go to the Recycle Bin and can be restored from there."),
                 L.T("بفرست", "Send"), danger: true, detail: preview)) return;
-        var results = Recycler.Send(chosen, [_root]);
-        var ok = results.Count(r => r.ok);
-        var failed = results.Where(r => !r.ok).ToList();
-        Hub.Notify(L.T("سطل بازیافت", "Recycle Bin"),
-            L.T($"{Fa.Digits(ok.ToString())} فایل فرستاده شد." + (failed.Count > 0 ? $" {Fa.Digits(failed.Count.ToString())} فایل نشد." : ""),
-                $"{ok} file(s) sent." + (failed.Count > 0 ? $" {failed.Count} could not be moved." : "")));
-        Scan(_root);
+        if (scan != _cts) return;
+        _recycling = true;
+        UpdateDelete();
+        RecycleFeedback.Show(_recycleStatus, L.T("در حال انتقال به سطل بازیافت…", "Moving to the Recycle Bin…"));
+        try
+        {
+            var results = await Recycler.SendAsync(chosen, [root]);
+            if (scan == _cts)
+            {
+                var summary = RecycleFeedback.Report(_recycleStatus, results);
+                Hub.Notify(L.T("سطل بازیافت", "Recycle Bin"), summary);
+                if (results.Any(result => result.ok)) Scan(root, keepRecycleStatus: true);
+            }
+            else
+            {
+                Hub.Notify(L.T("سطل بازیافت", "Recycle Bin"), RecycleFeedback.Report(null, results));
+            }
+        }
+        finally
+        {
+            _recycling = false;
+            UpdateDelete();
+        }
     }
 }
 
@@ -317,6 +406,8 @@ public sealed class DuplicatesPage : PageBase
     private readonly WrapPanel _quick = new();
     private readonly TextBlock _status = new() { Style = St("Label"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
     private readonly StackPanel _groups = new();
+    private readonly TextBlock _recycleStatus = RecycleFeedback.Status();
+    private bool _recycling;
     private readonly Button _delete = new() { Style = St("BtnDanger"), Visibility = Visibility.Collapsed, Margin = new Thickness(0, 14, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
     private readonly Button _pickOld = new() { Style = St("Btn"), Content = L.T("همه رو جز قدیمی‌ترین نسخه‌ی هر گروه علامت بزن", "Tick all but the oldest copy of each group"), Visibility = Visibility.Collapsed, Margin = new Thickness(0, 14, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
     private readonly Button _cancel = new() { Style = St("Btn"), Content = L.T("توقف", "Stop"), Visibility = Visibility.Collapsed, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 8, 0, 0) };
@@ -368,12 +459,13 @@ public sealed class DuplicatesPage : PageBase
         _pickOld.Click += (_, _) =>
         {
             foreach (var (_, items) in _shown)
-                for (var i = 0; i < items.Count; i++) items[i].box.IsChecked = i != 0; // sorted oldest first
+                for (var i = 0; i < items.Count; i++) items[i].box.IsChecked = i != 0 && items[i].box.IsEnabled; // sorted oldest first
             UpdateDelete();
         };
         g.Children.Add(_pickOld);
-        _delete.Click += (_, _) => DeleteSelected();
+        _delete.Click += async (_, _) => await DeleteSelected();
         g.Children.Add(_delete);
+        g.Children.Add(_recycleStatus);
         gCard.Margin = new Thickness(8);
         gCard.Visibility = Visibility.Collapsed; // appears once a search has finished
         _groupsCard = gCard;
@@ -391,11 +483,13 @@ public sealed class DuplicatesPage : PageBase
         }
     }
 
-    private void Scan(string path)
+    private void Scan(string path, bool keepRecycleStatus = false)
     {
+        if (!keepRecycleStatus) _recycleStatus.Visibility = Visibility.Collapsed;
         _cts?.Cancel();
         _cts = new CancellationTokenSource();
-        var token = _cts.Token;
+        var scan = _cts;
+        var token = scan.Token;
         _root = path;
         _groups.Children.Clear();
         _shown.Clear();
@@ -408,12 +502,16 @@ public sealed class DuplicatesPage : PageBase
             try
             {
                 var found = FileTools.FindDuplicates([path], min, token);
-                Dispatcher.BeginInvoke(() => Show(found));
+                Dispatcher.BeginInvoke(() =>
+                {
+                    if (scan == _cts && !token.IsCancellationRequested) Show(found);
+                });
             }
             catch (OperationCanceledException)
             {
                 Dispatcher.BeginInvoke(() =>
                 {
+                    if (scan != _cts) return;
                     Mo.Say(_status, L.T("متوقف شد.", "Stopped."));
                     _cancel.Visibility = Visibility.Collapsed;
                 });
@@ -423,6 +521,7 @@ public sealed class DuplicatesPage : PageBase
                 Log.Write($"duplicates: {ex.GetType().Name}: {ex.Message}");
                 Dispatcher.BeginInvoke(() =>
                 {
+                    if (scan != _cts) return;
                     Mo.Say(_status, L.T("جستجو انجام نشد.", "The search failed."));
                     _cancel.Visibility = Visibility.Collapsed;
                 });
@@ -463,7 +562,7 @@ public sealed class DuplicatesPage : PageBase
                 var check = new CheckBox { Style = St("Check") };
                 check.Click += (_, _) => UpdateDelete();
                 var row = ListUi.CheckItem(check, Path.GetFileName(file.Path), $"\u200E{Path.GetDirectoryName(file.Path)}\u200E{ListUi.Sep}{Fa.Date(file.Modified)}", FolderPick.ExplorerButton(file.Path), first);
-                row.ToolTip = file.Path;
+                RecycleFeedback.SetFileTooltip(row, check, file.Path);
                 content.Children.Add(row);
                 items.Add((file, check));
                 first = false;
@@ -486,14 +585,17 @@ public sealed class DuplicatesPage : PageBase
         var chosen = Selected();
         var all = AllTicked();
         Mo.Show(_delete, chosen.Count > 0, 8, 0.4);
-        _delete.IsEnabled = !all;
+        _delete.IsEnabled = !all && !_recycling;
         ListUi.SetContent(_delete, all ? "warn" : "trash", all
             ? L.T("از هر گروه باید یه نسخه بدون علامت بمونه", "Leave at least one copy unticked in every group")
             : L.T($"فرستادن {Fa.Digits(chosen.Count.ToString())} نسخه ({Fa.Bytes(chosen.Sum(f => f.Size))}) به سطل بازیافت", $"Send {chosen.Count} copies ({Fa.Bytes(chosen.Sum(f => f.Size))}) to the Recycle Bin"));
     }
 
-    private void DeleteSelected()
+    private async Task DeleteSelected()
     {
+        if (_recycling) return;
+        var root = _root;
+        var scan = _cts;
         if (AllTicked()) return;
         var chosen = Selected();
         if (chosen.Count == 0) return;
@@ -502,10 +604,29 @@ public sealed class DuplicatesPage : PageBase
                 L.T($"{Fa.Digits(chosen.Count.ToString())} نسخه‌ی تکراری ({Fa.Bytes(chosen.Sum(f => f.Size))}) به سطل بازیافت می‌ره. از هر گروه یه نسخه می‌مونه.",
                     $"{chosen.Count} duplicate copies ({Fa.Bytes(chosen.Sum(f => f.Size))}) go to the Recycle Bin. One copy of each group stays."),
                 L.T("بفرست", "Send"), danger: true, detail: preview)) return;
-        var results = Recycler.Send(chosen.Select(f => f.Path), [_root]);
-        Hub.Notify(L.T("سطل بازیافت", "Recycle Bin"),
-            L.T($"{Fa.Digits(results.Count(r => r.ok).ToString())} فایل فرستاده شد.", $"{results.Count(r => r.ok)} file(s) sent."));
-        Scan(_root);
+        if (scan != _cts) return;
+        _recycling = true;
+        UpdateDelete();
+        RecycleFeedback.Show(_recycleStatus, L.T("در حال انتقال به سطل بازیافت…", "Moving to the Recycle Bin…"));
+        try
+        {
+            var results = await Recycler.SendAsync(chosen.Select(f => f.Path), [root]);
+            if (scan == _cts)
+            {
+                var summary = RecycleFeedback.Report(_recycleStatus, results);
+                Hub.Notify(L.T("سطل بازیافت", "Recycle Bin"), summary);
+                if (results.Any(result => result.ok)) Scan(root, keepRecycleStatus: true);
+            }
+            else
+            {
+                Hub.Notify(L.T("سطل بازیافت", "Recycle Bin"), RecycleFeedback.Report(null, results));
+            }
+        }
+        finally
+        {
+            _recycling = false;
+            UpdateDelete();
+        }
     }
 }
 

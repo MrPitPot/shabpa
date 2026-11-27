@@ -77,11 +77,12 @@ public class PrivacyAndSafetyTests
         var sends = 0;
         for (var i = 0; i < lines.Length; i++)
         {
-            if (!lines[i].Contains("Recycler.Send(", StringComparison.Ordinal)) continue;
+            if (!lines[i].Contains("Recycler.SendAsync(", StringComparison.Ordinal)) continue;
             sends++;
             var before = string.Join("\n", lines[Math.Max(0, i - 25)..i]);
             Assert.Contains("ConfirmWindow.AskAlways", before);
-            Assert.Contains(", [_root]", lines[i]); // always limited to the folder that was scanned
+            Assert.Contains("var root = _root;", before);
+            Assert.Contains(", [root]", lines[i]); // always limited to the folder that was scanned
         }
         Assert.True(sends >= 2);
     }
@@ -91,7 +92,7 @@ public class PrivacyAndSafetyTests
     {
         foreach (var file in new[]
                  {
-                     "Core/Files.cs", "Core/Tasks.cs", "Core/Health.cs", "Core/Profiles.cs", "Core/SettingsBackup.cs", "Core/Microphone.cs", "Core/PowerPlan.cs", "Core/Winget.cs", "Core/Drivers.cs",
+                     "Core/Files.cs", "Core/WindowsRecycleBin.cs", "Core/Tasks.cs", "Core/Health.cs", "Core/Profiles.cs", "Core/SettingsBackup.cs", "Core/Microphone.cs", "Core/PowerPlan.cs", "Core/Winget.cs", "Core/Drivers.cs",
                      "Pages/FilesPage.cs", "Pages/TasksPage.cs", "Pages/HealthPage.cs", "Pages/ProfilesPage.cs", "Pages/MicrophonePage.cs", "Pages/UpdatesPage.cs",
                  })
         {
